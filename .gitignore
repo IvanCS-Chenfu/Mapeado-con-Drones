@@ -1,0 +1,64 @@
+# Build and runtime artifacts
+build/
+install/
+log/
+*.log
+*.out
+*.err
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Large/generated assets
+*.bag
+*.db
+*.sqlite
+*.tar
+*.gz
+*.zip
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# Compiled libraries and binaries
+*.so
+*.a
+*.o
+*.obj
+*.exe
+
+# ROS/colcon generated files
+colcon.meta
+
+# Grabaciones / datos pesados de pruebas
+codex/archivos_auxiliares/repeticiones/*.record
+
+# Vocabulario ORB-SLAM descomprimido (>100 MB)
+ORB_SLAM3/Vocabulary/ORBvoc.txt
+dron_individual/config/orbslam/vocabulary/ORBvoc.txt
+mi_tfg/config/orbslam/vocabulary/ORBvoc.txt
+simulacion_dron/config/orbslam/vocabulary/ORBvoc.txt
+
+# Cachés
+.pytest_cache/
+__pycache__/
+
+# Logs
+log/

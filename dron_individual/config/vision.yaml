@@ -1,0 +1,4 @@
+/**:
+  ros__parameters:
+    orbslam.activar: 'true'           # Necesario string ('false'/'true')
+    orbslam.estereo: 'true'           # Necesario string

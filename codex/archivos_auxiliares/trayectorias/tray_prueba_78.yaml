@@ -1,0 +1,45 @@
+name: prueba_78_grafo_base_3b
+description: "Validacion visual 3B: dos drones en fiducial 2, grafo sin aristas y RViz2 sin mapa global."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 240.0
+steps:
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 14.0
+
+  - name: ambos_drones_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 240.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 240.0
+
+  - name: observacion_visual_en_fiducial_2
+    type: wait
+    seconds: 30.0

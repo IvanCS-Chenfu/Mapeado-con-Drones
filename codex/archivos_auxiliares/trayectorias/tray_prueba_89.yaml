@@ -1,0 +1,8 @@
+name: prueba_89_replay_3d_anchor_activo
+description: "Replay 3D con anchor sintetico sobre el submapa activo (1,1)."
+namespace_base: dron
+action_name: AccionTrayectoria
+steps:
+  - name: espera_replay_y_grafo
+    type: wait
+    seconds: 30.0

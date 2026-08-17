@@ -1,0 +1,23 @@
+# entrada
+uint8 tipo_trayectoria     # 0: pol3. 1: veltrap. 2: elipse
+geometry_msgs/PoseStamped target_pose
+float32 tx      # Elipse: Rx
+float32 ty      # Elipse: Ry
+float32 tz      # Elipse: rot Rx
+float32 tyaw    # Elipse: tiempo_vuelta
+bool absoluto_x
+bool absoluto_y
+bool absoluto_z
+bool absoluto_yaw
+---
+# salida
+bool success
+float32 t_total
+---
+# Feedback
+float32 t_act
+# Para cada eje: [pos, vel, acc, jerk, ratio]  (5 elementos)
+std_msgs/Float64MultiArray x
+std_msgs/Float64MultiArray y
+std_msgs/Float64MultiArray z
+std_msgs/Float64MultiArray yaw

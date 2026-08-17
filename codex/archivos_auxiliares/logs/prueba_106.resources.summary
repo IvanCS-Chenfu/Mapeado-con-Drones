@@ -1,0 +1,26 @@
+samples=58
+duration_s=62
+min_mem_available_mib=465.5
+max_mem_used_mib=13369.2
+max_swap_used_mib=2047.9
+max_memory_psi_some_avg10=0.18
+max_memory_psi_full_avg10=0.18
+max_cpu_psi_some_avg10=7.86
+max_io_psi_full_avg10=0.18
+max_system_cpu_pct=58.25
+max_system_iowait_pct=1.39
+max_pswpin_delta_pages=1
+max_pswpout_delta_pages=0
+max_group_rss_mib=1651.5
+max_group_cpu_pct=587.00
+max_server_rss_mib=165.1
+max_orb_rss_mib=1131.7
+max_gazebo_rss_mib=70.2
+max_rviz_rss_mib=0.0
+max_web_rss_mib=0.0
+max_process_rss_mib=570.3
+max_process_comm=stereo
+max_external_process_rss_mib=2129.8
+max_external_process_comm=code
+guard_triggered=true
+reason=mem_available_below_512_mib elapsed_s=62 mem_available_kib=499888 memory_psi_full_avg10=0.18

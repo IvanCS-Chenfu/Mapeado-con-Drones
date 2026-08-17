@@ -1,0 +1,100 @@
+name: prueba_137_tres_drones_carga_real_3g
+description: "Tres drones anclan en fiducial 2 y avanzan en paralelo con snapshots 3G activos."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 240.0
+steps:
+  - name: espera_arranque_tracking_escalonado
+    type: wait
+    seconds: 14.0
+
+  - name: tres_drones_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-0.6, -9.0, 0.7]
+        yaw_deg: 90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.2]
+        yaw_deg: 90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 3
+        tipo_trayectoria: 0
+        target: [0.6, -9.0, 1.7]
+        yaw_deg: 90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: espera_anchors_y_snapshots
+    type: wait
+    seconds: 40.0
+
+  - name: tres_drones_avance_paralelo
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-8.6, -9.0, 0.7]
+        yaw_deg: 90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-8.0, -9.0, 1.2]
+        yaw_deg: 90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 3
+        tipo_trayectoria: 0
+        target: [-7.4, -9.0, 1.7]
+        yaw_deg: 90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: observacion_final_carga
+    type: wait
+    seconds: 25.0

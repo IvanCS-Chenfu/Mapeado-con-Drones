@@ -1,0 +1,79 @@
+# 00_summary - simulacion_dron
+
+Paquete de launch, escenarios y observabilidad Gazebo. Hasta 3P integra servidor,
+RViz2 y grafo web, y ofrece replay visible sin Gazebo ni GT live.
+
+## Launches
+
+```text
+launch/multi_dron.launch.py -> Gazebo + N drones + servidor + RViz2 + web
+launch/f3c_replay.launch.py -> replay raw 3C
+launch/f3d_replay.launch.py -> replay 3D con anchor sintetico
+launch/f3e_replay.launch.py -> replay raw + observaciones fiduciales
+launch/f3f_replay.launch.py -> replay 3F + RViz2 + web + apertura de pestaña
+launch/pipeline_flow_only.launch.py -> diagnostico web aislado
+```
+
+`multi_dron.launch.py` dispone de perfiles sin duplicar launches:
+
+- `launch_gazebo_gui=false`: usa `gzserver` sin `gzclient`;
+- `launch_mission_gui=false`: omite la GUI de mision;
+- `launch_sparse_global_rviz` y `launch_pipeline_flow_visualizer`: vistas
+  diagnosticas independientes;
+- `drone_start_stagger_sec=8.0`: arranque 0/8/16... s por defecto;
+- `orb_vocabulary_path`: L5 compacto por defecto, L6 seleccionable.
+
+El perfil visual completo se usa con dos drones. Para tres o mas drones y para
+fases dense se usa headless y se habilitan solo las vistas necesarias.
+
+## Observabilidad 3P
+
+- RViz2 muestra `/global_sparse_cloud` con `RGB8` y
+  `/global_keyframes` como frustums.
+- El grafo web tiene 23 nodos y 39 aristas. Ademas del flujo fiducial incluye
+  `CovisibilityDatabase`, `LoopDetector`, `LoopBoWIndex`,
+  `SubcloudLoopVerifier`, `LoopDecision`, `LoopAnchorConstraintStore` y
+  `FusedLandmarkManager` con salidas a covisibilidad, score y builder.
+- La arista `SecondaryWorker --retry / LOW--> SecondaryTaskQueue` representa
+  solo el nuevo intento real posterior a stale/rollback.
+- El flujo secundario conserva iluminacion progresiva por `task_id` desde
+  lifecycle `start` hasta `done`; las etapas ya no son pulsos independientes.
+- En desktop, principal, poses/anchors y loop/fusion ocupan tres bandas con
+  columnas ampliamente separadas; las rutas curvas evitan solapes en retornos
+  y diagonales largas. El layout movil vertical permanece independiente.
+- `pipeline_flow_browser.py` espera `/health=ready` y abre una sola pestaña
+  desde el propio launch; no necesita un comando manual de Codex.
+- Los launches limpian variables Snap/VS Code para RViz2 y evitan cargar
+  bibliotecas GTK incompatibles.
+
+## Validacion
+
+- contrato web 9/9;
+- live 98: intento funcional con bridge 11/18, conservado como no conseguido
+  por bloqueos y swap agotada antes de las optimizaciones;
+- replay 99: ejecución aislada sin Gazebo sobre 54 deltas;
+- live visual 133: escenario completo, dos anchors y minimo disponible 612.3
+  MiB sin PSI de memoria;
+- prueba 137: tres drones en movimiento, seis goals, tres anchors, 141 KFs
+  activos y minimo 878.8 MiB;
+- prueba 138: estado normal de dos drones restaurado con Gazebo GUI, RViz2 y
+  web, minimo 946.6 MiB y guarda inactiva.
+- live 148: intento fallido preservado; hard constraint por carrera de control
+  dejo mission gate activo hasta timeout;
+- replay 150: reproduce las 1239 entradas y confirma la correccion sin hard;
+- live 151: escenario fid2-fid1-fid2 completo y confirmado visualmente;
+- replay 153: backlog 3M-3O drenado por completo;
+- live 154: escenario secuencial A fiducial/B loop completo, 2 anchors con solo
+  1 hard y guard inactivo. RViz2 y web arrancaron; su lectura visual humana
+  queda pendiente del usuario.
+- prueba 160: escenario tipico completo, bridge 3P listo, servidor y cola
+  secundaria cierran limpios y guard de recursos inactiva; el usuario confirma
+  RViz2 y grafo web correctos.
+- prueba 161: mismo escenario completo, guard inactivo, contrato web 9/9 y
+  cierre de servidor/colas limpio. La revision visual humana de esta ejecucion
+  aun no se ha comunicado.
+
+La validacion automatica de topologia y lifecycle 3P esta conseguida.
+
+Detalle: `launches.md`, `scenario_runner_node.md` y
+`pipeline_flow_visualizer.md`.

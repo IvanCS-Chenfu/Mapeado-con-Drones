@@ -1,0 +1,8 @@
+name: prueba_152_replay_3m_3o
+description: "Replay determinista de rawdb_prueba_151 para covisibilidad, BoW, geometria y scheduling 3M-3O."
+namespace_base: dron
+action_name: AccionTrayectoria
+steps:
+  - name: espera_replay_y_vaciado_secundario
+    type: wait
+    seconds: 150.0

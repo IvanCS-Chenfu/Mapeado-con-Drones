@@ -1,0 +1,16 @@
+F3H-FID-TASK-ENQUEUE
+F3H-FID-REVALIDATE.*decision=ready
+F3K-ATOMIC-COMMIT
+F3M-DATABASE-UPDATE
+F3O-LOOP-DONE.*decision=no_candidates
+F3O-LOOP-DONE.*decision=geometry_rejected
+F3O-LOOP-DONE.*decision=deferred
+F3O-LOOP-DONE.*decision=fusion_candidate
+F3O-LOOP-DONE.*decision=optimization_evidence
+F3O-LOOP-DONE.*decision=anchor_proposed
+F3O-LOOP-DONE.*decision=stale
+F3O-LOOP-DONE.*decision=error
+F3O-RANSAC.*accepted=true
+F3C-BACKPRESSURE
+F3H-SECONDARY-SHUTDOWN
+F3E-FID-FINAL

@@ -1,0 +1,171 @@
+cmake_minimum_required(VERSION 3.8)
+project(orbslam3_multi)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(orbslam3_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(Eigen3 REQUIRED)
+
+add_library(${PROJECT_NAME} SHARED
+  src/fiducial_anchor_manager.cpp
+  src/fused_landmark_manager.cpp
+  src/global_map_builder.cpp
+  src/global_pose_store.cpp
+  src/landmark_score_manager.cpp
+  src/loop_detector.cpp
+  src/loop_decision_manager.cpp
+  src/loop_pair_attempt_database.cpp
+  src/optimization_debug_exporter.cpp
+  src/optimization_manager.cpp
+  src/pose_graph_problem_io.cpp
+  src/pose_graph_builder.cpp
+  src/covisibility_database.cpp
+  src/raw_map_database.cpp
+  src/subcloud_loop_verifier.cpp
+)
+
+target_include_directories(${PROJECT_NAME}
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+    ${EIGEN3_INCLUDE_DIR}
+)
+
+ament_target_dependencies(${PROJECT_NAME}
+  rclcpp
+  orbslam3_msgs
+  geometry_msgs
+  sensor_msgs
+)
+
+add_executable(test_opt_graph_offline
+  src/test_opt_graph_offline.cpp
+)
+
+target_link_libraries(test_opt_graph_offline
+  ${PROJECT_NAME}
+)
+
+target_include_directories(test_opt_graph_offline
+  PRIVATE
+    ${EIGEN3_INCLUDE_DIR}
+)
+
+add_executable(test_covisibility_database
+  src/test_covisibility_database.cpp
+)
+
+target_link_libraries(test_covisibility_database
+  ${PROJECT_NAME}
+)
+
+target_include_directories(test_covisibility_database
+  PRIVATE
+    ${EIGEN3_INCLUDE_DIR}
+)
+
+add_executable(test_global_pose_store_tail_anchor
+  src/test_global_pose_store_tail_anchor.cpp
+)
+
+target_link_libraries(test_global_pose_store_tail_anchor
+  ${PROJECT_NAME}
+)
+
+target_include_directories(test_global_pose_store_tail_anchor
+  PRIVATE
+    ${EIGEN3_INCLUDE_DIR}
+)
+
+add_executable(test_fused_landmark_manager
+  src/test_fused_landmark_manager.cpp
+)
+
+add_executable(test_loop_pair_attempt_database
+  src/test_loop_pair_attempt_database.cpp
+)
+
+add_executable(test_loop_optimization_task
+  src/test_loop_optimization_task.cpp
+)
+
+target_link_libraries(test_loop_pair_attempt_database
+  ${PROJECT_NAME}
+)
+
+target_link_libraries(test_loop_optimization_task
+  ${PROJECT_NAME}
+)
+
+target_link_libraries(test_fused_landmark_manager
+  ${PROJECT_NAME}
+)
+
+target_include_directories(test_fused_landmark_manager
+  PRIVATE
+    ${EIGEN3_INCLUDE_DIR}
+)
+
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
+install(
+  TARGETS ${PROJECT_NAME}
+  EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+install(
+  TARGETS test_opt_graph_offline
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  TARGETS test_covisibility_database
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  TARGETS test_global_pose_store_tail_anchor
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  TARGETS test_fused_landmark_manager
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  TARGETS test_loop_pair_attempt_database
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+  TARGETS test_loop_optimization_task
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
+
+ament_export_dependencies(
+  rclcpp
+  orbslam3_msgs
+  geometry_msgs
+  sensor_msgs
+  Eigen3
+)
+
+ament_package()

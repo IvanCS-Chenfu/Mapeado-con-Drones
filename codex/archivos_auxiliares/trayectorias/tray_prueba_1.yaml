@@ -1,0 +1,204 @@
+name: prueba_1o_subcloud_live_vuelta_opuesta
+description: "Fase 3O: dos drones rodean el edificio en sentidos opuestos e intercambian zonas ya visitadas por el otro; el servidor diagnostica candidatos BoW cancelados por covisibilidad, rechazados por geometria y aceptados con error de pose, sin fusionar ni optimizar loops."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: ambos_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: espera_kfs_iniciales
+    type: wait
+    seconds: 8.0
+
+  - name: esquinas_sur_salida_opuesta
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-10.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [10.0, -10.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: primer_lateral_oeste_este
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-10.0, 10.0, 1.0]
+        yaw_deg: 0.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [10.0, 10.0, 1.3]
+        yaw_deg: 180.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: intercambio_norte_zonas_visitadas
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [10.0, 10.0, 1.0]
+        yaw_deg: 180.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-10.0, 10.0, 1.3]
+        yaw_deg: 0.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: segundo_lateral_intercambiado
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [10.0, -10.0, 1.0]
+        yaw_deg: -90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-10.0, -10.0, 1.3]
+        yaw_deg: -90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: cierre_sur_intercambiado
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-10.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [10.0, -10.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: espera_detector_bow_y_snapshot
+    type: wait
+    seconds: 30.0

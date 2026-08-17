@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    dron.numero: 2
+    dron.namespace_base: "dron" 
+    dron.spawn_box: [-11.0, -8.0, -11.0, -8.0] # [x1, x2, y1, y2] en metros
+
+    world.activar: "house_1"     

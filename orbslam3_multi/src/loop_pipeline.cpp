@@ -1,0 +1,983 @@
+#include "orbslam3_multi/loop_pipeline.hpp"
+
+#include "orbslam3_multi/pose_geometry.hpp"
+
+#include <Eigen/SVD>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstring>
+#include <limits>
+#include <queue>
+#include <random>
+#include <unordered_set>
+
+namespace orbslam3_multi
+{
+namespace
+{
+
+RawSubmapId SubmapOf(const RawKeyFrameId & id)
+{
+  return {id.drone_id, id.map_epoch};
+}
+
+std::pair<RawKeyFrameId, RawKeyFrameId> CanonicalKeyFrames(
+  const RawKeyFrameId & first, const RawKeyFrameId & second)
+{
+  return second < first ? std::make_pair(second, first) : std::make_pair(first, second);
+}
+
+std::pair<RawSubmapId, RawSubmapId> CanonicalSubmaps(
+  const RawSubmapId & first, const RawSubmapId & second)
+{
+  return second < first ? std::make_pair(second, first) : std::make_pair(first, second);
+}
+
+bool SameSubmap(const RawKeyFrameId & first, const RawKeyFrameId & second)
+{
+  return first.drone_id == second.drone_id && first.map_epoch == second.map_epoch;
+}
+
+uint32_t Hamming(
+  const std::array<uint8_t, 32> & first,
+  const std::array<uint8_t, 32> & second)
+{
+  uint32_t result = 0;
+  for (size_t index = 0; index < first.size(); index += sizeof(uint64_t)) {
+    uint64_t first_block = 0;
+    uint64_t second_block = 0;
+    std::memcpy(&first_block, first.data() + index, sizeof(uint64_t));
+    std::memcpy(&second_block, second.data() + index, sizeof(uint64_t));
+    result += static_cast<uint32_t>(__builtin_popcountll(first_block ^ second_block));
+  }
+  return result;
+}
+
+bool DescriptorValid(const std::array<uint8_t, 32> & descriptor)
+{
+  return std::any_of(
+    descriptor.begin(), descriptor.end(), [](uint8_t value) {return value != 0U;});
+}
+
+struct CloudPoint
+{
+  RawMapPointId id;
+  Eigen::Vector3d position = Eigen::Vector3d::Zero();
+  std::array<uint8_t, 32> descriptor{};
+};
+
+std::vector<CloudPoint> BuildCloud(
+  const std::vector<RawKeyFrameId> & keyframe_ids,
+  const RawMapDatabase & raw_database)
+{
+  std::map<RawMapPointId, CloudPoint> unique;
+  for (const auto & keyframe_id : keyframe_ids) {
+    const auto keyframe = raw_database.GetKeyFrame(keyframe_id);
+    if (!keyframe.has_value() || keyframe->is_bad) {
+      continue;
+    }
+    for (const uint64_t local_mp_id : keyframe->mappoint_ids) {
+      RawMapPointId id{
+        keyframe_id.drone_id, keyframe_id.map_epoch, local_mp_id};
+      if (unique.count(id) != 0U) {
+        continue;
+      }
+      const auto raw = raw_database.GetMapPoint(id);
+      if (!raw.has_value() || raw->is_bad) {
+        continue;
+      }
+      CloudPoint point;
+      point.id = id;
+      point.position = Eigen::Vector3d(
+        raw->position.x, raw->position.y, raw->position.z);
+      point.descriptor = raw->descriptor.data;
+      if (point.position.allFinite() && DescriptorValid(point.descriptor)) {
+        unique.emplace(id, std::move(point));
+      }
+    }
+  }
+  std::vector<CloudPoint> result;
+  result.reserve(unique.size());
+  for (auto & [id, point] : unique) {
+    (void)id;
+    result.push_back(std::move(point));
+  }
+  return result;
+}
+
+void LimitCloud(std::vector<CloudPoint> * cloud, size_t limit)
+{
+  if (cloud == nullptr || limit == 0U || cloud->size() <= limit) {
+    return;
+  }
+  std::vector<CloudPoint> bounded;
+  bounded.reserve(limit);
+  for (size_t index = 0; index < limit; ++index) {
+    const size_t source = index * cloud->size() / limit;
+    bounded.push_back(std::move((*cloud)[source]));
+  }
+  *cloud = std::move(bounded);
+}
+
+struct Match
+{
+  size_t query = 0;
+  size_t candidate = 0;
+  uint32_t distance = 0;
+};
+
+std::vector<Match> MatchClouds(
+  const std::vector<CloudPoint> & query,
+  const std::vector<CloudPoint> & candidate,
+  uint32_t max_distance, double ratio)
+{
+  std::vector<size_t> reverse(candidate.size(), std::numeric_limits<size_t>::max());
+  std::vector<uint32_t> reverse_distance(candidate.size(), std::numeric_limits<uint32_t>::max());
+  for (size_t c = 0; c < candidate.size(); ++c) {
+    for (size_t q = 0; q < query.size(); ++q) {
+      const uint32_t distance = Hamming(candidate[c].descriptor, query[q].descriptor);
+      if (distance < reverse_distance[c]) {
+        reverse_distance[c] = distance;
+        reverse[c] = q;
+      }
+    }
+  }
+
+  std::vector<Match> matches;
+  std::set<size_t> used_candidates;
+  for (size_t q = 0; q < query.size(); ++q) {
+    size_t best = std::numeric_limits<size_t>::max();
+    uint32_t best_distance = std::numeric_limits<uint32_t>::max();
+    uint32_t second_distance = std::numeric_limits<uint32_t>::max();
+    for (size_t c = 0; c < candidate.size(); ++c) {
+      const uint32_t distance = Hamming(query[q].descriptor, candidate[c].descriptor);
+      if (distance < best_distance) {
+        second_distance = best_distance;
+        best_distance = distance;
+        best = c;
+      } else if (distance < second_distance) {
+        second_distance = distance;
+      }
+    }
+    const bool ratio_ok = second_distance == std::numeric_limits<uint32_t>::max() ||
+      static_cast<double>(best_distance) < ratio * static_cast<double>(second_distance);
+    if (best != std::numeric_limits<size_t>::max() && best_distance <= max_distance &&
+      ratio_ok && reverse[best] == q && used_candidates.insert(best).second)
+    {
+      matches.push_back({q, best, best_distance});
+    }
+  }
+  return matches;
+}
+
+bool EstimateRigid(
+  const std::vector<CloudPoint> & query,
+  const std::vector<CloudPoint> & candidate,
+  const std::vector<Match> & matches,
+  const std::vector<size_t> & indices,
+  Eigen::Isometry3d * candidate_T_query)
+{
+  if (candidate_T_query == nullptr || indices.size() < 3) {
+    return false;
+  }
+  Eigen::Vector3d query_center = Eigen::Vector3d::Zero();
+  Eigen::Vector3d candidate_center = Eigen::Vector3d::Zero();
+  for (const size_t index : indices) {
+    query_center += query[matches[index].query].position;
+    candidate_center += candidate[matches[index].candidate].position;
+  }
+  query_center /= static_cast<double>(indices.size());
+  candidate_center /= static_cast<double>(indices.size());
+  Eigen::Matrix3d covariance = Eigen::Matrix3d::Zero();
+  for (const size_t index : indices) {
+    covariance +=
+      (candidate[matches[index].candidate].position - candidate_center) *
+      (query[matches[index].query].position - query_center).transpose();
+  }
+  const Eigen::JacobiSVD<Eigen::Matrix3d> svd(
+    covariance, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  Eigen::Matrix3d correction = Eigen::Matrix3d::Identity();
+  correction(2, 2) = (svd.matrixU() * svd.matrixV().transpose()).determinant() < 0.0 ?
+    -1.0 : 1.0;
+  const Eigen::Matrix3d rotation =
+    svd.matrixU() * correction * svd.matrixV().transpose();
+  if (!rotation.allFinite() || rotation.determinant() < 0.99) {
+    return false;
+  }
+  *candidate_T_query = Eigen::Isometry3d::Identity();
+  candidate_T_query->linear() = rotation;
+  candidate_T_query->translation() = candidate_center - rotation * query_center;
+  return candidate_T_query->matrix().allFinite();
+}
+
+double TransformRotationDifference(
+  const Eigen::Isometry3d & first, const Eigen::Isometry3d & second)
+{
+  return RotationErrorRad(first, second);
+}
+
+bool Compatible(
+  const Eigen::Isometry3d & first, const Eigen::Isometry3d & second,
+  double translation, double rotation)
+{
+  return (first.translation() - second.translation()).norm() <= translation &&
+         TransformRotationDifference(first, second) <= rotation;
+}
+
+}  // namespace
+
+const char * ToString(LoopTaskDecisionKind decision)
+{
+  switch (decision) {
+    case LoopTaskDecisionKind::Stale: return "stale";
+    case LoopTaskDecisionKind::NoBow: return "no_bow";
+    case LoopTaskDecisionKind::NoCandidates: return "no_candidates";
+    case LoopTaskDecisionKind::GeometryRejected: return "geometry_rejected";
+    case LoopTaskDecisionKind::SameSubmapDiagnostic: return "same_submap_diagnostic";
+    case LoopTaskDecisionKind::WaitingIndependentSupport: return "waiting_independent_support";
+    case LoopTaskDecisionKind::Deferred: return "deferred";
+    case LoopTaskDecisionKind::FusionCandidate: return "fusion_candidate";
+    case LoopTaskDecisionKind::OptimizationEvidence: return "optimization_evidence";
+    case LoopTaskDecisionKind::OptimizationCommitted: return "optimization_committed";
+    case LoopTaskDecisionKind::ConstraintActivated: return "constraint_activated";
+    case LoopTaskDecisionKind::AnchorProposed: return "anchor_proposed";
+    case LoopTaskDecisionKind::Error: return "error";
+  }
+  return "unknown";
+}
+
+bool LoopPipeline::PairAttemptKey::operator<(const PairAttemptKey & other) const
+{
+  return std::tie(first, second, first_revision, second_revision) <
+         std::tie(other.first, other.second, other.first_revision, other.second_revision);
+}
+
+void LoopPipeline::Configure(const LoopPipelineConfig & config)
+{
+  config_ = config;
+}
+
+size_t LoopPipeline::IndexedKeyFrames() const
+{
+  return bow_entries_.size();
+}
+
+void LoopPipeline::UpsertBow(
+  const RawKeyFrameId & id, uint64_t revision,
+  const orbslam3_msgs::msg::OrbKeyFrame & keyframe)
+{
+  const auto previous = bow_entries_.find(id);
+  if (previous != bow_entries_.end()) {
+    for (const auto & [word, weight] : previous->second.words) {
+      (void)weight;
+      auto posting = inverted_index_.find(word);
+      if (posting != inverted_index_.end()) {
+        posting->second.erase(id);
+        if (posting->second.empty()) {
+          inverted_index_.erase(posting);
+        }
+      }
+    }
+  }
+  BowEntry entry;
+  entry.revision = revision;
+  const size_t count = std::min(keyframe.bow_word_ids.size(), keyframe.bow_word_values.size());
+  for (size_t index = 0; index < count; ++index) {
+    const double weight = keyframe.bow_word_values[index];
+    if (std::isfinite(weight) && weight > 0.0) {
+      entry.words[keyframe.bow_word_ids[index]] += weight;
+    }
+  }
+  double norm_squared = 0.0;
+  for (const auto & [word, weight] : entry.words) {
+    inverted_index_[word][id] = weight;
+    norm_squared += weight * weight;
+  }
+  entry.norm = std::sqrt(norm_squared);
+  bow_entries_[id] = std::move(entry);
+}
+
+std::vector<std::pair<RawKeyFrameId, double>> LoopPipeline::SearchBow(
+  const RawKeyFrameId & query_id) const
+{
+  const auto query = bow_entries_.find(query_id);
+  if (query == bow_entries_.end() || query->second.norm <= 0.0) {
+    return {};
+  }
+  std::map<RawKeyFrameId, double> dot_products;
+  for (const auto & [word, query_weight] : query->second.words) {
+    const auto posting = inverted_index_.find(word);
+    if (posting == inverted_index_.end()) {
+      continue;
+    }
+    for (const auto & [id, weight] : posting->second) {
+      if (!(id == query_id)) {
+        dot_products[id] += query_weight * weight;
+      }
+    }
+  }
+  std::vector<std::pair<RawKeyFrameId, double>> result;
+  for (const auto & [id, dot] : dot_products) {
+    const auto candidate = bow_entries_.find(id);
+    if (candidate == bow_entries_.end() || candidate->second.norm <= 0.0) {
+      continue;
+    }
+    const double score = dot / (query->second.norm * candidate->second.norm);
+    if (score >= config_.min_bow_score) {
+      result.emplace_back(id, score);
+    }
+  }
+  std::sort(
+    result.begin(), result.end(),
+    [](const auto & lhs, const auto & rhs) {
+      return lhs.second == rhs.second ? lhs.first < rhs.first : lhs.second > rhs.second;
+    });
+  if (result.size() > config_.max_bow_candidates) {
+    result.resize(config_.max_bow_candidates);
+  }
+  return result;
+}
+
+std::vector<LoopCandidateRegion> LoopPipeline::GroupRegions(
+  const LoopTask & task,
+  const std::vector<std::pair<RawKeyFrameId, double>> & candidates,
+  const GlobalPoseStore & pose_store,
+  const CovisibilityDatabase & covisibility_database) const
+{
+  std::vector<LoopCandidateRegion> regions;
+  std::set<RawKeyFrameId> assigned;
+  for (const auto & [seed, score] : candidates) {
+    if (assigned.count(seed) != 0U) {
+      continue;
+    }
+    LoopCandidateRegion region;
+    region.query_keyframe_id = task.query_keyframe_id;
+    region.seed_keyframe_id = seed;
+    region.bow_score = score;
+    region.rank = regions.size();
+    region.query_has_world_pose = pose_store.GetPose(task.query_keyframe_id).has_value();
+    region.candidate_has_world_pose = pose_store.GetPose(seed).has_value();
+    for (const auto & [candidate, ignored_score] : candidates) {
+      (void)ignored_score;
+      if (assigned.count(candidate) != 0U || !SameSubmap(seed, candidate)) {
+        continue;
+      }
+      const uint64_t gap = seed.local_kf_id > candidate.local_kf_id ?
+        seed.local_kf_id - candidate.local_kf_id : candidate.local_kf_id - seed.local_kf_id;
+      const auto edge = covisibility_database.GetEdge(seed, candidate);
+      if (candidate == seed || gap <= config_.temporal_window_radius ||
+        (edge.has_value() && edge->support >= config_.strong_covisibility_support))
+      {
+        region.member_keyframe_ids.push_back(candidate);
+        assigned.insert(candidate);
+      }
+    }
+    regions.push_back(std::move(region));
+    if (regions.size() >= config_.max_candidate_regions) {
+      break;
+    }
+  }
+  return regions;
+}
+
+LoopGeometryResult LoopPipeline::VerifyRegion(
+  const LoopTask & task, const LoopCandidateRegion & region,
+  const RawMapDatabase & raw_database,
+  const GlobalPoseStore & pose_store,
+  const CovisibilityDatabase & covisibility_database) const
+{
+  LoopGeometryResult result;
+  result.query_keyframe_id = task.query_keyframe_id;
+  result.candidate_keyframe_id = region.seed_keyframe_id;
+  result.query_submap_id = SubmapOf(task.query_keyframe_id);
+  result.candidate_submap_id = SubmapOf(region.seed_keyframe_id);
+  auto query_cloud = BuildCloud({task.query_keyframe_id}, raw_database);
+  LimitCloud(&query_cloud, config_.max_subcloud_points);
+  result.query_points = query_cloud.size();
+  result.query_cloud_ids.reserve(query_cloud.size());
+  for (const auto & point : query_cloud) {
+    result.query_cloud_ids.push_back(point.id);
+  }
+
+  std::set<RawKeyFrameId> candidate_ids(
+    region.member_keyframe_ids.begin(), region.member_keyframe_ids.end());
+  candidate_ids.insert(region.seed_keyframe_id);
+  for (const auto & edge : covisibility_database.GetNeighbors(
+      region.seed_keyframe_id, config_.strong_covisibility_support,
+      config_.max_candidate_window_keyframes))
+  {
+    candidate_ids.insert(edge.kf_a == region.seed_keyframe_id ? edge.kf_b : edge.kf_a);
+  }
+  const auto active = raw_database.GetActiveSubmapEntityIds(result.candidate_submap_id);
+  if (active.has_value()) {
+    for (const auto & id : active->keyframe_ids) {
+      const uint64_t gap = id.local_kf_id > region.seed_keyframe_id.local_kf_id ?
+        id.local_kf_id - region.seed_keyframe_id.local_kf_id :
+        region.seed_keyframe_id.local_kf_id - id.local_kf_id;
+      if (gap <= config_.temporal_window_radius) {
+        candidate_ids.insert(id);
+      }
+    }
+  }
+  std::vector<RawKeyFrameId> bounded(candidate_ids.begin(), candidate_ids.end());
+  if (bounded.size() > config_.max_candidate_window_keyframes) {
+    bounded.resize(config_.max_candidate_window_keyframes);
+  }
+  auto candidate_cloud = BuildCloud(bounded, raw_database);
+  LimitCloud(&candidate_cloud, config_.max_subcloud_points);
+  result.candidate_points = candidate_cloud.size();
+  result.candidate_cloud_ids.reserve(candidate_cloud.size());
+  for (const auto & point : candidate_cloud) {
+    result.candidate_cloud_ids.push_back(point.id);
+  }
+  if (query_cloud.size() < config_.min_query_mappoints ||
+    candidate_cloud.size() < config_.min_ransac_matches)
+  {
+    result.reason = "insufficient_subcloud_points";
+    return result;
+  }
+
+  const auto matches = MatchClouds(
+    query_cloud, candidate_cloud, config_.max_hamming_distance,
+    config_.descriptor_ratio);
+  result.matches = matches.size();
+  if (matches.size() < config_.min_ransac_matches) {
+    result.reason = "insufficient_descriptor_matches";
+    return result;
+  }
+
+  const uint64_t seed = task.query_keyframe_id.local_kf_id * 0x9e3779b97f4a7c15ULL ^
+    region.seed_keyframe_id.local_kf_id ^ task.revision.geometry_revision;
+  std::mt19937_64 random(seed);
+  std::vector<size_t> best_inliers;
+  Eigen::Isometry3d best_transform = Eigen::Isometry3d::Identity();
+  const size_t iterations = std::min(
+    config_.max_ransac_iterations,
+    std::max<size_t>(1, matches.size() * 8));
+  for (size_t iteration = 0; iteration < iterations; ++iteration) {
+    std::set<size_t> sample_set;
+    while (sample_set.size() < 3U) {
+      sample_set.insert(static_cast<size_t>(random() % matches.size()));
+    }
+    std::vector<size_t> sample(sample_set.begin(), sample_set.end());
+    Eigen::Isometry3d estimate;
+    if (!EstimateRigid(query_cloud, candidate_cloud, matches, sample, &estimate)) {
+      continue;
+    }
+    std::vector<size_t> inliers;
+    for (size_t index = 0; index < matches.size(); ++index) {
+      const double residual =
+        (estimate * query_cloud[matches[index].query].position -
+        candidate_cloud[matches[index].candidate].position).norm();
+      if (residual <= config_.ransac_inlier_threshold_m) {
+        inliers.push_back(index);
+      }
+    }
+    if (inliers.size() > best_inliers.size()) {
+      best_inliers = std::move(inliers);
+      best_transform = estimate;
+    }
+  }
+  if (best_inliers.size() < config_.min_ransac_inliers ||
+    !EstimateRigid(query_cloud, candidate_cloud, matches, best_inliers, &best_transform))
+  {
+    result.reason = "ransac_no_consensus";
+    return result;
+  }
+
+  const std::set<size_t> inlier_indices(best_inliers.begin(), best_inliers.end());
+  double residual_sum = 0.0;
+  result.match_evidence.reserve(matches.size());
+  for (size_t index = 0; index < matches.size(); ++index) {
+    const double residual =
+      (best_transform * query_cloud[matches[index].query].position -
+      candidate_cloud[matches[index].candidate].position).norm();
+    const bool inlier = inlier_indices.count(index) != 0U;
+    result.match_evidence.push_back(
+      {
+        query_cloud[matches[index].query].id,
+        candidate_cloud[matches[index].candidate].id,
+        matches[index].distance, residual, inlier,
+        !inlier && residual >= 2.0 * config_.ransac_inlier_threshold_m});
+    if (inlier) {
+      residual_sum += residual;
+      result.max_residual_m = std::max(result.max_residual_m, residual);
+      result.inlier_pairs.emplace_back(
+        query_cloud[matches[index].query].id,
+        candidate_cloud[matches[index].candidate].id);
+    }
+  }
+  result.inliers = best_inliers.size();
+  result.inlier_ratio = static_cast<double>(result.inliers) /
+    static_cast<double>(matches.size());
+  result.mean_residual_m = residual_sum / static_cast<double>(result.inliers);
+  result.candidate_local_T_query_local = best_transform;
+  result.accepted = result.inlier_ratio >= config_.min_inlier_ratio &&
+    result.mean_residual_m <= config_.max_mean_residual_m &&
+    result.max_residual_m <= config_.max_residual_m;
+  if (!result.accepted) {
+    result.reason = "geometry_threshold_rejected";
+    return result;
+  }
+
+  const auto query_anchor = pose_store.GetSubmapAnchorPose(result.query_submap_id);
+  const auto candidate_anchor = pose_store.GetSubmapAnchorPose(result.candidate_submap_id);
+  if (query_anchor.has_value() && candidate_anchor.has_value()) {
+    Eigen::Isometry3d world_T_query;
+    Eigen::Isometry3d world_T_candidate;
+    PoseToIsometry(*query_anchor, &world_T_query);
+    PoseToIsometry(*candidate_anchor, &world_T_candidate);
+    const Eigen::Isometry3d current = world_T_candidate.inverse() * world_T_query;
+    result.current_translation_error_m =
+      (current.translation() - best_transform.translation()).norm();
+    result.current_rotation_error_rad = RotationErrorRad(current, best_transform);
+    result.fusion_compatible =
+      result.current_translation_error_m <= config_.fusion_translation_threshold_m &&
+      result.current_rotation_error_rad <= config_.fusion_rotation_threshold_rad;
+  }
+  result.reason = "geometry_confirmed";
+  return result;
+}
+
+bool LoopPipeline::AddHypothesisEvidence(
+  const SubmapPair & pair, const Eigen::Isometry3d & first_T_second,
+  const HypothesisObservation & observation,
+  const LoopPipelineConfig & config, Hypothesis * accepted)
+{
+  auto & candidates = hypotheses_[pair];
+  auto found = std::find_if(
+    candidates.begin(), candidates.end(),
+    [&](const Hypothesis & hypothesis) {
+      return Compatible(
+        hypothesis.first_local_T_second_local, first_T_second,
+        config.hypothesis_translation_tolerance_m,
+        config.hypothesis_rotation_tolerance_rad);
+    });
+  if (found == candidates.end()) {
+    candidates.push_back({first_T_second, {observation}});
+    found = std::prev(candidates.end());
+  } else {
+    bool independent = true;
+    for (const auto & previous : found->observations) {
+      if (previous.query_keyframe_id == observation.query_keyframe_id) {
+        independent = false;
+        break;
+      }
+      if (SameSubmap(previous.query_keyframe_id, observation.query_keyframe_id)) {
+        Eigen::Isometry3d first_pose;
+        Eigen::Isometry3d second_pose;
+        if (!PoseToIsometry(previous.query_local_pose, &first_pose) ||
+          !PoseToIsometry(observation.query_local_pose, &second_pose) ||
+          ((first_pose.translation() - second_pose.translation()).norm() <
+          config.independent_translation_m &&
+          std::abs(NormalizeAngle(
+            YawFromRotation(first_pose.linear()) -
+            YawFromRotation(second_pose.linear()))) < config.independent_yaw_rad))
+        {
+          independent = false;
+          break;
+        }
+      }
+    }
+    if (independent) {
+      found->observations.push_back(observation);
+    }
+  }
+
+  size_t second_support = 0;
+  for (const auto & hypothesis : candidates) {
+    if (&hypothesis != &*found) {
+      second_support = std::max(second_support, hypothesis.observations.size());
+    }
+  }
+  const bool enough = found->observations.size() >= config.hypothesis_min_support &&
+    (second_support == 0U ||
+    found->observations.size() >= second_support + config.ambiguity_margin);
+  if (enough && accepted != nullptr) {
+    *accepted = *found;
+  }
+  return enough;
+}
+
+std::vector<LoopAnchorBatchEntry> LoopPipeline::BuildAnchorCascade(
+  uint64_t task_id, const RawMapDatabase & raw_database,
+  const GlobalPoseStore & pose_store) const
+{
+  (void)task_id;
+  std::map<RawSubmapId, std::vector<const Constraint *>> adjacency;
+  for (const auto & [pair, constraint] : active_constraints_) {
+    (void)pair;
+    adjacency[constraint.first].push_back(&constraint);
+    adjacency[constraint.second].push_back(&constraint);
+  }
+
+  std::map<RawSubmapId, Eigen::Isometry3d> world_anchors;
+  std::map<RawSubmapId, RawSubmapId> traversal_parent;
+  std::map<RawSubmapId, const Constraint *> traversal_constraint;
+  std::queue<RawSubmapId> pending;
+  for (const auto & [submap, edges] : adjacency) {
+    (void)edges;
+    const auto pose = pose_store.GetSubmapAnchorPose(submap);
+    Eigen::Isometry3d transform;
+    if (pose.has_value() && PoseToIsometry(*pose, &transform)) {
+      world_anchors.emplace(submap, transform);
+      pending.push(submap);
+    }
+  }
+  while (!pending.empty()) {
+    const RawSubmapId current = pending.front();
+    pending.pop();
+    for (const auto * constraint : adjacency[current]) {
+      const bool from_first = current == constraint->first;
+      const RawSubmapId next = from_first ? constraint->second : constraint->first;
+      const Eigen::Isometry3d world_T_next = from_first ?
+        world_anchors.at(current) * constraint->first_local_T_second_local :
+        world_anchors.at(current) * constraint->first_local_T_second_local.inverse();
+      const auto existing = world_anchors.find(next);
+      if (existing == world_anchors.end()) {
+        world_anchors.emplace(next, world_T_next);
+        traversal_parent[next] = current;
+        traversal_constraint[next] = constraint;
+        pending.push(next);
+      } else if (!Compatible(
+          existing->second, world_T_next,
+          config_.hypothesis_translation_tolerance_m,
+          config_.hypothesis_rotation_tolerance_rad))
+      {
+        return {};
+      }
+    }
+  }
+
+  std::vector<LoopAnchorBatchEntry> entries;
+  for (const auto & [submap, world_T_local] : world_anchors) {
+    if (pose_store.HasSubmapAnchor(submap)) {
+      continue;
+    }
+    const auto snapshot = raw_database.GetSubmapPoseSnapshot(submap);
+    if (!snapshot.has_value()) {
+      return {};
+    }
+    RawKeyFrameId control;
+    bool found_control = false;
+    for (const auto * constraint : adjacency[submap]) {
+      control = submap == constraint->first ?
+        constraint->first_control : constraint->second_control;
+      found_control = true;
+      break;
+    }
+    if (!found_control) {
+      return {};
+    }
+    LoopAnchorBatchEntry entry;
+    entry.snapshot = *snapshot;
+    entry.world_T_local = IsometryToPose(world_T_local);
+    entry.loop_control_keyframe_id = control;
+    const auto parent = traversal_parent.find(submap);
+    const auto parent_edge = traversal_constraint.find(submap);
+    if (parent != traversal_parent.end() && parent_edge != traversal_constraint.end()) {
+      entry.parent_submap_id = parent->second;
+      const auto * edge = parent_edge->second;
+      entry.parent_control_keyframe_id = parent->second == edge->first ?
+        edge->first_control : edge->second_control;
+    }
+    entries.push_back(std::move(entry));
+  }
+  return entries;
+}
+
+LoopTaskComputation LoopPipeline::Process(
+  const LoopTask & task, const RawMapDatabase & raw_database,
+  const GlobalPoseStore & pose_store,
+  const CovisibilityDatabase & covisibility_database)
+{
+  LoopTaskComputation result;
+  result.task = task;
+  const auto query_revision = raw_database.GetLoopSemanticRevision(
+    task.query_keyframe_id, config_.strong_covisibility_support,
+    config_.min_query_mappoints);
+  const auto query = raw_database.GetKeyFrame(task.query_keyframe_id);
+  if (!query_revision.has_value() || !query.has_value() || query->is_bad ||
+    query_revision->appearance_revision != task.revision.appearance_revision ||
+    query_revision->validation_revision != task.revision.validation_revision)
+  {
+    result.decision = LoopTaskDecisionKind::Stale;
+    result.reason = "query_revision_changed_or_inactive";
+    return result;
+  }
+  UpsertBow(task.query_keyframe_id, task.revision.appearance_revision, *query);
+  auto has_independent_support = [&](const LoopGeometryResult & geometry) {
+      const auto pair = CanonicalSubmaps(
+        geometry.query_submap_id, geometry.candidate_submap_id);
+      Eigen::Isometry3d first_T_second =
+        pair.first == geometry.candidate_submap_id ?
+        geometry.candidate_local_T_query_local :
+        geometry.candidate_local_T_query_local.inverse();
+      HypothesisObservation observation;
+      observation.query_keyframe_id = task.query_keyframe_id;
+      observation.query_local_pose = query->pose;
+      observation.child_control_keyframe_id = task.query_keyframe_id;
+      Hypothesis accepted;
+      return AddHypothesisEvidence(
+        pair, first_T_second, observation, config_, &accepted);
+    };
+  const auto query_world_pose = pose_store.GetPose(task.query_keyframe_id);
+  if (query_world_pose.has_value()) {
+    Eigen::Isometry3d world_T_query_kf;
+    PoseToIsometry(query_world_pose->world_pose, &world_T_query_kf);
+    std::vector<std::pair<RawKeyFrameId, double>> nearby;
+    for (const auto & [candidate_id, entry] : bow_entries_) {
+      (void)entry;
+      if (candidate_id == task.query_keyframe_id ||
+        SameSubmap(candidate_id, task.query_keyframe_id))
+      {
+        continue;
+      }
+      const auto candidate_pose = pose_store.GetPose(candidate_id);
+      Eigen::Isometry3d world_T_candidate_kf;
+      if (!candidate_pose.has_value() ||
+        !PoseToIsometry(candidate_pose->world_pose, &world_T_candidate_kf))
+      {
+        continue;
+      }
+      const double distance =
+        (world_T_query_kf.translation() - world_T_candidate_kf.translation()).norm();
+      if (distance <= 4.0) {
+        nearby.emplace_back(candidate_id, distance);
+      }
+    }
+    std::sort(
+      nearby.begin(), nearby.end(),
+      [](const auto & lhs, const auto & rhs) {
+        return lhs.second == rhs.second ? lhs.first < rhs.first : lhs.second < rhs.second;
+      });
+    if (nearby.size() > config_.max_candidate_regions) {
+      nearby.resize(config_.max_candidate_regions);
+    }
+    result.used_fast_overlap = !nearby.empty();
+    bool fast_high_error = false;
+    bool fast_high_error_supported = false;
+    for (size_t index = 0; index < nearby.size(); ++index) {
+      LoopCandidateRegion region;
+      region.query_keyframe_id = task.query_keyframe_id;
+      region.seed_keyframe_id = nearby[index].first;
+      region.member_keyframe_ids = {nearby[index].first};
+      region.rank = index;
+      region.query_has_world_pose = true;
+      region.candidate_has_world_pose = true;
+      auto geometry = VerifyRegion(
+        task, region, raw_database, pose_store, covisibility_database);
+      if (geometry.accepted && geometry.fusion_compatible) {
+        result.regions.push_back(region);
+        result.fusion_pairs.insert(
+          result.fusion_pairs.end(), geometry.inlier_pairs.begin(),
+          geometry.inlier_pairs.end());
+        result.geometry_results.push_back(std::move(geometry));
+      } else if (geometry.accepted) {
+        fast_high_error = true;
+        fast_high_error_supported =
+          has_independent_support(geometry) || fast_high_error_supported;
+        result.regions.push_back(region);
+        result.geometry_results.push_back(std::move(geometry));
+      }
+    }
+    if (!result.fusion_pairs.empty()) {
+      std::sort(result.fusion_pairs.begin(), result.fusion_pairs.end());
+      result.fusion_pairs.erase(
+        std::unique(result.fusion_pairs.begin(), result.fusion_pairs.end()),
+        result.fusion_pairs.end());
+      result.decision = LoopTaskDecisionKind::FusionCandidate;
+      result.reason = "fast_global_overlap_fusion_candidate";
+      return result;
+    }
+    if (fast_high_error) {
+      result.decision = fast_high_error_supported ?
+        LoopTaskDecisionKind::OptimizationEvidence :
+        LoopTaskDecisionKind::WaitingIndependentSupport;
+      result.reason = fast_high_error_supported ?
+        "fast_global_overlap_high_error_supported" :
+        "fast_global_overlap_waiting_independent_support";
+      return result;
+    }
+    result.regions.clear();
+    result.geometry_results.clear();
+  }
+  if (query->bow_word_ids.empty() || query->bow_word_values.empty()) {
+    result.decision = LoopTaskDecisionKind::NoBow;
+    result.reason = "query_bow_empty";
+    return result;
+  }
+
+  auto candidates = SearchBow(task.query_keyframe_id);
+  candidates.erase(
+    std::remove_if(
+      candidates.begin(), candidates.end(),
+      [&](const auto & item) {
+        const auto raw = raw_database.GetKeyFrame(item.first);
+        const auto revision = raw_database.GetLoopSemanticRevision(
+          item.first, config_.strong_covisibility_support,
+          config_.min_query_mappoints);
+        const auto native_edge = covisibility_database.GetEdge(
+          task.query_keyframe_id, item.first);
+        if (!raw.has_value() || !revision.has_value() || raw->is_bad ||
+          raw->mappoint_ids.size() < config_.min_query_mappoints ||
+          (SameSubmap(task.query_keyframe_id, item.first) &&
+          native_edge.has_value() &&
+          native_edge->source == CovisibilityEdgeSource::Orbslam3Native &&
+          native_edge->support >= config_.strong_covisibility_support) ||
+          covisibility_database.HasSource(
+            task.query_keyframe_id, item.first,
+            CovisibilityEdgeSource::ServerLoopGeometric))
+        {
+          return true;
+        }
+        const auto canonical = CanonicalKeyFrames(task.query_keyframe_id, item.first);
+        const uint64_t first_revision = canonical.first == task.query_keyframe_id ?
+          query_revision->geometry_revision : revision->geometry_revision;
+        const uint64_t second_revision = canonical.second == item.first ?
+          revision->geometry_revision : query_revision->geometry_revision;
+        return geometry_rejections_.count(
+          {canonical.first, canonical.second, first_revision, second_revision}) != 0U;
+      }),
+    candidates.end());
+  result.bow_candidates = candidates.size();
+  if (candidates.empty()) {
+    result.decision = LoopTaskDecisionKind::NoCandidates;
+    result.reason = "no_bow_candidates_after_filters";
+    return result;
+  }
+
+  result.regions = GroupRegions(
+    task, candidates, pose_store, covisibility_database);
+  bool accepted_cross_submap_geometry = false;
+  bool same_submap_diagnostic = false;
+  bool optimization_evidence = false;
+  bool constraint_activated = false;
+  for (const auto & region : result.regions) {
+    auto geometry = VerifyRegion(
+      task, region, raw_database, pose_store, covisibility_database);
+    if (!geometry.accepted) {
+      const auto candidate_revision = raw_database.GetLoopSemanticRevision(
+        region.seed_keyframe_id, config_.strong_covisibility_support,
+        config_.min_query_mappoints);
+      if (candidate_revision.has_value()) {
+        const auto canonical = CanonicalKeyFrames(task.query_keyframe_id, region.seed_keyframe_id);
+        geometry_rejections_.insert(
+          {canonical.first, canonical.second,
+            canonical.first == task.query_keyframe_id ?
+            query_revision->geometry_revision : candidate_revision->geometry_revision,
+            canonical.second == region.seed_keyframe_id ?
+            candidate_revision->geometry_revision : query_revision->geometry_revision});
+      }
+      result.geometry_results.push_back(std::move(geometry));
+      continue;
+    }
+    if (geometry.query_submap_id == geometry.candidate_submap_id) {
+      same_submap_diagnostic = true;
+      const auto same_query_pose = pose_store.GetPose(geometry.query_keyframe_id);
+      const auto same_candidate_pose = pose_store.GetPose(geometry.candidate_keyframe_id);
+      if (!same_query_pose.has_value() || !same_query_pose->active ||
+        !same_candidate_pose.has_value() || !same_candidate_pose->active)
+      {
+        geometry.reason = "same_submap_unanchored_diagnostic";
+        result.geometry_results.push_back(std::move(geometry));
+        continue;
+      }
+      if (geometry.fusion_compatible) {
+        result.fusion_pairs.insert(
+          result.fusion_pairs.end(), geometry.inlier_pairs.begin(),
+          geometry.inlier_pairs.end());
+      } else if (has_independent_support(geometry)) {
+        optimization_evidence = true;
+      }
+      geometry.reason = geometry.fusion_compatible ?
+        "same_submap_fusion_geometry" : "same_submap_loop_geometry";
+      result.geometry_results.push_back(std::move(geometry));
+      continue;
+    }
+    accepted_cross_submap_geometry = true;
+    const auto query_anchor = pose_store.GetSubmapAnchorPose(geometry.query_submap_id);
+    const auto candidate_anchor = pose_store.GetSubmapAnchorPose(geometry.candidate_submap_id);
+    if (query_anchor.has_value() && candidate_anchor.has_value()) {
+      if (geometry.fusion_compatible) {
+        result.fusion_pairs.insert(
+          result.fusion_pairs.end(), geometry.inlier_pairs.begin(), geometry.inlier_pairs.end());
+      } else {
+        optimization_evidence =
+          has_independent_support(geometry) || optimization_evidence;
+      }
+      result.geometry_results.push_back(std::move(geometry));
+      continue;
+    }
+
+    const auto pair = CanonicalSubmaps(
+      geometry.query_submap_id, geometry.candidate_submap_id);
+    Eigen::Isometry3d first_T_second;
+    if (pair.first == geometry.candidate_submap_id) {
+      first_T_second = geometry.candidate_local_T_query_local;
+    } else {
+      first_T_second = geometry.candidate_local_T_query_local.inverse();
+    }
+    HypothesisObservation observation;
+    observation.query_keyframe_id = task.query_keyframe_id;
+    observation.query_local_pose = query->pose;
+    observation.child_control_keyframe_id =
+      !query_anchor.has_value() ? task.query_keyframe_id : region.seed_keyframe_id;
+    Hypothesis accepted;
+    if (AddHypothesisEvidence(pair, first_T_second, observation, config_, &accepted)) {
+      Constraint constraint;
+      constraint.first = pair.first;
+      constraint.second = pair.second;
+      constraint.first_local_T_second_local = accepted.first_local_T_second_local;
+      constraint.support = accepted.observations.size();
+      constraint.first_control = pair.first == geometry.query_submap_id ?
+        task.query_keyframe_id : region.seed_keyframe_id;
+      constraint.second_control = pair.second == geometry.query_submap_id ?
+        task.query_keyframe_id : region.seed_keyframe_id;
+      active_constraints_[pair] = constraint;
+      constraint_activated = true;
+    }
+    result.geometry_results.push_back(std::move(geometry));
+  }
+
+  if (!result.fusion_pairs.empty()) {
+    std::sort(result.fusion_pairs.begin(), result.fusion_pairs.end());
+    result.fusion_pairs.erase(
+      std::unique(result.fusion_pairs.begin(), result.fusion_pairs.end()),
+      result.fusion_pairs.end());
+    result.decision = LoopTaskDecisionKind::FusionCandidate;
+    result.reason = "fusion_dominates_task";
+    return result;
+  }
+  if (constraint_activated) {
+    result.anchor_entries = BuildAnchorCascade(task.task_id, raw_database, pose_store);
+    if (!result.anchor_entries.empty()) {
+      result.decision = LoopTaskDecisionKind::AnchorProposed;
+      result.reason = "coherent_component_has_world_authority";
+      return result;
+    }
+    result.decision = LoopTaskDecisionKind::ConstraintActivated;
+    result.reason = "unanchored_constraint_activated";
+    return result;
+  }
+  if (optimization_evidence) {
+    result.decision = LoopTaskDecisionKind::OptimizationEvidence;
+    result.reason = "anchored_geometry_has_high_error_for_3q";
+    return result;
+  }
+  if (accepted_cross_submap_geometry) {
+    result.decision = LoopTaskDecisionKind::WaitingIndependentSupport;
+    result.reason = "waiting_second_independent_query";
+  } else if (same_submap_diagnostic) {
+    result.decision = LoopTaskDecisionKind::SameSubmapDiagnostic;
+    result.reason = "same_submap_geometry_diagnostic_only";
+  } else {
+    result.decision = LoopTaskDecisionKind::GeometryRejected;
+    result.reason = "all_regions_rejected";
+  }
+  return result;
+}
+
+}  // namespace orbslam3_multi

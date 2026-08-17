@@ -1,0 +1,10 @@
+name: prueba_99_full_snapshot_3g_replay
+description: "Espera mientras el servidor reproduce el record delta-only generado por la prueba 98."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 60.0
+steps:
+  - name: espera_replay_delta_only
+    type: wait
+    seconds: 25.0

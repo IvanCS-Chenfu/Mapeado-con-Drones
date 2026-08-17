@@ -1,0 +1,10 @@
+name: prueba_1c_rawdb_replay
+description: "Fase 3C: espera breve para validar replay de rawdb_prueba_1.record desde el servidor sin depender de movimiento real."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 60.0
+steps:
+  - name: espera_replay_rawdb
+    type: wait
+    seconds: 20.0

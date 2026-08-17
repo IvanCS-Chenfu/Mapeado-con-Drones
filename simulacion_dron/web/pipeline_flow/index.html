@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flujo runtime Fase 3</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Flujo runtime Fase 3</h1>
+      <p id="last-detail">Preparando flujo runtime</p>
+    </div>
+    <div class="status-cluster">
+      <span id="connection-dot" class="status-dot"></span>
+      <span id="connection-label">Conectando</span>
+      <span class="metric"><b id="event-count">0</b> eventos</span>
+      <span class="metric"><b id="gap-count">0</b> gaps</span>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="graph-stage" aria-label="Diagrama del pipeline">
+      <div id="cy"></div>
+      <div id="flow-legend" class="flow-legend" aria-label="Leyenda de flujos"></div>
+      <div class="graph-tools" aria-label="Controles del diagrama">
+        <button id="zoom-in" title="Acercar" aria-label="Acercar">+</button>
+        <button id="zoom-out" title="Alejar" aria-label="Alejar">−</button>
+        <button id="fit" title="Ajustar diagrama" aria-label="Ajustar diagrama">⌂</button>
+      </div>
+      <div id="tooltip" role="tooltip"></div>
+    </section>
+    <aside class="activity" aria-label="Actividad reciente">
+      <div class="activity-heading">
+        <h2>Actividad</h2>
+        <span id="last-sequence">#0</span>
+      </div>
+      <ol id="event-list">
+        <li class="empty-state">Esperando eventos del pipeline</li>
+      </ol>
+    </aside>
+  </main>
+
+  <script src="vendor/cytoscape.min.js"></script>
+  <script src="graph_definition.js"></script>
+  <script>
+    function showGraphLoadError() {
+      document.body.dataset.pipelineFlowLoadError = 'true';
+      document.getElementById('connection-label').textContent = 'Error de carga';
+      document.getElementById('last-detail').textContent =
+        'No se pudo cargar el motor del grafo';
+    }
+
+    window.addEventListener('error', showGraphLoadError);
+    const graphReady = typeof window.cytoscape === 'function' && window.FLOW_GRAPH;
+    if (graphReady) {
+      const appScript = document.createElement('script');
+      appScript.src = `app.js?fresh=${Date.now()}`;
+      appScript.onerror = showGraphLoadError;
+      document.body.appendChild(appScript);
+    } else {
+      showGraphLoadError();
+    }
+  </script>
+</body>
+</html>

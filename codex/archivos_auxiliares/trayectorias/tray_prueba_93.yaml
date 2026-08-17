@@ -1,0 +1,76 @@
+name: prueba_93_global_map_builder_3f_live
+description: "Ambos drones anclan en fiducial 2 y avanzan a x=-8 para validar la vista sparse incremental."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 240.0
+steps:
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 14.0
+
+  - name: ambos_drones_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: espera_backfill_anchors
+    type: wait
+    seconds: 12.0
+
+  - name: ambos_drones_a_x_menos_8
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-8.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-8.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: observacion_final_grafo_y_rviz
+    type: wait
+    seconds: 30.0

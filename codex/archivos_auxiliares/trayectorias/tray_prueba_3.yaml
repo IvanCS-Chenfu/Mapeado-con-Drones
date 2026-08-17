@@ -1,0 +1,10 @@
+name: prueba_1o_subcloud_replay_reduccion
+description: "Fase 3O: espera para revisar en replay la reduccion de subnube candidata, matching refinado y rechazo o confirmacion geometrica de candidatos BoW."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 180.0
+steps:
+  - name: espera_replay_reduccion_subcloud
+    type: wait
+    seconds: 150.0

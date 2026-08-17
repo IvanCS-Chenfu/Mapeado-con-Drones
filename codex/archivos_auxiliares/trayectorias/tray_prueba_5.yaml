@@ -1,0 +1,104 @@
+name: prueba_1n_bow_live_un_dron_revisita
+description: "Fase 3N: un solo dron revisita zonas del edificio para comprobar candidatos BoW cancelados por covisibilidad ORB-SLAM3."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: fiducial_sur
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: esquina_suroeste
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-10.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: esquina_noroeste
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-10.0, 10.0, 1.0]
+        yaw_deg: 0.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: fiducial_norte
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, 9.0, 1.0]
+        yaw_deg: -90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: revisita_suroeste
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-10.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: espera_detector_bow
+    type: wait
+    seconds: 25.0

@@ -1,0 +1,109 @@
+name: prueba_139_regresion_visual_post_optimizacion
+description: "Dos drones visitan el fiducial 2, se desplazan 8 m a la izquierda y regresan para inspeccionar RViz2 y el grafo web."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 240.0
+steps:
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 14.0
+
+  - name: ambos_drones_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: observacion_en_fiducial_2
+    type: wait
+    seconds: 25.0
+
+  - name: ambos_drones_ocho_metros_a_la_izquierda
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-8.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 26.0
+        ty: 26.0
+        tz: 26.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-8.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 26.0
+        ty: 26.0
+        tz: 26.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: observacion_en_x_menos_8
+    type: wait
+    seconds: 25.0
+
+  - name: ambos_drones_regresan_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 26.0
+        ty: 26.0
+        tz: 26.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 26.0
+        ty: 26.0
+        tz: 26.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: observacion_final_rviz_y_grafo
+    type: wait
+    seconds: 60.0

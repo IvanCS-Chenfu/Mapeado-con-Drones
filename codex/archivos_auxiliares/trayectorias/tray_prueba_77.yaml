@@ -1,0 +1,10 @@
+name: prueba_77_servidor_vacio
+description: "Smoke test de 3B: mantener la simulacion iniciada sin enviar movimientos."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 30.0
+steps:
+  - name: espera_servidor_vacio
+    type: wait
+    seconds: 5.0

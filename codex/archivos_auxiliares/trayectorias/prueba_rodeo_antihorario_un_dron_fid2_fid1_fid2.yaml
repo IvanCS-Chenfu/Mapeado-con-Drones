@@ -1,0 +1,188 @@
+name: prueba_rodeo_antihorario_un_dron_fid2_fid1_fid2
+description: "Aislamiento 3K/3L: drone_1 queda parado y drone_2 rodea en antihorario fiducial 2 -> fiducial 1 -> fiducial 2."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: drone_2_al_fiducial_2
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: espera_anclaje_fiducial_2
+    type: wait
+    seconds: 8.0
+
+  - name: drone_2_esquina_sur_este
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [10.0, -10.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: drone_2_esquina_norte_este
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [10.0, 10.0, 1.3]
+        yaw_deg: 180.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: drone_2_al_fiducial_1
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, 9.0, 1.3]
+        yaw_deg: -90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: espera_anclaje_fiducial_1
+    type: wait
+    seconds: 8.0
+
+  - name: drone_2_barrido_fiducial_1_lateral_a
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [1.0, 9.0, 1.3]
+        yaw_deg: -90.0
+        tx: 8.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 120.0
+
+  - name: drone_2_barrido_fiducial_1_lateral_b
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-1.0, 9.0, 1.3]
+        yaw_deg: -90.0
+        tx: 8.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 120.0
+
+  - name: espera_keyframes_fiducial_1
+    type: wait
+    seconds: 8.0
+
+  - name: drone_2_esquina_norte_oeste
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-10.0, 10.0, 1.3]
+        yaw_deg: -90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: drone_2_esquina_sur_oeste
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-10.0, -10.0, 1.3]
+        yaw_deg: 0.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: drone_2_vuelve_al_fiducial_2
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: espera_snapshot_y_publicacion_final
+    type: wait
+    seconds: 30.0

@@ -1,0 +1,8 @@
+name: prueba_80_replay_3c
+description: "Replay del record 3C sin Gazebo, por la misma PrimaryQueue y PrimaryWorker."
+namespace_base: dron
+action_name: AccionTrayectoria
+steps:
+  - name: espera_replay_y_grafo
+    type: wait
+    seconds: 20.0

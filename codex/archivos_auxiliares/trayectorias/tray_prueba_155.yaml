@@ -1,0 +1,196 @@
+name: prueba_155_propagacion_loop_durante_optimizacion_padre
+description: "A ancla en fiducial 2 y cartografia el oeste; B se ancla por loop; A continua horario hasta fiducial 1 y su optimizacion debe propagar rigidamente B."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: dron_a_al_fiducial_2
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 35.0
+        ty: 35.0
+        tz: 35.0
+        tyaw: 10.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: espera_anchor_fiducial_a
+    type: wait
+    seconds: 8.0
+
+  - name: dron_a_esquina_suroeste
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-9.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 32.0
+        ty: 32.0
+        tz: 32.0
+        tyaw: 10.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: dron_a_fachada_oeste_centro
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-9.0, 0.0, 1.0]
+        yaw_deg: 0.0
+        tx: 32.0
+        ty: 32.0
+        tz: 32.0
+        tyaw: 10.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: dron_a_esquina_noroeste
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-9.0, 9.0, 1.0]
+        yaw_deg: 0.0
+        tx: 32.0
+        ty: 32.0
+        tz: 32.0
+        tyaw: 10.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: dron_a_espera_fuera_del_fiducial_1
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-7.0, 9.0, 1.0]
+        yaw_deg: 0.0
+        tx: 20.0
+        ty: 20.0
+        tz: 20.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: espera_mapa_a_en_bases
+    type: wait
+    seconds: 15.0
+
+  - name: dron_b_fachada_oeste_norte_sin_fiducial
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-9.0, 3.0, 1.3]
+        yaw_deg: 0.0
+        tx: 38.0
+        ty: 38.0
+        tz: 38.0
+        tyaw: 10.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: dron_b_esquina_noroeste
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-9.0, 9.0, 1.3]
+        yaw_deg: 0.0
+        tx: 26.0
+        ty: 26.0
+        tz: 26.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: espera_anchor_loop_b_y_drenaje
+    type: wait
+    seconds: 45.0
+
+  - name: dron_a_horario_al_fiducial_1
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, 9.0, 1.0]
+        yaw_deg: -90.0
+        tx: 32.0
+        ty: 32.0
+        tz: 32.0
+        tyaw: 10.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: barrido_fiducial_1_a
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-1.0, 9.0, 1.0]
+        yaw_deg: -90.0
+        tx: 8.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: barrido_fiducial_1_b
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [1.0, 9.0, 1.0]
+        yaw_deg: -90.0
+        tx: 8.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: espera_optimizacion_propagacion_y_publicacion
+    type: wait
+    seconds: 60.0

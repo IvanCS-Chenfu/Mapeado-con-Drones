@@ -1,0 +1,10 @@
+name: prueba_1o_subcloud_replay_dataset
+description: "Fase 3O: espera para validar en replay que los candidatos BoW de rawdb_prueba_1.record pasan por verificacion geometrica de subnubes y quedan confirmados o rechazados sin aplicar decisiones."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 180.0
+steps:
+  - name: espera_replay_rawdb_subcloud
+    type: wait
+    seconds: 150.0

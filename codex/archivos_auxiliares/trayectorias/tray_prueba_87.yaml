@@ -1,0 +1,8 @@
+name: prueba_87_replay_3d
+description: "Replay 3D con anchor sintetico, backend incremental y grafo 7/6."
+namespace_base: dron
+action_name: AccionTrayectoria
+steps:
+  - name: espera_replay_y_grafo
+    type: wait
+    seconds: 30.0
