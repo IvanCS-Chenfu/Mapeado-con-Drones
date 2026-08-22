@@ -2,7 +2,7 @@
 
 ## Estado activo
 
-Servidor ROS 2 reconstruido hasta 3P. Mantiene dos workers independientes:
+Servidor ROS 2 reconstruido hasta 3S. Mantiene dos workers independientes:
 
 ```text
 wrapper -> PrimaryQueue FIFO -> PrimaryWorker -> SparseGlobalBackend -> ROS
@@ -20,9 +20,11 @@ como MAXIMA/MEDIA/BAJA, FIFO por carril y un unico worker no preemptivo. Los
 tres payloads reales son `FiducialOptimizationTask`, `DatabaseUpdateTask` y
 `LoopTask`.
 
-El backpressure es OR de cola principal alta, cola secundaria >=64,
-optimizacion activa o fallo bloqueante. Libera a <=16 secundarios, principal en
-low y sin optimizacion. Un goal activo no se cancela; el siguiente espera.
+El backpressure es OR de cola principal alta, pendientes secundarios criticos
+>=64, optimizacion activa o fallo bloqueante. Libera a <=16 criticos, principal
+en low y sin optimizacion. Los `FusionRefresh` son mantenimiento observable y
+no cierran por si solos el gate. Un goal activo no se cancela; el siguiente
+espera.
 
 Live asigna `fiducial_visit_id` al entrar en el radio. Replay v3 usa el valor
 persistido; v1/v2 lo infiere por submapa, fiducial y timestamp ordenado. El
@@ -35,8 +37,8 @@ amplios por `map_epoch` mediante `SubmapColor`.
 
 Tras cada commit raw, el principal encola trabajo secundario sin esperarlo. Una
 tarea MEDIA aplica covisibilidad y encola las BAJAS causales; cada BAJA abarca
-BoW, geometria, decision y, si el error es bajo, fusion 3P. Un anchor loop o un
-commit de fusion solo marca dirty: el siguiente principal actualiza y publica.
+BoW, geometria, decision, fusion 3P o grafo/solver/commit 3Q y fusion posterior.
+Un anchor/commit solo marca dirty: el siguiente principal publica.
 
 `SecondaryWorkerLoop()` contiene una barrera de excepciones por tarea. Una
 excepcion inesperada se registra como `[F3H-SECONDARY-EXCEPTION]`, completa la
@@ -51,6 +53,24 @@ Un intento de fusion stale o con rollback termina su lifecycle y se completa
 antes de encolar una BAJA fresca para el mismo KF. Este retry puede atravesar
 el ledger completado, pero no la deduplicacion pendiente/activa; no tiene
 limite fijo y queda gobernado por coalescencia y backpressure.
+
+Tras un commit loop o fiducial, todos los KFs movidos se encolan como
+`FusionRefresh`. Conservan BoW, geometria, fusion y score, pero no pueden
+iniciar otra optimizacion. Las BAJAS nacidas de delta/snapshot son `Full`; si
+ambas coalescen, `Full` prevalece. El intent efectivo aparece en dequeue y en
+`[F3Q-OPT-START]`. Los KFs movidos se agrupan por region y cada refresh limita
+sus candidatos por proximidad de subnubes world.
+
+Las hipotesis lejanas cuyos dos extremos pertenecen a regiones protegidas por
+fiducial/corredor se rechazan antes del grafo con umbral 5 m/20 grados. Un
+ledger regional revisionado extiende el rechazo a KFs vecinos equivalentes sin
+impedir la optimizacion asimetrica cuando solo un extremo es fiable.
+
+3S configura score geometrico raw y bonus fused, emite telemetria live cada 25
+arrivals y conserva `score/rgb` rojo-amarillo-verde en la nube completa. La
+visibilidad sparse solo diagnostica; oclusion numerica queda para Fase 8.
+Los defaults de distancia dejan banda neutra 1-5 m con baseline `0.06 m`;
+prueba 194 cierra colas en cero con 99 near, 11.433 far y media `0.2596`.
 
 Componentes: `global_map_server.md`, `primary_queue.md`,
 `secondary_queue.md`, `ground_truth_buffer.md` y `launches.md`.
@@ -87,3 +107,13 @@ publishers:    /global_mapping/backpressure_active
 - prueba 161: 484 principales y 1162 secundarias, `pending=0`, `hard_failed=0`,
   19/19 retries encolados e iniciados, ocho commits de fusion y cuatro commits
   fiduciales completos; recursos y cierre correctos.
+- prueba 175: runner/tool correctos, ocho lifecycle 3Q completos, un stale
+  reintentado, cola final cero, cero fallos duros, servidor RSS maximo
+  146.4 MiB y PSI de memoria cero.
+- prueba 187: tres commits, 16 refresh altos diferidos, 1047 tareas,
+  `pending=0` y cero hard failures;
+- prueba 188: scenario/tool correctos, nueve commits loop `Full`, ocho
+  fiduciales, dos anchors loop y cero hard failures. Tras el drenaje quedan
+  refresh/fusiones descendiendo 323 -> 310, sin `blocking_failure`;
+- recursos 188: servidor RSS maximo 423.4 MiB, grupo 2014.6 MiB, PSI memoria
+  cero y guarda inactiva.

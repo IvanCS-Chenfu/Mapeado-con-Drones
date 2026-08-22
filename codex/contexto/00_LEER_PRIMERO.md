@@ -39,11 +39,10 @@ La documentación extensa sigue existiendo, pero no debe abrirse por defecto.
 
 ```text
 Fase 3 — Mapa sparse global multi-dron
-3B — CONSEGUIDA: runtime vacío y grafo base confirmados en prueba 78.
-3C — CONSEGUIDA; 3D — PARCIAL pendiente de confirmación visual; 3E-3U/3W — REHACER; 3V-3X pendientes.
+3B-3P y 3S-3W — CONSEGUIDAS; 3Q — A REVISAR y aceptada para continuar.
+3X — pendiente; siguiente punto de preparacion.
 Fase 2 — separación de paquetes queda pendiente para después del cierre de Fase 3.
-Punto de reentrada — incorporar la observación visual del usuario sobre prueba
-88 y decidir el cierre definitivo de 3D.
+Punto de reentrada 3Q — leer obligatoriamente su historial antes de modificarla.
 ```
 
 ## Reglas rápidas

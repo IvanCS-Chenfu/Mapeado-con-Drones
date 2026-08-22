@@ -187,6 +187,49 @@ TEST(GlobalPoseStore, CommitsLoopOptimizedSubmapsAsOneRevision)
   EXPECT_EQ(store.GetPose({2, 1, 1})->world_pose.position.y, second_before.position.y);
 }
 
+TEST(GlobalPoseStore, CommitsFiducialMultiSubmapBatchAndMarksTargetHard)
+{
+  GlobalPoseStore store;
+  for (uint32_t drone = 1; drone <= 2; ++drone) {
+    RawSubmapPoseSnapshot snapshot;
+    snapshot.submap_id = {drone, 3};
+    snapshot.submap_revision = 1U;
+    snapshot.keyframes = {
+      {{drone, 3, 0}, 1U, MakePose(0.0), true},
+      {{drone, 3, 1}, 1U, MakePose(1.0), true}};
+    ASSERT_EQ(
+      store.CommitAnchor(snapshot, MakePose(0.0, drone), drone).status,
+      PoseCommitStatus::Applied);
+  }
+  std::vector<orbslam3_multi::AcceptedSubmapPoseBatch> batches;
+  for (uint32_t drone = 1; drone <= 2; ++drone) {
+    const auto first = store.GetPose({drone, 3, 0});
+    const auto second = store.GetPose({drone, 3, 1});
+    ASSERT_TRUE(first.has_value());
+    ASSERT_TRUE(second.has_value());
+    orbslam3_multi::AcceptedSubmapPoseBatch batch;
+    batch.submap_id = {drone, 3};
+    batch.continuation_control = RawKeyFrameId{drone, 3, 1};
+    batch.updates = {
+      {{drone, 3, 0}, first->world_pose, 1U, first->pose_revision, false},
+      {{drone, 3, 1}, MakePose(1.0, 2.0), 1U, second->pose_revision, drone == 2U}};
+    batches.push_back(std::move(batch));
+  }
+
+  const auto result = store.CommitAcceptedPoseBatch(
+    batches, PoseSourceKind::FiducialOptimized, 90U);
+  ASSERT_EQ(result.status, PoseCommitStatus::Applied);
+  ASSERT_EQ(result.submap_changes.size(), 2U);
+  EXPECT_TRUE(store.GetPose({2, 3, 1})->hard_fiducial);
+  EXPECT_EQ(
+    store.GetPose({2, 3, 1})->source_kind,
+    PoseSourceKind::FiducialAccepted);
+  EXPECT_FALSE(store.GetPose({1, 3, 1})->hard_fiducial);
+  EXPECT_EQ(
+    store.GetPose({1, 3, 1})->source_kind,
+    PoseSourceKind::FiducialOptimized);
+}
+
 TEST(SparseGlobalBackend, RoutesOnlyPoseRelevantKeyFrameChanges)
 {
   SparseGlobalBackend backend;
@@ -332,6 +375,17 @@ TEST(SparseGlobalBackend, FiducialOptimizationCommitsWindowAndLateTailAtomically
   EXPECT_TRUE(backend.GetGlobalPose({1, 7, 9})->hard_fiducial);
   EXPECT_NEAR(backend.GetGlobalPose({1, 7, 11})->world_pose.position.y, 3.0, 1e-9);
 
+  orbslam3_multi::FiducialOptimizationTask obsolete;
+  obsolete.submap_id = {1, 7};
+  obsolete.keyframe_id = {1, 7, 5};
+  obsolete.target_world_T_kf = MakePose(5.0, -5.0);
+  const auto obsolete_revalidation = backend.RevalidateFiducialTask(obsolete);
+  EXPECT_EQ(
+    obsolete_revalidation.decision,
+    orbslam3_multi::FiducialTaskDecision::Stale);
+  EXPECT_EQ(
+    obsolete_revalidation.reason, "target_not_newer_than_current_control");
+
   auto future = MakeMap(1, 7);
   for (uint64_t id = 12; id < 14; ++id) {
     auto & keyframe = future->keyframes.emplace_back();
@@ -356,6 +410,18 @@ TEST(SparseGlobalBackend, FiducialOptimizationCommitsWindowAndLateTailAtomically
     coherent_result.status,
     orbslam3_multi::FiducialProcessStatus::RevisitWithinThreshold);
   EXPECT_FALSE(coherent_result.optimization_task.has_value());
+}
+
+TEST(SparseGlobalBackend, MissingFiducialTargetIsStaleAndNeverHardFailure)
+{
+  SparseGlobalBackend backend;
+  orbslam3_multi::FiducialOptimizationTask task;
+  task.task_id = 300U;
+  task.submap_id = {9, 4};
+  task.keyframe_id = {9, 4, 20};
+  const auto result = backend.RevalidateFiducialTask(task);
+  EXPECT_EQ(result.decision, orbslam3_multi::FiducialTaskDecision::Stale);
+  EXPECT_EQ(result.reason, "target_global_pose_missing");
 }
 
 TEST(GlobalPoseStore, ContinuationIsIsolatedAndDoesNotAdvanceWithoutControl)

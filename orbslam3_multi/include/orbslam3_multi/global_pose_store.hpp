@@ -24,8 +24,11 @@ public:
   bool HasLoopDependency(const RawSubmapId & submap_id) const;
   std::optional<LoopAnchorDependencySnapshot> GetLoopDependency(
     const RawSubmapId & submap_id) const;
+  std::vector<LoopAnchorDependencySnapshot> GetLoopDependencies() const;
   std::optional<RawKeyFrameId> GetContinuationControl(
     const RawSubmapId & submap_id) const;
+  std::optional<HardCorridorReference> GetHardCorridorReference(
+    const RawKeyFrameId & keyframe_id) const;
 
   PoseChangeSet CommitAnchor(
     const RawSubmapPoseSnapshot & snapshot,
@@ -57,6 +60,7 @@ public:
     uint64_t source_task_id);
 
 private:
+  void RefreshHardCorridorLocked(const RawSubmapId & submap_id);
   struct AnchorRecord
   {
     geometry_msgs::msg::Pose world_T_local;
@@ -92,6 +96,8 @@ private:
   std::map<RawSubmapId, ContinuationRecord> continuations_;
   std::map<RawSubmapId, LoopDependencyRecord> loop_dependencies_;
   std::map<RawKeyFrameId, GlobalPoseRecord> poses_;
+  std::map<RawKeyFrameId, HardCorridorReference> hard_corridor_references_;
+  uint64_t hard_corridor_revision_ = 0;
   uint64_t store_revision_ = 0;
   uint64_t commit_count_ = 0;
   uint64_t next_commit_id_ = 1;

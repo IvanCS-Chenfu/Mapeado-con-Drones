@@ -50,6 +50,13 @@ struct SecondaryEnqueueResult
   size_t pending = 0;
 };
 
+struct SecondaryPendingStats
+{
+  size_t total = 0;
+  size_t critical = 0;
+  size_t maintenance = 0;
+};
+
 class SecondaryTaskQueue
 {
 public:
@@ -122,6 +129,9 @@ public:
       if (queued.loop.has_value() &&
         SameLoopIdentity(*queued.loop, task))
       {
+        if (queued.loop->intent == orbslam3_multi::LoopTaskIntent::Full) {
+          task.intent = orbslam3_multi::LoopTaskIntent::Full;
+        }
         pending_loops_.erase(KeyFor(*queued.loop));
         task.enqueue_sequence = queued.enqueue_sequence;
         queued.task_id = task.task_id;
@@ -196,6 +206,24 @@ public:
   {
     std::lock_guard<std::mutex> lock(mutex_);
     return PendingLocked();
+  }
+
+  SecondaryPendingStats PendingStats() const
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    SecondaryPendingStats stats;
+    stats.total = PendingLocked();
+    stats.critical = max_queue_.size() + high_queue_.size();
+    for (const auto & task : normal_queue_) {
+      if (task.loop.has_value() &&
+        task.loop->intent == orbslam3_multi::LoopTaskIntent::FusionRefresh)
+      {
+        ++stats.maintenance;
+      } else {
+        ++stats.critical;
+      }
+    }
+    return stats;
   }
 
   void Close()

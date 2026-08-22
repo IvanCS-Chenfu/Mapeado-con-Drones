@@ -298,6 +298,20 @@ std::vector<CovisibilityEdge> CovisibilityDatabase::GetNeighbors(
   return result;
 }
 
+std::vector<CovisibilityEdge> CovisibilityDatabase::GetEdgesBySource(
+  CovisibilityEdgeSource source) const
+{
+  std::vector<CovisibilityEdge> result;
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (const auto & [key, edge] : edges_) {
+    (void)key;
+    if (edge.source == source) {
+      result.push_back(edge);
+    }
+  }
+  return result;
+}
+
 bool CovisibilityDatabase::HasSource(
   const RawKeyFrameId & first, const RawKeyFrameId & second,
   CovisibilityEdgeSource source) const

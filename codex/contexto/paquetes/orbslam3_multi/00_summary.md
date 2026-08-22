@@ -2,7 +2,7 @@
 
 ## Estado activo
 
-Backend reconstruido hasta 3P. Separa estado raw, poses world, score, tracks
+Backend reconstruido hasta 3S. Separa estado raw, poses world, score, tracks
 fusionados y vista publica; integra optimizacion fiducial, deteccion geometrica
 de loops y la rama de fusion de error bajo:
 
@@ -31,15 +31,15 @@ la optimizacion.
   forma breve, canonica, versionada e idempotente.
 - `LoopPipeline` mantiene un indice BoW derivado, agrupa hasta tres regiones y
   construye subnubes acotadas de hasta 320 puntos para matching ORB y RANSAC.
-- Una fusion compatible domina y 3P la compromete dentro de la misma
-  `LoopTask`; un error alto entre submapas ya anclados se reporta para 3Q y
-  todavia termina sin optimizar ni persistir evidencia.
+- Una region robusta de error alto con apoyo independiente domina sobre
+  regiones fusionables de la misma tarea. Entre una y tres regiones coherentes
+  alimentan `CurrentLoop`; una fusion mixta ya no oculta la optimizacion.
 - El commit 3P coordina tracks, covisibilidad geometrica server y score. Si
   cambia una dependencia, descarta el patch o revierte lo ya aplicado antes de
   devolver `STALE`; nunca modifica raw ni poses.
-- La visibilidad sparse simetrica procesa todas las contradicciones elegibles,
-  sin presupuesto temporal. Regiones y subnubes acotadas limitan el trabajo;
-  sus tiempos son telemetria, no criterio de rechazo.
+- La visibilidad sparse simetrica procesa contradicciones como diagnostico,
+  sin deltas negativos hasta Fase 8. Reutiliza un depth buffer por
+  direccion/region; sus tiempos son telemetria, no criterio de rechazo.
 - Dos queries independientes y coherentes pueden anclar un submapa no anclado.
   `CommitLoopAnchorBatch()` incluye todos sus KFs vigentes y el builder recibe
   solo IDs dirty.
@@ -53,28 +53,53 @@ la optimizacion.
   `min_query_mappoints` y presencia de covisibilidad fuerte; los MapPoints
   exactos siguen protegiendo stale y commit sin provocar reevaluaciones por
   cada refinamiento ORB.
+- `LoopTaskIntent::Full` conserva el flujo completo. Los reruns de KFs movidos
+  usan `FusionRefresh`: repiten BoW/RANSAC/fusion/score, pero una evidencia de
+  error alto se difiere para evitar optimizaciones recursivas. Los refresh se
+  agrupan por region temporal y filtran candidatos por proximidad AABB de sus
+  subnubes world; no hacen BoW global lejano.
 
-## Optimizacion fiducial
+## Optimizacion comun
 
 - `FiducialAnchorManager` crea el primer anchor o compara una revisita contra
   `target_world_T_kf` con umbrales 0.35 m, 0.35 rad y 0.25 rad de yaw.
 - Cada KF distinto con error alto produce una `FiducialOptimizationTask`; el
   dequeue vuelve a consultar pose y ultimo control.
-- `PoseGraphBuilder` construye una ventana temporal mono-submapa, selecciona
-  aproximadamente el 30 % de controles y protege un 20 % de vecindades de
-  extremos. Los intermedios inactivos se omiten sin reactivarlos.
-- `OptimizationManager` calcula una propuesta SE(3) privada con control inicial
-  fijo, target absoluto y correccion suave entre extremos.
-- `OptimizationValidator` acepta el resultado completo dentro de umbral,
-  permite refinamiento parcial seguro o emite fallo duro.
-- El commit atomico incluye ventana compatible, KFs llegados durante el solve
-  y tail posterior ya visible al commit. Solo los KFs realmente movidos se
-  notifican dirty.
+- `PoseGraphBuilder` construye ventanas loop y fiduciales multi-submapa con
+  controles base 30 %, hard fijos, temporal, covisibilidad sparse,
+  loops/fusiones server transitivas y dependencias blandas.
+- `OptimizationManager` resuelve ambos tipos sobre una propuesta privada; el
+  loop mueve conjuntamente ambos lados segun su relacion RANSAC.
+- `OptimizationValidator` exige cobertura de cada `CurrentLoop` y rechaza sin
+  escribir degradacion temporal, covisible, de fusiones previas, hard o de
+  corredores hard-hard.
+- El commit atomico rebasa sobre poses actuales, omite controles intermedios
+  caducados y puede conservar un extremo culled con raw estable como apoyo
+  virtual sin reactivarlo ni escribirlo. Exige dos controles activos por
+  submapa e incluye KFs tardios/tail compatibles. Solo los KFs activos movidos
+  se notifican dirty.
+- Antes del builder, las regiones respaldadas en ambos extremos por
+  fiduciales/corredores o vecinos temporal-covisibles protegidos se comparan
+  contra RANSAC. Una discrepancia mayor de 5 m/20 grados se rechaza y se guarda
+  en un ledger regional revisionado; con solo un extremo fiable se mantiene la
+  rama asimetrica. Los cambios de anchor/loop/fusion invalidan las entradas
+  afectadas.
 
 `GlobalPoseStore` conserva un `ContinuationRecord` atomico por submapa. Un
 commit full actualiza poses y continuidad; todo KF posterior al control mantiene
 su `raw_world_pose` bajo el anchor inicial y deriva `world_pose` desde el ultimo
 control aceptado. Un parcial no cambia esa frontera.
+
+## Scoring 3S
+
+- raw = base ORB por factores recuperables de distancia/aislamiento mas
+  `+0.04` por inlier;
+- indice voxel incremental, madurez minima y geometria neutra sin anchor;
+- fused = media de todos los raw miembros mas `0.04*N`;
+- cambios ORB/pose/vecindad se propagan solo a tracks afectados y builder dirty;
+- builder publica todos los puntos con score, sin filtro ni GT.
+- distancia 3S usa near fijo 1 m y far `83.333333*baseline`; con baseline
+  `0.06 m`, la banda neutra es 1-5 m y ambas caidas son cuadraticas acotadas.
 
 El primer KF observado de una visita reserva el control: si es coherente se
 acepta directamente y si requiere optimizacion pasa a control tras
@@ -108,13 +133,13 @@ Detalle: `fiducial_anchor_manager.md`, `pose_graph_builder.md`,
 
 ## Limites
 
-No contiene callbacks ROS, GT, colas ni publicacion. 3P no optimiza por loop,
-no filtra por score y no persiste evidencia de la rama de error alto; esos
-efectos quedan para 3Q/3S. El codigo de `legacy2` solo es referencia.
+No contiene callbacks ROS, GT, colas ni publicacion. No filtra la nube por
+score; ese consumo queda para fases posteriores. El codigo de `legacy2` solo
+es referencia.
 
 ## Validacion vigente
 
-- build final de `orbslam3_multi`, `orbslam3_server` y `simulacion_dron`: OK;
+- build final de `orbslam3_multi` y `orbslam3_server`: 2/2, exit 0;
 - CTests funcionales finales: `orbslam3_multi` 9/9, servidor 4/4 y contrato
   web 1/1;
 - replay 149: 7 tareas, 3 commits, 4 `STALE`, cero fallos;
@@ -139,3 +164,16 @@ efectos quedan para 3Q/3S. El codigo de `legacy2` solo es referencia.
   `56/56` regiones completas. Los retries frescos pertenecen al servidor, pero
   todos vuelven a ejecutar este pipeline y la cola termina vacia. Cuatro
   optimizaciones fiduciales full confirman que la ruta anterior no regresa.
+- prueba 175: ocho optimizaciones loop iniciadas/finalizadas, siete commits
+  iniciales y un stale reintentado hasta commit; ventanas de hasta tres
+  submapas, 174 KFs y 89 controles; cola final cero y sin hard failures.
+- optimizacion de visibilidad 175: 129/155 fusiones comprometidas, 10 stale,
+  prepare maximo 142.766 ms y proyecciones maximas 1848. En 174, antes del
+  cambio, fueron 63/696, 316 stale, 2001.86 ms y 70568 proyecciones.
+- prueba 187: tres optimizaciones/tres commits, 16 refresh altos diferidos,
+  1047 tareas, `pending=0` y cero hard failures;
+- prueba 188: recorrido doble completo, nueve commits loop, ocho fiduciales,
+  dos anchors loop, 17 rechazos estructurales sin escritura y 995 fusiones;
+  el error medio loop baja de 0.469849 a 0.089286 m;
+- tests finales: grafos/validacion 14/14, pipeline 9/9, cola 6/6, CTest
+  `orbslam3_multi` 9/9, servidor funcional 4/4 y web 1/1.

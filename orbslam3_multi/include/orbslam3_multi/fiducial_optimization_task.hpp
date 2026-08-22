@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace orbslam3_multi
 {
@@ -71,6 +72,7 @@ struct FiducialCommitResult
   size_t window_keyframes = 0;
   size_t late_window_keyframes = 0;
   size_t tail_keyframes = 0;
+  std::vector<RawKeyFrameId> rerun_keyframe_ids;
   std::string reason;
 };
 

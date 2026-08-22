@@ -4,73 +4,80 @@
 
 ```text
 Fase 3: ACTUAL - REIMPLEMENTACION EN CURSO
-3B-3O: CONSEGUIDAS
-3P: CONSEGUIDA; CIERRE FUNCIONAL Y VISUAL CONFIRMADO
-3Q: PREPARACION CERRADA; IMPLEMENTACION PENDIENTE DE AUTORIZACION
+3B-3P: CONSEGUIDAS
+3Q: A REVISAR; RESULTADO ACEPTADO PARA CONTINUAR
+3S: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
+3T: CONSEGUIDA; ARQUITECTURA AUDITADA Y RENDIMIENTO ACEPTADO
+3U: CONSEGUIDA; GRAFO WEB Y TRANSPORTE LIVE ACEPTADOS
+3V: CONSEGUIDA; REGRESION ACUMULADA ACEPTADA
+3W: CONSEGUIDA; RENDIMIENTO Y ROBUSTEZ ACEPTADOS
 ```
 
 ## Runtime activo
 
 ```text
-wrappers -> PrimaryQueue -> PrimaryWorker -> SparseGlobalBackend -> ROS
-fiducial MAX / database MEDIA / loop BAJA -> SecondaryTaskQueue
-  -> SecondaryWorker -> dominio -> pose/fusion/score/covis -> builder dirty
+wrapper -> PrimaryQueue -> PrimaryWorker -> SparseGlobalBackend -> ROS
+fiducial MAX / database MEDIA / loop BAJA -> SecondaryWorker
+raw score = ORB * distancia * aislamiento + inliers
+fused score = media(raw miembros) + 0.04 * N
 ```
 
-- una tarea secundaria activa no se interrumpe;
-- MEDIA actualiza covisibilidad y despues crea BAJAS;
-- BAJA incluye BoW, hasta tres regiones, subnubes, RANSAC y decision;
-- dos queries independientes pueden anclar un submapa sin fiducial;
-- 3P fusiona la rama de error bajo dentro de la misma LoopTask, reutiliza
-  RANSAC, aplica score/visibilidad y commit con rollback;
-- stale/rollback reencola una BAJA fresca despues de completar la anterior;
-  visibilidad procesa toda evidencia elegible sin presupuesto temporal;
-- el builder oculta miembros raw y publica un representante por track en el
-  siguiente principal; el runtime aun termina error alto como evidencia 3Q;
-- commits de anchor son atomicos y el siguiente principal hace backfill.
+- `LandmarkScoreManager` es autoridad unica de score raw/fused;
+- raw no anclado conserva factores neutros;
+- distancia y aislamiento son configurables, acotados y recuperables;
+- el indice voxel y la propagacion a tracks son incrementales;
+- visibilidad sparse solo diagnostica; oclusion numerica queda para Fase 8;
+- builder publica todos los puntos y servidor colorea rojo-amarillo-verde.
 
-## Siguiente cambio acordado
+## Evidencia 3S
 
-3Q generalizara 3I-3L a un grafo covisible comun para fiducial absoluto y loop
-relativo. Seleccionara el subgrafo minimo entre hard, tramos, dependencias soft
-y constraints previas; usara dos queries, controles base 30 % ampliables,
-accept completo y fusion 3P directa. No excluira loops inter/intra. La rama
-loop seguira siendo BAJA, pero activara `stop_drones` hasta finalizar toda la
-optimizacion/fusion.
+- build final 3/3; `orbslam3_multi` 9/9, servidor 4/4 y web 1/1;
+- prueba 192 `success=true`, pero cola primaria final 45 por reindexado de
+  geometria identica; se conserva como intento parcial;
+- prueba 193 `success=true`, 722 principales y 1288 secundarias, ambas colas
+  `pending=0`, `hard_failed=0`;
+- cierre: 60.524 scores, 24.969 anclados, 529 aislados, 1 near, 24.195 far,
+  min/media/max `0/0.1502/1`; 30.836 bad a cero;
+- 166 intentos fused reducidos, 77 commits, 12.672 positivos, 6.319
+  diagnosticos y cero negativos sparse;
+- publicaciones finales: 23.531 puntos con `score_field=true rgb_field=true`;
+- recursos estables: servidor RSS 269.5 MiB, grupo 1639.2 MiB, PSI memoria 0
+  y guarda inactiva.
+- prueba 194 `success=true`: principal/secundario pending 0, hard_failed 0;
+  24.977 anclados, 99 near, 11.433 far y media 0.2596;
+- frente a 193, far baja 24.195->11.433 y near sube 1->99 con anclados casi
+  identicos; publicacion final 23.564 puntos score/rgb;
+- 53 commits fused, cero negativos sparse; servidor RSS 248.0 MiB, grupo
+  1571.3 MiB, PSI memoria 0 y guarda inactiva.
 
-## Evidencia
+## Cierre y pendiente
 
-- build final 2/2; CTests funcionales 8/8 + 4/4;
-- prueba 157: optimizacion del padre propaga 78 KFs del hijo blando;
-- prueba 156: reanchor hard post-loop de 32 KFs y tres commits completos;
-- carga reducida de 9.20 tareas/KF a 2.18; 1060 secundarias, 89 stale,
-  `pending=0`, `hard_failed=0`, `max_active=1`;
-- 486 poses registradas, 439 activas, cuatro anchors y siete hard; siete
-  submapas raw, tres aun diferidos/no anclados al cierre;
-- servidor PSS max 204.8 MiB, MemAvailable min 6134.8 MiB, PSI full 0 y guard
-  inactivo;
-- el usuario confirma que RViz2 y el grafo web de la prueba 156 se ven bien;
-  3P/3Q validaran integralmente las ramas que 3O deja como evidencia.
-- prueba 159 conservada como fallo: `map::at` por track retirado dentro del
-  mismo patch; el `success=true` del runner no oculto el aborto del servidor.
-- prueba 160 corregida: 62 intentos/56 commits, cinco stale, un rollback,
-  1116 secundarias, `pending=0`, cero hard y servidor limpio;
-- builder consume tracks en 228/383 publicaciones; la final recalcula 87 con
-  `fusion_revision=56`;
-- tests 9/9 + 4/4 + 1/1; MemAvailable minimo 6568.8 MiB y guardia inactiva.
-- prueba 161: 27 intentos, ocho commits, 19 stale/rollback con 19 retries,
-  `56/56` regiones completas, cuatro commits fiduciales full y cola vacia;
-- prepare aceptado 633.852/1087.130 ms de media/maximo; pese al aumento de
-  coste, escenario, backpressure, recursos y drenaje terminan correctamente.
+RViz2 confirma que las revisitas elevan correctamente el score, pero tambien
+que la estructura valida queda demasiado baja y los puntos a menos de 1 m
+demasiado altos. El baseline actual es aproximadamente `0.06 m`: el limite
+lejano efectivo `40*baseline` queda en `2.4 m` y el cercano en `0.20 m`.
+La banda neutra 1-5 m esta validada tecnica y visualmente; el usuario confirma
+scores perfectos y concluye 3S. La mala optimizacion final del dron antihorario
+se atribuye a dos loops 3Q asimetricos/ambiguos antes del segundo fiducial hard:
+el principal corrige 3.950 m y mueve 359 KFs. El fiducial posterior queda dentro
+de umbral y no reoptimiza el interior. No se modifica codigo.
+
+3T y 3U quedan cerradas sin cambios funcionales adicionales. La auditoria
+confirma dos workers persistentes, ownership separado, commits revisionados y
+publicacion principal; el visualizador ya usa SSE live, `Last-Event-ID`,
+`state_reset`, drenaje por frame y lifecycle por `flow_id`. El contrato web pasa
+9/9 y el usuario acepta rendimiento y grafo.
+
+El usuario acepta 187/188/191/194 como regresion integral suficiente y da 3V
+por concluida. Tambien considera buenos el rendimiento y la robustez actuales y
+cierra 3W sin mas tuning. No hubo ejecucion A/B, stress o simulacion nueva; los
+picos ya documentados permanecen aceptados. El siguiente bloque pendiente es
+3X.
 
 ## Referencias
 
 ```text
-codex/contexto/00_CONTEXTO_COMPACTACION.md
-codex/pipeline/fase_3_sparse_global/subfases/subfase_3M.md
-codex/pipeline/fase_3_sparse_global/subfases/subfase_3N.md
-codex/pipeline/fase_3_sparse_global/subfases/subfase_3O.md
-codex/pipeline/fase_3_sparse_global/subfases/subfase_3P.md
-codex/pipeline/fase_3_sparse_global/subfases/subfase_3Q.md
-codex/pipeline/fase_3_sparse_global/historial/por_subfase/historial_3Q_RESUMEN.md
+codex/pipeline/fase_3_sparse_global/subfases/subfase_3X.md
+codex/pipeline/fase_3_sparse_global/historial/por_subfase/historial_3V_RESUMEN.md
+codex/pipeline/fase_3_sparse_global/historial/por_subfase/historial_3W_RESUMEN.md
 ```

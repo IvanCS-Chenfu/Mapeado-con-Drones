@@ -15,8 +15,7 @@ struct FusedLandmarkConfig
   double visibility_depth_tolerance_m = 0.30;
   uint32_t visibility_cell_size_px = 8;
   float inlier_reward = 0.04F;
-  float visible_miss_penalty = -0.01F;
-  float foreground_penalty = -0.03F;
+  float member_bonus = 0.04F;
 };
 
 class FusedLandmarkManager

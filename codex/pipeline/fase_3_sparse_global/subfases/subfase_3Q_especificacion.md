@@ -49,12 +49,17 @@ submapas distintos.
 ## Admision de loop
 
 No existe una rama distinta por ser inter/intra dron, inter/intra submapa o
-misma `map_epoch`. Una geometria aceptada decide solo por error:
+misma `map_epoch`. El conjunto de geometria aceptada decide por error:
 
 ```text
 error bajo -> fusion 3P
 error alto -> candidato 3Q
 ```
+
+Si una misma tarea contiene regiones de ambos tipos, una region de error alto
+con apoyo independiente domina y activa 3Q. La existencia de una region
+fusionable no puede hacer retornar fusion para toda la tarea. Solo cuando todas
+las regiones robustas son de error bajo se ejecuta fusion directa sin solve.
 
 Se conservan guardas causales:
 
@@ -62,10 +67,44 @@ Se conservan guardas causales:
 - una query antigua no toma un candidato futuro del mismo submapa;
 - dos queries independientes y coherentes son obligatorias;
 - grupos ambiguos de zonas repetitivas terminan en `HOLD`;
-- un grupo dominante puede aportar varias constraints compatibles al grafo.
+- un grupo dominante puede aportar entre una y tres constraints compatibles y
+  geometricamente distintas al grafo;
+- las constraints se deduplican por vecindario candidato y deben representar
+  una transformacion compatible del mismo par de submapas;
+- una region contradictoria o de otra hipotesis no se mezcla aunque tenga
+  muchos inliers.
 
 La primera query conserva solo una hipotesis compacta. La tarea que obtiene el
-segundo apoyo mantiene en memoria sus inliers y los usa en 3Q/3P.
+segundo apoyo mantiene en memoria sus inliers y los usa en 3Q/3P. La telemetria
+expone support actual/requerido, separacion de query, compatibilidad, apoyo de
+la segunda hipotesis y margen de ambiguedad; los umbrales vigentes no cambian
+en esta correccion inicial.
+
+### Rechazo previo en regiones protegidas
+
+Una geometria RANSAC localmente valida no debe llegar al builder cuando
+contradice de forma extrema dos regiones cuya colocacion global ya esta
+respaldada. El precheck se ejecuta despues de RANSAC y antes de construir el
+grafo; no realiza dry run ni solver.
+
+Una region es protegida cuando contiene un hard, pertenece a un corredor entre
+fiduciales o alcanza esos KFs mediante una expansion temporal/covisible fuerte
+acotada. Una region estable puede ademas apoyarse en fusiones/loops server
+confirmados. La confianza no se propaga sin limite por toda la componente.
+
+El precheck compone la relacion entre el representante protegido, la query y
+la medida RANSAC hacia candidate. Compara esa prediccion con la relacion world
+vigente. El margen inicial reutiliza `5 m / 20 grados`, decreciente hacia hard.
+Si ambos lados son estables y la incompatibilidad excede el margen, termina en
+rechazo temprano con cero escrituras. Si solo un lado es estable, no se rechaza
+por distancia: el grafo puede mover asimetricamente el lado no fiable.
+
+Los rechazos se guardan en un ledger regional derivado, separado de
+`CovisibilityDatabase`. La clave combina regiones query/candidate, bucket de
+transformacion, revisiones geometricas y revision estructural. KFs vecinos con
+la misma hipotesis consultan el ledger y terminan antes del builder. Fiduciales,
+reanchors y cambios loop/fusion de la componente invalidan su alcance; no es
+una lista negra permanente entre submapas completos.
 
 ## Seleccion de ventana
 
@@ -82,10 +121,12 @@ A_fusion_anterior ... A_loop_actual
 B_fusion_anterior ... B_loop_actual
 ```
 
-La fusion anterior es inicialmente una constraint relativa blanda, no un
-punto world fijo. Se medira su error antes/despues. Si las pruebas demuestran
-que una fusion fiable se degrada demasiado, una revision posterior podra
-endurecer su relacion relativa, nunca convertir ambos KFs en absolutos.
+La fusion anterior es una constraint relativa blanda, no un punto world fijo.
+Se recorren transitivamente **todas** las aristas `ServerLoopGeometric` de la
+componente alcanzada, se incorporan sus KFs y se mide cada residual
+antes/despues. No se añade un bonus artificial: la region gana influencia por
+sus KFs, aristas y soporte reales. Una componente soft completa puede moverse
+rigidamente si conserva esas relaciones y no contradice hard ni corredores.
 
 ### Fiduciales y tramos temporales
 
@@ -101,17 +142,25 @@ endurecer su relacion relativa, nunca convertir ambos KFs en absolutos.
 Si no existe hard alcanzable se fija una unica raiz de gauge con la mayor
 autoridad disponible, sin reinterpretarla como fiducial.
 
-### Covisibilidad
+### Covisibilidad y expansion fiducial
 
 La topologia temporal/anchor/loop determina primero los endpoints obligatorios.
-Las aristas fuertes de covisibilidad pueden definir caminos minimos e incorporar
-submapas necesarios, pero no se recorre ilimitadamente toda la componente.
+Las aristas fuertes de covisibilidad pueden definir caminos internos. Las
+fusiones server y dependencias soft se recorren transitivamente hasta cerrar la
+componente confirmada; la covisibilidad ORB nativa no expande por si sola hacia
+submapas nuevos.
 
-Solo se admiten:
+Para expandir entre submapas solo se admiten:
 
-- covisibilidad ORB nativa con soporte suficiente;
 - aristas `ServerLoopGeometric` aceptadas y vigentes;
 - loops/fusiones con medida y revisiones validas.
+- dependencias de anchor loop blando vigentes.
+
+Una vez incluidos los submapas, la covisibilidad ORB nativa con soporte
+suficiente refuerza controles/aristas internos, pero no descubre por si sola
+nuevos submapas. Esta regla se aplica tambien a la ruta fiducial: deja de ser
+mono-submapa y materializa el subgrafo minimo conectado al tramo fiducial por
+esas relaciones confirmadas. Todos los hard alcanzados siguen fijos.
 
 BoW, candidatos no verificados y rechazos no son constraints.
 
@@ -161,13 +210,23 @@ El solver trabaja sobre una vista privada y produce:
 Inicialmente solo se acepta un candidato completo que:
 
 - reduce coste y error principal;
-- deja el loop dentro del umbral de fusion o el fiducial en su umbral;
+- deja todas las constraints `CurrentLoop` incluidas dentro del umbral de
+  fusion o el fiducial en su umbral;
 - mantiene todos los hard inmoviles;
 - conserva finitud y continuidad;
 - no viola revisiones ni epochs.
 
-La degradacion de fusiones previas se registra, pero en esta primera version no
-rechaza automaticamente ni las vuelve hard.
+Para loop, la degradacion estructural deja de ser solo telemetria. Se rechaza
+con cero escrituras si el candidato satisface las constraints actuales
+rompiendo una arista temporal, una covisibilidad fuerte, una fusion/loop previo,
+un hard o un corredor hard-hard. La ruta fiducial conserva su autoridad
+absoluta obligatoria y no se rechaza por esta guarda especifica de loop.
+
+Si, tras el solve loop, una unica region queda claramente discordante mientras
+las demas satisfacen una solucion coherente, se elimina esa region y se permite
+un solo rebuild+solve. El segundo resultado se valida completo. No hay mas
+rebuilds; una incoherencia restante termina `REJECT` sin escrituras. Con una
+sola region inicial no existe esta retirada.
 
 ## KFs tardios y futuros
 
@@ -181,6 +240,35 @@ El flujo principal sigue insertando datos durante el solver. En commit:
 - hijos soft dependientes de un KF movido conservan coherencia;
 - KFs futuros usan el `ContinuationRecord` aceptado.
 
+## Continuidad tras perdida de tracking
+
+Un submapa que nunca estuvo anclado puede anclarse por loop sin restriccion de
+distancia. La guarda solo existe cuando un dron cambia de `map_epoch` y el
+submapa anterior estaba anclado.
+
+Se conserva el ultimo KF activo fiable del epoch anterior. Para cada KF del
+nuevo epoch se deriva una envolvente individual usando el recorrido y giro raw
+acumulados mas margenes configurables. Un anchor loop fuera de esa envolvente
+termina diferido/rechazado sin commit ni cache negativa permanente; KFs
+posteriores pueden volver a intentarlo. Un fiducial ignora la guarda, reancla
+todo el submapa y elimina el estado de perdida.
+
+## Corredores entre fiduciales
+
+Cuando una solucion fiducial deja dos hard consecutivos en un submapa, las
+poses aceptadas del tramo forman una referencia persistente. Un loop posterior
+puede refinarla, pero provisionalmente ningun KF interior puede separarse mas
+de 5 m ni 20 grados de esa referencia; el margen decrece hacia ambos hard y es
+cero en los extremos. Los loops aceptados no renuevan la referencia para evitar
+deriva acumulativa. Una optimizacion fiducial si puede sustituirla.
+
+La validacion compara el exceso antes y despues. Si la pose vigente ya estaba
+fuera de su margen por deriva anterior, la propuesta no se rechaza por ese
+estado heredado cuando mantiene o reduce por separado los excesos de traslacion
+y rotacion. Se rechaza con cero escrituras cualquier exceso nuevo o creciente.
+Esto evita repetir solves que no han causado la desviacion sin debilitar la
+proteccion frente a saltos absurdos.
+
 ## Fusion posterior
 
 Tras `ACCEPT`, la misma `LoopTask` reutiliza sus inliers y prepara 3P sobre las
@@ -189,6 +277,22 @@ poses candidatas. No repite BoW ni RANSAC. Si raw/geometry cambio, el intento es
 
 `FUSION_SKIPPED` no invalida poses correctas. Si hay fusion, tracks,
 covisibilidad y score forman parte del commit coordinado y de sus dirty sets.
+
+Ademas, tras commits loop y fiducial, cada KF realmente movido o propagado se
+reencola como `LoopTask` BAJA para buscar solapes desde su pose nueva. Una pareja
+con fusion server ya vigente se omite, pero la tarea continua con candidatos
+nuevos. La fusion directa del loop original sigue reutilizando sus inliers sin
+esperar esta reevaluacion.
+
+Los reruns `FusionRefresh` son mantenimiento espacial, no nuevos detectores de
+loop global. Agrupan KFs movidos por regiones y solo verifican candidatos cuyas
+subnubes world se solapan o quedan dentro de un margen configurable. No hacen
+fallback a BoW lejano y nunca optimizan. Las tareas `Full` nacidas de
+delta/snapshot conservan busqueda global y prevalecen al coalescer.
+
+Un backlog compuesto solo por `FusionRefresh` no mantiene `stop_drones`; las
+optimizaciones activas y el trabajo critico conservan el gate. Los refresh
+siguen en la misma cola BAJA y se procesan hasta completar sus fusiones/scores.
 
 ## Concurrencia y stop de drones
 

@@ -281,6 +281,30 @@ public:
       2, declare_parameter<int64_t>("loop_hypothesis_min_support", 2)));
     loop_config.ambiguity_margin = static_cast<size_t>(std::max<int64_t>(
       1, declare_parameter<int64_t>("loop_ambiguity_margin", 2)));
+    loop_config.structural_temporal_increase_m = declare_parameter<double>(
+      "loop_structural_temporal_increase_m", 2.0);
+    loop_config.structural_temporal_increase_rad = declare_parameter<double>(
+      "loop_structural_temporal_increase_rad", 0.70);
+    loop_config.structural_covisibility_increase_m = declare_parameter<double>(
+      "loop_structural_covisibility_increase_m", 1.0);
+    loop_config.structural_covisibility_increase_rad = declare_parameter<double>(
+      "loop_structural_covisibility_increase_rad", 0.50);
+    loop_config.structural_prior_loop_increase_m = declare_parameter<double>(
+      "loop_structural_prior_increase_m", 0.50);
+    loop_config.structural_prior_loop_increase_rad = declare_parameter<double>(
+      "loop_structural_prior_increase_rad", 0.35);
+    loop_config.hard_corridor_max_translation_m = declare_parameter<double>(
+      "loop_hard_corridor_max_translation_m", 5.0);
+    loop_config.hard_corridor_max_rotation_rad = declare_parameter<double>(
+      "loop_hard_corridor_max_rotation_rad", 0.3490658503988659);
+    loop_config.recent_loss_base_translation_m = declare_parameter<double>(
+      "loop_recent_loss_base_translation_m", 2.0);
+    loop_config.recent_loss_path_drift_ratio = declare_parameter<double>(
+      "loop_recent_loss_path_drift_ratio", 0.20);
+    loop_config.recent_loss_base_rotation_rad = declare_parameter<double>(
+      "loop_recent_loss_base_rotation_rad", 0.35);
+    loop_config.recent_loss_rotation_drift_ratio = declare_parameter<double>(
+      "loop_recent_loss_rotation_drift_ratio", 0.20);
     backend_.ConfigureLoopPipeline(loop_config);
     orbslam3_multi::FusedLandmarkConfig fused_config;
     fused_config.max_track_dispersion_m = declare_parameter<double>(
@@ -291,11 +315,29 @@ public:
       1, declare_parameter<int64_t>("fusion_visibility_cell_size_px", 8)));
     fused_config.inlier_reward = static_cast<float>(declare_parameter<double>(
       "fusion_score_inlier_reward", 0.04));
-    fused_config.visible_miss_penalty = static_cast<float>(declare_parameter<double>(
-      "fusion_score_visible_miss_penalty", -0.01));
-    fused_config.foreground_penalty = static_cast<float>(declare_parameter<double>(
-      "fusion_score_foreground_penalty", -0.03));
+    fused_config.member_bonus = static_cast<float>(declare_parameter<double>(
+      "fusion_score_member_bonus", 0.04));
     backend_.ConfigureFusedLandmarks(fused_config);
+    orbslam3_multi::LandmarkScoreConfig score_config;
+    score_config.isolation_radius_m = declare_parameter<double>(
+      "score_isolation_radius_m", 0.35);
+    score_config.isolation_min_neighbors = static_cast<uint32_t>(declare_parameter<int>(
+      "score_isolation_min_neighbors", 2));
+    score_config.isolation_min_observations = static_cast<uint32_t>(declare_parameter<int>(
+      "score_isolation_min_observations", 3));
+    score_config.isolation_min_factor = static_cast<float>(declare_parameter<double>(
+      "score_isolation_min_factor", 0.35));
+    score_config.suspicious_near_distance_m = declare_parameter<double>(
+      "score_suspicious_near_distance_m", 1.0);
+    score_config.suspicious_near_min_factor = static_cast<float>(declare_parameter<double>(
+      "score_suspicious_near_min_factor", 0.05));
+    score_config.far_baseline_multiplier = declare_parameter<double>(
+      "score_far_baseline_multiplier", 83.33333333333333);
+    score_config.far_distance_fallback_m = declare_parameter<double>(
+      "score_far_distance_fallback_m", 5.0);
+    score_config.far_min_factor = static_cast<float>(declare_parameter<double>(
+      "score_far_min_factor", 0.25));
+    backend_.ConfigureLandmarkScores(score_config);
     const double body_camera_x = declare_parameter<double>("body_T_camera_x", 0.10);
     const double body_camera_y = declare_parameter<double>("body_T_camera_y", 0.03);
     const double body_camera_z = declare_parameter<double>("body_T_camera_z", 0.03);
@@ -1054,18 +1096,31 @@ private:
             primary_queue_.Pending(), score_detail.str());
           RCLCPP_INFO(
             get_logger(),
-            "[F3F-SCORE-UPDATE] arrival_id=%lu created=%zu updated=%zu invalidated=%zu "
-            "input_updated=%zu revision=%lu",
+            "[F3S-RAW-SCORE-COMMIT] arrival_id=%lu created=%zu updated=%zu "
+            "invalidated=%zu input_updated=%zu fused_updated=%zu revision=%lu",
             input.arrival_id, scores.created_ids.size(), scores.updated_ids.size(),
             scores.invalidated_ids.size(), scores.input_updated_ids.size(),
+            scores.fused_created_ids.size() + scores.fused_updated_ids.size(),
             scores.score_revision_after);
         } else if (!scores.input_updated_ids.empty()) {
           RCLCPP_INFO(
             get_logger(),
-            "[F3F-SCORE-INPUT-ONLY] arrival_id=%lu input_updated=%zu revision=%lu "
+            "[F3S-SCORE-NOOP] arrival_id=%lu input_updated=%zu revision=%lu "
             "builder_dirty=0",
             input.arrival_id, scores.input_updated_ids.size(),
             scores.score_revision_after);
+        }
+        if (input.arrival_id % 25U == 0U) {
+          const auto score_stats = backend_.GetScoreStats();
+          RCLCPP_INFO(
+            get_logger(),
+            "[F3S-SCORE-STATS] revision=%lu tracked=%lu bad=%lu anchored=%lu "
+            "isolated=%lu near=%lu far=%lu min=%.4f mean=%.4f max=%.4f",
+            score_stats.score_revision, score_stats.tracked_points,
+            score_stats.bad_points, score_stats.anchored_points,
+            score_stats.isolated_points, score_stats.suspicious_near_points,
+            score_stats.far_points, score_stats.score_min, score_stats.score_mean,
+            score_stats.score_max);
         }
 
         if (result.pose_stage_executed) {
@@ -1224,9 +1279,11 @@ private:
         const auto score_stats = backend_.GetScoreStats();
         RCLCPP_INFO(
           get_logger(),
-          "[F3F-SCORE-STATS] revision=%lu tracked=%lu bad=%lu min=%.4f mean=%.4f "
-          "max=%.4f",
+          "[F3S-SCORE-STATS] revision=%lu tracked=%lu bad=%lu anchored=%lu "
+          "isolated=%lu near=%lu far=%lu min=%.4f mean=%.4f max=%.4f",
           score_stats.score_revision, score_stats.tracked_points, score_stats.bad_points,
+          score_stats.anchored_points, score_stats.isolated_points,
+          score_stats.suspicious_near_points, score_stats.far_points,
           score_stats.score_min, score_stats.score_mean, score_stats.score_max);
       }
     }
@@ -1248,9 +1305,12 @@ private:
         secondary_queue_.Pending(), " priority=" + std::string(ToString(queued.priority)));
       RCLCPP_WARN(
         get_logger(),
-        "[F3H-SECONDARY-START] task=%lu kind=%s priority=%s sequence=%lu pending=%zu",
+        "[F3H-SECONDARY-START] task=%lu kind=%s priority=%s sequence=%lu "
+        "intent=%s pending=%zu",
         queued.task_id, ToString(queued.kind), ToString(queued.priority),
-        queued.enqueue_sequence, secondary_queue_.Pending());
+        queued.enqueue_sequence,
+        queued.loop.has_value() ? orbslam3_multi::ToString(queued.loop->intent) : "n/a",
+        secondary_queue_.Pending());
 
       bool full_success = false;
       bool stale = false;
@@ -1259,6 +1319,9 @@ private:
       std::optional<orbslam3_multi::RawKeyFrameId> fusion_retry_keyframe;
       uint64_t fusion_retry_arrival = 0;
       std::string fusion_retry_cause;
+      std::optional<orbslam3_multi::FiducialOptimizationTask> fiducial_retry_task;
+      std::vector<orbslam3_multi::RawKeyFrameId> post_optimization_rerun_ids;
+      uint64_t post_optimization_arrival = 0U;
       try {
       if (queued.kind == SecondaryTaskKind::DatabaseUpdate &&
         queued.database_update.has_value())
@@ -1308,12 +1371,17 @@ private:
           RCLCPP_WARN(
             get_logger(),
             "[F3Q-OPT-START] task=%lu query=(%u,%lu,%lu) priority=NORMAL "
-            "stop_drones=true geometry=%zu",
+            "intent=%s stop_drones=true geometry=%zu selected_regions=%zu",
             queued.task_id, queued.loop->query_keyframe_id.drone_id,
             queued.loop->query_keyframe_id.map_epoch,
             queued.loop->query_keyframe_id.local_kf_id,
-            loop.geometry_results.size());
+            orbslam3_multi::ToString(queued.loop->intent),
+            loop.geometry_results.size(), loop.optimization_geometry_indices.size());
           loop = backend_.ProcessLoopOptimization(std::move(loop));
+          if (loop.optimization.committed) {
+            post_optimization_rerun_ids = loop.rerun_keyframe_ids;
+            post_optimization_arrival = queued.loop->source_arrival_id;
+          }
           optimization_active_.store(false);
           UpdateBackpressure();
         }
@@ -1368,7 +1436,11 @@ private:
             "[F3Q-LOOP-OPT] task=%lu graph=%s optimized=%s accepted=%s committed=%s "
             "stale=%s submaps=%zu window=%zu controls=%zu edges=(temporal=%zu,covis=%zu,loop=%zu) "
             "iterations=%zu error_before=(%.6f,%.6f) error_after=(%.6f,%.6f) "
-            "cost=(%.6f->%.6f) moved=%zu propagated=%zu fusion_after=%s reason=%s",
+            "structure=(edges=%zu,corridor_kfs=%zu,max_increase=%.6fm/%.6frad,"
+            "corridor_excess=%.6fm/%.6frad->%.6fm/%.6frad) "
+            "cost=(%.6f->%.6f) time_ms=(graph=%.3f,solve=%.3f,validation=%.3f,commit=%.3f) "
+            "rebuilds=%zu discarded_regions=%zu moved=%zu propagated=%zu "
+            "rebased_skipped=%zu rebased_inactive=%zu fusion_after=%s reason=%s",
             queued.task_id, loop.optimization.graph_built ? "true" : "false",
             loop.optimization.optimized ? "true" : "false",
             loop.optimization.accepted ? "true" : "false",
@@ -1382,9 +1454,23 @@ private:
             loop.optimization.initial_rotation_error_rad,
             loop.optimization.final_translation_error_m,
             loop.optimization.final_rotation_error_rad,
+            loop.optimization.structural_edges_checked,
+            loop.optimization.hard_corridor_keyframes_checked,
+            loop.optimization.max_structural_translation_increase_m,
+            loop.optimization.max_structural_rotation_increase_rad,
+            loop.optimization.max_corridor_translation_excess_before_m,
+            loop.optimization.max_corridor_rotation_excess_before_rad,
+            loop.optimization.max_corridor_translation_excess_after_m,
+            loop.optimization.max_corridor_rotation_excess_after_rad,
             loop.optimization.initial_cost, loop.optimization.final_cost,
+            loop.optimization.graph_ms, loop.optimization.solve_ms,
+            loop.optimization.validation_ms, loop.optimization.commit_ms,
+            loop.optimization.rebuilds,
+            loop.optimization.discarded_loop_regions,
             loop.optimization.moved_keyframes,
             loop.optimization.propagated_keyframes,
+            loop.optimization.rebased_skipped_controls,
+            loop.optimization.rebased_inactive_controls,
             loop.optimization.fusion_after_optimization ? "true" : "false",
             loop.optimization.reason.c_str());
           RCLCPP_WARN(
@@ -1411,7 +1497,9 @@ private:
             "fused_landmark_manager_landmark_score_manager", "score_evidence", queued,
             secondary_queue_.Pending(),
             " positive=" + std::to_string(loop.fusion.score_positive_events) +
-            " negative=" + std::to_string(loop.fusion.score_negative_events));
+            " negative=" + std::to_string(loop.fusion.score_negative_events) +
+            " visibility_diagnostics=" +
+            std::to_string(loop.fusion.score_visibility_diagnostics));
           EmitSecondaryFlowEvent(
             "fused_landmark_manager_global_map_builder", "fusion_dirty", queued,
             secondary_queue_.Pending(),
@@ -1438,16 +1526,58 @@ private:
         RCLCPP_WARN(
           get_logger(),
           "[F3O-LOOP-DONE] task=%lu query=(%u,%lu,%lu) decision=%s fast=%s bow=%zu "
-          "regions=%zu geometry=%zu fusion_pairs=%zu anchors=%zu dirty=%zu reason=%s",
+          "regions=%zu geometry=%zu opt_regions=%zu fusion_pairs=%zu anchors=%zu dirty=%zu "
+          "support=(observed=%s,compatible=%s,independent=%s,count=%zu/%zu,competing=%zu,"
+          "ambiguity=%s,margin=%zu,separation=%.3fm/%.3frad,accepted=%s) "
+          "recent_loss=(checked=%s,passed=%s,error=%.3fm/%.3frad,limit=%.3fm/%.3frad) "
+          "protected=(checked=%s,query=%s,candidate=%s,rejected=%s,ledger=%s,"
+          "error=%.3fm/%.3frad) refresh_spatial=(accepted=%zu,rejected=%zu) "
+          "reason=%s",
           queued.task_id, queued.loop->query_keyframe_id.drone_id,
           queued.loop->query_keyframe_id.map_epoch,
           queued.loop->query_keyframe_id.local_kf_id,
           orbslam3_multi::ToString(loop.decision),
           loop.used_fast_overlap ? "true" : "false", loop.bow_candidates,
-          loop.regions.size(), loop.geometry_results.size(), loop.fusion_pairs.size(),
+          loop.regions.size(), loop.geometry_results.size(),
+          loop.optimization_geometry_indices.size(), loop.fusion_pairs.size(),
           loop.anchor_commit.anchored_submaps.size(),
-          loop.anchor_commit.dirty_keyframe_ids.size(), loop.reason.c_str());
+          loop.anchor_commit.dirty_keyframe_ids.size(),
+          loop.hypothesis_support.observed ? "true" : "false",
+          loop.hypothesis_support.compatible_hypothesis ? "true" : "false",
+          loop.hypothesis_support.independent ? "true" : "false",
+          loop.hypothesis_support.support,
+          loop.hypothesis_support.required_support,
+          loop.hypothesis_support.competing_support,
+          loop.hypothesis_support.ambiguity_satisfied ? "true" : "false",
+          loop.hypothesis_support.ambiguity_margin,
+          loop.hypothesis_support.nearest_translation_separation_m,
+          loop.hypothesis_support.nearest_yaw_separation_rad,
+          loop.hypothesis_support.accepted ? "true" : "false",
+          loop.recent_loss_gate_checked ? "true" : "false",
+          loop.recent_loss_gate_passed ? "true" : "false",
+          loop.recent_loss_translation_m,
+          loop.recent_loss_rotation_rad,
+          loop.recent_loss_translation_limit_m,
+          loop.recent_loss_rotation_limit_rad,
+          loop.protected_region_checked ? "true" : "false",
+          loop.protected_query_stable ? "true" : "false",
+          loop.protected_candidate_stable ? "true" : "false",
+          loop.protected_region_rejected ? "true" : "false",
+          loop.rejection_ledger_hit ? "true" : "false",
+          loop.protected_translation_error_m,
+          loop.protected_rotation_error_rad,
+          loop.refresh_spatial_candidates,
+          loop.refresh_spatial_rejected,
+          loop.reason.c_str());
         if (loop.fusion.attempted) {
+          RCLCPP_INFO(
+            get_logger(),
+            "[F3S-FUSED-SCORE-COMMIT] task=%lu committed=%s positive=%zu "
+            "negative=%zu visibility_diagnostics=%zu dirty=%zu",
+            queued.task_id, loop.fusion.committed ? "true" : "false",
+            loop.fusion.score_positive_events, loop.fusion.score_negative_events,
+            loop.fusion.score_visibility_diagnostics,
+            loop.fusion.score_raw_updates);
           RCLCPP_WARN(
             get_logger(),
             "[F3P-FUSION] task=%lu prepared=%s committed=%s stale=%s rollback=%s "
@@ -1586,9 +1716,10 @@ private:
                 if (revalidation.decision ==
                   orbslam3_multi::FiducialTaskDecision::Ready)
                 {
-                  active_task = revalidation.task;
-                  final_reason = "retry_after_revision_conflict";
-                  continue;
+                  fiducial_retry_task = revalidation.task;
+                  stale = true;
+                  final_reason = "fiducial_revision_conflict_retry";
+                  break;
                 }
               }
               hard_failure = true;
@@ -1620,6 +1751,10 @@ private:
               commit.tail_keyframes, commit.pose_changes.updated_ids.size(),
               commit.pose_changes.control_propagated_ids.size(),
               commit.pose_changes.hard_fiducial_ids.size());
+            post_optimization_rerun_ids.insert(
+              post_optimization_rerun_ids.end(), commit.rerun_keyframe_ids.begin(),
+              commit.rerun_keyframe_ids.end());
+            post_optimization_arrival = active_task.observation_arrival_id;
             if (commit.full_accept) {
               RCLCPP_WARN(
                 get_logger(),
@@ -1691,6 +1826,34 @@ private:
       ++secondary_processed_;
       secondary_queue_.Complete(queued);
       active_secondary_tasks_.fetch_sub(1);
+      if (fiducial_retry_task.has_value()) {
+        try {
+          const auto enqueue = secondary_queue_.PushFiducial(*fiducial_retry_task);
+          RCLCPP_WARN(
+            get_logger(),
+            "[F3H-FID-RETRY] previous_task=%lu retry_task=%lu submap=(%u,%lu) "
+            "kf=%lu enqueued=%s duplicate=%s sequence=%lu pending=%zu "
+            "cause=revision_conflict",
+            queued.task_id, fiducial_retry_task->task_id,
+            fiducial_retry_task->submap_id.drone_id,
+            fiducial_retry_task->submap_id.map_epoch,
+            fiducial_retry_task->keyframe_id.local_kf_id,
+            enqueue.enqueued ? "true" : "false",
+            enqueue.duplicate ? "true" : "false",
+            enqueue.enqueue_sequence, enqueue.pending);
+          if (enqueue.enqueued) {
+            EmitSecondaryFlowEvent(
+              "secondary_worker_secondary_queue_retry", "fiducial_retry_enqueue",
+              queued, enqueue.pending,
+              " retry_task=" + std::to_string(fiducial_retry_task->task_id));
+          }
+        } catch (const std::exception & ex) {
+          RCLCPP_WARN(
+            get_logger(),
+            "[F3H-FID-RETRY-SKIP] previous_task=%lu reason=%s",
+            queued.task_id, ex.what());
+        }
+      }
       UpdateBackpressure();
       RCLCPP_WARN(
         get_logger(),
@@ -1704,10 +1867,36 @@ private:
         " reason=" + final_reason +
         " stale=" + (stale ? std::string("true") : std::string("false")) +
         " committed=" + (full_success ? std::string("true") : std::string("false")));
+      if (!post_optimization_rerun_ids.empty()) {
+        std::sort(
+          post_optimization_rerun_ids.begin(), post_optimization_rerun_ids.end());
+        post_optimization_rerun_ids.erase(
+          std::unique(
+            post_optimization_rerun_ids.begin(), post_optimization_rerun_ids.end()),
+          post_optimization_rerun_ids.end());
+        auto reruns = backend_.CreateFusionRefreshTasks(
+          post_optimization_arrival, post_optimization_rerun_ids);
+        const size_t created = reruns.size();
+        const size_t enqueued = EnqueueLoopTasks(
+          &reruns, "post_optimization_pose_change", true);
+        RCLCPP_WARN(
+          get_logger(),
+          "[F3Q-POST-OPT-LOOPS] previous_task=%lu moved=%zu grouped=%zu created=%zu "
+          "enqueued=%zu pending=%zu",
+          queued.task_id, post_optimization_rerun_ids.size(),
+          post_optimization_rerun_ids.size() >= created ?
+          post_optimization_rerun_ids.size() - created : 0U,
+          created, enqueued, secondary_queue_.Pending());
+      }
       if (fusion_retry_keyframe.has_value()) {
         try {
           auto retries = backend_.CreateLoopTasks(
             fusion_retry_arrival, {*fusion_retry_keyframe});
+          if (queued.loop.has_value()) {
+            for (auto & retry : retries) {
+              retry.intent = queued.loop->intent;
+            }
+          }
           const size_t created = retries.size();
           const size_t enqueued = EnqueueLoopTasks(
             &retries, fusion_retry_cause, true);
@@ -1756,13 +1945,14 @@ private:
         get_logger(),
         "[F3N-LOOP-ENQUEUE] task=%lu arrival=%lu query=(%u,%lu,%lu) "
         "revision=(raw=%lu,appearance=%lu,geometry=%lu,validation=%lu,anchor=%lu) "
-        "priority=LOW sequence=%lu pending=%zu "
+        "intent=%s priority=LOW sequence=%lu pending=%zu "
         "enqueued=%s duplicate=%s retry=%s cause=%s",
         task.task_id, task.source_arrival_id, task.query_keyframe_id.drone_id,
         task.query_keyframe_id.map_epoch, task.query_keyframe_id.local_kf_id,
         task.revision.raw_revision, task.revision.appearance_revision,
         task.revision.geometry_revision, task.revision.validation_revision,
         task.revision.anchor_revision,
+        orbslam3_multi::ToString(task.intent),
         enqueue.enqueue_sequence, enqueue.pending,
         enqueue.enqueued ? "true" : "false",
         enqueue.duplicate ? "true" : "false",
@@ -2270,15 +2460,15 @@ private:
   void UpdateBackpressure()
   {
     const size_t primary_pending = primary_queue_.Pending();
-    const size_t secondary_pending = secondary_queue_.Pending();
+    const auto secondary = secondary_queue_.PendingStats();
     backpressure_->Update(primary_pending);
     std::optional<bool> transition;
     {
       std::lock_guard<std::mutex> lock(backpressure_state_mutex_);
-      if (!secondary_pressure_active_ && secondary_pending >= secondary_high_watermark_) {
+      if (!secondary_pressure_active_ && secondary.critical >= secondary_high_watermark_) {
         secondary_pressure_active_ = true;
       } else if (secondary_pressure_active_ &&
-        secondary_pending <= secondary_low_watermark_)
+        secondary.critical <= secondary_low_watermark_)
       {
         secondary_pressure_active_ = false;
       }
@@ -2311,16 +2501,19 @@ private:
 
   void PublishBackpressure(bool active, size_t pending, bool initial)
   {
+    const auto secondary = secondary_queue_.PendingStats();
     std_msgs::msg::Bool message;
     message.data = active;
     backpressure_publisher_->publish(message);
     RCLCPP_WARN(
       get_logger(),
       "[F3C-BACKPRESSURE] active=%s primary_pending=%zu primary_high=%zu "
-      "primary_low=%zu secondary_pending=%zu secondary_high=%zu secondary_low=%zu "
+      "primary_low=%zu secondary_pending=%zu secondary_critical=%zu "
+      "secondary_maintenance=%zu secondary_high=%zu secondary_low=%zu "
       "optimization_active=%s blocking_failure=%s initial=%s",
       active ? "true" : "false", pending, high_watermark_, low_watermark_,
-      secondary_queue_.Pending(), secondary_high_watermark_, secondary_low_watermark_,
+      secondary.total, secondary.critical, secondary.maintenance,
+      secondary_high_watermark_, secondary_low_watermark_,
       optimization_active_.load() ? "true" : "false",
       secondary_blocking_failure_.load() ? "true" : "false",
       initial ? "true" : "false");

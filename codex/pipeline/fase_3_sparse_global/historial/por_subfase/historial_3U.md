@@ -32,3 +32,24 @@
   semantica live no lo esta y reproduce eventos antiguos en rafagas/reconexion;
 - siguiente paso recomendado: representar el estado mas reciente, respetar
   `Last-Event-ID` o conectar desde latest y medir lag antes de repetir live.
+
+## 2026-08-22 19:21 - Subfase 3U - Cierre de la implementacion vigente
+
+- objetivo intentado: comprobar si los defectos que motivaban `REHACER`
+  seguian presentes en el visualizador activo;
+- archivos modificados: solo documentacion de cierre;
+- paquetes compilados: no aplica; no hubo cambios de codigo;
+- resultado de build: se conserva el build final previo 3/3;
+- pruebas Gazebo/replay: no se ejecuto una simulacion nueva; el grafo ya fue
+  utilizado durante las pruebas integradas posteriores hasta 194;
+- patrones de reduccion: no aplica; no se leyeron logs completos;
+- evidencia positiva: primera conexion desde latest, reconexion por
+  `Last-Event-ID`, `state_reset`, drenaje por frame, lifecycle secundario por
+  `flow_id`, topologia 23/41 y contrato fuente 9/9 en 0.13 s;
+- evidencia negativa o ausente: no se midio latencia backend-SSE-render ni se
+  ejecuto una nueva prueba de saturacion; el buffer cliente sigue siendo
+  acotado y best-effort;
+- conclusion: `CONSEGUIDA`; el usuario confirma que el grafo web es muy bueno y
+  funciona bien, y acepta no introducir mas cambios ahora;
+- siguiente paso recomendado: comprobar aislamiento y carga dentro de 3V/3W,
+  sin reabrir 3U salvo regresion observable.

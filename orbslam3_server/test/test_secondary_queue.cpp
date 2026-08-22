@@ -99,6 +99,28 @@ TEST(SecondaryTaskQueue, ExplicitRetryBypassesOnlyCompletedRevisionLedger)
   queue.Close();
 }
 
+TEST(SecondaryTaskQueue, FullIntentWinsWhenCoalescingFusionRefresh)
+{
+  for (const bool full_first : {false, true}) {
+    orbslam3_server::SecondaryTaskQueue queue;
+    auto first = MakeLoopTask(60, 9, 1);
+    auto second = MakeLoopTask(61, 9, 2);
+    first.intent = full_first ? orbslam3_multi::LoopTaskIntent::Full :
+      orbslam3_multi::LoopTaskIntent::FusionRefresh;
+    second.intent = full_first ? orbslam3_multi::LoopTaskIntent::FusionRefresh :
+      orbslam3_multi::LoopTaskIntent::Full;
+    ASSERT_TRUE(queue.PushLoop(first).enqueued);
+    ASSERT_TRUE(queue.PushLoop(second).enqueued);
+
+    orbslam3_server::SecondaryTask task;
+    ASSERT_TRUE(queue.WaitPop(&task));
+    ASSERT_TRUE(task.loop.has_value());
+    EXPECT_EQ(task.loop->intent, orbslam3_multi::LoopTaskIntent::Full);
+    queue.Complete(task);
+    queue.Close();
+  }
+}
+
 TEST(SecondaryTaskQueue, PreservesFifoAndDeduplicatesOnlyExactKeyFrame)
 {
   orbslam3_server::SecondaryTaskQueue queue;
@@ -115,6 +137,51 @@ TEST(SecondaryTaskQueue, PreservesFifoAndDeduplicatesOnlyExactKeyFrame)
   EXPECT_EQ(task.task_id, 11U);
   queue.Complete(task);
   EXPECT_TRUE(queue.PushFiducial(MakeFiducialTask(14, 20)).enqueued);
+  queue.Close();
+}
+
+TEST(SecondaryTaskQueue, FiducialCanBeRequeuedAfterStaleAttemptCompletes)
+{
+  orbslam3_server::SecondaryTaskQueue queue;
+  orbslam3_multi::FiducialOptimizationTask task;
+  task.task_id = 42;
+  task.submap_id = {1, 2};
+  task.keyframe_id = {1, 2, 9};
+  task.fiducial_id = 7;
+
+  ASSERT_TRUE(queue.PushFiducial(task).enqueued);
+  orbslam3_server::SecondaryTask active;
+  ASSERT_TRUE(queue.WaitPop(&active));
+  EXPECT_TRUE(queue.PushFiducial(task).duplicate);
+  queue.Complete(active);
+
+  const auto retry = queue.PushFiducial(task);
+  EXPECT_TRUE(retry.enqueued);
+  EXPECT_FALSE(retry.duplicate);
+  EXPECT_GT(retry.enqueue_sequence, active.enqueue_sequence);
+  queue.Close();
+}
+
+TEST(SecondaryTaskQueue, SeparatesFusionRefreshMaintenanceFromCriticalPending)
+{
+  orbslam3_server::SecondaryTaskQueue queue;
+  auto refresh_a = MakeLoopTask(70, 10);
+  auto refresh_b = MakeLoopTask(71, 11);
+  refresh_a.intent = orbslam3_multi::LoopTaskIntent::FusionRefresh;
+  refresh_b.intent = orbslam3_multi::LoopTaskIntent::FusionRefresh;
+  ASSERT_TRUE(queue.PushLoop(refresh_a).enqueued);
+  ASSERT_TRUE(queue.PushLoop(refresh_b).enqueued);
+  auto stats = queue.PendingStats();
+  EXPECT_EQ(stats.total, 2U);
+  EXPECT_EQ(stats.maintenance, 2U);
+  EXPECT_EQ(stats.critical, 0U);
+
+  ASSERT_TRUE(queue.PushLoop(MakeLoopTask(72, 12)).enqueued);
+  ASSERT_TRUE(queue.PushDatabaseUpdate(MakeDatabaseTask(73)).enqueued);
+  stats = queue.PendingStats();
+  EXPECT_EQ(stats.total, 4U);
+  EXPECT_EQ(stats.maintenance, 2U);
+  EXPECT_EQ(stats.critical, 2U);
   queue.Close();
 }
 

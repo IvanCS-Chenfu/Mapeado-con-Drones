@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <map>
 #include <vector>
@@ -37,6 +38,9 @@ struct PoseGraphKeyFrame
   bool control = false;
   bool fixed = false;
   bool protected_neighborhood = false;
+  bool hard_corridor = false;
+  geometry_msgs::msg::Pose hard_corridor_reference_pose;
+  double hard_corridor_alpha = 0.0;
 };
 
 struct PoseGraphEdge
@@ -47,6 +51,7 @@ struct PoseGraphEdge
   size_t supporting_keyframes = 0;
   double information_weight = 1.0;
   PoseGraphEdgeKind kind = PoseGraphEdgeKind::Temporal;
+  size_t source_geometry_index = std::numeric_limits<size_t>::max();
 };
 
 struct PoseGraphPropagationEntry
@@ -85,6 +90,14 @@ struct PoseGraphProblem
   std::vector<PoseGraphSubmapWindow> submap_windows;
   double loop_translation_threshold_m = 0.0;
   double loop_rotation_threshold_rad = 0.0;
+  double structural_temporal_increase_m = 0.0;
+  double structural_temporal_increase_rad = 0.0;
+  double structural_covisibility_increase_m = 0.0;
+  double structural_covisibility_increase_rad = 0.0;
+  double structural_prior_loop_increase_m = 0.0;
+  double structural_prior_loop_increase_rad = 0.0;
+  double hard_corridor_max_translation_m = 0.0;
+  double hard_corridor_max_rotation_rad = 0.0;
 };
 
 struct PoseGraphBuildResult

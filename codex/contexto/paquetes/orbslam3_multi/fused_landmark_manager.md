@@ -2,56 +2,63 @@
 
 ## Rol
 
-Autoridad derivada 3P de identidad fusionada. Une `RawMapPointId` sin modificar
+Autoridad derivada de identidad fusionada. Une `RawMapPointId` sin modificar
 `RawMapDatabase`, mantiene tracks transitivos con ID estable y prepara patches
-privados que el backend compromete junto con covisibilidad y score.
+privados que el backend coordina con covisibilidad y score.
 
 ## Contrato
 
-- `PrepareFusion()` consume todas las regiones RANSAC compatibles de una
-  `LoopTaskComputation`; no repite BoW, matching ni RANSAC.
-- `member_to_track_` resuelve raw a track en O(1). Dos tracks se unen bajo el ID
-  menor; un miembro nuevo se incorpora al track existente.
-- Cada track conserva miembros, evidencias idempotentes, KFs observadores,
-  drones/submapas de procedencia, descriptor medoid y miembro representante.
-- La posicion publicable se calcula de forma ponderada desde miembros world. El
-  guard inicial de dispersion es `0.50 m`; una union incompatible se rechaza
-  sin alterar estado.
-- `FusionPatch` incluye revisiones esperadas, tracks finales, bajas,
-  asignaciones, score raw/fused y diagnostico de visibilidad.
-- `ApplyPatch()` devuelve `FusionChangeSet` exacto y un rollback. El backend
-  puede llamar a `RollbackPatch()` si falla score o covisibilidad.
-- La evaluacion sparse simetrica usa calibracion pinhole y recorre toda la
-  evidencia negativa elegible de cada region compatible. No existe corte por
-  reloj; el trabajo queda acotado estructuralmente por regiones y subnubes.
-- Un track absorbido se elimina de `touched_tracks` en el mismo prepare. Las
-  referencias locales se comprueban antes de acceder para que una cadena
-  transitoria no pueda lanzar `map::at`.
+- `PrepareFusion()` reutiliza regiones RANSAC compatibles de la misma
+  `LoopTaskComputation`.
+- Dos tracks se unen bajo ID estable; altas, extensiones, merges y retiradas
+  producen `FusionChangeSet` exacto.
+- Cada track conserva miembros, KFs observadores, procedencia, descriptor
+  medoid, representante y revisiones esperadas.
+- El guard de dispersion por defecto es `0.50 m`; una union incompatible no
+  altera estado.
+- `ApplyPatch()` devuelve rollback para que el backend revierta si falla otra
+  autoridad del commit logico.
+
+## Score 3S
+
+```text
+score_fused = clamp(media(score_raw de todos los miembros) + 0.04 * N, 0, 1)
+```
+
+Cada penalizacion geometrica permanece en el score raw del miembro afectado.
+La media permite que miembros posteriores con observacion valida diluyan una
+penalizacion cercana antigua; el track no conserva cap ni castigo permanente.
+
+`N` es el numero total de miembros, por lo que el primer track de dos raw suma
+`0.08`. La misma fusion añade ademas `+0.04` raw a cada endpoint como evidencia
+idempotente. `BuildScoreUpdatesForMembers()` localiza y recalcula solo tracks
+que contienen raw scores modificados posteriormente.
+
+La visibilidad sparse simetrica conserva depth buffers compartidos y contadores
+de proyecciones/contradicciones, pero no emite deltas negativos en 3S. Una
+tarea rejected/stale conserva `dirty=0` y ninguna evidencia se vuelve visible.
 
 ## Referencias
 
 ```text
 orbslam3_multi/include/orbslam3_multi/fused_landmark_types.hpp
-  -> FusedLandmarkTrack / FusionPatch / FusionChangeSet / FusionRollbackPatch
-  -> rg -n "FusedLandmarkTrack|FusionPatch|FusionChangeSet"
+  -> FusionPatch / visibility_diagnostic_events / FusionChangeSet
 
 orbslam3_multi/include/orbslam3_multi/fused_landmark_manager.hpp
-  -> FusedLandmarkManager
-  -> rg -n "class FusedLandmarkManager|PrepareFusion|ApplyPatch|RollbackPatch"
+  -> FusedLandmarkConfig / FusedLandmarkManager
 
 orbslam3_multi/src/fused_landmark_manager.cpp
-  -> preparacion, union transitiva, visibilidad y commit
-  -> rg -n "PrepareFusion|touched_tracks|ApplyPatch|RollbackPatch"
+  -> FusedScore / PrepareFusion / BuildScoreUpdatesForMembers
+  -> rg -n "FusedScore|visibility_diagnostic_events|BuildScoreUpdatesForMembers"
 
 orbslam3_multi/test/test_fused_landmark_manager.cpp
-  -> union transitiva, guard de dispersion, regresion touch+merge+retire y
-     recorrido completo de contradicciones de visibilidad
+  -> union transitiva, media+bonus y visibilidad diagnostica sin negativos
 ```
 
 ## Telemetria
 
-`[F3P-FUSION]` expone prepare/commit/stale/rollback, pares, tracks
-creados/actualizados/retirados, miembros ocultos, score, covisibilidad,
-regiones iniciadas/completadas, proyecciones y tiempos. El tiempo de commit es
-telemetria, no umbral de aceptacion ni warning. La prueba 161 recorre `56/56`
-regiones y drena todos los retries sin excepcion ni fallo duro.
+`[F3P-FUSION]` conserva el resumen estructural y
+`[F3S-FUSED-SCORE-COMMIT]` separa committed, positivos, negativos,
+diagnosticos y raw dirty. La prueba 193 observa 166 intentos muestreados, 77
+commits, 12.672 positivos, 6.319 diagnosticos, 4.528 raw dirty y cero eventos
+negativos.

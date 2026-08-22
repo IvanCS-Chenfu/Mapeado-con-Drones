@@ -3,8 +3,18 @@
 ## Estado
 
 ```text
-SIN HACER: prueba actualizada para el rediseño acordado.
+CONSEGUIDA POR EVIDENCIA INTEGRAL ACUMULADA Y ACEPTACION DEL USUARIO
 ```
+
+No se ejecuta una prueba nueva etiquetada exclusivamente como `3V`. Las
+regresiones 187, 188, 191 y 194, los tests funcionales y las revisiones humanas
+ya recorren conjuntamente flujo principal, worker secundario serial,
+prioridades, loops, fiduciales, fusion, scoring, publicacion, RViz2 y grafo web.
+El usuario considera muy buenas estas pruebas y acepta su conjunto como cierre.
+
+Los fallos inducidos y la comparacion A/B de telemetria descritos mas abajo
+quedan como protocolo reutilizable ante una regresion, no como trabajo
+obligatorio pendiente de esta subfase.
 
 ## Objetivo
 
@@ -146,10 +156,18 @@ Crear sublogs por flujo/tarea si el reducido es grande.
 - shutdown no deja procesos/threads necesarios activos;
 - documentacion e historiales quedan sincronizados.
 
+El cierre vigente satisface estos criterios mediante evidencia distribuida. No
+se afirma que exista una ejecucion unica que contenga todos los fallos inducidos
+ni una comparacion A/B nueva.
+
 ## Parcial/fallo
 
 `PARCIAL` si la arquitectura pasa pero falta una rama real, inspeccion humana o
 prueba A/B.
+
+Este criterio se conserva para evaluar una futura ejecucion 3V aislada. En el
+cierre vigente, la inspeccion humana existe y el usuario acepta expresamente la
+evidencia distribuida sin exigir una A/B adicional.
 
 `NO CONSEGUIDA` si se congela ingesta/publicacion, se viola prioridad, hay dos
 tareas activas, se espera ACK visual, un commit queda parcial, el visualizador

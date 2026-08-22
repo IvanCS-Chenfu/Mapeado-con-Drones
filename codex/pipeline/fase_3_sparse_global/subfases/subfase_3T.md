@@ -3,12 +3,18 @@
 ## Estado vigente
 
 ```text
-REHACER
+CONSEGUIDA POR AUDITORIA TECNICA Y ACEPTACION DEL USUARIO
 ```
 
-El ownership conceptual se conserva, pero este contrato transversal debe
-reescribirse para reflejar dos flujos reales, ChangeSets/Patches y la retirada
-de `live_state_mutex_`.
+La arquitectura exigida quedo implantada incrementalmente entre `3C` y `3S`.
+La auditoria final confirma dos workers persistentes, autoridades separadas,
+propuestas privadas, commits revisionados, dirty sets y publicacion exclusiva
+del flujo principal. El usuario considera bueno el rendimiento actual y decide
+no estrechar mas los locks por ahora.
+
+No se ejecuta una reimplementacion adicional en `3T`. Las mediciones globales
+de carga y la regresion transversal permanecen en `3V/3W` y no reabren esta
+subfase salvo que descubran una violacion real de ownership o atomicidad.
 
 ### Trabajo que se conserva
 
@@ -24,23 +30,26 @@ de `live_state_mutex_`.
 - usar un mutex recursivo común para simular atomicidad;
 - dejar IDs, revisiones y origen de poses/tracks implícitos.
 
-### Contrato de reimplementación
+### Contrato vigente validado
 
 `GlobalMapServer` orquesta exactamente `PrimaryWorker` y `SecondaryWorker`.
 Cada base define writer, vista inmutable, patch y revisión. Los secundarios
 preparan propuestas y el commit valida por entidad; los cambios a publicación
 se acumulan como dirty sets. Todo evento incluirá `flow_id`, `task_id`, origen,
-revisiones y timestamps. Los tests de contrato comprobarán un solo worker por
-flujo, raw inmutable, commits atómicos y ausencia de locks largos.
+revisiones. La telemetria web detallada es observabilidad descartable y su
+presentacion pertenece a `3U`; no condiciona commits ni publicacion. Las
+pruebas existentes y las simulaciones hasta 194 cubren un solo worker por
+flujo, raw inmutable, commits atomicos y progreso del principal.
 
 ## Estado histórico anterior
 
-Las secciones posteriores se conservan como contrato/evidencia de la
-implementación anterior. Si contradicen el bloque REHACER de esta cabecera,
-prevalece el contrato de reimplementación nuevo.
+Las secciones posteriores conservan el contrato que fue implantado
+incrementalmente. Si una formulacion histórica contradice el estado de cierre
+de esta cabecera, prevalece el runtime auditado.
 
 ```text
-INTEGRADA: ownership y flujo vigentes; verificacion final en 3V-3X pendiente.
+CONSEGUIDA: ownership y flujo vigentes auditados; 3V/3W los reutilizan en la
+regresion y el stress globales.
 ```
 
 ## Objetivo
@@ -268,7 +277,8 @@ sin bloqueo demostrado y autorizacion.
 
 ## Incremento Visual Obligatorio
 
-Aplicar `../CONTRATO_VISUAL_INCREMENTAL.md`. No añade nodos por documentacion:
-completa y valida `flow_id`, IDs, ownership, frames y revisiones en cada evento
-ya existente. Una arista sin contrato de payload o autoridad mantiene 3T
-`PARCIAL`.
+Se aplico `../CONTRATO_VISUAL_INCREMENTAL.md` sin añadir nodos documentales. El
+grafo representa IDs, ownership y fronteras de autoridad suficientes para
+seguir el runtime real; la telemetria sigue siendo best-effort y no funcional.
+Una regresion futura que confunda autoridades o altere el pipeline reabriria
+3T, pero no se exigen mas campos visuales para su cierre actual.

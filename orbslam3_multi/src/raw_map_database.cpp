@@ -322,7 +322,7 @@ RawInsertResult RawMapDatabase::InsertMap(
   RawSubmap & submap = submap_it->second;
   submap.camera = {
     map->fx, map->fy, map->cx, map->cy,
-    map->image_width, map->image_height};
+    map->bf, map->image_width, map->image_height};
   result.new_submap = inserted;
   bool material_change = inserted;
   std::unordered_set<uint64_t> received_keyframes;

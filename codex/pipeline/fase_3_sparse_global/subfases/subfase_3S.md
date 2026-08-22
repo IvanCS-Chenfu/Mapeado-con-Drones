@@ -1,76 +1,93 @@
-# Subfase 3S - Scoring de raw MPs y fused tracks
+# Subfase 3S - Scoring raw y fused incremental
 
 ## Estado vigente
 
 ```text
-REHACER INTEGRACION; CONSERVAR POLITICA DE SCORE
+CONSEGUIDA: RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
 ```
 
-`LandmarkScoreManager` se conserva como autoridad numérica, pero sus cambios
-raw deben salir del callback principal y producir cambios incrementales para
-`3F`.
+## Objetivo
 
-### Trabajo que se conserva
+Convertir `LandmarkScoreManager` en la unica autoridad numerica para que el
+score evolucione con la calidad ORB, la geometria global y las fusiones, sin
+usar ground truth, bloquear publicacion ni reconstruir snapshots completos.
 
-- score único para MPs raw y fused tracks;
-- eventos estructurados y prohibición de escribir score desde otras clases;
-- integración de score fused en el commit de `3P`.
-- eventos positivos/negativos de geometria y visibilidad introducidos en `3P`,
-  sin quitar a `LandmarkScoreManager` la autoridad numerica.
-
-### Implementación anterior incorrecta que no debe repetirse
-
-- actualizar o copiar todos los scores bajo `live_state_mutex_`;
-- bloquear publicación esperando cálculo secundario;
-- usar snapshots completos en builder/loops;
-- publicar score de una tarea rechazada o stale.
-
-### Contrato de reimplementación
-
-El score ORB base de MPs afectados se calcula en el flujo principal. Cualquier
-calculo derivado no imprescindible se integra en la `DatabaseUpdateTask` MEDIA
-existente, sin crear una prioridad nueva. La preparacion ocurre fuera de lock y
-el commit breve devuelve `ScoreChangeSet`. La fusion integra su patch de score
-en la misma transaccion logica. `GlobalMapBuilder` consume IDs/revisiones dirty
-y nunca escribe score.
-
-`3P` adelanta solo la evidencia inseparable de una fusion: inlier `+0.04`, miss
-visible `-0.01` y contradiccion foreground `-0.03`, todos configurables,
-simetricos e idempotentes. `3S` conserva la propiedad de la politica general y
-podra refinar formula, eventos y calibracion sin cambiar el flujo.
-
-## Estado histórico anterior
-
-Las secciones posteriores se conservan como contrato/evidencia de la
-implementación anterior. Si contradicen el bloque REHACER de esta cabecera,
-prevalece el contrato de reimplementación nuevo.
+Para cada raw MapPoint:
 
 ```text
-INTEGRADA EN RUNTIME; cierre de politica y pruebas especificas PARCIAL.
+score_raw = clamp(
+  base_score_orb * factor_distancia * factor_aislamiento
+  + 0.04 * inliers_confirmados,
+  0, 1)
 ```
 
-## Propiedad
+- `base_score_orb` se recalcula cuando ORB-SLAM3 cambia sus datos de calidad;
+- un raw no anclado conserva la base ORB y los refuerzos confirmados;
+- al anclarse se aplican factores geometricos configurables y acotados;
+- una distancia fisicamente sospechosa o excesiva respecto al keyframe
+  observador reduce score de forma progresiva;
+- el aislamiento global persistente reduce score cuando ya existe soporte
+  suficiente para juzgarlo;
+- ambos factores son recuperables si ORB actualiza la posicion o aparecen
+  vecinos coherentes.
 
-`LandmarkScoreManager` es la unica autoridad de score:
+Para cada fused track:
 
-- el flujo principal actualiza score base desde el `ChangeSet` raw;
-- una `LoopTask` actualiza score derivado dentro del mismo commit de fusion;
-- `GlobalMapBuilder` solo lee el snapshot de score.
+```text
+score_fused = clamp(media(score_raw de todos los miembros) + 0.04 * N, 0, 1)
+```
 
-El builder publica todos los puntos independientemente del score. La GUI de
-Fase 7 sera quien permita filtrarlos visualmente.
+`N` es el numero de raw MapPoints miembros. Por tanto, la primera fusion de dos
+miembros suma `0.08` y cada miembro posterior suma `0.04`. Se conserva ademas
+el refuerzo raw `+0.04` por inlier confirmado: el doble refuerzo es
+intencional.
 
-No existe una cola, worker o transaccion visual propios de scoring.
+## Integracion
+
+- Los cambios raw ORB se limitan a IDs del `RawChangeSet`.
+- El indice espacial actualiza solo celdas vecinas a altas, movimientos o
+  retiradas; no recorre toda la nube por llegada.
+- Cambios raw o geometricos recalculan solo fused tracks que contienen esos
+  miembros.
+- Altas, extensiones, merges y bajas de tracks recalculan el fused score en el
+  mismo commit logico de fusion.
+- `ScoreChangeSet` entrega IDs exactos a `GlobalMapBuilder`; el builder publica
+  todos los puntos y solo copia `score`/`rgb`.
+- RViz2 conserva el gradiente rojo-amarillo-verde para scores `0-0.5-1`.
+
+## Oclusiones
+
+La visibilidad sparse de 3P se conserva como diagnostico, pero no modifica
+numericamente el score en 3S. Decidir si un punto esta realmente ocluido exige
+la nube densa prevista para Fase 8; alli se podran corregir posiciones y scores
+sin premiar accidentalmente ruido foreground.
+
+## Limites
+
+- sin GT, nueva cola o worker de score;
+- sin cambiar geometria, fusion u optimizacion para mejorar una puntuacion;
+- sin ocultar puntos por score dentro de `GlobalMapBuilder`;
+- sin score visible procedente de una fusion rechazada o stale;
+- sin snapshots completos en la ruta incremental.
+
+## Prueba acordada
+
+Ejecutar `prueba_tipica_rodeo_edificio_dos_fiduciales.yaml`, reducir logs y
+comprobar grafo web, commits `F3S-*`, score raw/fused y RViz2. La inspeccion
+visual se centra especialmente en observar que el ruido pierde score sin que
+desaparezca de la nube publicada.
+
+La prueba 193 confirma el refuerzo por revisitas, pero no valida los umbrales
+actuales: estructura habitual queda demasiado penalizada y puntos a menos de
+1 m conservan score excesivo. La recalibracion acordada fija el limite cercano
+fisico en 1 m y hace el limite lejano proporcional al baseline: con los `0.06 m`
+actuales, la banda neutra es 1-5 m. Ambos extremos usan caida cuadratica
+acotada. La penalizacion permanece en cada raw y puede diluirse mediante la
+media fused, sin cap permanente.
 
 ## Subdocumentos
 
-- `subfase_3S_especificacion.md`: eventos, ownership e invariantes.
-- `subfase_3S_implementacion.md`: APIs y commits.
-- `subfase_3S_testing.md`: pruebas.
-- `subfase_3S_criterios.md`: exito/fallo.
-
-## Incremento Visual Obligatorio
-
-Aplicar `../CONTRATO_VISUAL_INCREMENTAL.md`. Añadir
-`LandmarkScoreManager`, eventos/patches de score raw y fused y la notificacion
-dirty al builder. Mostrar cantidades y revision; no enviar scores completos.
+- `subfase_3S_especificacion.md`: ownership, formula e invariantes.
+- `subfase_3S_implementacion.md`: APIs e integracion incremental.
+- `subfase_3S_testing.md`: regresiones y simulacion.
+- `subfase_3S_criterios.md`: criterios de cierre.

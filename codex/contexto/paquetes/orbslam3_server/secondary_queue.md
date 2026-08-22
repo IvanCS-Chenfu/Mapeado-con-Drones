@@ -28,7 +28,11 @@ Scheduler global de trabajos secundarios con un unico consumidor persistente.
 - una MEDIA lleva un `DatabaseUpdateTask` real y al terminar genera las BAJAS
   por KF indicadas en su payload;
 - `Complete()` libera la identidad y despierta a productores/consumidor;
-- no impone limite destructivo: el mission gate usa watermarks 64/16.
+- `PendingStats()` separa `critical` de `maintenance`: fiducial, MEDIA y loops
+  `Full` son criticos; `FusionRefresh` es mantenimiento. El total sigue
+  observable, pero el mission gate usa watermarks 64/16 sobre pendientes
+  criticos para que un backlog post-opt de fusion no detenga la trayectoria;
+- no impone limite destructivo y conserva un unico worker no preemptivo.
 
 ## Referencias
 
@@ -38,5 +42,6 @@ orbslam3_server/include/orbslam3_server/secondary_queue.hpp
   -> rg -n "enum class SecondaryTaskPriority|class SecondaryTaskQueue"
 orbslam3_server/test/test_secondary_queue.cpp
   -> prioridad, no preemption, FIFO, coalescencia causal y retry explicito que
-     atraviesa solo el ledger completado
+     atraviesa solo el ledger completado, precedencia `Full` y conteos
+     `critical/maintenance`
 ```

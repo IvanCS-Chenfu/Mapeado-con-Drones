@@ -2,63 +2,75 @@
 
 ## Rol
 
-Base autoritativa del score inicial de cada `RawMapPointId`. No duplica la
-geometria raw: conserva score, revision, observaciones, `found_ratio`, validez
-del descriptor y estado `is_bad`.
+Autoridad numerica unica de score raw y fused. Conserva base ORB, factores
+geometricos, evidencias idempotentes, score final y revisiones; ninguna clase
+externa modifica valores directamente.
+
+## Politica raw 3S
 
 ```text
-score = clamp(
+base_score_orb = clamp(
   0.55 * min(observations_count / 8, 1)
-  + 0.35 * clamp(found_ratio, 0, 1)
+  + 0.35 * found_ratio
   + 0.10 * descriptor_valid,
   0, 1)
-is_bad => score 0
+
+score_raw = clamp(
+  base_score_orb * distance_factor * isolation_factor
+  + positive_adjustment + negative_adjustment,
+  0, 1)
 ```
 
-## Flujo
+En el runtime 3S `positive_adjustment` recibe `+0.04` por inlier de fusion
+confirmado. `negative_adjustment` se conserva en el modelo/rollback, pero 3S no
+genera penalizaciones sparse: la oclusion queda para Fase 8 con nube densa.
 
-- `ApplyRawChanges()` consume MPs nuevos y `score_input_changed_mappoint_ids`;
-  no recalcula score por un cambio exclusivamente geometrico.
-- Los inputs candidatos se leen en un batch ligero de `RawMapDatabase`; no se
-  copia un `OrbMapPoint` completo ni se toma un lock raw por candidato.
-- `invalidated_mappoint_ids` fuerza score cero y conserva el registro para
-  trazabilidad.
-- Un punto que ORB marca `is_bad` permanece trazable con score cero mientras
-  exista en `RawMapDatabase`.
-- Un registro incrementa su `record_revision` cuando cambia cualquiera de sus
-  inputs ORB. `input_updated_ids` permite actualizar esa trazabilidad sin
-  afirmar que el score visible ha cambiado.
-- `score_revision`, `updated_ids` y el dirty del builder solo avanzan cuando
-  cambia el score calculado o `is_bad`. Por ejemplo, pasar de 8 a 12
-  observaciones mantiene el termino saturado y no recalcula la vista.
-- `ScoreChangeSet` separa creados, score actualizado, invalidaciones e inputs
-  internos; el builder recibe exclusivamente IDs con salida material.
-- `GetStats()` devuelve revision, puntos seguidos/bad y min/media/max.
-- `PrepareScorePatch()` y `ApplyScorePatch()` aplican evidencia idempotente por
-  `evidence_id`; `RollbackScorePatch()` restaura exactamente el estado previo
-  si falla otra base del commit 3P.
-- Los inliers confirmados suman `+0.04` por endpoint. Los hard outliers aislados
-  son diagnostico; solo una expectativa sparse simetrica fiable aplica
-  `-0.01` por miss esperado o `-0.03` por contradiccion foreground.
-- Cada fused track conserva score proyectado, procedencia y revisiones. Su base
-  provisional usa el maximo de sus miembros y bonos acotados por miembros,
-  drones y submapas; los deltas de evidencia se mantienen separados.
+- `ApplyRawChanges()` consume solo MPs nuevos o con inputs ORB modificados.
+- Un raw no anclado usa factores neutros `1`.
+- `ApplyGeometryChanges()` recibe posicion world, distancia al KF observador y
+  baseline estereo; puede penalizar y recuperar el score.
+- La cercania sospechosa usa umbral metrico fijo `1.0 m` y
+  `max(0.05, (distance/near_limit)^2)`; representa plausibilidad fisica y no
+  escala con baseline.
+- La banda neutra termina en
+  `far_limit=max(near_limit,83.333333*baseline)`, o fallback `5.0 m`. Con el
+  baseline actual `0.06 m` abarca 1-5 m. Despues usa
+  `max(0.25,(far_limit/distance)^2)`.
+- El aislamiento se activa solo tras madurez ORB minima. Cuenta ocupacion en
+  los 27 voxels vecinos y reduce de forma progresiva si no alcanza soporte.
+- Altas, movimientos y bajas agrupan primero voxels afectados; cada punto se
+  reevalua en coste constante respecto al tamaño global. Una geometria
+  identica solo reevalua el propio MP y no reindexa vecinos.
+
+`ScoreChangeSet` distingue altas, outputs modificados, invalidaciones, cambios
+solo de input y fused tracks. `score_revision`/dirty avanzan solo ante salida
+material. Evidencia repetida por `evidence_id` es no-op y `RollbackPatch()`
+restaura exactamente el estado anterior.
+
+## Configuracion y stats
+
+`LandmarkScoreConfig` contiene radio/minimo/madurez/factor de aislamiento,
+umbral/factor de cercania y multiplicador/fallback/factor minimo lejano. Sus
+defaults de distancia son `1.0`, `0.05`, `83.333333`, `5.0` y `0.25`.
+`GetStats()` expone tracked/bad/anchored/isolated/near/far y min/media/max.
 
 ## Referencias
 
 ```text
 orbslam3_multi/include/orbslam3_multi/landmark_score_manager.hpp
-  -> LandmarkScoreRecord / ScoreChangeSet / LandmarkScoreManager
-  -> rg -n "LandmarkScoreRecord|ScorePatch|FusedLandmarkScoreRecord|class LandmarkScoreManager"
+  -> LandmarkScoreConfig / LandmarkScoreGeometryInput / LandmarkScoreManager
+  -> rg -n "LandmarkScoreConfig|ApplyGeometryChanges|LandmarkScoreStats"
 
 orbslam3_multi/src/landmark_score_manager.cpp
-  -> ComputeOrbScore / ApplyRawChanges / PrepareScorePatch / rollback
-  -> rg -n "ComputeOrbScore|ApplyRawChanges|PrepareScorePatch|ApplyScorePatch|RollbackScorePatch"
+  -> ApplyRawChanges / ApplyGeometryChanges / DistanceFactor / IsolationFactor
+  -> rg -n "ApplyGeometryChanges|DistanceFactor|IsolationFactor|RecomputeOutput"
 
 orbslam3_multi/test/test_landmark_score_manager.cpp
-  -> formula, no-op, actualizacion focal, is_bad=0 y saturacion sin dirty
+  -> base ORB, distancia recuperable, aislamiento recuperable e inlier posterior
 ```
 
-3P implementa el score geometrico minimo necesario para fusion. 3S completara
-la politica general y el GUI filtrara por score en fase 7; el builder sigue
-publicando todos los puntos.
+El builder publica todos los puntos independientemente del score.
+
+La prueba 194 valida los defaults recalibrados con 24.977 puntos anclados:
+`near=99`, `far=11.433` y media `0.2596`, frente a `1`, `24.195` y `0.1502` en
+193. Las colas terminan vacias y no aparecen penalizaciones sparse.

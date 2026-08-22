@@ -28,14 +28,14 @@ fragmentos solo si falta evidencia concreta.
 | `3N` | `por_subfase/historial_3N_RESUMEN.md` | `CONSEGUIDA`: indice BoW, regiones y ledger causal con cola drenada. |
 | `3O` | `por_subfase/historial_3O_RESUMEN.md` | `CONSEGUIDA`: reanchor, propagacion, carga y validacion RViz2/web completados. |
 | `3P` | `por_subfase/historial_3P_RESUMEN.md` | `CONSEGUIDA`: prueba 161 y cierre del usuario; queda pulido de layout web. |
-| `3Q` | `por_subfase/historial_3Q_RESUMEN.md` | Preparacion cerrada: optimizador covisible comun loop/fiducial; implementacion y accepts pendientes. |
+| `3Q` | `por_subfase/historial_3Q_RESUMEN.md` | `A REVISAR`: 194 reproduce mala deformacion por dos loops asimetricos ambiguos antes del segundo fiducial hard; sin correccion aplicada. |
 | `3R` | `../subfases/subfase_3R.md` | Cancelada como subfase independiente; absorbida por 3D/3K/3Q. |
-| `3S` | `../subfases/subfase_3S.md` | `REHACER INTEGRACION`: score HIGH/incremental y `ScoreChangeSet`. |
-| `3T` | `../subfases/subfase_3T.md` | `REHACER`: ownership, patches, revisiones e invariantes del nuevo runtime. |
-| `3U` | `por_subfase/historial_3U_RESUMEN.md` | `REHACER`: conservar transporte, eliminar cola 110 ms/replay SSE desde cero. |
-| `3V` | `../subfases/subfase_3V.md` | Regresion end-to-end preparada y pendiente. |
-| `3W` | `../subfases/subfase_3W.md` | `REHACER CONTRATO`: backpressure, límites, histéresis y estrés tras 3B-3U. |
-| `3X` | `../subfases/subfase_3X.md` | Limpieza final preparada; solo tras validar las rutas sustitutas. |
+| `3S` | `por_subfase/historial_3S_RESUMEN.md` | `CONSEGUIDA`: prueba 194 valida recalibracion 1-5 m y el usuario confirma scores visuales perfectos. |
+| `3T` | `por_subfase/historial_3T_RESUMEN.md` | `CONSEGUIDA`: arquitectura ya implantada en 3C-3S, auditada y aceptada sin mas optimizacion de locks. |
+| `3U` | `por_subfase/historial_3U_RESUMEN.md` | `CONSEGUIDA`: SSE live/reconexion, drenaje por frame, lifecycle y grafo aceptados por el usuario. |
+| `3V` | `por_subfase/historial_3V_RESUMEN.md` | `CONSEGUIDA`: regresion acumulada 187/188/191/194 aceptada por el usuario. |
+| `3W` | `por_subfase/historial_3W_RESUMEN.md` | `CONSEGUIDA`: rendimiento y robustez vigentes aceptados, sin mas tuning preventivo. |
+| `3X` | `../subfases/subfase_3X.md` | Limpieza final preparada; 3C-3W validadas y 3Q debe conservarse `A REVISAR` en el cierre. |
 
 ## Cómo añadir historial nuevo
 

@@ -24,10 +24,9 @@ automático del chat no la sustituye.
 - Fase activa: Fase 3 — mapa sparse global multi-dron.
 - Fase 1 — control del dron está documentada como `realizado`.
 - Fase 2 — separación de paquetes queda pendiente hasta cerrar Fase 3.
-- `3B` está `CONSEGUIDA`: runtime vacío y grafo live base validados automática
-  y visualmente en la prueba 78.
-- `3C` está `CONSEGUIDA`; `3D` está técnicamente validada y `PARCIAL` hasta
-  recibir la observación visual de prueba 88. `3E-3U/3W` siguen `REHACER`.
+- `3B-3P` y `3S-3W` estan `CONSEGUIDAS`.
+- `3Q` queda `A REVISAR`, aceptada para continuar y con punto de reentrada
+  obligatorio en su historial; `3X` sigue pendiente.
 - Objetivo global del proyecto: nube densa global sin usar ground truth para mapa
   final ni pose final.
 

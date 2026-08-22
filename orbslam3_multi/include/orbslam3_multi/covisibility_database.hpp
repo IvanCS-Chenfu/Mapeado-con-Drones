@@ -107,6 +107,8 @@ public:
   std::vector<CovisibilityEdge> GetNeighbors(
     const RawKeyFrameId & keyframe_id, uint64_t min_support = 1,
     size_t limit = 32) const;
+  std::vector<CovisibilityEdge> GetEdgesBySource(
+    CovisibilityEdgeSource source) const;
   bool HasSource(
     const RawKeyFrameId & first, const RawKeyFrameId & second,
     CovisibilityEdgeSource source) const;

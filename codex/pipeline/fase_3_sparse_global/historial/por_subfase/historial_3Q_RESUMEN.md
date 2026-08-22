@@ -2,50 +2,102 @@
 
 ## Estado vigente
 
-`PREPARACION CERRADA; IMPLEMENTACION PENDIENTE DE AUTORIZACION`.
+`A REVISAR; RESULTADO AUTOMATICO Y VISUAL ACEPTADO PARA CONTINUAR`.
 
-La regresion absoluta/causal anterior se conserva, pero la reimplementacion
-acordada ya no fija unilateralmente candidate ni excluye same-submap. Unifica
-la optimizacion covisible fiducial/loop sobre el mismo builder, solver,
-validator y commit.
+3Q ejecuta `OptimizationEvidence` dentro de la misma `LoopTask` BAJA y reutiliza
+builder, solver, validator, store y fusion para fiducial absoluto y loop
+relativo. No crea cola, worker ni solver duplicados.
 
-## Acuerdo de reimplementacion
+## Implementacion vigente
 
-- loop relativo y fiducial absoluto usan un grafo SE(3) comun;
-- ventana = subgrafo minimo de hard, tramos temporales, dependencias soft,
-  loops/fusiones previos y covisibilidad confirmada;
-- fusiones previas empiezan soft y se mide su residual;
-- 30 % de controles es base ampliable por constraints fuertes;
-- dos queries independientes y control de ambiguedad preceden al solver;
-- no se diferencia inter/intra dron o submapa para decidir;
-- inliers RANSAC viven en la tarea y alimentan fusion 3P tras accept;
-- loop compromete inicialmente solo accept completo;
-- fusion omitida conserva poses; stale/rollback crea BAJA fresca;
-- hard no se mueve, raw no cambia y el secundario no publica;
-- `stop_drones` se activa al entrar en optimizacion loop y permanece hasta
-  terminar commit/fusion/task, aunque la tarea siga siendo BAJA.
+- grafo SE(3) comun con hard fiduciales fijos, temporal, covisibilidad nativa,
+  loops/fusiones server, dependencias soft y ventanas multi-submapa;
+- regiones robustas de error alto dominan sobre fusiones de la misma tarea;
+  cada `CurrentLoop` queda cubierto y validado antes del commit;
+- cierre transitivo por todas las fusiones, sin bonus artificial, y validacion
+  de estructura temporal, covisible, fusiones previas y hard;
+- corredores hard-hard referidos al ultimo commit fiducial: un exceso heredado
+  puede mantenerse o reducirse, pero no crecer;
+- un epoch nunca anclado conserva anclaje loop libre; un epoch nuevo nacido
+  tras perder tracking anclado debe respetar una envolvente raw por KF;
+- commit multi-submapa con rebase sobre estado vigente. Intermedios caducados se
+  omiten; extremos culled con raw estable pueden actuar como apoyo virtual sin
+  reactivarse ni escribirse; se exigen dos controles activos por submapa;
+- todos los KFs movidos se reencolan como `FusionRefresh`: recalculan
+  BoW/RANSAC/fusion/score, pero no inician optimizacion recursiva. Las tareas
+  normales siguen siendo `Full` y prevalecen al coalescer;
+- los refresh se agrupan por region y filtran candidatos por AABB world; sus
+  pendientes son mantenimiento y no mantienen por si solos backpressure;
+- un precheck anterior al builder rechaza loops >5 m/20 grados cuando ambos
+  extremos pertenecen a regiones fiduciales/corredores protegidos. El ledger
+  regional revisionado evita repetirlos en KFs vecinos; un solo lado fiable
+  conserva la optimizacion asimetrica;
+- `stop_drones` cubre grafo, solve, validacion, commit y fusion directa; la
+  tarea sigue BAJA, no preemptiva, y el principal continua incorporando raw;
+- dirty sets contienen solo KFs activos realmente movidos; raw no se modifica
+  y el worker secundario no publica.
 
-## Validacion acordada
+## Evidencia final
 
-Tests deterministas, replay y diez escenarios Gazebo naturales cubren
-autoridades hard/soft, uno/dos fiduciales, fusion previa, optimizacion fiducial
-previa, concurrencia, repeticion y cadena de tres submapas. No se fuerza error
-alto mediante offset. Cada prueba informa si ejercio realmente 3Q; cuatro casos
-requieren revision RViz2/grafo web.
+- build final: 2/2 (`orbslam3_multi`, `orbslam3_server`), exit 0;
+- regresiones finales directas: grafos/validacion 14/14, pipeline 9/9 y cola
+  6/6; CTest `orbslam3_multi` 9/9, web 1/1 y servidor funcional 4/4;
+- regresion de perdida: una hipotesis repetida a unos 190 m no ancla el epoch
+  perdido, mientras el primer epoch nunca anclado sigue libre;
+- prueba 187 corta: `success=true`, tres optimizaciones/tres commits, 16
+  `FusionRefresh` altos diferidos, 1047 tareas, `pending=0`, cero hard failures;
+- prueba 188 larga: 25 etapas y dos vueltas, scenario/tool exit 0,
+  `success=true`; 26 propuestas loop, nueve commits `Full` y 17 rechazos
+  estructurales sin escritura;
+- los commits loop 188 reducen el error medio de traslacion de 0.469849 a
+  0.089286 m; solve maximo 6765.81 ms y commit maximo 11.873 ms;
+- fiduciales 188: nueve accepts full, ocho commits atomicos y cero hard
+  failures; dos submapas se anclan por loop;
+- fusion 188: 995/1196 commits y 84103 pares comprometidos, incluidos cinco
+  commits posteriores a optimizacion;
+- recursos 188: MemAvailable minimo 5166.6 MiB, servidor RSS maximo 423.4 MiB,
+  grupo 2014.6 MiB, PSI memoria cero y guarda inactiva.
+- prueba 191 larga: dos vueltas completas, `success=true`, cola final cero,
+  2104 secundarias y cero hard failures; cinco rechazos protegidos, 42 hits del
+  ledger y 18 refresh sin candidatos espaciales;
+- los gates 191 se liberan siempre y el maximo baja de 358.8 s en la prueba 189
+  interrumpida a 80.272 s. Mantenimiento puro nunca activa backpressure;
+- recursos 191: servidor RSS maximo 362.1 MiB, grupo 1948.8 MiB, PSI memoria
+  cero y guarda inactiva.
 
-## Evidencia anterior que no se borra
+## Fallos conservados
 
-- `prueba_74` movio 31 KFs y propago 92 por tratar un loop como absoluto;
-- `prueba_75` acepto indebidamente un candidato posterior cercano y propago
-  248 KFs;
-- `prueba_76` valido filtros causales, pero no produjo accept positivo;
-- esos intentos motivan constraints relativas, filtros causales y la nueva
-  matriz de pruebas, pero no prueban la reimplementacion futura.
+- 176 y 179 siguen `NO CONSEGUIDAS` visualmente: 179 acepto una hipotesis de
+  unos 27 m sin validar la estructura previa;
+- 180 rechazo exceso de corredor heredado; 181 mantuvo una revision redundante;
+  182/184 localizaron controles culled; 185 conservo extremos demasiado
+  estrictos; 186 creo una realimentacion de 78 commits desde reruns post-opt;
+- 187 demuestra que `FusionRefresh` elimina esa realimentacion;
+- 189 se conserva `NO CONSEGUIDA`: repetitividad regional genero cinco solves
+  de 63-70 s y un gate de 358.8 s antes de la interrupcion;
+- 191 conserva una limitacion de coste: 31 rejects post-solver y una ventana de
+  786 KFs/83.44 s. No reproduce el bloqueo, pero la seleccion multi-region y
+  los umbrales pueden perfeccionarse mas adelante;
+- un CTest intermedio 8/9 fallo por fixtures sin `CurrentLoop`; la correccion
+  mecanica deja 9/9. Los fallos globales restantes son linters historicos de
+  `legacy2` y formato previo ajeno al alcance.
+- revision de la prueba 194: el dron 2 antihorario recibe dos commits loop
+  consecutivos antes del fiducial 2. El dominante corrige `3.950 m/0.454 rad`,
+  mueve 359 KFs y admite `0.686 m` de incremento estructural; el siguiente
+  corrige `0.780 m/0.078 rad` sobre 362 KFs. Ambos eran asimetricos
+  (`query` no protegida, candidato protegido), ambiguos y con diez competidores.
+  El fiducial posterior queda dentro de umbral y no reoptimiza el interior.
 
 ## Pendiente
 
-Recibir autorizacion funcional posterior, implementar, compilar y ejecutar la
-matriz. 3Q no puede marcarse conseguida sin accepts loop reales, regresion
-fiducial/covisible, cola drenada y evidencia visual acordada.
+La prueba 191 termina con cola vacia y corrige el bloqueo operativo de 189. La
+seleccion multi-region aun puede iniciar ventanas grandes cuando la relacion
+directa protegida es coherente; queda como perfeccionamiento futuro acordado.
+El usuario valora muy positivamente el resultado y autoriza continuar a la
+siguiente subfase. No obstante, 3Q queda `A REVISAR` por el error visual
+comunicado anteriormente, el incidente reproducido en 194 y el coste residual
+de algunas ventanas. El punto de reentrada es admision de loops asimetricos,
+ambiguedad/competidores, tamaño de ventana, proteccion regional y validacion de
+deformacion antes del commit.
 
-Detalle: `historial_3Q.md`.
+Detalle cronologico: `historial_3Q.md`.

@@ -9,10 +9,15 @@ Fase 3: ACTUAL - REIMPLEMENTACION EN CURSO
 3B-3L: CONSEGUIDAS tecnica y visualmente
 3M-3O: CONSEGUIDAS tecnica y visualmente
 3P: CONSEGUIDA; CIERRE FUNCIONAL Y VISUAL CONFIRMADO
-3Q: PREPARACION CERRADA; IMPLEMENTACION PENDIENTE
+3Q: A REVISAR; RESULTADO ACEPTADO PARA CONTINUAR
+3S: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
+3T: CONSEGUIDA; ARQUITECTURA AUDITADA Y RENDIMIENTO ACEPTADO
+3U: CONSEGUIDA; GRAFO WEB Y TRANSPORTE LIVE ACEPTADOS
+3V: CONSEGUIDA; REGRESION ACUMULADA ACEPTADA
+3W: CONSEGUIDA; RENDIMIENTO Y ROBUSTEZ ACEPTADOS
 ```
 
-## Runtime hasta 3P
+## Runtime hasta 3Q
 
 ```text
 wrapper -> GlobalMapServer -> PrimaryQueue -> PrimaryWorker
@@ -51,9 +56,13 @@ tarea secundaria activa se completa sin preemption.
 | 3N | LoopTask BAJA, indice BoW y regiones | `CONSEGUIDA` |
 | 3O | subnubes, RANSAC y anchor por loop | `CONSEGUIDA` |
 | 3P | fusion transitiva, score geometrico/visibilidad y commit incremental | `CONSEGUIDA` |
-| 3Q | optimizacion covisible comun loop/fiducial | `PREPARADA` |
-| 3S-3U/3W | integracion y hardening restante | segun contrato |
-| 3V-3X | regresion y cierre | pendientes |
+| 3Q | optimizacion covisible comun loop/fiducial | `A REVISAR; ACEPTADA PARA CONTINUAR` |
+| 3S | scoring raw/fused incremental | `CONSEGUIDA` |
+| 3T | arquitectura runtime, ownership e invariantes | `CONSEGUIDA` |
+| 3U | RViz2 y diagrama JavaScript runtime | `CONSEGUIDA` |
+| 3V | regresion integral | `CONSEGUIDA` |
+| 3W | rendimiento, limites y robustez | `CONSEGUIDA` |
+| 3X | limpieza y handoff | pendiente |
 
 ## Contrato 3H-3L
 
@@ -113,9 +122,8 @@ tarea secundaria activa se completa sin preemption.
 - se reutilizan todas las regiones compatibles de 3O, sin repetir RANSAC;
 - `FusedLandmarkManager` mantiene union transitiva, ID estable, medoid,
   procedencia y representante ponderado;
-- inlier `+0.04`; outlier solo penaliza tras visibilidad sparse simetrica
-  fiable (`-0.01/-0.03`), recorriendo toda evidencia elegible sin corte por
-  reloj;
+- inlier `+0.04`; tras 3S la visibilidad sparse solo diagnostica y la
+  penalizacion numerica de oclusion queda aplazada a Fase 8;
 - tracks, covisibilidad y score positivo usan patch/commit breve coherente;
 - stale o rollback termina la tarea y encola una BAJA fresca para el mismo KF;
   el retry atraviesa solo el ledger completado y conserva deduplicacion;
@@ -126,19 +134,67 @@ tarea secundaria activa se completa sin preemption.
   `LoopTask` que obtiene el segundo apoyo; stale crea una BAJA fresca que
   recalcula geometria.
 
-## Contrato preparado 3Q
+## Runtime 3Q
 
 - fiducial absoluto y loop relativo reutilizan builder/solver/validator/commit;
 - ventana = subgrafo minimo con hard, temporal, soft, fusion/loop y covis;
 - fusiones previas son constraints relativas soft con residual medido;
+- todas las fusiones server conectadas cierran transitivamente la componente;
 - controles base 30 % se amplian por endpoints covisibles obligatorios;
 - no se distingue inter/intra dron/submapa para la decision geometrica;
 - loop requiere dos queries y accept completo; fusion 3P directa es opcional;
+- continuidad tras perdida limita solo epochs nuevos de submapas antes anclados;
+- temporal, covisibilidad, fusiones y corredores hard-hard protegen estructura;
+- commit rebasado admite apoyos virtuales culled con raw estable sin escribirlos;
+- reruns post-opt son `FusionRefresh`: fusionan/actualizan score sin reoptimizar;
+- `FusionRefresh` se agrupa por region, filtra candidatos por subnube world y
+  no mantiene backpressure como mantenimiento puro;
+- loops lejanos entre dos regiones protegidas se rechazan antes del grafo y se
+  recuerdan en un ledger regional revisionado;
 - KFs tardios/tails siguen continuidad por submapa y paran ante hard;
 - la `LoopTask` permanece BAJA/no preemptiva, pero `stop_drones` permanece
   activo desde el inicio de 3Q hasta task end, incluida fusion posterior;
 - validacion: tests/replay, diez escenarios Gazebo naturales y cuatro revisiones
   RViz2/web representativas.
+
+## Evidencia 3Q
+
+- build final 2/2; grafos 14/14, pipeline 9/9, cola 6/6, CTest multi 9/9,
+  servidor funcional 4/4 y web 1/1;
+- 187: tres optimizaciones/tres commits, 16 refresh altos diferidos, 1047
+  tareas, cola final cero y sin hard failures;
+- 188: recorrido doble completo, nueve commits loop, ocho fiduciales, dos
+  anchors loop y 17 rechazos estructurales sin escritura;
+- error medio loop 0.469849 -> 0.089286 m; 995 fusiones y cero hard failures;
+- recursos estables; backlog final de fusion desciende 323 -> 310 sin bloqueo;
+- 191 corrige el bloqueo de 189: recorrido doble, cola cero, 2104 tareas, cinco
+  prechecks y 42 hits del ledger; gate maximo 80.272 s frente a 358.8 s;
+- queda coste residual de una ventana 786 KFs/83.44 s; el usuario acepta el
+  resultado y permite avanzar, manteniendo 3Q como punto de reentrada futuro.
+
+## Runtime y evidencia 3S
+
+- raw = base ORB por factores recuperables de distancia/aislamiento mas
+  `+0.04` por inlier; sin anchor usa factores neutros;
+- fused = media de todos los raw miembros mas `0.04*N`;
+- indice voxel incremental, propagacion tras raw/pose y dirty sets exactos;
+- visibilidad sparse diagnostica, builder sin filtro y nube con score/rgb;
+- build 3/3 y tests 9/9 + 4/4 + 1/1;
+- 192 pasa con backlog primario 45; la correccion evita reindexar geometria
+  identica y 193 cierra principal/secundario en cero;
+- final 193: 60.524 tracked, 24.969 anchored, 529 isolated, 1 near, 24.195
+  far, score medio 0.1502; 77 commits fused y cero negativos sparse;
+- 23.531 puntos publicados, recursos estables y cero hard failures;
+- RViz2 confirmo revisitas, pero revelo mala calibracion; la prueba 194 valida
+  la correccion 1-5 m: con anclados casi identicos, far baja 24.195->11.433,
+  near sube 1->99 y media 0.1502->0.2596;
+- 194 cierra ambas colas en cero, publica 23.564 puntos score/rgb, conserva
+  cero negativos sparse y recursos estables; el usuario confirma scores
+  visuales perfectos y concluye 3S.
+- incidencia 3Q en la misma 194: dos loops asimetricos del dron 2 corrigen
+  3.950 m y 0.780 m antes del segundo fiducial hard, moviendo 359/362 KFs con
+  evidencia ambigua. El fiducial posterior no reoptimiza el interior; 3Q sigue
+  `A REVISAR` y no se aplica correccion en este diagnostico.
 
 ## Evidencia 3P
 

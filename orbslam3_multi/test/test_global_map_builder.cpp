@@ -64,7 +64,7 @@ TEST(GlobalMapBuilder, OmitsUnanchoredThenBackfillsOnFirstAnchor)
   EXPECT_NEAR(after.keyframes[0].world_pose.position.x, 11.0, 1e-9);
   EXPECT_NEAR(after.points[0].x, 13.0F, 1e-5F);
   EXPECT_EQ(after.points[0].associated_keyframe_id.local_kf_id, 7U);
-  EXPECT_FLOAT_EQ(after.points[0].score, 1.0F);
+  EXPECT_NEAR(after.points[0].score, 0.35F, 1e-6F);
   EXPECT_EQ(after.fallback_submap_points, 0U);
 
   const auto no_op = backend.BuildGlobalMap();

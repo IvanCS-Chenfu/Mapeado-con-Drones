@@ -3,12 +3,20 @@
 ## Estado vigente
 
 ```text
-REHACER CONTRATO Y EJECUTAR TRAS 3B-3U
+CONSEGUIDA POR EVIDENCIA DE RENDIMIENTO/ROBUSTEZ Y ACEPTACION DEL USUARIO
 ```
 
-Esta subfase era pendiente, pero su contrato anterior no incorpora toda la
-causalidad y backpressure necesarios. Se rehace documentalmente ahora y se
-ejecutará después de las subfases propietarias.
+La politica vigente se construyo y corrigio durante 3C-3S: histeresis principal,
+pendientes secundarios criticos separados de mantenimiento, prioridad
+fiducial, coalescing, retries controlados, `FusionRefresh` no recursivo,
+monitorizacion de recursos y fallo bloqueante observable. Las pruebas largas
+188, 191 y 194 muestran progreso, memoria estable y ausencia de deadlock o
+crecimiento autosostenido en el estado aceptado.
+
+El usuario considera suficientemente buenos el rendimiento y la robustez y
+decide no añadir mas limites, metricas ni optimizaciones por ahora. Los
+presupuestos y pruebas posteriores quedan como protocolo diagnostico para una
+regresion futura, no como reimplementacion pendiente.
 
 ### Trabajo que se conserva
 
@@ -25,27 +33,25 @@ ejecutará después de las subfases propietarias.
 - acumular ticks de snapshot durante la pausa;
 - permitir espera infinita si un worker muere o no drena.
 
-### Contrato de reimplementación
+### Politica vigente aceptada
 
-3W hereda de 3C el topic, su publisher reliable/transient-local, el gate del
-scenario runner y la histeresis principal high=8/low=2. No sustituye esa ruta:
-la endurece. Backpressure será OR de high watermarks de ambas colas, edad
-máxima, drenaje estimado y optimización fiducial/loop activa, con low
-watermarks y dwell de liberación. El goal activo termina; el runner retiene el
-siguiente movimiento.
-No se solicitan snapshots periódicos durante presión y al liberar se pide como
-máximo uno fresco por dron. Se medirán lock wait/hold, enqueue/start/end,
-latencia de publicación, drops/coalescing web y fallo explícito por presión
-excesiva o worker sin progreso.
+3W conserva de 3C el topic, su publisher reliable/transient-local, el gate del
+scenario runner y la histeresis principal high=8/low=2. El backpressure vigente
+combina cola principal, pendientes secundarios criticos, optimizacion activa y
+fallo bloqueante; los `FusionRefresh` de mantenimiento no cierran por si solos
+el gate. El goal activo termina y el runner retiene el siguiente movimiento.
+No se solicitan snapshots periodicos durante presion y al liberar se pide como
+maximo uno fresco por dron.
 
 ## Estado histórico anterior
 
-Las secciones posteriores se conservan como contrato/evidencia de la
-implementación anterior. Si contradicen el bloque REHACER de esta cabecera,
-prevalece el contrato de reimplementación nuevo.
+Las secciones posteriores conservan presupuestos y pruebas de diagnostico. Si
+una formulacion histórica contradice el estado de cierre de esta cabecera,
+prevalece la politica runtime auditada y aceptada.
 
 ```text
-SIN HACER: contrato actualizado al flujo principal/secundario.
+CONSEGUIDA: politica construida por las subfases propietarias y aceptada tras
+las pruebas integrales existentes.
 ```
 
 ## Objetivo
@@ -217,7 +223,7 @@ Son presupuestos de diagnostico revisables, no umbrales para ocultar trabajo:
 - `TryEmit` no bloqueante y drops contabilizados;
 - overhead de telemetria pequeño frente a variabilidad normal.
 
-## Exito
+## Objetivos ideales de diagnostico
 
 - todas las colas y revisiones tienen limites/metricas;
 - la prioridad no se viola bajo saturacion;
@@ -226,6 +232,11 @@ Son presupuestos de diagnostico revisables, no umbrales para ocultar trabajo:
 - telemetria y debug son degradables;
 - benchmark on/off conserva resultados;
 - no hay deadlock, crecimiento ilimitado o retry autosostenido.
+
+El cierre vigente no afirma haber instrumentado cada metrica de esta lista. Se
+apoya en progreso, drenaje, recursos y robustez observados en las pruebas
+existentes, que el usuario considera suficientes para mantener la politica
+actual.
 
 ## Parcial/fallo
 
@@ -243,7 +254,7 @@ Los datos largos viven en historial/artefactos reducidos, no en este contrato.
 
 ## Limites Visuales Obligatorios
 
-Aplicar `../CONTRATO_VISUAL_INCREMENTAL.md`. Medir rafagas, drops, gaps,
-reconexion y latencia hasta render sin que el visualizador altere throughput,
-colas o resultado. Solo añadir un vertice de backpressure si existe como
-componente runtime real.
+El visualizador sigue `../CONTRATO_VISUAL_INCREMENTAL.md` y permanece aislado
+del resultado funcional. La medicion exhaustiva de rafagas, drops, gaps y
+latencia queda como herramienta de diagnostico si aparece una regresion, no
+como trabajo pendiente del cierre aceptado.

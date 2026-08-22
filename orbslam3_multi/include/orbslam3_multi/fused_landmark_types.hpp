@@ -99,6 +99,7 @@ struct FusionPatch
   size_t visibility_projected_points = 0;
   size_t positive_score_events = 0;
   size_t negative_score_events = 0;
+  size_t visibility_diagnostic_events = 0;
   double visibility_elapsed_ms = 0.0;
 };
 

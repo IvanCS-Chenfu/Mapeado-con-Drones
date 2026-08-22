@@ -105,4 +105,133 @@ TEST(LandmarkScoreManager, EvidenceIsIdempotentAndPatchCanRollback)
   EXPECT_FALSE(scores.GetFusedScore(5).has_value());
 }
 
+TEST(LandmarkScoreManager, DistancePenaltyRecoversWhenGeometryMoves)
+{
+  orbslam3_multi::RawMapDatabase raw;
+  orbslam3_multi::LandmarkScoreManager scores;
+  orbslam3_multi::LandmarkScoreConfig config;
+  config.isolation_min_neighbors = 0;
+  scores.Configure(config);
+  scores.ApplyRawChanges(raw.InsertDelta(1, MakeMap(1.0F)), raw);
+  const orbslam3_multi::RawMapPointId id{1, 4, 10};
+  const float base = scores.GetScore(id)->base_score_orb;
+
+  orbslam3_multi::LandmarkScoreGeometryInput geometry;
+  geometry.mappoint_id = id;
+  geometry.world_position.z = 0.5;
+  geometry.observer_distance_m = 0.5;
+  geometry.stereo_baseline_m = 0.06;
+  ASSERT_TRUE(scores.ApplyGeometryChanges({geometry}, {}).HasChanges());
+  EXPECT_NEAR(scores.GetScore(id)->score, base * 0.25F, 1e-6F);
+  EXPECT_NEAR(scores.GetScore(id)->distance_factor, 0.25F, 1e-6F);
+
+  geometry.world_position.z = 1.0;
+  geometry.observer_distance_m = 1.0;
+  ASSERT_TRUE(scores.ApplyGeometryChanges({geometry}, {}).HasChanges());
+  EXPECT_NEAR(scores.GetScore(id)->score, base, 1e-6F);
+
+  geometry.world_position.z = 5.0;
+  geometry.observer_distance_m = 5.0;
+  EXPECT_FALSE(scores.ApplyGeometryChanges({geometry}, {}).HasChanges());
+  EXPECT_NEAR(scores.GetScore(id)->score, base, 1e-6F);
+
+  geometry.world_position.z = 10.0;
+  geometry.observer_distance_m = 10.0;
+  ASSERT_TRUE(scores.ApplyGeometryChanges({geometry}, {}).HasChanges());
+  EXPECT_NEAR(scores.GetScore(id)->score, base * 0.25F, 1e-6F);
+
+  geometry.world_position.z = 2.0;
+  geometry.observer_distance_m = 2.0;
+  ASSERT_TRUE(scores.ApplyGeometryChanges({geometry}, {}).HasChanges());
+  EXPECT_NEAR(scores.GetScore(id)->score, base, 1e-6F);
+}
+
+TEST(LandmarkScoreManager, BaselineMovesOnlyFarLimitAndFallbackIsFiveMeters)
+{
+  orbslam3_multi::RawMapDatabase raw;
+  orbslam3_multi::LandmarkScoreManager scores;
+  orbslam3_multi::LandmarkScoreConfig config;
+  config.isolation_min_neighbors = 0;
+  scores.Configure(config);
+  scores.ApplyRawChanges(raw.InsertDelta(1, MakeMap(1.0F)), raw);
+  const orbslam3_multi::RawMapPointId id{1, 4, 10};
+  const float base = scores.GetScore(id)->base_score_orb;
+
+  orbslam3_multi::LandmarkScoreGeometryInput geometry;
+  geometry.mappoint_id = id;
+  geometry.world_position.z = 6.0;
+  geometry.observer_distance_m = 6.0;
+  geometry.stereo_baseline_m = 0.12;
+  scores.ApplyGeometryChanges({geometry}, {});
+  EXPECT_NEAR(scores.GetScore(id)->score, base, 1e-6F);
+
+  geometry.world_position.z = 0.5;
+  geometry.observer_distance_m = 0.5;
+  scores.ApplyGeometryChanges({geometry}, {});
+  EXPECT_NEAR(scores.GetScore(id)->distance_factor, 0.25F, 1e-6F);
+
+  geometry.world_position.z = 10.0;
+  geometry.observer_distance_m = 10.0;
+  geometry.stereo_baseline_m = 0.0;
+  scores.ApplyGeometryChanges({geometry}, {});
+  EXPECT_NEAR(scores.GetScore(id)->distance_factor, 0.25F, 1e-6F);
+}
+
+TEST(LandmarkScoreManager, MatureIsolatedPointRecoversWhenNeighborsArrive)
+{
+  orbslam3_multi::RawMapDatabase raw;
+  orbslam3_multi::LandmarkScoreManager scores;
+  orbslam3_multi::LandmarkScoreConfig config;
+  config.isolation_radius_m = 0.5;
+  config.isolation_min_neighbors = 2;
+  config.isolation_min_observations = 3;
+  config.isolation_min_factor = 0.30F;
+  scores.Configure(config);
+  scores.ApplyRawChanges(raw.InsertDelta(1, MakeMap(1.0F)), raw);
+  const orbslam3_multi::RawMapPointId id{1, 4, 10};
+  const float base = scores.GetScore(id)->base_score_orb;
+
+  orbslam3_multi::LandmarkScoreGeometryInput point;
+  point.mappoint_id = id;
+  point.world_position.z = 2.0;
+  point.observer_distance_m = 2.0;
+  scores.ApplyGeometryChanges({point}, {});
+  EXPECT_NEAR(scores.GetScore(id)->score, base * 0.30F, 1e-6F);
+
+  auto neighbor_a = point;
+  neighbor_a.mappoint_id = {2, 0, 1};
+  neighbor_a.world_position.x = 0.1;
+  auto neighbor_b = point;
+  neighbor_b.mappoint_id = {3, 0, 1};
+  neighbor_b.world_position.x = -0.1;
+  const auto recovered = scores.ApplyGeometryChanges({neighbor_a, neighbor_b}, {});
+  EXPECT_TRUE(recovered.HasChanges());
+  EXPECT_NEAR(scores.GetScore(id)->score, base, 1e-6F);
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->isolation_factor, 1.0F);
+}
+
+TEST(LandmarkScoreManager, InlierRewardIsAddedAfterGeometryFactors)
+{
+  orbslam3_multi::RawMapDatabase raw;
+  orbslam3_multi::LandmarkScoreManager scores;
+  orbslam3_multi::LandmarkScoreConfig config;
+  config.isolation_min_neighbors = 0;
+  scores.Configure(config);
+  scores.ApplyRawChanges(raw.InsertDelta(1, MakeMap(1.0F)), raw);
+  const orbslam3_multi::RawMapPointId id{1, 4, 10};
+  orbslam3_multi::LandmarkScoreGeometryInput geometry;
+  geometry.mappoint_id = id;
+  geometry.world_position.z = 0.05;
+  geometry.observer_distance_m = 0.05;
+  scores.ApplyGeometryChanges({geometry}, {});
+  const float factored = scores.GetScore(id)->score;
+
+  orbslam3_multi::ScorePatch patch;
+  patch.expected_score_revision = scores.GetStats().score_revision;
+  patch.raw_evidence.push_back(
+    {id, 123, 0.04F, orbslam3_multi::LandmarkScoreEvidenceKind::InlierConfirmed});
+  ASSERT_TRUE(scores.ApplyPatch(patch).committed);
+  EXPECT_NEAR(scores.GetScore(id)->score, factored + 0.04F, 1e-6F);
+}
+
 }  // namespace

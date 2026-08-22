@@ -37,7 +37,40 @@
     despues y antes del siguiente loop.
 24. El flujo principal recibe/procesa datos durante solver/fusion.
 25. Tests, replays, matriz Gazebo, recursos y revisiones visuales acordadas son
-    coherentes y no dejan pending, deadlock, crash o NaN.
+    coherentes y no dejan deadlock, crash o NaN. Tras el drenaje, la cola debe
+    quedar vacia o descender de forma verificable sin `blocking_failure`.
+26. Una region de error alto apoyada domina sobre regiones fusionables de la
+    misma tarea; el umbral no cambia antes de validar esta politica.
+27. Cada loop usa 1-3 regiones coherentes como `CurrentLoop`, deduplicadas y
+    con residuales finales individuales.
+28. Una unica region discordante permite como maximo un rebuild sin ella; una
+    incoherencia posterior rechaza sin escribir.
+29. Fiducial expande entre submapas solo por loops/fusiones server confirmados
+    y dependencias soft; covisibilidad nativa solo refuerza los ya incluidos.
+30. La telemetria explica support, independencia y ambiguedad de cada `HOLD`.
+31. Un submapa nunca anclado conserva first anchor loop sin limite espacial,
+    mientras un epoch perdido desde estado anclado respeta su envolvente raw.
+32. Todas las aristas de fusion server conectadas entran transitivamente sin
+    bonus artificial ni truncado por el limite sparse ORB.
+33. Un loop que rompe temporal, covisibilidad fuerte, fusion previa, hard o
+    corredor se rechaza con cero escrituras aunque sus `CurrentLoop` converjan.
+34. Una componente completamente soft puede moverse rigidamente si conserva
+    sus relaciones y no contradice autoridades.
+35. Los corredores hard-hard usan la ultima referencia fiducial, limitan
+    provisionalmente interiores a 5 m/20 grados y no derivan por accepts loop;
+    un exceso preexistente no puede aumentar en traslacion ni rotacion.
+36. Todo KF movido/propagado por commit loop o fiducial recibe reevaluacion
+    BAJA; una fusion previa omite solo esa pareja, no candidatos nuevos.
+37. La reevaluacion post-opt usa `FusionRefresh`: conserva fusion y score, pero
+    no inicia otra optimizacion. Un `Full` normal prevalece al coalescer.
+38. Una hipotesis entre dos regiones estables que contradice mas de `5 m / 20
+    grados` su relacion protegida se rechaza antes del builder; no hay dry run.
+39. El precheck no bloquea el caso protegido-no fiable: ese lado puede absorber
+    la correccion mediante el grafo normal.
+40. Un rechazo regional equivalente evita solves repetidos de KFs vecinos y se
+    invalida por revisiones/autoridad, sin blacklist permanente por submapa.
+41. `FusionRefresh` solo busca fusiones espacialmente plausibles, se agrupa por
+    region y no mantiene el mission gate cuando es el unico backlog.
 
 Debe existir al menos un `ACCEPT` loop reproducible y evidencia positiva de las
 topologias hard/soft principales. Una prueba Gazebo sin error alto se documenta
@@ -57,6 +90,8 @@ pero ocurre cualquiera de estos casos:
   romper invariantes;
 - rendimiento o backlog requieren mas observacion, aunque drenen;
 - la ruta fiducial covisible no sustituye todavia todos los reanchors soft.
+- falta ejercicio real de continuidad tras perdida, corredor o reevaluacion
+  post-opt aunque sus regresiones unitarias pasen.
 
 Cada prueba conserva su conclusion propia. Una repeticion crea otra entrada y
 no borra el intento anterior.
@@ -75,10 +110,18 @@ Es `NO CONSEGUIDA` si aparece cualquiera de estos fallos:
 - el tail atraviesa un hard o usa autoridad anterior;
 - el primer fiducial de hijo soft corta dependencia antes de accept;
 - la covisibilidad expande sin control todo el mapa o rompe continuidad;
+- una region fusionable vuelve a ocultar error alto apoyado;
+- el builder usa solo una region cuando existen varias coherentes o encadena
+  rebuilds sin limite;
 - dos workers secundarios se solapan o una MAX interrumpe la activa;
 - `stop_drones` no se activa, se libera antes del task end o queda atascado;
 - el secundario publica/espera ACK o bloquea el principal;
 - retry infinito, backlog sin politica, deadlock, crash, NaN o corrupcion.
+- un epoch perdido se ancla a una zona fisicamente inalcanzable;
+- un loop converge localmente pero rompe una fusion/covisibilidad/temporal
+  previa o desplaza de forma absurda un corredor hard-hard;
+- se cancela toda la busqueda de un KF solo porque una de sus parejas ya estaba
+  fusionada.
 
 ## Parametros provisionales
 
@@ -90,6 +133,10 @@ Se mantienen como inicio, no como verdad definitiva:
 - umbral de fusion de 3P como objetivo final del loop;
 - pesos nuevos por edge y robust kernel configurables;
 - fusiones anteriores soft, sin hardening automatico.
+- corredor hard-hard: maximo interior inicial `5 m` y `20 grados`, decreciente
+  hacia los extremos y configurable;
+- margenes de continuidad tras perdida configurables y derivados del recorrido
+  raw, no de GT ni de una distancia fija por KF.
 
 Las pruebas pueden justificar cambios. No se ajustan con GT y cualquier cambio
 funcional material se conversa antes de aplicarlo.

@@ -2,39 +2,25 @@
 
 ## Objetivo
 
-Preparar y documentar 3Q antes de modificar codigo: optimizacion covisible
-comun para loops de error alto y fiduciales.
+Decidir si 3V necesitaba otra regresion integral y si 3W requeria mas cambios de
+rendimiento o robustez.
 
-## Acuerdo
+## Evidencia reutilizada
 
-- misma `LoopTask` BAJA desde BoW hasta optimizacion/fusion/commit;
-- dos queries independientes, sin excluir loops inter/intra;
-- subgrafo minimo de hard, tramos temporales, dependencias soft,
-  loops/fusiones previos y covisibilidad confirmada;
-- fusiones anteriores relativas soft y controles base 30 % ampliables;
-- builder, solver, validator, store y commit fiduciales se generalizan;
-- accept loop completo, inliers vivos y fusion 3P directa opcional;
-- stale/rollback termina y encola BAJA fresca;
-- primer fiducial de hijo soft promociona si esta en umbral o usa MAX
-  covisible si no;
-- `stop_drones` activo desde que la BAJA entra en optimizacion hasta task end,
-  incluida fusion, sin preemption ni bloqueo del flujo principal.
+- 187: tres optimizaciones/commits, 1047 tareas, cola final vacia y cero hard
+  failures;
+- 188: recorrido doble, nueve commits loop, ocho fiduciales, 995 fusiones y
+  recursos estables;
+- 191: recorrido completo y 2104 tareas secundarias drenadas a `pending=0`;
+- 194: colas principal/secundaria en cero, score/rgb completo, memoria estable
+  y confirmacion visual del usuario;
+- runtime vigente con histeresis, prioridad fiducial, separacion entre trabajo
+  critico y mantenimiento, coalescing y `FusionRefresh` no recursivo.
 
-## Documentacion
+## Conclusion
 
-Se reescribieron los cinco contratos `subfase_3Q*.md`, se añadieron notas de
-sucesion en 3H-3L/3O/3P y se sincronizaron historial/resumen, indice, estado,
-contexto minimo y pipeline. La matriz define tests, replay, diez escenarios
-Gazebo naturales y cuatro revisiones RViz2/web.
-
-## Estado
-
-```text
-3B-3P: CONSEGUIDAS
-3Q: PREPARACION CERRADA; IMPLEMENTACION PENDIENTE DE AUTORIZACION
-Autorizacion funcional: PENDIENTE
-Dudas abiertas: ninguna
-```
-
-No se modifico codigo, launch ni YAML. No hubo build, tests ni simulacion en
-esta sesion documental.
+3V queda `CONSEGUIDA` por regresion integral acumulada y aceptacion del usuario.
+3W queda `CONSEGUIDA` porque el usuario considera buenos rendimiento y robustez
+y decide mantener la politica actual. No se modifico codigo ni se ejecuto una
+simulacion, A/B o stress nuevo. Los picos residuales documentados se conservan.
+3Q sigue `A REVISAR`; el unico bloque nuevo pendiente es 3X.

@@ -16,6 +16,26 @@ float ClampScore(float value)
 
 }  // namespace
 
+void LandmarkScoreManager::Configure(const LandmarkScoreConfig & config)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  config_ = config;
+  config_.isolation_radius_m = std::max(0.01, config_.isolation_radius_m);
+  config_.isolation_min_factor = ClampScore(config_.isolation_min_factor);
+  config_.suspicious_near_distance_m = std::max(0.0, config_.suspicious_near_distance_m);
+  config_.suspicious_near_min_factor = ClampScore(config_.suspicious_near_min_factor);
+  config_.far_baseline_multiplier = std::max(1.0, config_.far_baseline_multiplier);
+  config_.far_distance_fallback_m = std::max(0.1, config_.far_distance_fallback_m);
+  config_.far_min_factor = ClampScore(config_.far_min_factor);
+}
+
+void LandmarkScoreManager::RecomputeOutput(LandmarkScoreRecord * record)
+{
+  record->score = ClampScore(
+    record->base_score_orb * record->distance_factor * record->isolation_factor +
+    record->positive_adjustment + record->negative_adjustment);
+}
+
 bool LandmarkScoreManager::DescriptorValid(
   const orbslam3_msgs::msg::OrbMapPoint & mappoint)
 {
@@ -52,6 +72,8 @@ bool LandmarkScoreManager::Equivalent(
   const LandmarkScoreRecord & rhs)
 {
   return std::fabs(lhs.base_score_orb - rhs.base_score_orb) <= 1e-6F &&
+         std::fabs(lhs.distance_factor - rhs.distance_factor) <= 1e-6F &&
+         std::fabs(lhs.isolation_factor - rhs.isolation_factor) <= 1e-6F &&
          std::fabs(lhs.score - rhs.score) <= 1e-6F &&
          lhs.observations_count == rhs.observations_count &&
          std::fabs(lhs.found_ratio - rhs.found_ratio) <= 1e-6F &&
@@ -111,17 +133,18 @@ ScoreChangeSet LandmarkScoreManager::ApplyRawChanges(
 
     const auto existing = records_.find(id);
     if (existing == records_.end()) {
-      next.score = next.base_score_orb;
+      RecomputeOutput(&next);
       next.record_revision = 1;
       records_.emplace(id, next);
       result.created_ids.push_back(id);
     } else {
       next.positive_adjustment = existing->second.positive_adjustment;
       next.negative_adjustment = existing->second.negative_adjustment;
+      next.distance_factor = existing->second.distance_factor;
+      next.isolation_factor = existing->second.isolation_factor;
       next.positive_evidence = existing->second.positive_evidence;
       next.negative_evidence = existing->second.negative_evidence;
-      next.score = ClampScore(
-        next.base_score_orb + next.positive_adjustment + next.negative_adjustment);
+      RecomputeOutput(&next);
       if (Equivalent(existing->second, next)) {
         continue;
       }
@@ -135,6 +158,185 @@ ScoreChangeSet LandmarkScoreManager::ApplyRawChanges(
     }
   }
 
+  if (result.HasChanges()) {
+    ++score_revision_;
+  }
+  result.score_revision_after = score_revision_;
+  return result;
+}
+
+std::array<int64_t, 3> LandmarkScoreManager::VoxelFor(
+  const geometry_msgs::msg::Point & point) const
+{
+  const double size = config_.isolation_radius_m;
+  return {
+    static_cast<int64_t>(std::floor(point.x / size)),
+    static_cast<int64_t>(std::floor(point.y / size)),
+    static_cast<int64_t>(std::floor(point.z / size))};
+}
+
+size_t LandmarkScoreManager::NeighborCount(
+  const RawMapPointId & id, const GeometryState & geometry) const
+{
+  size_t count = 0;
+  for (int dx = -1; dx <= 1; ++dx) {
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dz = -1; dz <= 1; ++dz) {
+        const std::array<int64_t, 3> voxel{
+          geometry.voxel[0] + dx, geometry.voxel[1] + dy, geometry.voxel[2] + dz};
+        const auto found = spatial_index_.find(voxel);
+        if (found != spatial_index_.end()) {
+          count += found->second.size();
+        }
+      }
+    }
+  }
+  return count == 0U || geometry_.count(id) == 0U ? count : count - 1U;
+}
+
+float LandmarkScoreManager::DistanceFactor(const GeometryState & geometry) const
+{
+  const double distance = geometry.observer_distance_m;
+  if (!std::isfinite(distance) || distance < 0.0) {
+    return 1.0F;
+  }
+  if (config_.suspicious_near_distance_m > 0.0 &&
+    distance < config_.suspicious_near_distance_m)
+  {
+    const double ratio = distance / config_.suspicious_near_distance_m;
+    return std::max(
+      config_.suspicious_near_min_factor, static_cast<float>(ratio * ratio));
+  }
+  const double far_limit = geometry.stereo_baseline_m > 0.0 ?
+    std::max(
+      config_.suspicious_near_distance_m,
+      config_.far_baseline_multiplier * geometry.stereo_baseline_m) :
+    config_.far_distance_fallback_m;
+  if (distance <= far_limit) {
+    return 1.0F;
+  }
+  const double ratio = far_limit / distance;
+  return std::max(config_.far_min_factor, static_cast<float>(ratio * ratio));
+}
+
+float LandmarkScoreManager::IsolationFactor(
+  const RawMapPointId & id, const LandmarkScoreRecord & record) const
+{
+  const auto geometry = geometry_.find(id);
+  if (geometry == geometry_.end() ||
+    record.observations_count < config_.isolation_min_observations ||
+    config_.isolation_min_neighbors == 0U)
+  {
+    return 1.0F;
+  }
+  const size_t neighbors = NeighborCount(id, geometry->second);
+  if (neighbors >= config_.isolation_min_neighbors) {
+    return 1.0F;
+  }
+  const float ratio = static_cast<float>(neighbors) /
+    static_cast<float>(config_.isolation_min_neighbors);
+  return config_.isolation_min_factor + (1.0F - config_.isolation_min_factor) * ratio;
+}
+
+ScoreChangeSet LandmarkScoreManager::ApplyGeometryChanges(
+  const std::vector<LandmarkScoreGeometryInput> & upserts,
+  const std::vector<RawMapPointId> & removals)
+{
+  ScoreChangeSet result;
+  std::lock_guard<std::mutex> lock(mutex_);
+  result.score_revision_before = score_revision_;
+  std::set<RawMapPointId> affected;
+  std::set<std::array<int64_t, 3>> affected_voxels;
+  const auto mark_neighbor_voxels = [&affected_voxels](
+      const std::array<int64_t, 3> & center) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        for (int dy = -1; dy <= 1; ++dy) {
+          for (int dz = -1; dz <= 1; ++dz) {
+            affected_voxels.insert(
+              {center[0] + dx, center[1] + dy, center[2] + dz});
+          }
+        }
+      }
+    };
+
+  const auto remove_geometry = [&](const RawMapPointId & id) {
+      const auto existing = geometry_.find(id);
+      if (existing == geometry_.end()) {
+        return;
+      }
+      mark_neighbor_voxels(existing->second.voxel);
+      auto voxel = spatial_index_.find(existing->second.voxel);
+      if (voxel != spatial_index_.end()) {
+        voxel->second.erase(id);
+        if (voxel->second.empty()) {
+          spatial_index_.erase(voxel);
+        }
+      }
+      geometry_.erase(existing);
+      affected.insert(id);
+    };
+
+  for (const auto & id : removals) {
+    remove_geometry(id);
+  }
+  for (const auto & input : upserts) {
+    if (!std::isfinite(input.world_position.x) || !std::isfinite(input.world_position.y) ||
+      !std::isfinite(input.world_position.z) || !std::isfinite(input.observer_distance_m))
+    {
+      remove_geometry(input.mappoint_id);
+      continue;
+    }
+    const auto current = geometry_.find(input.mappoint_id);
+    if (current != geometry_.end() &&
+      std::fabs(current->second.world_position.x - input.world_position.x) <= 1e-6 &&
+      std::fabs(current->second.world_position.y - input.world_position.y) <= 1e-6 &&
+      std::fabs(current->second.world_position.z - input.world_position.z) <= 1e-6 &&
+      std::fabs(current->second.observer_distance_m - input.observer_distance_m) <= 1e-6 &&
+      std::fabs(current->second.stereo_baseline_m - input.stereo_baseline_m) <= 1e-9)
+    {
+      affected.insert(input.mappoint_id);
+      continue;
+    }
+    remove_geometry(input.mappoint_id);
+    GeometryState next;
+    next.world_position = input.world_position;
+    next.observer_distance_m = input.observer_distance_m;
+    next.stereo_baseline_m = std::isfinite(input.stereo_baseline_m) ?
+      std::max(0.0, input.stereo_baseline_m) : 0.0;
+    next.voxel = VoxelFor(next.world_position);
+    geometry_[input.mappoint_id] = next;
+    spatial_index_[next.voxel].insert(input.mappoint_id);
+    mark_neighbor_voxels(next.voxel);
+    affected.insert(input.mappoint_id);
+  }
+
+  for (const auto & voxel : affected_voxels) {
+    const auto points = spatial_index_.find(voxel);
+    if (points != spatial_index_.end()) {
+      affected.insert(points->second.begin(), points->second.end());
+    }
+  }
+
+  for (const auto & id : affected) {
+    auto record = records_.find(id);
+    if (record == records_.end()) {
+      continue;
+    }
+    const auto previous = record->second;
+    const auto geometry = geometry_.find(id);
+    record->second.distance_factor = geometry == geometry_.end() ?
+      1.0F : DistanceFactor(geometry->second);
+    record->second.isolation_factor = IsolationFactor(id, record->second);
+    RecomputeOutput(&record->second);
+    if (Equivalent(previous, record->second)) {
+      continue;
+    }
+    ++record->second.record_revision;
+    result.input_updated_ids.push_back(id);
+    if (!OutputEquivalent(previous, record->second)) {
+      result.updated_ids.push_back(id);
+    }
+  }
   if (result.HasChanges()) {
     ++score_revision_;
   }
@@ -213,8 +415,7 @@ ScoreApplyResult LandmarkScoreManager::ApplyPatch(const ScorePatch & patch)
       record.negative_adjustment += evidence.delta;
       ++record.negative_evidence;
     }
-    record.score = ClampScore(
-      record.base_score_orb + record.positive_adjustment + record.negative_adjustment);
+    RecomputeOutput(&record);
     ++record.record_revision;
     result.changes.input_updated_ids.push_back(evidence.mappoint_id);
     if (std::fabs(previous - record.score) > 1e-6F) {
@@ -305,6 +506,22 @@ LandmarkScoreStats LandmarkScoreManager::GetStats() const
     sum += record.score;
     if (record.is_bad) {
       ++stats.bad_points;
+    }
+    if (geometry_.count(id) != 0U) {
+      ++stats.anchored_points;
+    }
+    if (record.isolation_factor < 1.0F - 1e-6F) {
+      ++stats.isolated_points;
+    }
+    if (record.distance_factor < 1.0F - 1e-6F) {
+      const auto geometry = geometry_.find(id);
+      if (geometry != geometry_.end() &&
+        geometry->second.observer_distance_m < config_.suspicious_near_distance_m)
+      {
+        ++stats.suspicious_near_points;
+      } else {
+        ++stats.far_points;
+      }
     }
   }
   stats.score_mean = static_cast<float>(sum / static_cast<double>(records_.size()));

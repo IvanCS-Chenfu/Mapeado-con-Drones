@@ -43,6 +43,9 @@ No tocar los paquetes ORB prohibidos.
 6. `SameSubmapLoopUsesNormalDecision` no termina por identidad.
 7. `CovisibilityPromotesMandatoryControls` puede superar el 30 % base.
 8. `DenseCovisibilityDoesNotDominateByCount` valida normalizacion de pesos.
+9. `FiducialExpandsThroughConfirmedServerConstraints` incorpora submapas por
+   loop/fusion/dependencia soft y mantiene fuera ramas solo nativas/no
+   confirmadas.
 
 ### Solver y validacion
 
@@ -54,6 +57,25 @@ No tocar los paquetes ORB prohibidos.
 6. `TwoIndependentQueriesRequired` activa solo con segundo apoyo.
 7. `FullAcceptOnlyForLoop` no compromete candidato parcial.
 8. `InvalidOrNonFiniteProposalDoesNotWrite` conserva todas las bases.
+9. `MixedFusionAndHighErrorChoosesOptimization` impide que una region bajo
+   umbral oculte otra region de error alto con apoyo.
+10. `CoherentRegionsCreateMultipleCurrentLoopEdges` crea 1-3 aristas en un
+    unico problema y las evalua individualmente.
+11. `DiscordantRegionTriggersSingleRebuild` elimina una unica region outlier,
+    resuelve una vez y no permite nuevos ciclos.
+12. `IndependentSupportTelemetryExplainsHold` registra separacion,
+    compatibilidad, supports y margen sin cambiar umbrales.
+13. `ExtremeLoopBreakingPriorStructureIsRejectedWithoutWrites` reproduce una
+    constraint localmente satisfecha que degrada temporal/fusion previa.
+14. `LargeRigidSoftComponentMotionRemainsValid` permite mover una componente
+    sin hard cuando conserva todos sus residuales relativos.
+15. `HardCorridorRejectsLargeLoopDisplacement` rechaza mas de 5 m/20 grados y
+    conserva la referencia fiducial.
+16. `FiducialRefreshesHardCorridorReference` confirma que un loop no renueva la
+    referencia y un commit fiducial completo si.
+17. `AllowsImprovementOfPreexistingCorridorExcess` confirma que una desviacion
+    heredada puede mantenerse o reducirse, mientras una propuesta que crea o
+    aumenta exceso sigue rechazandose.
 
 ### Commit, concurrencia y fusion
 
@@ -70,6 +92,31 @@ No tocar los paquetes ORB prohibidos.
 10. `LowErrorFusionDoesNotSetOptimizationStopFlag` separa 3P de 3Q.
 11. `PriorityRemainsNonPreemptive` observa A loop activa, F MAX pendiente y B
     loop pendiente: A completa, despues F, despues B.
+12. `FiducialMultiSubmapCommitIsAtomic` mueve conjuntamente submapas conectados,
+    conserva hard, tails y dirty IDs y no modifica raw ante stale/reject.
+13. `NeverAnchoredSubmapCanAnchorFarByLoop` conserva el first anchor libre.
+14. `RecentlyLostEpochRejectsFarRepeatedAnchor` crea la guarda solo tras perder
+    un epoch anclado y permite un anchor compatible con recorrido raw.
+15. `FiducialOverridesRecentLossContinuity` reancla todo y elimina la guarda.
+16. `AllServerFusionEdgesExpandTransitively` incluye A-B-C-D y todas sus
+    aristas sin bonus ni limite de seis.
+17. `MovedKeyframesEnqueueFreshLoopTasks` cubre commits loop y fiducial,
+    deduplicacion y prioridad BAJA.
+18. `KnownFusionPairDoesNotCancelNewCandidates` omite solo la pareja previa.
+19. `LoopCommitRebasesOnSerializedCurrentPoses` cambia poses/raw de forma
+    compatible entre solve y commit y exige commit; un drift raw superior al
+    limite sigue produciendo `STALE`, sin retry determinista infinito.
+20. `ProtectedRegionsRejectFarRepeatedLoopBeforeBuilder` confirma rechazo
+    previo sin graph/solve ni escrituras.
+21. `ProtectedToUnreliableKeepsAsymmetricOptimization` impide que el guard
+    bloquee la correccion del lado no fiable.
+22. `RegionalRejectionLedgerSuppressesNeighborHypothesis` registra un rechazo
+    y evita que queries/candidates vecinos repitan el solver bajo las mismas
+    revisiones; un cambio estructural invalida la entrada.
+23. `FusionRefreshUsesOnlySpatialCandidates` omite BoW lejano, conserva una
+    fusion nueva cercana y nunca optimiza.
+24. `RefreshBacklogDoesNotHoldMissionGate` mantiene telemetria y drenaje sin
+    confundir cientos de refresh con una optimizacion activa.
 
 ## Replay
 
@@ -215,3 +262,25 @@ Crear sublogs para ventana/solver/commit/recursos si el reducido es grande.
 6. revision visual representativa;
 7. regresion fiducial 3H-3L y fusion 3P;
 8. conclusion agregada solo con cola drenada y estado coherente.
+
+## Regresion obligatoria de las pruebas 176/179
+
+La referencia automatica vigente es la prueba 188, que repitio exactamente
+`tray_prueba_176.yaml` sin offset ni cambio de umbral. Toda regresion futura de
+176/179 conservara ese YAML, separara las dos vueltas y comprobara:
+
+- primer KF con error alto, support acumulado y motivo de cada `HOLD`;
+- tareas con regiones mixtas y decision final optimizacion/fusion;
+- numero de `CurrentLoop` antes/despues de un posible rebuild;
+- residuales individuales, error global y KFs/submapas movidos;
+- expansion de cada fiducial por loop/fusion/dependencia soft;
+- hard inmoviles, dirty/publicacion, cola/backpressure, recursos y tiempos;
+- desaparicion o persistencia de paredes dobles mediante RViz2 del usuario;
+- rechazo con cero escrituras de hipotesis extremas equivalentes a la tarea
+  `1000000003083` de 179 cuando rompan estructura previa;
+- activacion de continuidad solo en epochs perdidos, closures completas de
+  fusion, corredores hard-hard y reevaluaciones post-opt drenadas.
+- una primera hipotesis repetitiva protegida termina antes del builder y sus KFs
+  vecinos producen hits de ledger sin solves de 60-70 s;
+- el commit fiducial puede crear refresh, pero el siguiente goal no queda
+  retenido solo por backlog de mantenimiento.

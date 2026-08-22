@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace orbslam3_multi
@@ -107,6 +108,13 @@ struct LoopAnchorBatchEntry
   std::optional<RawKeyFrameId> parent_control_keyframe_id;
 };
 
+struct HardCorridorReference
+{
+  geometry_msgs::msg::Pose world_pose;
+  double alpha = 0.0;
+  uint64_t reference_revision = 0;
+};
+
 struct LoopAnchorBatchResult
 {
   PoseCommitStatus status = PoseCommitStatus::NoChanges;
@@ -129,6 +137,9 @@ struct AcceptedSubmapPoseBatch
 struct AcceptedPoseBatchResult
 {
   PoseCommitStatus status = PoseCommitStatus::NoChanges;
+  std::string detail;
+  size_t rebased_skipped_controls = 0;
+  size_t rebased_inactive_controls = 0;
   uint64_t source_task_id = 0;
   uint64_t commit_id = 0;
   uint64_t store_revision_before = 0;

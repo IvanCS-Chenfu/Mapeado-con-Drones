@@ -59,6 +59,12 @@ Las aristas se activan solo por eventos reales emitidos por el servidor. La
 revalidacion `STALE` evita mostrar grafo/solver cuando una tarea ya fue
 corregida. Backpressure conserva el enlace servidor->mission gate.
 
+En 3S el nodo `LandmarkScoreManager` describe base ORB, distancia,
+aislamiento y score fused derivado. La arista desde fusion representa inliers
+raw, media fused y visibilidad solo diagnostica; no afirma penalizaciones
+sparse. Los eventos transportan cantidades/revisiones, nunca arrays completos
+de score. El contrato web 1/1 pasa tras el cambio.
+
 Los pulsos primarios siguen durando 240 ms. Para secundario, `app.js` mantiene
 owners por `task_id`: `secondary_task_lifecycle/start` abre la tarea, cada etapa
 anade acumulativamente nodos/aristas al camino iluminado y `done` libera el

@@ -3,6 +3,7 @@
 #include "orbslam3_multi/raw_map_database.hpp"
 
 #include <cstdint>
+#include <array>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -19,6 +20,8 @@ struct LandmarkScoreRecord
   float base_score_orb = 0.0F;
   float positive_adjustment = 0.0F;
   float negative_adjustment = 0.0F;
+  float distance_factor = 1.0F;
+  float isolation_factor = 1.0F;
   float score = 0.0F;
   uint64_t record_revision = 0;
   uint64_t positive_evidence = 0;
@@ -27,6 +30,27 @@ struct LandmarkScoreRecord
   float found_ratio = 0.0F;
   bool descriptor_valid = false;
   bool is_bad = false;
+};
+
+struct LandmarkScoreConfig
+{
+  double isolation_radius_m = 0.35;
+  uint32_t isolation_min_neighbors = 2;
+  uint32_t isolation_min_observations = 3;
+  float isolation_min_factor = 0.35F;
+  double suspicious_near_distance_m = 1.0;
+  float suspicious_near_min_factor = 0.05F;
+  double far_baseline_multiplier = 83.33333333333333;
+  double far_distance_fallback_m = 5.0;
+  float far_min_factor = 0.25F;
+};
+
+struct LandmarkScoreGeometryInput
+{
+  RawMapPointId mappoint_id;
+  geometry_msgs::msg::Point world_position;
+  double observer_distance_m = 0.0;
+  double stereo_baseline_m = 0.0;
 };
 
 struct ScoreChangeSet
@@ -112,6 +136,10 @@ struct LandmarkScoreStats
   uint64_t score_revision = 0;
   uint64_t tracked_points = 0;
   uint64_t bad_points = 0;
+  uint64_t anchored_points = 0;
+  uint64_t isolated_points = 0;
+  uint64_t suspicious_near_points = 0;
+  uint64_t far_points = 0;
   float score_min = 0.0F;
   float score_mean = 0.0F;
   float score_max = 0.0F;
@@ -120,9 +148,13 @@ struct LandmarkScoreStats
 class LandmarkScoreManager
 {
 public:
+  void Configure(const LandmarkScoreConfig & config);
   ScoreChangeSet ApplyRawChanges(
     const RawInsertResult & raw_changes,
     const RawMapDatabase & raw_database);
+  ScoreChangeSet ApplyGeometryChanges(
+    const std::vector<LandmarkScoreGeometryInput> & upserts,
+    const std::vector<RawMapPointId> & removals);
 
   std::optional<LandmarkScoreRecord> GetScore(const RawMapPointId & id) const;
   std::optional<FusedLandmarkScoreRecord> GetFusedScore(uint64_t track_id) const;
@@ -133,6 +165,14 @@ public:
   static float ComputeOrbScore(const orbslam3_msgs::msg::OrbMapPoint & mappoint);
 
 private:
+  struct GeometryState
+  {
+    geometry_msgs::msg::Point world_position;
+    double observer_distance_m = 0.0;
+    double stereo_baseline_m = 0.0;
+    std::array<int64_t, 3> voxel{};
+  };
+
   static float ComputeOrbScore(const RawMapPointScoreInput & input);
   static bool DescriptorValid(const orbslam3_msgs::msg::OrbMapPoint & mappoint);
   static bool Equivalent(
@@ -141,12 +181,20 @@ private:
   static bool OutputEquivalent(
     const LandmarkScoreRecord & lhs,
     const LandmarkScoreRecord & rhs);
+  std::array<int64_t, 3> VoxelFor(const geometry_msgs::msg::Point & point) const;
+  size_t NeighborCount(const RawMapPointId & id, const GeometryState & geometry) const;
+  float DistanceFactor(const GeometryState & geometry) const;
+  float IsolationFactor(const RawMapPointId & id, const LandmarkScoreRecord & record) const;
+  static void RecomputeOutput(LandmarkScoreRecord * record);
 
   mutable std::mutex mutex_;
   std::map<RawMapPointId, LandmarkScoreRecord> records_;
+  std::map<RawMapPointId, GeometryState> geometry_;
+  std::map<std::array<int64_t, 3>, std::set<RawMapPointId>> spatial_index_;
   std::map<RawMapPointId, std::set<uint64_t>> applied_evidence_;
   std::map<uint64_t, FusedLandmarkScoreRecord> fused_records_;
   uint64_t score_revision_ = 0;
+  LandmarkScoreConfig config_;
 };
 
 }  // namespace orbslam3_multi

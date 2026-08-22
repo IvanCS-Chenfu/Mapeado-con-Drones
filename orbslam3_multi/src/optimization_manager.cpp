@@ -62,6 +62,96 @@ double GraphCost(
   return cost;
 }
 
+std::map<size_t, Eigen::Isometry3d> ExpandKeyFramePoses(
+  const PoseGraphProblem & problem,
+  const std::map<size_t, Eigen::Isometry3d> & controls)
+{
+  std::map<size_t, Eigen::Isometry3d> result;
+  for (size_t index = 0; index < problem.keyframes.size(); ++index) {
+    Eigen::Isometry3d current;
+    if (PoseToIsometry(problem.keyframes[index].current_world_pose, &current)) {
+      result[index] = current;
+    }
+  }
+  for (const auto & [index, pose] : controls) {
+    result[index] = pose;
+  }
+  for (const auto & entry : problem.propagation_plan) {
+    const auto lower = controls.find(entry.lower_control_index);
+    const auto upper = controls.find(entry.upper_control_index);
+    Eigen::Isometry3d current_lower;
+    Eigen::Isometry3d current_upper;
+    Eigen::Isometry3d current;
+    if (lower == controls.end() || upper == controls.end() ||
+      !PoseToIsometry(problem.keyframes[entry.lower_control_index].current_world_pose,
+        &current_lower) ||
+      !PoseToIsometry(problem.keyframes[entry.upper_control_index].current_world_pose,
+        &current_upper) ||
+      !PoseToIsometry(problem.keyframes[entry.keyframe_index].current_world_pose, &current))
+    {
+      continue;
+    }
+    const Eigen::Isometry3d lower_correction = lower->second * current_lower.inverse();
+    const Eigen::Isometry3d upper_correction = upper->second * current_upper.inverse();
+    result[entry.keyframe_index] = InterpolateIsometry(
+      lower_correction, upper_correction, entry.segment_alpha) * current;
+  }
+  return result;
+}
+
+void AppendEdgeResiduals(
+  const PoseGraphProblem & problem,
+  const std::map<size_t, Eigen::Isometry3d> & initial,
+  const std::map<size_t, Eigen::Isometry3d> & final,
+  OptimizationProposal * proposal)
+{
+  const auto append = [&](const PoseGraphEdge & edge) {
+      Eigen::Isometry3d measured;
+      if (initial.count(edge.from_index) == 0U || initial.count(edge.to_index) == 0U ||
+        final.count(edge.from_index) == 0U || final.count(edge.to_index) == 0U ||
+        !PoseToIsometry(edge.relative_raw_pose, &measured))
+      {
+        return;
+      }
+      proposal->edge_residuals.push_back({
+        edge.kind, problem.keyframes[edge.from_index].id,
+        problem.keyframes[edge.to_index].id,
+        RelativeConstraintError(
+          initial.at(edge.from_index), initial.at(edge.to_index), measured),
+        RelativeConstraintError(
+          final.at(edge.from_index), final.at(edge.to_index), measured)});
+    };
+  for (const auto & edge : problem.temporal_edges) {
+    append(edge);
+  }
+  for (const auto & edge : problem.covisibility_edges) {
+    append(edge);
+  }
+  for (const auto & edge : problem.loop_edges) {
+    append(edge);
+  }
+}
+
+void FillExpandedProposal(
+  const PoseGraphProblem & problem,
+  const std::map<size_t, Eigen::Isometry3d> & initial_controls,
+  const std::map<size_t, Eigen::Isometry3d> & final_controls,
+  OptimizationProposal * proposal)
+{
+  const auto initial = ExpandKeyFramePoses(problem, initial_controls);
+  const auto final = ExpandKeyFramePoses(problem, final_controls);
+  proposal->keyframes.clear();
+  proposal->keyframes.reserve(problem.keyframes.size());
+  for (size_t index = 0; index < problem.keyframes.size(); ++index) {
+    const auto pose = final.find(index);
+    if (pose != final.end()) {
+      proposal->keyframes.push_back(
+        {problem.keyframes[index].id, IsometryToPose(pose->second)});
+    }
+  }
+  AppendEdgeResiduals(problem, initial, final, proposal);
+}
+
 bool RelaxEdge(
   const PoseGraphProblem & problem, const PoseGraphEdge & edge,
   double gain, std::map<size_t, Eigen::Isometry3d> * poses)
@@ -136,7 +226,7 @@ OptimizationProposal OptimizationManager::Optimize(
   }
 
   if (problem.kind == PoseGraphProblemKind::LoopRelative) {
-    if (problem.loop_edges.size() != 1U) {
+    if (problem.loop_edges.empty()) {
       proposal.reason = "current_loop_constraint_missing";
       return proposal;
     }
@@ -150,17 +240,28 @@ OptimizationProposal OptimizationManager::Optimize(
       }
       controls[index] = pose;
     }
-    const auto & loop_edge = problem.loop_edges.front();
-    Eigen::Isometry3d measured;
-    if (controls.count(loop_edge.from_index) == 0U ||
-      controls.count(loop_edge.to_index) == 0U ||
-      !PoseToIsometry(loop_edge.relative_raw_pose, &measured))
-    {
-      proposal.reason = "loop_endpoint_not_control";
-      return proposal;
+    std::vector<Eigen::Isometry3d> measured_loops;
+    measured_loops.reserve(problem.loop_edges.size());
+    for (const auto & loop_edge : problem.loop_edges) {
+      Eigen::Isometry3d measured;
+      if (controls.count(loop_edge.from_index) == 0U ||
+        controls.count(loop_edge.to_index) == 0U ||
+        !PoseToIsometry(loop_edge.relative_raw_pose, &measured))
+      {
+        proposal.reason = "loop_endpoint_not_control";
+        return proposal;
+      }
+      measured_loops.push_back(measured);
+      const auto error = RelativeConstraintError(
+        controls.at(loop_edge.from_index), controls.at(loop_edge.to_index), measured);
+      proposal.initial_loop_errors.push_back(error);
+      proposal.initial_error.translation_m = std::max(
+        proposal.initial_error.translation_m, error.translation_m);
+      proposal.initial_error.rotation_rad = std::max(
+        proposal.initial_error.rotation_rad, error.rotation_rad);
+      proposal.initial_error.yaw_rad = std::max(
+        proposal.initial_error.yaw_rad, error.yaw_rad);
     }
-    proposal.initial_error = RelativeConstraintError(
-      controls.at(loop_edge.from_index), controls.at(loop_edge.to_index), measured);
     proposal.initial_cost = GraphCost(problem, controls);
     if (!std::isfinite(proposal.initial_cost)) {
       proposal.status = OptimizationSolverStatus::NumericalFailure;
@@ -186,10 +287,14 @@ OptimizationProposal OptimizationManager::Optimize(
           return proposal;
         }
       }
-      if (!RelaxEdge(problem, loop_edge, 0.72, &controls)) {
-        proposal.status = OptimizationSolverStatus::NumericalFailure;
-        proposal.reason = "loop_relaxation_failed";
-        return proposal;
+      const double loop_gain = 0.72 /
+        std::sqrt(static_cast<double>(problem.loop_edges.size()));
+      for (const auto & loop_edge : problem.loop_edges) {
+        if (!RelaxEdge(problem, loop_edge, loop_gain, &controls)) {
+          proposal.status = OptimizationSolverStatus::NumericalFailure;
+          proposal.reason = "loop_relaxation_failed";
+          return proposal;
+        }
       }
       proposal.iterations = iteration + 1U;
       const double current_cost = GraphCost(problem, controls);
@@ -198,11 +303,26 @@ OptimizationProposal OptimizationManager::Optimize(
         proposal.reason = "graph_cost_invalid";
         return proposal;
       }
-      const auto error = RelativeConstraintError(
-        controls.at(loop_edge.from_index), controls.at(loop_edge.to_index), measured);
-      if (error.translation_m <= 0.5 * problem.loop_translation_threshold_m &&
-        error.rotation_rad <= 0.5 * problem.loop_rotation_threshold_rad &&
-        std::abs(previous_cost - current_cost) <= 1e-8 * (1.0 + previous_cost))
+      bool within_quarter_threshold = true;
+      bool within_half_threshold = true;
+      for (size_t edge_index = 0; edge_index < problem.loop_edges.size(); ++edge_index) {
+        const auto & loop_edge = problem.loop_edges[edge_index];
+        const auto error = RelativeConstraintError(
+          controls.at(loop_edge.from_index), controls.at(loop_edge.to_index),
+          measured_loops[edge_index]);
+        within_quarter_threshold = within_quarter_threshold &&
+          error.translation_m <= 0.25 * problem.loop_translation_threshold_m &&
+          error.rotation_rad <= 0.25 * problem.loop_rotation_threshold_rad;
+        within_half_threshold = within_half_threshold &&
+          error.translation_m <= 0.5 * problem.loop_translation_threshold_m &&
+          error.rotation_rad <= 0.5 * problem.loop_rotation_threshold_rad;
+      }
+      const bool practically_converged = proposal.iterations >= 24U &&
+        within_quarter_threshold &&
+        current_cost <= proposal.initial_cost;
+      if (within_half_threshold &&
+        (practically_converged ||
+        std::abs(previous_cost - current_cost) <= 1e-8 * (1.0 + previous_cost)))
       {
         break;
       }
@@ -214,23 +334,53 @@ OptimizationProposal OptimizationManager::Optimize(
       proposal.controls.push_back(
         {problem.keyframes[index].id, IsometryToPose(controls.at(index))});
     }
-    proposal.final_error = RelativeConstraintError(
-      controls.at(loop_edge.from_index), controls.at(loop_edge.to_index), measured);
+    for (size_t edge_index = 0; edge_index < problem.loop_edges.size(); ++edge_index) {
+      const auto & loop_edge = problem.loop_edges[edge_index];
+      const auto error = RelativeConstraintError(
+        controls.at(loop_edge.from_index), controls.at(loop_edge.to_index),
+        measured_loops[edge_index]);
+      proposal.final_loop_errors.push_back(error);
+      proposal.final_error.translation_m = std::max(
+        proposal.final_error.translation_m, error.translation_m);
+      proposal.final_error.rotation_rad = std::max(
+        proposal.final_error.rotation_rad, error.rotation_rad);
+      proposal.final_error.yaw_rad = std::max(
+        proposal.final_error.yaw_rad, error.yaw_rad);
+    }
     proposal.final_cost = GraphCost(problem, controls);
+    std::map<size_t, Eigen::Isometry3d> initial_controls;
+    for (const size_t index : problem.control_indices) {
+      Eigen::Isometry3d current;
+      PoseToIsometry(problem.keyframes[index].current_world_pose, &current);
+      initial_controls[index] = current;
+    }
+    FillExpandedProposal(problem, initial_controls, controls, &proposal);
     proposal.correction_fraction = 1.0;
     proposal.status = OptimizationSolverStatus::Converged;
     proposal.reason = "covisible_relative_graph_relaxed";
     return proposal;
   }
 
-  if (problem.control_indices.front() != 0U ||
-    problem.control_indices.back() + 1U != problem.keyframes.size())
+  const auto target_position = std::find_if(
+    problem.keyframes.begin(), problem.keyframes.end(),
+    [&problem](const PoseGraphKeyFrame & keyframe) {
+      return keyframe.id == problem.task.keyframe_id;
+    });
+  if (target_position == problem.keyframes.end()) {
+    proposal.reason = "fiducial_target_missing";
+    return proposal;
+  }
+  const size_t target_index = static_cast<size_t>(
+    target_position - problem.keyframes.begin());
+  if (std::find(
+      problem.control_indices.begin(), problem.control_indices.end(), target_index) ==
+    problem.control_indices.end())
   {
-    proposal.reason = "invalid_fiducial_control_layout";
+    proposal.reason = "fiducial_target_not_control";
     return proposal;
   }
 
-  const auto & target_keyframe = problem.keyframes.back();
+  const auto & target_keyframe = problem.keyframes[target_index];
   Eigen::Isometry3d target_current;
   Eigen::Isometry3d target_expected;
   if (!PoseToIsometry(target_keyframe.current_world_pose, &target_current) ||
@@ -264,20 +414,24 @@ OptimizationProposal OptimizationManager::Optimize(
     initial_controls[index] = current;
 
     double correction_alpha = 0.0;
-    if (problem.task.replaces_soft_loop_anchor) {
-      correction_alpha = fraction;
-    } else if (index == problem.keyframes.size() - 1U) {
-      correction_alpha = fraction;
-    } else if (keyframe.path_alpha <= endpoint_half_ratio) {
-      correction_alpha = 0.0;
-    } else if (keyframe.path_alpha >= 1.0 - endpoint_half_ratio) {
-      correction_alpha = fraction;
-    } else {
-      const double span = std::max(1e-9, 1.0 - 2.0 * endpoint_half_ratio);
-      const double linear = std::clamp(
-        (keyframe.path_alpha - endpoint_half_ratio) / span, 0.0, 1.0);
-      const double smooth = linear * linear * (3.0 - 2.0 * linear);
-      correction_alpha = fraction * smooth;
+    if (keyframe.id.drone_id == problem.task.submap_id.drone_id &&
+      keyframe.id.map_epoch == problem.task.submap_id.map_epoch)
+    {
+      if (problem.task.replaces_soft_loop_anchor) {
+        correction_alpha = fraction;
+      } else if (index == target_index) {
+        correction_alpha = fraction;
+      } else if (keyframe.path_alpha <= endpoint_half_ratio) {
+        correction_alpha = 0.0;
+      } else if (keyframe.path_alpha >= 1.0 - endpoint_half_ratio) {
+        correction_alpha = fraction;
+      } else {
+        const double span = std::max(1e-9, 1.0 - 2.0 * endpoint_half_ratio);
+        const double linear = std::clamp(
+          (keyframe.path_alpha - endpoint_half_ratio) / span, 0.0, 1.0);
+        const double smooth = linear * linear * (3.0 - 2.0 * linear);
+        correction_alpha = fraction * smooth;
+      }
     }
 
     const Eigen::Isometry3d correction = InterpolateIsometry(
@@ -292,7 +446,6 @@ OptimizationProposal OptimizationManager::Optimize(
     optimized_controls[index] = optimized;
   }
 
-  const size_t target_index = problem.keyframes.size() - 1U;
   const Eigen::Isometry3d pinned_target = InterpolateIsometry(
     target_current, target_expected, fraction);
   constexpr size_t kFiducialGraphIterations = 80U;
@@ -326,7 +479,8 @@ OptimizationProposal OptimizationManager::Optimize(
   }
 
   proposal.final_error = ComputeFiducialError(
-    proposal.controls.back().world_pose, problem.task.target_world_T_kf);
+    IsometryToPose(optimized_controls.at(target_index)),
+    problem.task.target_world_T_kf);
   proposal.status = fraction >= 1.0 - 1e-12 ?
     OptimizationSolverStatus::Converged : OptimizationSolverStatus::MaxIterations;
   proposal.reason = fraction >= 1.0 - 1e-12 ?
@@ -340,6 +494,7 @@ OptimizationProposal OptimizationManager::Optimize(
     proposal.final_error.translation_m *
     proposal.final_error.translation_m + proposal.final_error.rotation_rad *
     proposal.final_error.rotation_rad;
+  FillExpandedProposal(problem, initial_controls, optimized_controls, &proposal);
   return proposal;
 }
 

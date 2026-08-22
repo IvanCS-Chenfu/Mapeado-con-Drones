@@ -3,13 +3,18 @@
 ## Estado
 
 ```text
-PREPARADA; pendiente de implementar y validar 3C-3W
+PREPARADA; 3C-3W VALIDADAS, 3Q A REVISAR ANTES DEL CIERRE FINAL
 ```
 
 `3X` no es propietaria del redisenho de ejecucion. Su funcion es retirar las
 rutas sustituidas por los contratos de `3C-3W`, demostrar que ya no se usan y
 dejar un handoff verificable. No se puede marcar como conseguida mientras la
 arquitectura acordada siga siendo solo documental.
+
+3T-3W ya quedaron cerradas por evidencia acumulada y aceptacion del usuario.
+Antes de declarar terminada toda la Fase 3, `3X` debe conservar como decision
+explicita el estado `A REVISAR` de 3Q y no ocultar la deformacion observada en
+la prueba 194.
 
 ## Objetivo
 

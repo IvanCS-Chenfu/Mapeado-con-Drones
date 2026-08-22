@@ -12,8 +12,8 @@ include/orbslam3_multi/global_pose_types.hpp
   -> GlobalPoseRecord / AcceptedPoseUpdate / PoseChangeSet
   -> rg -n "GlobalPoseRecord|AcceptedPoseUpdate|PoseChangeSet"
 include/orbslam3_multi/global_pose_store.hpp
-  -> CommitAnchor / ApplyRawPoseChanges / CommitAcceptedPoses / CommitLoopAnchorBatch
-  -> rg -n "CommitAnchor|ApplyRawPoseChanges|CommitAcceptedPoses|CommitLoopAnchorBatch"
+  -> commits fiducial, loop anchor y optimizacion multi-submapa
+  -> rg -n "CommitAnchor|ApplyRawPoseChanges|CommitAcceptedPoses|CommitLoopAnchorBatch|CommitLoopOptimizedPoses"
 src/global_pose_store.cpp
   -> commits atomicos y validacion de revisiones/hard
   -> rg -n "GlobalPoseStore::(CommitAnchor|ApplyRawPoseChanges|CommitAcceptedPoses|CommitLoopAnchorBatch)"
@@ -42,6 +42,16 @@ src/global_pose_store.cpp
 - Un conflicto de revision o hard no deja cambios parciales.
 - `CommitLoopAnchorBatch()` revalida el lote contra el backend raw, incluye los
   KFs tardios y crea poses `LoopAnchorDerived` en una sola revision.
+- `CommitLoopOptimizedPoses()` valida y aplica en una sola revision las poses
+  corregidas de todos los submapas de un grafo 3Q. Ningun hard puede moverse;
+  un fallo de revision/invariante deja el store intacto.
+- `AcceptedPoseBatchResult` devuelve `detail` con el precondicionante exacto y
+  los conteos `rebased_skipped_controls`/`rebased_inactive_controls`. Los
+  apoyos virtuales se usan para interpolar fuera del store: no se reactivan ni
+  se escriben en el batch.
+- El commit 3Q actualiza continuidades por submapa y propaga rigidamente tails,
+  KFs llegados durante el solve y dependencias soft afectadas. El changeset
+  diferencia IDs optimizados de `control_propagated_ids`.
 - Un anchor loop conserva una dependencia padre-hijo blanda. Los cambios
   aceptados del KF de apoyo del padre propagan rigidamente todas las poses, el
   anchor y la continuidad del hijo bajo el mismo lock; los IDs movidos aparecen

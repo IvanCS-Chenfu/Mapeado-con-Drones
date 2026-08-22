@@ -47,6 +47,9 @@ Thumbs.db
 # ROS/colcon generated files
 colcon.meta
 
+# Paquete experimental fuera del alcance del pipeline vigente
+fase45_sandbox/
+
 # Grabaciones / datos pesados de pruebas
 codex/archivos_auxiliares/repeticiones/*.record
 

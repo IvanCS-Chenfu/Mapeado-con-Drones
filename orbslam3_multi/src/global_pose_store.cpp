@@ -217,6 +217,24 @@ std::optional<LoopAnchorDependencySnapshot> GlobalPoseStore::GetLoopDependency(
     found->second.source_commit_id};
 }
 
+std::vector<LoopAnchorDependencySnapshot> GlobalPoseStore::GetLoopDependencies() const
+{
+  std::vector<LoopAnchorDependencySnapshot> result;
+  std::lock_guard<std::mutex> lock(mutex_);
+  result.reserve(loop_dependencies_.size());
+  for (const auto & [child_submap, dependency] : loop_dependencies_) {
+    (void)child_submap;
+    result.push_back({
+      dependency.child_submap_id,
+      dependency.parent_submap_id,
+      dependency.child_control_keyframe_id,
+      dependency.parent_control_keyframe_id,
+      dependency.parent_control_T_child_control,
+      dependency.source_commit_id});
+  }
+  return result;
+}
+
 std::optional<RawKeyFrameId> GlobalPoseStore::GetContinuationControl(
   const RawSubmapId & submap_id) const
 {
@@ -225,6 +243,55 @@ std::optional<RawKeyFrameId> GlobalPoseStore::GetContinuationControl(
   return found == continuations_.end() ?
          std::nullopt : std::optional<RawKeyFrameId>(
     found->second.control_keyframe_id);
+}
+
+std::optional<HardCorridorReference> GlobalPoseStore::GetHardCorridorReference(
+  const RawKeyFrameId & keyframe_id) const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  const auto found = hard_corridor_references_.find(keyframe_id);
+  return found == hard_corridor_references_.end() ?
+         std::nullopt : std::optional<HardCorridorReference>(found->second);
+}
+
+void GlobalPoseStore::RefreshHardCorridorLocked(const RawSubmapId & submap_id)
+{
+  std::vector<RawKeyFrameId> hard;
+  for (const auto & [id, pose] : poses_) {
+    if (SubmapOf(id) == submap_id && pose.active && pose.hard_fiducial) {
+      hard.push_back(id);
+    }
+  }
+  if (hard.size() < 2U) {
+    return;
+  }
+  std::sort(hard.begin(), hard.end());
+  const uint64_t first = hard.front().local_kf_id;
+  const uint64_t last = hard.back().local_kf_id;
+  if (first >= last) {
+    return;
+  }
+  for (auto it = hard_corridor_references_.begin();
+    it != hard_corridor_references_.end();)
+  {
+    if (SubmapOf(it->first) == submap_id) {
+      it = hard_corridor_references_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  const uint64_t revision = ++hard_corridor_revision_;
+  for (const auto & [id, pose] : poses_) {
+    if (!(SubmapOf(id) == submap_id) || !pose.active ||
+      id.local_kf_id < first || id.local_kf_id > last)
+    {
+      continue;
+    }
+    const double alpha = static_cast<double>(id.local_kf_id - first) /
+      static_cast<double>(last - first);
+    hard_corridor_references_[id] = {
+      pose.world_pose, std::clamp(alpha, 0.0, 1.0), revision};
+  }
 }
 
 PoseChangeSet GlobalPoseStore::CommitAnchor(
@@ -318,6 +385,9 @@ PoseChangeSet GlobalPoseStore::CommitAnchor(
 
   ++store_revision_;
   ++commit_count_;
+  if (hard_fiducial_keyframe.has_value()) {
+    RefreshHardCorridorLocked(snapshot.submap_id);
+  }
   result.status = PoseCommitStatus::Applied;
   result.commit_id = commit_id;
   result.store_revision_after = store_revision_;
@@ -881,6 +951,9 @@ PoseChangeSet GlobalPoseStore::CommitAcceptedPoses(
     anchor.source_task_id = source_task_id;
     anchor.base_raw_revision = control_update->base_raw_revision;
   }
+  if (child_becomes_hard) {
+    RefreshHardCorridorLocked(submap_id);
+  }
   std::sort(result.updated_ids.begin(), result.updated_ids.end());
   result.updated_ids.erase(
     std::unique(result.updated_ids.begin(), result.updated_ids.end()),
@@ -906,7 +979,9 @@ AcceptedPoseBatchResult GlobalPoseStore::CommitAcceptedPoseBatch(
 {
   AcceptedPoseBatchResult result;
   result.source_task_id = source_task_id;
-  if (source_kind != PoseSourceKind::LoopOptimized || batches.empty()) {
+  if ((source_kind != PoseSourceKind::LoopOptimized &&
+    source_kind != PoseSourceKind::FiducialOptimized) || batches.empty())
+  {
     result.status = PoseCommitStatus::AtomicBatchConflict;
     return result;
   }
@@ -941,6 +1016,12 @@ AcceptedPoseBatchResult GlobalPoseStore::CommitAcceptedPoseBatch(
       return result;
     }
     for (const auto & update : batch.updates) {
+      if (update.mark_hard_fiducial &&
+        source_kind != PoseSourceKind::FiducialOptimized)
+      {
+        result.status = PoseCommitStatus::AtomicBatchConflict;
+        return result;
+      }
       if (SubmapOf(update.keyframe_id) == batch.submap_id) {
         const auto existing = poses_.find(update.keyframe_id);
         if (existing == poses_.end() ||
@@ -1029,11 +1110,16 @@ AcceptedPoseBatchResult GlobalPoseStore::CommitAcceptedPoseBatch(
       record.correction_pose = CorrectionFromRawWorld(
         record.world_pose, record.raw_world_pose);
       record.pose_revision += 1U;
-      record.source_kind = source_kind;
+      record.hard_fiducial = record.hard_fiducial || update.mark_hard_fiducial;
+      record.source_kind = update.mark_hard_fiducial ?
+        PoseSourceKind::FiducialAccepted : source_kind;
       record.parent_commit_id = previous.source_commit_id;
       record.source_commit_id = commit_id;
       record.source_task_id = source_task_id;
       record.base_raw_revision = update.base_raw_revision;
+      if (update.mark_hard_fiducial) {
+        changes.hard_fiducial_ids.push_back(update.keyframe_id);
+      }
       if (!PosesNear(previous.world_pose, record.world_pose, 1e-10, 1e-10)) {
         changes.updated_ids.push_back(update.keyframe_id);
         result.dirty_keyframe_ids.push_back(update.keyframe_id);
@@ -1063,6 +1149,15 @@ AcceptedPoseBatchResult GlobalPoseStore::CommitAcceptedPoseBatch(
         revision, commit_id, source_task_id, control.base_raw_revision};
     }
     result.submap_changes.push_back(std::move(changes));
+  }
+
+  for (const auto & batch : batches) {
+    if (std::any_of(
+        batch.updates.begin(), batch.updates.end(),
+        [](const AcceptedPoseUpdate & update) {return update.mark_hard_fiducial;}))
+    {
+      loop_dependencies_.erase(batch.submap_id);
+    }
   }
 
   bool propagated = true;
@@ -1157,6 +1252,17 @@ AcceptedPoseBatchResult GlobalPoseStore::CommitAcceptedPoseBatch(
       }
       dependency.parent_control_world_pose = parent->second.world_pose;
       propagated = true;
+    }
+  }
+
+  if (source_kind == PoseSourceKind::FiducialOptimized) {
+    for (const auto & batch : batches) {
+      if (std::any_of(
+          batch.updates.begin(), batch.updates.end(),
+          [](const AcceptedPoseUpdate & update) {return update.mark_hard_fiducial;}))
+      {
+        RefreshHardCorridorLocked(batch.submap_id);
+      }
     }
   }
 

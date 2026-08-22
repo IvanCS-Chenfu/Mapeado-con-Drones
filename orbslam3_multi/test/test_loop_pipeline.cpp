@@ -63,6 +63,31 @@ std::shared_ptr<orbslam3_msgs::msg::OrbMap> MakeGeometricMap(
   return map;
 }
 
+void SetBowWords(
+  const std::shared_ptr<orbslam3_msgs::msg::OrbMap> & map,
+  const std::array<uint32_t, 3> & words)
+{
+  for (auto & keyframe : map->keyframes) {
+    keyframe.bow_word_ids.assign(words.begin(), words.end());
+  }
+}
+
+void AnchorWithFiducial(
+  orbslam3_multi::SparseGlobalBackend * backend, uint32_t drone,
+  double world_x, uint64_t arrival)
+{
+  orbslam3_multi::FiducialObservation observation;
+  observation.arrival_id = arrival;
+  observation.keyframe_id = {drone, 0, 1};
+  observation.fiducial_id = static_cast<int32_t>(drone);
+  observation.fiducial_visit_id = 1;
+  observation.world_T_camera_target = Pose(world_x);
+  observation.source = "synthetic";
+  const auto result = backend->ProcessFiducialObservation(observation, false);
+  ASSERT_EQ(result.status, orbslam3_multi::FiducialProcessStatus::AnchorCreated);
+  ASSERT_EQ(result.pose_changes.status, orbslam3_multi::PoseCommitStatus::Applied);
+}
+
 TEST(CovisibilityDatabase, AppliesCanonicalPatchAndIsIdempotent)
 {
   orbslam3_multi::RawMapDatabase raw;
@@ -256,6 +281,9 @@ TEST(LoopPipeline, AnchorsUnanchoredSubmapAfterTwoIndependentQueries)
     const auto result = backend.ProcessLoopTask(task);
     committed = committed ||
       result.anchor_commit.status == orbslam3_multi::PoseCommitStatus::Applied;
+    if (result.anchor_commit.status == orbslam3_multi::PoseCommitStatus::Applied) {
+      EXPECT_FALSE(result.recent_loss_gate_checked);
+    }
   }
 
   EXPECT_TRUE(committed);
@@ -285,12 +313,25 @@ TEST(LoopPipeline, AnchorsUnanchoredSubmapAfterTwoIndependentQueries)
     orbslam3_multi::FiducialTaskDecision::Ready);
   const auto graph = backend.BuildFiducialPoseGraph(revalidation.task);
   ASSERT_TRUE(graph.success) << graph.reason;
+  EXPECT_EQ(graph.problem.submap_windows.size(), 2U);
+  EXPECT_TRUE(std::any_of(
+    graph.problem.covisibility_edges.begin(),
+    graph.problem.covisibility_edges.end(),
+    [](const auto & edge) {
+      return edge.kind == orbslam3_multi::PoseGraphEdgeKind::PriorLoop;
+    }));
   const auto proposal = backend.OptimizeFiducialPoseGraph(graph.problem);
   const auto validation = backend.ValidateFiducialProposal(
     graph.problem, proposal);
   ASSERT_EQ(
     validation.decision,
     orbslam3_multi::ValidationDecision::AcceptFull) << validation.reason;
+  auto changed_parent = MakeGeometricMap(1, 0, 0.0);
+  for (auto & keyframe : changed_parent->keyframes) {
+    keyframe.pose.position.x += 0.75;
+  }
+  changed_parent->keyframes.front().is_bad = true;
+  backend.InsertDelta(4, changed_parent);
   const auto commit_result = backend.CommitFiducialProposal(
     graph.problem, proposal, validation);
   ASSERT_TRUE(commit_result.committed) << commit_result.reason;
@@ -304,6 +345,65 @@ TEST(LoopPipeline, AnchorsUnanchoredSubmapAfterTwoIndependentQueries)
   ASSERT_TRUE(reanchored_first.has_value());
   EXPECT_NEAR(reanchored_first->world_pose.position.x, 10.0, 1e-6);
   EXPECT_NEAR(reanchored_first->world_pose.position.y, 2.0, 1e-6);
+}
+
+TEST(LoopPipeline, RejectsFarRepeatedZoneAfterAnchoredEpochLoss)
+{
+  orbslam3_multi::SparseGlobalBackend backend;
+  auto previous = MakeGeometricMap(2, 0, 0.0);
+  SetBowWords(previous, {110U, 120U, 130U});
+  const auto previous_insert = backend.InsertDelta(1, previous);
+  ASSERT_EQ(
+    backend.CommitAnchor({2, 0}, Pose(10.0), 100).status,
+    orbslam3_multi::PoseCommitStatus::Applied);
+
+  const auto repeated_zone = backend.InsertDelta(
+    2, MakeGeometricMap(1, 0, 0.0));
+  ASSERT_EQ(
+    backend.CommitAnchor({1, 0}, Pose(200.0), 101).status,
+    orbslam3_multi::PoseCommitStatus::Applied);
+
+  for (const auto * inserted : {&previous_insert, &repeated_zone}) {
+    auto plan = backend.PlanSecondaryWork(inserted->raw_result);
+    ASSERT_TRUE(plan.database_update.has_value());
+    ASSERT_TRUE(backend.ProcessDatabaseUpdate(*plan.database_update).committed);
+    auto tasks = backend.CreateLoopTasks(
+      inserted->raw_result.arrival_id,
+      plan.database_update->loop_keyframe_ids);
+    for (auto & task : tasks) {
+      task.task_id = 3000U + task.query_keyframe_id.drone_id * 10U +
+        task.query_keyframe_id.local_kf_id;
+      backend.ProcessLoopTask(task);
+    }
+  }
+
+  const auto lost = backend.InsertDelta(3, MakeGeometricMap(2, 1, 0.0));
+  auto lost_plan = backend.PlanSecondaryWork(lost.raw_result);
+  ASSERT_TRUE(lost_plan.database_update.has_value());
+  ASSERT_TRUE(backend.ProcessDatabaseUpdate(*lost_plan.database_update).committed);
+  auto lost_tasks = backend.CreateLoopTasks(
+    lost.raw_result.arrival_id, lost_plan.database_update->loop_keyframe_ids);
+
+  bool continuity_rejected = false;
+  uint64_t task_id = 3100U;
+  for (auto & task : lost_tasks) {
+    task.task_id = task_id++;
+    const auto result = backend.ProcessLoopTask(task);
+    if (result.reason == "recent_loss_continuity_rejected") {
+      continuity_rejected = true;
+      EXPECT_EQ(result.decision, orbslam3_multi::LoopTaskDecisionKind::Deferred);
+      EXPECT_TRUE(result.recent_loss_gate_checked);
+      EXPECT_FALSE(result.recent_loss_gate_passed);
+      EXPECT_GT(
+        result.recent_loss_translation_m,
+        result.recent_loss_translation_limit_m);
+      EXPECT_TRUE(result.anchor_entries.empty());
+    }
+  }
+
+  EXPECT_TRUE(continuity_rejected);
+  EXPECT_EQ(backend.GetPoseStats().anchors, 2U);
+  EXPECT_FALSE(backend.GetGlobalPose({2, 1, 1}).has_value());
 }
 
 TEST(LoopPipeline, UnanchoredSameSubmapEvidenceRemainsDiagnostic)
@@ -365,6 +465,15 @@ TEST(LoopPipeline, HighErrorAnchoredLoopOptimizesAndFusesInSameTask)
       if (detected.decision ==
         orbslam3_multi::LoopTaskDecisionKind::OptimizationEvidence)
       {
+        auto refresh_task = detected.task;
+        refresh_task.task_id = task_id++;
+        refresh_task.intent = orbslam3_multi::LoopTaskIntent::FusionRefresh;
+        const auto refresh = backend.ProcessLoopTask(refresh_task);
+        EXPECT_EQ(refresh.decision, orbslam3_multi::LoopTaskDecisionKind::NoCandidates);
+        EXPECT_EQ(refresh.reason, "fusion_refresh_no_spatial_candidates");
+        EXPECT_GT(refresh.refresh_spatial_rejected, 0U);
+        EXPECT_FALSE(refresh.optimization.attempted);
+
         const auto optimized = backend.ProcessLoopOptimization(detected);
         EXPECT_EQ(
           optimized.decision,
@@ -378,11 +487,130 @@ TEST(LoopPipeline, HighErrorAnchoredLoopOptimizesAndFusesInSameTask)
           optimized.optimization.initial_translation_error_m);
         EXPECT_TRUE(optimized.fusion.committed) << optimized.fusion.reason;
         EXPECT_TRUE(optimized.optimization.fusion_after_optimization);
+        EXPECT_FALSE(optimized.rerun_keyframe_ids.empty());
+
+        auto reevaluation_tasks = backend.CreateLoopTasks(
+          3, {detected.task.query_keyframe_id});
+        ASSERT_EQ(reevaluation_tasks.size(), 1U);
+        reevaluation_tasks.front().task_id = task_id++;
+        const auto reevaluated = backend.ProcessLoopTask(reevaluation_tasks.front());
+        EXPECT_NE(
+          reevaluated.decision,
+          orbslam3_multi::LoopTaskDecisionKind::OptimizationEvidence);
+        EXPECT_FALSE(std::any_of(
+          reevaluated.geometry_results.begin(), reevaluated.geometry_results.end(),
+          [](const auto & geometry) {
+            return geometry.accepted && geometry.fusion_compatible;
+          })) << "una pareja ServerLoopGeometric no debe fusionarse de nuevo";
         return;
       }
     }
   }
   FAIL() << "no se obtuvo OptimizationEvidence tras dos queries independientes";
+}
+
+TEST(LoopPipeline, ProtectedRegionsRejectFarRepeatedLoopBeforeBuilderAndCacheRegion)
+{
+  orbslam3_multi::SparseGlobalBackend backend;
+  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0, 3));
+  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0, 3));
+  AnchorWithFiducial(&backend, 1, 0.0, 10);
+  AnchorWithFiducial(&backend, 2, 30.0, 11);
+
+  uint64_t task_id = 3000;
+  bool rejected = false;
+  bool ledger_hit = false;
+  for (const auto * inserted : {&first, &second}) {
+    auto plan = backend.PlanSecondaryWork(inserted->raw_result);
+    ASSERT_TRUE(plan.database_update.has_value());
+    ASSERT_TRUE(backend.ProcessDatabaseUpdate(*plan.database_update).committed);
+    auto tasks = backend.CreateLoopTasks(
+      inserted->raw_result.arrival_id, plan.database_update->loop_keyframe_ids);
+    for (auto & task : tasks) {
+      task.task_id = task_id++;
+      const auto result = backend.ProcessLoopTask(task);
+      rejected = rejected || result.protected_region_rejected;
+      ledger_hit = ledger_hit || result.rejection_ledger_hit;
+      if (result.protected_region_rejected || result.rejection_ledger_hit) {
+        EXPECT_EQ(result.decision, orbslam3_multi::LoopTaskDecisionKind::GeometryRejected);
+        EXPECT_FALSE(result.optimization.attempted);
+        EXPECT_FALSE(result.optimization.graph_built);
+      }
+    }
+  }
+  EXPECT_TRUE(rejected);
+  EXPECT_TRUE(ledger_hit);
+}
+
+TEST(LoopPipeline, ProtectedToUnreliableKeepsAsymmetricOptimizationEvidence)
+{
+  orbslam3_multi::SparseGlobalBackend backend;
+  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0, 3));
+  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0, 3));
+  AnchorWithFiducial(&backend, 1, 0.0, 10);
+  ASSERT_EQ(
+    backend.CommitAnchor({2, 0}, Pose(30.0), 11).status,
+    orbslam3_multi::PoseCommitStatus::Applied);
+
+  uint64_t task_id = 3100;
+  bool saw_optimization = false;
+  for (const auto * inserted : {&first, &second}) {
+    auto plan = backend.PlanSecondaryWork(inserted->raw_result);
+    ASSERT_TRUE(plan.database_update.has_value());
+    ASSERT_TRUE(backend.ProcessDatabaseUpdate(*plan.database_update).committed);
+    auto tasks = backend.CreateLoopTasks(
+      inserted->raw_result.arrival_id, plan.database_update->loop_keyframe_ids);
+    for (auto & task : tasks) {
+      task.task_id = task_id++;
+      const auto result = backend.ProcessLoopTask(task);
+      if (result.decision == orbslam3_multi::LoopTaskDecisionKind::OptimizationEvidence) {
+        saw_optimization = true;
+        EXPECT_TRUE(result.protected_candidate_stable || result.protected_query_stable);
+        EXPECT_FALSE(result.protected_region_rejected);
+      }
+    }
+  }
+  EXPECT_TRUE(saw_optimization);
+}
+
+TEST(LoopPipeline, FusionRefreshOmitsFarBowCandidatesAndGroupsMovedRegion)
+{
+  orbslam3_multi::SparseGlobalBackend backend;
+  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0, 20));
+  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0, 2));
+  ASSERT_EQ(
+    backend.CommitAnchor({1, 0}, Pose(0.0), 10).status,
+    orbslam3_multi::PoseCommitStatus::Applied);
+  ASSERT_EQ(
+    backend.CommitAnchor({2, 0}, Pose(30.0), 11).status,
+    orbslam3_multi::PoseCommitStatus::Applied);
+
+  auto first_plan = backend.PlanSecondaryWork(first.raw_result);
+  ASSERT_TRUE(first_plan.database_update.has_value());
+  ASSERT_TRUE(backend.ProcessDatabaseUpdate(*first_plan.database_update).committed);
+  auto indexed = backend.CreateLoopTasks(1, first_plan.database_update->loop_keyframe_ids);
+  uint64_t task_id = 3200;
+  for (auto & task : indexed) {
+    task.task_id = task_id++;
+    backend.ProcessLoopTask(task);
+  }
+
+  auto refresh = backend.CreateFusionRefreshTasks(2, second.raw_result.new_keyframe_ids);
+  ASSERT_EQ(refresh.size(), 1U);
+  EXPECT_EQ(refresh.front().intent, orbslam3_multi::LoopTaskIntent::FusionRefresh);
+  refresh.front().task_id = task_id++;
+  const auto result = backend.ProcessLoopTask(refresh.front());
+  EXPECT_EQ(result.decision, orbslam3_multi::LoopTaskDecisionKind::NoCandidates);
+  EXPECT_EQ(result.reason, "fusion_refresh_no_spatial_candidates");
+  EXPECT_GT(result.refresh_spatial_rejected, 0U);
+
+  auto all_ids = first.raw_result.new_keyframe_ids;
+  auto grouped = backend.CreateFusionRefreshTasks(3, all_ids);
+  EXPECT_LT(grouped.size(), all_ids.size());
+  EXPECT_TRUE(std::all_of(
+    grouped.begin(), grouped.end(), [](const auto & task) {
+      return task.intent == orbslam3_multi::LoopTaskIntent::FusionRefresh;
+    }));
 }
 
 TEST(GlobalPoseStore, SoftLoopAnchorFollowsParentUntilChildGetsHardFiducial)

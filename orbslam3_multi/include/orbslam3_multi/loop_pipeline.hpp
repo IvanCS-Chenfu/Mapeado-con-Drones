@@ -45,6 +45,19 @@ struct LoopPipelineConfig
   double hypothesis_rotation_tolerance_rad = 0.35;
   size_t hypothesis_min_support = 2;
   size_t ambiguity_margin = 2;
+  double structural_temporal_increase_m = 2.0;
+  double structural_temporal_increase_rad = 0.70;
+  double structural_covisibility_increase_m = 1.0;
+  double structural_covisibility_increase_rad = 0.50;
+  double structural_prior_loop_increase_m = 0.50;
+  double structural_prior_loop_increase_rad = 0.35;
+  double hard_corridor_max_translation_m = 5.0;
+  double hard_corridor_max_rotation_rad = 0.3490658503988659;
+  double fusion_refresh_spatial_margin_m = 1.0;
+  double recent_loss_base_translation_m = 2.0;
+  double recent_loss_path_drift_ratio = 0.20;
+  double recent_loss_base_rotation_rad = 0.35;
+  double recent_loss_rotation_drift_ratio = 0.20;
 };
 
 struct LoopCandidateRegion
@@ -123,6 +136,7 @@ struct LoopFusionSummary
   size_t hidden_raw_members = 0;
   size_t score_positive_events = 0;
   size_t score_negative_events = 0;
+  size_t score_visibility_diagnostics = 0;
   size_t score_raw_updates = 0;
   size_t covisibility_added = 0;
   size_t covisibility_updated = 0;
@@ -150,8 +164,14 @@ struct LoopOptimizationSummary
   size_t temporal_edges = 0;
   size_t covisibility_edges = 0;
   size_t loop_edges = 0;
+  size_t rebuilds = 0;
+  size_t discarded_loop_regions = 0;
   size_t moved_keyframes = 0;
   size_t propagated_keyframes = 0;
+  size_t rebased_skipped_controls = 0;
+  size_t rebased_inactive_controls = 0;
+  size_t structural_edges_checked = 0;
+  size_t hard_corridor_keyframes_checked = 0;
   size_t iterations = 0;
   double initial_translation_error_m = 0.0;
   double final_translation_error_m = 0.0;
@@ -159,7 +179,32 @@ struct LoopOptimizationSummary
   double final_rotation_error_rad = 0.0;
   double initial_cost = 0.0;
   double final_cost = 0.0;
+  double graph_ms = 0.0;
+  double solve_ms = 0.0;
+  double validation_ms = 0.0;
+  double commit_ms = 0.0;
+  double max_structural_translation_increase_m = 0.0;
+  double max_structural_rotation_increase_rad = 0.0;
+  double max_corridor_translation_excess_before_m = 0.0;
+  double max_corridor_translation_excess_after_m = 0.0;
+  double max_corridor_rotation_excess_before_rad = 0.0;
+  double max_corridor_rotation_excess_after_rad = 0.0;
   std::string reason;
+};
+
+struct LoopHypothesisSupportSummary
+{
+  bool observed = false;
+  bool compatible_hypothesis = false;
+  bool independent = false;
+  bool ambiguity_satisfied = false;
+  bool accepted = false;
+  size_t support = 0;
+  size_t required_support = 0;
+  size_t competing_support = 0;
+  size_t ambiguity_margin = 0;
+  double nearest_translation_separation_m = 0.0;
+  double nearest_yaw_separation_rad = 0.0;
 };
 
 struct LoopTaskComputation
@@ -168,14 +213,31 @@ struct LoopTaskComputation
   LoopTask task;
   bool used_fast_overlap = false;
   size_t bow_candidates = 0;
+  size_t refresh_spatial_candidates = 0;
+  size_t refresh_spatial_rejected = 0;
   std::vector<LoopCandidateRegion> regions;
   std::vector<LoopGeometryResult> geometry_results;
+  std::vector<size_t> optimization_geometry_indices;
   std::vector<std::pair<RawMapPointId, RawMapPointId>> fusion_pairs;
+  LoopHypothesisSupportSummary hypothesis_support;
   LoopFusionSummary fusion;
   LoopOptimizationSummary optimization;
   std::vector<LoopAnchorBatchEntry> anchor_entries;
   LoopAnchorBatchResult anchor_commit;
   std::vector<RawKeyFrameId> rerun_keyframe_ids;
+  bool recent_loss_gate_checked = false;
+  bool recent_loss_gate_passed = false;
+  double recent_loss_translation_m = 0.0;
+  double recent_loss_translation_limit_m = 0.0;
+  double recent_loss_rotation_rad = 0.0;
+  double recent_loss_rotation_limit_rad = 0.0;
+  bool protected_region_checked = false;
+  bool protected_query_stable = false;
+  bool protected_candidate_stable = false;
+  bool protected_region_rejected = false;
+  bool rejection_ledger_hit = false;
+  double protected_translation_error_m = 0.0;
+  double protected_rotation_error_rad = 0.0;
   std::string reason;
 };
 
@@ -237,6 +299,10 @@ private:
     const orbslam3_msgs::msg::OrbKeyFrame & keyframe);
   std::vector<std::pair<RawKeyFrameId, double>> SearchBow(
     const RawKeyFrameId & query_id) const;
+  bool SpatiallyCompatibleForRefresh(
+    const RawKeyFrameId & query_id, const RawKeyFrameId & candidate_id,
+    const RawMapDatabase & raw_database,
+    const GlobalPoseStore & pose_store) const;
   std::vector<LoopCandidateRegion> GroupRegions(
     const LoopTask & task,
     const std::vector<std::pair<RawKeyFrameId, double>> & candidates,
@@ -250,7 +316,8 @@ private:
   bool AddHypothesisEvidence(
     const SubmapPair & pair, const Eigen::Isometry3d & first_T_second,
     const HypothesisObservation & observation,
-    const LoopPipelineConfig & config, Hypothesis * accepted);
+    const LoopPipelineConfig & config, Hypothesis * accepted,
+    LoopHypothesisSupportSummary * summary = nullptr);
   std::vector<LoopAnchorBatchEntry> BuildAnchorCascade(
     uint64_t task_id, const RawMapDatabase & raw_database,
     const GlobalPoseStore & pose_store) const;

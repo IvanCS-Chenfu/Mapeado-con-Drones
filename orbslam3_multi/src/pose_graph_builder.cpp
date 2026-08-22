@@ -13,6 +13,8 @@ namespace orbslam3_multi
 namespace
 {
 
+constexpr size_t kMaxCovisibilityEdgesPerControl = 6U;
+
 double CornerStrength(
   const std::vector<PoseGraphKeyFrame> & keyframes, size_t index)
 {
@@ -231,6 +233,9 @@ PoseGraphBuildResult PoseGraphBuilder::Build(
       for (const auto & edge : covisibility_database->GetNeighbors(
           id, config_.covisibility_min_support, 64U))
       {
+        if (edge.source != CovisibilityEdgeSource::ServerLoopGeometric) {
+          continue;
+        }
         const RawKeyFrameId other = edge.kf_a == id ? edge.kf_b : edge.kf_a;
         const auto found = window_indices.find(other);
         if (found != window_indices.end()) {
@@ -272,7 +277,13 @@ PoseGraphBuildResult PoseGraphBuilder::Build(
     }
     std::set<std::pair<size_t, size_t>> inserted;
     for (const auto & [id, from] : controls_by_id) {
+      size_t accepted_neighbors = 0U;
       for (const auto & edge : covisibility_database->GetNeighbors(id, 1U, 64U)) {
+        if (edge.source == CovisibilityEdgeSource::Orbslam3Native &&
+          edge.support < config_.covisibility_min_support)
+        {
+          continue;
+        }
         const RawKeyFrameId other = edge.kf_a == id ? edge.kf_b : edge.kf_a;
         const auto found = controls_by_id.find(other);
         if (found == controls_by_id.end()) {
@@ -299,6 +310,9 @@ PoseGraphBuildResult PoseGraphBuilder::Build(
         graph_edge.kind = edge.source == CovisibilityEdgeSource::Orbslam3Native ?
           PoseGraphEdgeKind::CovisibilityNative : PoseGraphEdgeKind::PriorLoop;
         result.problem.covisibility_edges.push_back(std::move(graph_edge));
+        if (++accepted_neighbors >= kMaxCovisibilityEdgesPerControl) {
+          break;
+        }
       }
     }
   }
@@ -321,6 +335,16 @@ PoseGraphBuildResult PoseGraphBuilder::Build(
     result.problem.propagation_plan.push_back(
       {index, lower_control, upper_control, std::clamp(segment_alpha, 0.0, 1.0)});
   }
+
+  PoseGraphSubmapWindow window;
+  window.submap_id = task.submap_id;
+  window.raw_submap_revision = raw_snapshot.submap_revision;
+  window.graph_begin = 0U;
+  window.graph_end = count - 1U;
+  window.first_keyframe_id = task.control_keyframe_id;
+  window.last_keyframe_id = task.keyframe_id;
+  window.continuation_keyframe_id = task.keyframe_id;
+  result.problem.submap_windows.push_back(window);
 
   result.success = true;
   result.reason = "balanced_temporal_graph";
@@ -346,35 +370,88 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     loop_config.fusion_translation_threshold_m;
   result.problem.loop_rotation_threshold_rad =
     loop_config.fusion_rotation_threshold_rad;
+  result.problem.structural_temporal_increase_m =
+    loop_config.structural_temporal_increase_m;
+  result.problem.structural_temporal_increase_rad =
+    loop_config.structural_temporal_increase_rad;
+  result.problem.structural_covisibility_increase_m =
+    loop_config.structural_covisibility_increase_m;
+  result.problem.structural_covisibility_increase_rad =
+    loop_config.structural_covisibility_increase_rad;
+  result.problem.structural_prior_loop_increase_m =
+    loop_config.structural_prior_loop_increase_m;
+  result.problem.structural_prior_loop_increase_rad =
+    loop_config.structural_prior_loop_increase_rad;
+  result.problem.hard_corridor_max_translation_m =
+    loop_config.hard_corridor_max_translation_m;
+  result.problem.hard_corridor_max_rotation_rad =
+    loop_config.hard_corridor_max_rotation_rad;
 
-  const LoopGeometryResult * selected_geometry = nullptr;
-  for (const auto & geometry : computation.geometry_results) {
-    if (!geometry.accepted || geometry.fusion_compatible) {
-      continue;
+  std::vector<std::pair<size_t, const LoopGeometryResult *>> selected_geometries;
+  for (const size_t index : computation.optimization_geometry_indices) {
+    if (index >= computation.geometry_results.size()) {
+      result.reason = "loop_geometry_index_invalid";
+      return result;
     }
-    if (selected_geometry == nullptr || geometry.inliers > selected_geometry->inliers ||
-      (geometry.inliers == selected_geometry->inliers &&
-      geometry.mean_residual_m < selected_geometry->mean_residual_m))
-    {
-      selected_geometry = &geometry;
+    const auto & geometry = computation.geometry_results[index];
+    if (!geometry.accepted || geometry.fusion_compatible) {
+      result.reason = "loop_geometry_index_not_optimizable";
+      return result;
+    }
+    selected_geometries.emplace_back(index, &geometry);
+  }
+  if (selected_geometries.empty()) {
+    size_t best_index = 0U;
+    const LoopGeometryResult * best = nullptr;
+    for (size_t index = 0; index < computation.geometry_results.size(); ++index) {
+      const auto & geometry = computation.geometry_results[index];
+      if (!geometry.accepted || geometry.fusion_compatible) {
+        continue;
+      }
+      if (best == nullptr || geometry.inliers > best->inliers ||
+        (geometry.inliers == best->inliers &&
+        geometry.mean_residual_m < best->mean_residual_m))
+      {
+        best = &geometry;
+        best_index = index;
+      }
+    }
+    if (best != nullptr) {
+      selected_geometries.emplace_back(best_index, best);
     }
   }
-  if (selected_geometry == nullptr) {
+  if (selected_geometries.empty()) {
     result.reason = "loop_geometry_missing";
     return result;
   }
 
   std::map<RawSubmapId, std::vector<RawKeyFrameId>> endpoints;
-  endpoints[selected_geometry->query_submap_id].push_back(
-    selected_geometry->query_keyframe_id);
-  endpoints[selected_geometry->candidate_submap_id].push_back(
-    selected_geometry->candidate_keyframe_id);
+  for (const auto & [geometry_index, selected_geometry] : selected_geometries) {
+    (void)geometry_index;
+    endpoints[selected_geometry->query_submap_id].push_back(
+      selected_geometry->query_keyframe_id);
+    endpoints[selected_geometry->candidate_submap_id].push_back(
+      selected_geometry->candidate_keyframe_id);
+  }
   for (const auto & [child_submap, dependency] : loop_dependencies) {
     (void)child_submap;
     endpoints[dependency.child_submap_id].push_back(
       dependency.child_control_keyframe_id);
     endpoints[dependency.parent_submap_id].push_back(
       dependency.parent_control_keyframe_id);
+  }
+  for (const auto & edge : covisibility_database.GetEdgesBySource(
+      CovisibilityEdgeSource::ServerLoopGeometric))
+  {
+    const RawSubmapId first{edge.kf_a.drone_id, edge.kf_a.map_epoch};
+    const RawSubmapId second{edge.kf_b.drone_id, edge.kf_b.map_epoch};
+    if (first == second || raw_snapshots.count(first) == 0U ||
+      raw_snapshots.count(second) == 0U)
+    {
+      continue;
+    }
+    endpoints[first].push_back(edge.kf_a);
+    endpoints[second].push_back(edge.kf_b);
   }
   for (auto & [submap_id, submap_endpoints] : endpoints) {
     (void)submap_id;
@@ -512,9 +589,13 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     selected_controls.insert(indices.front());
     selected_controls.insert(indices.back());
     for (const size_t index : indices) {
-      if (result.problem.keyframes[index].fixed ||
-        result.problem.keyframes[index].id == selected_geometry->query_keyframe_id ||
-        result.problem.keyframes[index].id == selected_geometry->candidate_keyframe_id)
+      const bool loop_endpoint = std::any_of(
+        selected_geometries.begin(), selected_geometries.end(),
+        [&result, index](const auto & selected) {
+          return result.problem.keyframes[index].id == selected.second->query_keyframe_id ||
+                 result.problem.keyframes[index].id == selected.second->candidate_keyframe_id;
+        });
+      if (result.problem.keyframes[index].fixed || loop_endpoint)
       {
         selected_controls.insert(index);
       }
@@ -532,6 +613,9 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     for (const auto & edge : covisibility_database.GetNeighbors(
         id, loop_config.strong_covisibility_support, 64U))
     {
+      if (edge.source != CovisibilityEdgeSource::ServerLoopGeometric) {
+        continue;
+      }
       const RawKeyFrameId other = edge.kf_a == id ? edge.kf_b : edge.kf_a;
       const auto found = graph_index.find(other);
       if (found != graph_index.end()) {
@@ -608,7 +692,20 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
   std::set<std::pair<size_t, size_t>> covisibility_pairs;
   for (const size_t from : result.problem.control_indices) {
     const auto & id = result.problem.keyframes[from].id;
-    for (const auto & edge : covisibility_database.GetNeighbors(id, 1U, 64U)) {
+    size_t accepted_neighbors = 0U;
+    for (const auto & edge : covisibility_database.GetNeighbors(
+        id, 1U, std::numeric_limits<size_t>::max()))
+    {
+      if (edge.source == CovisibilityEdgeSource::Orbslam3Native &&
+        edge.support < loop_config.strong_covisibility_support)
+      {
+        continue;
+      }
+      if (edge.source == CovisibilityEdgeSource::Orbslam3Native &&
+        accepted_neighbors >= kMaxCovisibilityEdgesPerControl)
+      {
+        continue;
+      }
       const RawKeyFrameId other = edge.kf_a == id ? edge.kf_b : edge.kf_a;
       const auto found = graph_index.find(other);
       if (found == graph_index.end() || selected_controls.count(found->second) == 0U) {
@@ -628,11 +725,16 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
       graph_edge.relative_raw_pose = edge.kf_a == result.problem.keyframes[key.first].id ?
         edge.relative_pose_measured : IsometryToPose(measured.inverse());
       graph_edge.supporting_keyframes = edge.support;
-      graph_edge.information_weight = std::clamp(
-        std::log1p(static_cast<double>(edge.support)), 1.0, 8.0);
+      graph_edge.information_weight = edge.source ==
+        CovisibilityEdgeSource::ServerLoopGeometric ?
+        std::clamp(edge.information_weight, 1.0, 60.0) :
+        std::clamp(std::log1p(static_cast<double>(edge.support)), 1.0, 8.0);
       graph_edge.kind = edge.source == CovisibilityEdgeSource::Orbslam3Native ?
         PoseGraphEdgeKind::CovisibilityNative : PoseGraphEdgeKind::PriorLoop;
       result.problem.covisibility_edges.push_back(std::move(graph_edge));
+      if (edge.source == CovisibilityEdgeSource::Orbslam3Native) {
+        ++accepted_neighbors;
+      }
     }
   }
 
@@ -655,40 +757,46 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     result.problem.covisibility_edges.push_back(std::move(dependency_edge));
   }
 
-  const auto query_graph = graph_index.find(selected_geometry->query_keyframe_id);
-  const auto candidate_graph = graph_index.find(selected_geometry->candidate_keyframe_id);
-  const auto query_snapshot = raw_snapshots.find(selected_geometry->query_submap_id);
-  const auto candidate_snapshot = raw_snapshots.find(selected_geometry->candidate_submap_id);
-  if (query_graph == graph_index.end() || candidate_graph == graph_index.end() ||
-    query_snapshot == raw_snapshots.end() || candidate_snapshot == raw_snapshots.end())
-  {
-    result.reason = "loop_endpoint_graph_missing";
-    return result;
+  for (const auto & [geometry_index, selected_geometry] : selected_geometries) {
+    const auto query_graph = graph_index.find(selected_geometry->query_keyframe_id);
+    const auto candidate_graph = graph_index.find(selected_geometry->candidate_keyframe_id);
+    const auto query_snapshot = raw_snapshots.find(selected_geometry->query_submap_id);
+    const auto candidate_snapshot = raw_snapshots.find(selected_geometry->candidate_submap_id);
+    if (query_graph == graph_index.end() || candidate_graph == graph_index.end() ||
+      query_snapshot == raw_snapshots.end() || candidate_snapshot == raw_snapshots.end())
+    {
+      result.reason = "loop_endpoint_graph_missing";
+      return result;
+    }
+    Eigen::Isometry3d query_local_T_kf;
+    Eigen::Isometry3d candidate_local_T_kf;
+    if (!PoseToIsometry(result.problem.keyframes[query_graph->second].raw_local_pose,
+        &query_local_T_kf) ||
+      !PoseToIsometry(result.problem.keyframes[candidate_graph->second].raw_local_pose,
+        &candidate_local_T_kf))
+    {
+      result.reason = "loop_endpoint_raw_pose_invalid";
+      return result;
+    }
+    PoseGraphEdge loop_edge;
+    loop_edge.from_index = candidate_graph->second;
+    loop_edge.to_index = query_graph->second;
+    loop_edge.relative_raw_pose = IsometryToPose(
+      candidate_local_T_kf.inverse() *
+      selected_geometry->candidate_local_T_query_local * query_local_T_kf);
+    loop_edge.supporting_keyframes = selected_geometry->inliers;
+    const double inlier_ratio = selected_geometry->matches == 0U ? 0.0 :
+      static_cast<double>(selected_geometry->inliers) /
+      static_cast<double>(selected_geometry->matches);
+    loop_edge.information_weight = std::clamp(20.0 + 40.0 * inlier_ratio, 20.0, 60.0);
+    loop_edge.kind = PoseGraphEdgeKind::CurrentLoop;
+    loop_edge.source_geometry_index = geometry_index;
+    result.problem.loop_edges.push_back(std::move(loop_edge));
   }
-  Eigen::Isometry3d query_local_T_kf;
-  Eigen::Isometry3d candidate_local_T_kf;
-  if (!PoseToIsometry(result.problem.keyframes[query_graph->second].raw_local_pose,
-      &query_local_T_kf) ||
-    !PoseToIsometry(result.problem.keyframes[candidate_graph->second].raw_local_pose,
-      &candidate_local_T_kf))
-  {
-    result.reason = "loop_endpoint_raw_pose_invalid";
-    return result;
-  }
-  PoseGraphEdge loop_edge;
-  loop_edge.from_index = candidate_graph->second;
-  loop_edge.to_index = query_graph->second;
-  loop_edge.relative_raw_pose = IsometryToPose(
-    candidate_local_T_kf.inverse() *
-    selected_geometry->candidate_local_T_query_local * query_local_T_kf);
-  loop_edge.supporting_keyframes = selected_geometry->inliers;
-  loop_edge.information_weight = 40.0;
-  loop_edge.kind = PoseGraphEdgeKind::CurrentLoop;
-  result.problem.loop_edges.push_back(std::move(loop_edge));
   result.success = true;
   result.reason = SameSubmap(
-    selected_geometry->query_keyframe_id,
-    selected_geometry->candidate_keyframe_id) ?
+    selected_geometries.front().second->query_keyframe_id,
+    selected_geometries.front().second->candidate_keyframe_id) ?
     "covisible_intra_submap_loop_graph" : "covisible_multi_submap_loop_graph";
   return result;
 }

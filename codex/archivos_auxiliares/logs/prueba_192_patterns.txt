@@ -1,0 +1,9 @@
+F3S-RAW-SCORE-COMMIT
+F3S-SCORE-NOOP
+F3S-FUSED-SCORE-COMMIT
+F3S-SCORE-STATS
+F3P-FUSION
+F3B-BUILDER|F3B-PUBLISH|global_sparse_cloud
+SECONDARY-DONE|SECONDARY-STATS|pending=|hard_failed=|blocking_failure=
+SCENARIO|Scenario|scenario|goal.*(complete|success)|success=true
+ERROR|FATAL|Traceback|exception|terminate called|Segmentation fault|HARD-FAILURE

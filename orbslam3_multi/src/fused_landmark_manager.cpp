@@ -165,29 +165,25 @@ std::optional<ProjectedPoint> Project(
 float FusedScore(
   const FusedLandmarkTrack & track,
   const LandmarkScoreManager & score_manager,
+  float member_bonus,
   const std::map<RawMapPointId, float> & pending_adjustments = {})
 {
-  float best = 0.0F;
+  if (track.member_mappoint_ids.empty()) {
+    return 0.0F;
+  }
+  double sum = 0.0;
   for (const auto & member : track.member_mappoint_ids) {
     const auto score = score_manager.GetScore(member);
     if (score.has_value()) {
       const auto adjustment = pending_adjustments.find(member);
-      best = std::max(
-        best, std::clamp(
+      sum += std::clamp(
           score->score + (adjustment == pending_adjustments.end() ?
-          0.0F : adjustment->second), 0.0F, 1.0F));
+          0.0F : adjustment->second), 0.0F, 1.0F);
     }
   }
-  const float member_bonus = std::min(
-    0.25F, 0.06F * static_cast<float>(
-      track.member_mappoint_ids.empty() ? 0U : track.member_mappoint_ids.size() - 1U));
-  const float drone_bonus = std::min(
-    0.10F, 0.04F * static_cast<float>(
-      track.source_drone_ids.empty() ? 0U : track.source_drone_ids.size() - 1U));
-  const float submap_bonus = std::min(
-    0.10F, 0.03F * static_cast<float>(
-      track.source_submaps.empty() ? 0U : track.source_submaps.size() - 1U));
-  return std::clamp(best + member_bonus + drone_bonus + submap_bonus, 0.0F, 1.0F);
+  const float count = static_cast<float>(track.member_mappoint_ids.size());
+  return std::clamp(
+    static_cast<float>(sum / count) + member_bonus * count, 0.0F, 1.0F);
 }
 
 }  // namespace
@@ -210,6 +206,7 @@ void FusedLandmarkManager::Configure(const FusedLandmarkConfig & config)
 {
   std::lock_guard<std::mutex> lock(mutex_);
   config_ = config;
+  config_.member_bonus = std::clamp(config_.member_bonus, 0.0F, 1.0F);
 }
 
 FusionPrepareResult FusedLandmarkManager::PrepareFusion(
@@ -551,13 +548,10 @@ FusionPrepareResult FusedLandmarkManager::PrepareFusion(
       continue;
     }
 
-    const auto evaluate_direction = [&](
+    const auto build_depth = [&](
       const std::vector<RawMapPointId> & target_cloud,
-      const RawMapPointId & source_id,
-      const Eigen::Isometry3d & target_local_T_source_local,
       const geometry_msgs::msg::Pose & target_local_T_kf,
-      const RawCameraCalibration & camera,
-      uint64_t suffix) {
+      const RawCameraCalibration & camera) {
         std::map<std::pair<int, int>, double> depth;
         for (const auto & id : target_cloud) {
           const auto raw = inputs.find(id);
@@ -578,6 +572,15 @@ FusionPrepareResult FusedLandmarkManager::PrepareFusion(
             depth[key] = projected->depth;
           }
         }
+        return depth;
+      };
+    const auto evaluate_direction = [&](
+      const std::map<std::pair<int, int>, double> & depth,
+      const RawMapPointId & source_id,
+      const Eigen::Isometry3d & target_local_T_source_local,
+      const geometry_msgs::msg::Pose & target_local_T_kf,
+      const RawCameraCalibration & camera,
+      uint64_t suffix) {
         const auto source = inputs.find(source_id);
         if (source == inputs.end()) {
           return;
@@ -592,40 +595,38 @@ FusionPrepareResult FusedLandmarkManager::PrepareFusion(
         }
         const auto key = std::make_pair(projected->cell_x, projected->cell_y);
         const auto observed = depth.find(key);
-        float delta = 0.0F;
-        LandmarkScoreEvidenceKind kind = LandmarkScoreEvidenceKind::ExpectedVisibleMiss;
         if (observed == depth.end()) {
-          delta = config.visible_miss_penalty;
+          ++result.patch.visibility_diagnostic_events;
         } else if (observed->second >
           projected->depth + config.visibility_depth_tolerance_m)
         {
-          delta = config.foreground_penalty;
-          kind = LandmarkScoreEvidenceKind::ForegroundContradiction;
-        } else {
-          return;
+          ++result.patch.visibility_diagnostic_events;
         }
-        const uint64_t event_id = EvidenceId(
-          source_id, source_id, source->second.raw_revision,
-          source->second.raw_revision, geometry.query_keyframe_id,
-          geometry.candidate_keyframe_id,
-          computation.task.revision.validation_revision, suffix);
-        result.patch.raw_score_evidence.push_back({source_id, event_id, delta, kind});
-        ++result.patch.negative_score_events;
+        (void)suffix;
       };
 
-    for (size_t index = 0; index < geometry.match_evidence.size(); ++index) {
-      const auto & match = geometry.match_evidence[index];
-      if (!match.hard_outlier) {
-        continue;
+    const bool has_hard_outliers = std::any_of(
+      geometry.match_evidence.begin(), geometry.match_evidence.end(),
+      [](const LoopGeometryResult::MatchEvidence & match) {return match.hard_outlier;});
+    if (has_hard_outliers) {
+      const auto candidate_depth = build_depth(
+        geometry.candidate_cloud_ids, candidate_kf->pose, *candidate_camera);
+      const auto query_depth = build_depth(
+        geometry.query_cloud_ids, query_kf->pose, *query_camera);
+      for (size_t index = 0; index < geometry.match_evidence.size(); ++index) {
+        const auto & match = geometry.match_evidence[index];
+        if (!match.hard_outlier) {
+          continue;
+        }
+        evaluate_direction(
+          candidate_depth, match.query_mappoint_id,
+          geometry.candidate_local_T_query_local, candidate_kf->pose,
+          *candidate_camera, 1000U + index * 2U);
+        evaluate_direction(
+          query_depth, match.candidate_mappoint_id,
+          geometry.candidate_local_T_query_local.inverse(), query_kf->pose,
+          *query_camera, 1001U + index * 2U);
       }
-      evaluate_direction(
-        geometry.candidate_cloud_ids, match.query_mappoint_id,
-        geometry.candidate_local_T_query_local, candidate_kf->pose,
-        *candidate_camera, 1000U + index * 2U);
-      evaluate_direction(
-        geometry.query_cloud_ids, match.candidate_mappoint_id,
-        geometry.candidate_local_T_query_local.inverse(), query_kf->pose,
-        *query_camera, 1001U + index * 2U);
     }
     const double elapsed = std::chrono::duration<double, std::milli>(
       std::chrono::steady_clock::now() - region_start).count();
@@ -639,7 +640,7 @@ FusionPrepareResult FusedLandmarkManager::PrepareFusion(
   }
   for (const auto & [id, track] : result.patch.after_tracks) {
     result.patch.fused_score_updates.push_back(
-      {id, FusedScore(track, score_manager, pending_score_adjustments)});
+      {id, FusedScore(track, score_manager, config.member_bonus, pending_score_adjustments)});
   }
 
   result.patch.next_track_id_after = working_next;
@@ -789,7 +790,7 @@ FusedLandmarkManager::BuildScoreUpdatesForMembers(
   for (const auto id : affected) {
     const auto found = tracks_.find(id);
     if (found != tracks_.end()) {
-      result.push_back({id, FusedScore(found->second, score_manager)});
+      result.push_back({id, FusedScore(found->second, score_manager, config_.member_bonus)});
     }
   }
   return result;

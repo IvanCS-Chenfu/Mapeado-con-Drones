@@ -106,6 +106,8 @@ TEST(FusedLandmarkManager, TransitiveUnionIsStableAndDispersionIsGuarded)
   orbslam3_multi::FusedLandmarkManager manager;
   auto first = manager.PrepareFusion(FusionBetween(1, 2), raw, poses, scores);
   ASSERT_TRUE(first.ready);
+  ASSERT_EQ(first.patch.fused_score_updates.size(), 1U);
+  EXPECT_NEAR(first.patch.fused_score_updates.front().score, 0.845F, 1e-6F);
   ASSERT_TRUE(manager.ApplyPatch(first.patch).committed);
   const auto stable_id = manager.GetTrackIdForMember({1, 0, 1});
   ASSERT_TRUE(stable_id.has_value());
@@ -124,6 +126,50 @@ TEST(FusedLandmarkManager, TransitiveUnionIsStableAndDispersionIsGuarded)
   EXPECT_EQ(dispersed.patch.pair_results.front().reason, "track_dispersion_guard");
   EXPECT_FALSE(manager.GetTrackIdForMember({4, 0, 1}).has_value());
   EXPECT_EQ(manager.GetStats().tracks, 1U);
+}
+
+TEST(FusedLandmarkManager, GoodMemberDilutesNearPenaltyWithoutPermanentCap)
+{
+  orbslam3_multi::RawMapDatabase raw;
+  orbslam3_multi::GlobalPoseStore poses;
+  orbslam3_multi::LandmarkScoreManager scores;
+  orbslam3_multi::LandmarkScoreConfig config;
+  config.isolation_min_neighbors = 0;
+  scores.Configure(config);
+
+  for (const auto drone_id : {1U, 2U}) {
+    const auto inserted = raw.InsertDelta(drone_id, MakeMap(drone_id, 0.0));
+    scores.ApplyRawChanges(inserted, raw);
+    const auto snapshot = raw.GetSubmapPoseSnapshot({drone_id, 0});
+    ASSERT_TRUE(snapshot.has_value());
+    ASSERT_EQ(
+      poses.CommitAnchor(*snapshot, Pose(0.0), drone_id).status,
+      orbslam3_multi::PoseCommitStatus::Applied);
+  }
+
+  orbslam3_multi::LandmarkScoreGeometryInput near;
+  near.mappoint_id = {1, 0, 1};
+  near.world_position.z = 0.5;
+  near.observer_distance_m = 0.5;
+  near.stereo_baseline_m = 0.06;
+  auto good = near;
+  good.mappoint_id = {2, 0, 1};
+  good.world_position.z = 2.0;
+  good.observer_distance_m = 2.0;
+  scores.ApplyGeometryChanges({near, good}, {});
+
+  const float near_score = scores.GetScore(near.mappoint_id)->score;
+  const float good_score = scores.GetScore(good.mappoint_id)->score;
+  EXPECT_NEAR(near_score, good_score * 0.25F, 1e-6F);
+
+  orbslam3_multi::FusedLandmarkManager manager;
+  const auto prepared = manager.PrepareFusion(FusionBetween(1, 2), raw, poses, scores);
+  ASSERT_TRUE(prepared.ready);
+  ASSERT_EQ(prepared.patch.fused_score_updates.size(), 1U);
+  const float expected =
+    ((near_score + 0.04F) + (good_score + 0.04F)) / 2.0F + 0.08F;
+  EXPECT_NEAR(prepared.patch.fused_score_updates.front().score, expected, 1e-6F);
+  EXPECT_GT(prepared.patch.fused_score_updates.front().score, near_score);
 }
 
 TEST(FusedLandmarkManager, RetiredTouchedTrackIsRemovedFromPreparedPatch)
@@ -201,11 +247,12 @@ TEST(FusedLandmarkManager, EvaluatesEveryEligibleVisibilityContradiction)
   ASSERT_TRUE(prepared.ready);
   EXPECT_EQ(prepared.patch.visibility_regions_started, 1U);
   EXPECT_EQ(prepared.patch.visibility_regions_completed, 1U);
-  EXPECT_EQ(prepared.patch.visibility_projected_points, kContradictions * 2U);
-  EXPECT_EQ(prepared.patch.negative_score_events, kContradictions * 2U);
+  EXPECT_EQ(prepared.patch.visibility_projected_points, 2U);
+  EXPECT_EQ(prepared.patch.negative_score_events, 0U);
+  EXPECT_EQ(prepared.patch.visibility_diagnostic_events, kContradictions * 2U);
   EXPECT_EQ(
     prepared.patch.raw_score_evidence.size(),
-    prepared.patch.positive_score_events + prepared.patch.negative_score_events);
+    prepared.patch.positive_score_events);
 }
 
 }  // namespace

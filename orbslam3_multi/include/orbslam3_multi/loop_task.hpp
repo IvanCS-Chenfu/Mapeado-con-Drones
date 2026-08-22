@@ -8,6 +8,17 @@
 namespace orbslam3_multi
 {
 
+enum class LoopTaskIntent
+{
+  Full,
+  FusionRefresh,
+};
+
+inline const char * ToString(LoopTaskIntent intent)
+{
+  return intent == LoopTaskIntent::Full ? "full" : "fusion_refresh";
+}
+
 struct LoopTaskRevision
 {
   uint64_t raw_revision = 0;
@@ -33,6 +44,7 @@ struct LoopTask
   uint64_t enqueue_sequence = 0;
   RawKeyFrameId query_keyframe_id;
   LoopTaskRevision revision;
+  LoopTaskIntent intent = LoopTaskIntent::Full;
 };
 
 struct DatabaseUpdateTask

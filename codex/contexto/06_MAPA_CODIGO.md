@@ -27,9 +27,10 @@ Subfase 3D: CONSEGUIDA; backend/poses validados
 Subfase 3E: CONSEGUIDA; primer anchor fiducial y replay
 Subfase 3F: CONSEGUIDA; implementacion, replay, live y layout visual aceptados
 Subfase 3G: CONSEGUIDA; snapshots y rendimiento live 2/3 drones validados
-Subfases 3H-3L: PARCIAL; implementacion tecnica validada, visual 145 pendiente
-Subfases 3M-3U/3W: contratos REHACER
-Punto de reentrada: incorporar observacion RViz2/web de la prueba 145
+Subfases 3H-3P: CONSEGUIDAS
+Subfase 3Q: A REVISAR; aceptada para continuar
+Subfases 3S-3W: CONSEGUIDAS
+Subfase 3X: pendiente; siguiente preparacion
 ```
 
 No usar `12R-D4` ni otras subfases residuales como planificación activa. Se conservan como legacy.
@@ -145,7 +146,7 @@ está en `legacy2`; el estado vigente de cada subfase lo define su contrato
 | 3N | `subfase_3N.md` | Conseguida: `LoopDetector` BoW real, filtros y skip por covisibilidad confirmada; live/replay validados. |
 | 3O | `subfase_3O.md` | `SubcloudLoopVerifier`. |
 | 3P | `subfase_3P.md` | Parcial: `LoopDecisionManager`, fusión y scoring multi-dron; falta calidad global. |
-| 3Q | `subfase_3Q.md` | Parcial: optimización por loop relativa/causal; falta accept positivo seguro. |
+| 3Q | `subfase_3Q.md` | Técnica conseguida: optimización covisible loop/fiducial con commits/rechazos estructurales; pendiente revisión visual de 188. |
 | 3R | `subfase_3R.md` | Cola post-optimización absorbida por arquitectura actual. |
 | 3S | `subfase_3S.md` | Scoring centralizado y fused tracks. |
 | 3T | `subfase_3T.md` | Contratos, IDs, frames e invariantes. |

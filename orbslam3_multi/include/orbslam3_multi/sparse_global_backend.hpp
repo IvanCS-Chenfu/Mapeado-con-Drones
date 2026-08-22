@@ -13,9 +13,12 @@
 #include "orbslam3_multi/raw_map_database.hpp"
 
 #include <memory>
+#include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
+#include <tuple>
 
 namespace orbslam3_multi
 {
@@ -61,6 +64,9 @@ public:
   std::vector<LoopTask> CreateLoopTasks(
     uint64_t source_arrival_id,
     const std::vector<RawKeyFrameId> & keyframe_ids) const;
+  std::vector<LoopTask> CreateFusionRefreshTasks(
+    uint64_t source_arrival_id,
+    const std::vector<RawKeyFrameId> & keyframe_ids) const;
   CovisibilityUpdateResult ProcessDatabaseUpdate(const DatabaseUpdateTask & task);
   LoopTaskComputation ProcessLoopTask(const LoopTask & task);
   LoopTaskComputation ProcessLoopOptimization(LoopTaskComputation computation);
@@ -70,6 +76,7 @@ public:
   void ConfigureFiducialOptimization(const FiducialOptimizationConfig & config);
   void ConfigureLoopPipeline(const LoopPipelineConfig & config);
   void ConfigureFusedLandmarks(const FusedLandmarkConfig & config);
+  void ConfigureLandmarkScores(const LandmarkScoreConfig & config);
   FiducialTaskRevalidation RevalidateFiducialTask(
     const FiducialOptimizationTask & task);
   PoseGraphBuildResult BuildFiducialPoseGraph(
@@ -97,10 +104,37 @@ public:
   bool SaveRawRecord(const std::string & path, std::string * error_message = nullptr) const;
 
 private:
+  using LoopRejectionKey = std::tuple<
+      uint32_t, uint64_t, uint64_t, uint32_t, uint64_t, uint64_t,
+      int64_t, int64_t, int64_t, int64_t, uint64_t, uint64_t>;
+
+  struct RecentLossContinuityRecord
+  {
+    RawSubmapId previous_submap_id;
+    RawKeyFrameId trusted_keyframe_id;
+    geometry_msgs::msg::Pose trusted_world_pose;
+  };
+
+  void TrackSubmapTransition(const RawInsertResult & raw_result);
+  bool ValidateRecentLossAnchor(
+    const LoopAnchorBatchEntry & entry, LoopTaskComputation * computation) const;
+  bool IsProtectedLoopRegion(const RawKeyFrameId & keyframe_id) const;
+  LoopRejectionKey BuildLoopRejectionKey(const LoopGeometryResult & geometry) const;
+  void ApplyProtectedRegionGuard(LoopTaskComputation * computation);
+  void RememberRejectedLoopRegions(const LoopTaskComputation & computation);
+  void InvalidateRejectedLoopRegions(const std::set<RawSubmapId> & submaps);
   LoopTaskComputation CommitLoopFusion(LoopTaskComputation computation);
-  AcceptedPoseBatchResult CommitLoopProposal(
+  AcceptedPoseBatchResult CommitGraphProposal(
     const PoseGraphProblem & problem,
-    const OptimizationProposal & proposal);
+    const OptimizationProposal & proposal,
+    PoseSourceKind source_kind,
+    uint64_t source_task_id,
+    const std::optional<RawKeyFrameId> & hard_fiducial_keyframe = std::nullopt);
+  ScoreChangeSet RefreshGeometryScores(
+    const std::set<RawKeyFrameId> & keyframe_ids,
+    const std::set<RawMapPointId> & mappoint_ids,
+    const std::vector<RawMapPointId> & removals);
+  void RefreshScoresAfterPoseChanges(const std::vector<PoseChangeSet> & changes);
 
   RawMapDatabase raw_database_;
   GlobalPoseStore pose_store_;
@@ -116,7 +150,11 @@ private:
   LoopPipelineConfig loop_pipeline_config_;
   bool deferred_snapshot_dirty_ = false;
   FiducialOptimizationConfig fiducial_optimization_config_;
+  std::map<uint32_t, RawSubmapId> last_submap_by_drone_;
+  std::map<RawSubmapId, RecentLossContinuityRecord> recent_loss_continuity_;
+  std::set<LoopRejectionKey> loop_rejection_ledger_;
   mutable std::mutex state_commit_mutex_;
+  mutable std::mutex loop_rejection_mutex_;
   mutable std::mutex builder_mutex_;
 };
 

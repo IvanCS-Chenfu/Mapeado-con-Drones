@@ -1,56 +1,49 @@
 # Subfase 3S - Criterios
 
-## Estado vigente
-
-```text
-REHACER
-```
-
-## Criterios añadidos por la reimplementación
-
-- barridos completos de score por llegada: `0`;
-- score de patches rechazados/stale: `0`;
-- publicaciones bloqueadas esperando score secundario: `0`;
-- IDs dirty de score perdidos: `0`;
-- prioridades/colas nuevas creadas solo para score: `0`.
-
 ## Exito
 
 1. `LandmarkScoreManager` es la unica autoridad numerica.
-2. El flujo principal actualiza solo MPs raw afectados por `ChangeSet`.
-3. La `LoopTask` compromete score fused junto a la fusion.
-4. Tareas rechazadas/stale no dejan score.
-5. No existe cola/worker de score.
-6. Snapshots son coherentes y commits breves.
-7. `GlobalMapBuilder` lee sin modificar ni bloquear.
-8. La ausencia de resultado secundario no impide publicar score base.
-9. No se usa GT.
-10. Build, tests y simulacion pasan con evidencia reducida.
-11. Un outlier sin contradiccion visible fiable no recibe penalizacion.
-12. Repetir evidencia/revision no vuelve a incrementar o reducir score.
-13. `GlobalMapBuilder` publica todos los puntos con independencia del score.
+2. La formula raw acordada usa base ORB, distancia, aislamiento y `+0.04` por
+   inlier, con factores acotados y recuperables.
+3. Con baseline actual `0.06 m`, el factor de distancia es neutro entre 1 y
+   5 m; por debajo de 1 m y por encima de 5 m cae cuadraticamente hasta sus
+   minimos `0.05` y `0.25`, respectivamente.
+4. Raw no anclado conserva factores neutros; cambios ORB/pose/posicion se
+   propagan incrementalmente.
+5. Fused score es exactamente `clamp(media(raw) + 0.04 * N, 0, 1)` y se
+   actualiza tras altas, cambios, merges y bajas.
+6. Una penalizacion cercana raw puede diluirse en la media fused y no impone
+   cap permanente al track.
+7. Visibilidad sparse produce diagnostico y cero penalizaciones numericas.
+8. Patches rejected/stale dejan cero score visible y la evidencia es
+   idempotente.
+9. `ScoreChangeSet` y dirty sets no pierden IDs ni fuerzan snapshots completos.
+10. Builder publica todos los puntos; RViz2 colorea rojo-amarillo-verde por
+   score.
+11. No existe GT, cola/worker nuevo ni bloqueo de publicacion.
+12. Build, tests y simulacion pasan con evidencia reducida y recursos estables.
+13. Grafo web y RViz2 validan puntos cercanos degradados, paredes hasta 5 m sin
+    penalizacion de distancia y refuerzo correcto por revisitas.
 
 ## Parcial
 
-Si score raw funciona pero no se obtiene fusion real, o la formula fused queda
-provisional aunque el ownership/transaccion sean correctos.
+- La implementacion y pruebas automaticas pasan, pero no aparece suficiente
+  ruido/fusion natural para valorar una regla; o
+- falta la confirmacion visual del usuario.
 
 ## Fallo
 
 - score modificado fuera del manager;
-- worker o cola propios;
-- score visible de tarea rechazada;
-- fusion y score publicados en revisiones incompatibles;
-- puntos ocultados por umbral de score dentro de `GlobalMapBuilder`;
-- recalculo completo bajo lock;
-- publicacion bloqueada esperando score secundario;
-- crash, carrera, NaN o uso de GT.
+- formula fused distinta de la acordada;
+- penalizacion numerica sparse por oclusion en 3S;
+- barrido completo por llegada, snapshot completo para publicar o worker nuevo;
+- punto ocultado por score en builder;
+- cambio visible procedente de tarea rejected/stale;
+- NaN, carrera, crash, uso de GT o bloqueo de ingesta/publicacion.
 
-## Documentacion
+## Documentacion de cierre
 
-Tras implementar, actualizar `landmark_score_manager.md`,
-`fused_landmark_manager.md`, `global_map_builder.md`, `global_map_server.md` e
-historial `3S` sin borrar intentos anteriores.
-
-El vertice de score, sus patches y el efecto posterior en RViz2 deben quedar
-confirmados; pendiente visual implica `PARCIAL`.
+Actualizar docs vigentes de `landmark_score_manager`,
+`fused_landmark_manager`, `sparse_global_backend`, `global_map_builder` y
+`global_map_server`, ademas de historial 3S, resumen, indice, estado y ultima
+sesion. Cada ejecucion conserva su evidencia y conclusion propia.

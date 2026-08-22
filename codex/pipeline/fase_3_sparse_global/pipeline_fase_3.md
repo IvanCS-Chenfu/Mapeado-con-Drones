@@ -10,10 +10,11 @@ codex/pipeline/fase_3_sparse_global/pipeline_fase_3_RESUMEN.md
 
 ```text
 ACTUAL
-Contratos de reimplementacion: 3B-3E CONSEGUIDAS; 3F-3U/3W REHACER
-Implementacion de los contratos nuevos: 3E cerrada
-Ultima conclusion runtime: live 91 y replay 92 success=true
-Punto siguiente: preparar y acordar 3F
+3B-3P y 3S-3U: CONSEGUIDAS
+3Q: A REVISAR; aceptada para continuar
+3V-3W: CONSEGUIDAS por evidencia acumulada y aceptacion del usuario
+3X: pendiente
+Punto siguiente: preparar y acordar 3X
 ```
 
 La planificacion activa comprende `subfase_3A.md` a `subfase_3X.md`. Los
@@ -200,29 +201,30 @@ no-progreso.
 | 3E | GT y primer anchor | conseguida |
 | 3F | builder incremental/publicacion | conseguida |
 | 3G | full snapshots/diff | conseguida |
-| 3H | revisita fiducial MAX | parcial; tecnica conseguida, visual 145 pendiente |
-| 3I-3J | grafo y propuesta privada | parcial; tecnica conseguida, visual 145 pendiente |
-| 3K | cola/worker secundarios, prioridad y commit | parcial; tecnica conseguida, visual 145 pendiente |
-| 3L | validacion/no regresion | parcial; pruebas 144-146 correctas, visual 145 pendiente |
-| 3M | covisibilidad HIGH | `REHACER INTEGRACION` |
-| 3N-3O | ledger, BoW y verificación | `REHACER` |
-| 3P | fusión | `REHACER INTEGRACION/COMMIT`; conservar núcleo |
-| 3Q | optimización por loop | `REHACER INTEGRACION/COMMIT`; conservar loop relativo |
+| 3H | revisita fiducial MAX | conseguida |
+| 3I-3J | grafo y propuesta privada | conseguidas |
+| 3K | cola/worker secundarios, prioridad y commit | conseguida |
+| 3L | validacion/no regresion | conseguida |
+| 3M | covisibilidad MEDIA | conseguida |
+| 3N-3O | ledger, BoW y verificación | conseguidas |
+| 3P | fusión | conseguida |
+| 3Q | optimización por loop | `A REVISAR`; aceptada para continuar |
 | 3R | cola post-optimizacion antigua | absorbida, no se ejecuta |
-| 3S | score | `REHACER INTEGRACION` |
-| 3T | contratos/invariantes | `REHACER` |
-| 3U | auditoria/hardening de RViz2 y grafo | `REHACER` |
-| 3V | regresion integral | preparada, sin hacer |
-| 3W | rendimiento/robustez | `REHACER CONTRATO`; ejecutar después |
+| 3S | score | conseguida |
+| 3T | contratos/invariantes | conseguida por auditoria y aceptacion |
+| 3U | auditoria/hardening de RViz2 y grafo | conseguida por auditoria, tests y cierre visual |
+| 3V | regresion integral | conseguida por evidencia acumulada |
+| 3W | rendimiento/robustez | conseguida; politica actual aceptada |
 | 3X | limpieza y handoff | preparada, dependiente de 3C-3W |
 
 ## Siguientes pasos
 
-1. Preparar y autorizar `3D` según su contrato `REHACER`.
-2. Avanzar subfase a subfase sin saltar los ChangeSets/DTO de dependencia.
+1. Preparar y autorizar `3X` segun su contrato vigente.
+2. Mantener 3Q como punto de reentrada obligatorio si reaparecen optimizaciones
+   incorrectas.
 3. Ejecutar tests deterministas antes de la simulación larga.
-4. Validar `3U/3W` y después las regresiones `3V`.
-5. Retirar rutas sustituidas únicamente en `3X`.
+4. Conservar las regresiones de `3V/3W` como referencia ante fallos futuros.
+5. Retirar rutas sustituidas unicamente en `3X`.
 
 ## Prueba acordada
 

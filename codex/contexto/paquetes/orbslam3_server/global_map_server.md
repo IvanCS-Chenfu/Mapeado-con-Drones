@@ -31,6 +31,7 @@ dequeue -> revalidate -> graph -> solve -> validate -> atomic commit/refine
 - cada KF distinto se conserva; solo una identidad exacta pendiente/activa se
   deduplica;
 - `STALE` termina sin grafo si el target ya esta dentro de umbral;
+- un target que ya no es posterior al control vigente tambien termina `STALE`;
 - un conflicto de revision descarta la propuesta y revalida/reconstruye hasta
   el limite de pasadas;
 - un commit full mueve el control al target; un parcial conserva el anterior;
@@ -40,7 +41,7 @@ dequeue -> revalidate -> graph -> solve -> validate -> atomic commit/refine
 principal sigue admitiendo, construyendo y publicando mientras el calculo
 privado esta activo.
 
-## Flujo 3M-3P
+## Flujo 3M-3Q
 
 `EnqueueSecondaryWork()` se ejecuta despues del commit raw/pose principal. Si
 el `ChangeSet` modifica covisibilidad encola una MEDIA; si no, encola las
@@ -74,6 +75,41 @@ de hijos blandos.
 La telemetria usa un unico lifecycle `start/done` por tarea. Las etapas BoW,
 geometria, decision y commit se acumulan dentro de ese owner visual.
 
+Cuando `ProcessLoopTask()` devuelve `OptimizationEvidence`, la misma BAJA
+continua sin reenviarse a la cola:
+
+```text
+stop_drones=true -> graph -> solve -> validate -> atomic multi-submap commit
+                  -> fusion 3P directa -> stop_drones=false -> task done
+```
+
+No cambia la prioridad ni existe preemption. Una MAX que llegue durante el
+solve espera al final de la BAJA activa. El flag se restaura ante accept,
+stale o excepcion. `[F3Q-LOOP-OPT]` publica ventana, controles, aristas,
+iteraciones, errores/coste, KFs movidos/propagados y tiempos separados de
+graph, solve, validation y commit; cada `[F3Q-OPT-START]` debe tener
+`[F3Q-OPT-END]`. Tanto el lifecycle de dequeue como el inicio 3Q exponen el
+`intent` efectivo; esto distingue un `FusionRefresh` solicitado de una tarea
+coalescida donde prevalecio `Full`.
+
+Los KFs movidos por commits loop o fiducial se reencolan con intent
+`FusionRefresh`: pueden detectar y comprometer fusiones/scores, pero no iniciar
+otra optimizacion. Una tarea `Full` pendiente prevalece al coalescer y los
+retries conservan el intent de la tarea que los origino. El servidor usa
+`CreateFusionRefreshTasks()` para agrupar KFs movidos por region temporal y
+publica `moved/grouped/created/enqueued` en `[F3Q-POST-OPT-LOOPS]`.
+
+El backpressure secundario se calcula con pendientes `critical`: fiduciales,
+MEDIA y loops `Full`. Los `FusionRefresh` pendientes se cuentan como
+`maintenance` y no mantienen por si solos el mission gate, aunque siguen
+ejecutandose en el unico worker. Una optimizacion real, incluida la rama 3Q de
+una BAJA, mantiene `optimization_active=true` hasta su final.
+
+Antes del builder, el backend puede finalizar una tarea como
+`protected_region_far_repeated_loop` o `regional_rejection_ledger_hit`.
+`[F3O-LOOP-DONE]` expone los extremos protegidos, error, ledger y conteos del
+filtro espacial de refresh para demostrar que no se consumio el solver.
+
 Cada etapa secundaria emite progreso al visualizador. Ademas, el servidor emite
 `secondary_task_lifecycle` con `start` al dequeue y `done` al finalizar,
 identificados por `task_id`/`flow_id`; permite mantener una sola tarea visual
@@ -83,6 +119,31 @@ Todo el despacho de una tarea esta protegido por `try/catch`. Una excepcion
 restaura `optimization_active`, se convierte en fallo duro observable y pasa
 por el cierre comun (`Complete`, contadores, backpressure y lifecycle `done`),
 evitando un aborto sin diagnostico del nodo.
+
+## Scoring 3S
+
+El constructor declara parametros `score_*`,
+`fusion_score_inlier_reward=0.04` y `fusion_score_member_bonus=0.04`. Los
+parametros sparse negativos de 3P se retiraron porque la oclusion es solo
+diagnostica hasta Fase 8.
+
+Los defaults de distancia son `score_suspicious_near_distance_m=1.0`,
+`score_suspicious_near_min_factor=0.05`,
+`score_far_baseline_multiplier=83.333333`,
+`score_far_distance_fallback_m=5.0` y `score_far_min_factor=0.25`. Con baseline
+`0.06 m`, el factor queda neutro entre 1 y 5 m.
+
+El principal emite `[F3S-RAW-SCORE-COMMIT]` con dirty raw/fused y
+`[F3S-SCORE-STATS]` cada 25 arrivals live. El secundario emite
+`[F3S-FUSED-SCORE-COMMIT]`; rejected/stale muestran `committed=false dirty=0`.
+`PointCloud2` mantiene `score` y `rgb`, con rojo en 0, amarillo en 0.5 y verde
+en 1, sin filtrar puntos.
+
+La prueba 194 cierra con principal/secundario `pending=0`, 23.564 puntos,
+`score_field=true`, `rgb_field=true`, 53 commits fused y cero penalizaciones
+sparse. Stats finales: 24.977 anchored, 99 near, 11.433 far y media `0.2596`.
+El exit 255 de Gazebo ocurre durante cleanup posterior a `success=true`, no
+durante el escenario.
 
 ## Visitas y replay
 
@@ -114,7 +175,9 @@ orbslam3_server/src/global_map_server.cpp
 [F3N-LOOP-ENQUEUE] [F3O-RANSAC] [F3O-LOOP-DONE]
 [F3O-FID-LOOP-REANCHOR]
 [F3P-FUSION] [F3P-FUSION-RETRY] [F3P-FUSION-RETRY-SKIP]
+[F3Q-OPT-START] [F3Q-LOOP-OPT] [F3Q-OPT-END]
 [F3H-SECONDARY-EXCEPTION]
+[F3S-RAW-SCORE-COMMIT] [F3S-SCORE-STATS] [F3S-FUSED-SCORE-COMMIT]
 [F3F-GLOBALMAP-PUBLISH ... recalculated_tracks=... fusion_revision=...]
 ```
 

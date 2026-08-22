@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <map>
+#include <algorithm>
 
 namespace orbslam3_multi
 {
@@ -72,15 +73,108 @@ ValidationResult OptimizationValidator::Validate(
   }
 
   if (problem.kind == PoseGraphProblemKind::LoopRelative) {
-    const bool within_threshold =
-      proposal.final_error.translation_m <= problem.loop_translation_threshold_m &&
-      proposal.final_error.rotation_rad <= problem.loop_rotation_threshold_rad;
-    const bool improved = proposal.final_error.translation_m + 1e-9 <
-      proposal.initial_error.translation_m ||
-      proposal.final_error.rotation_rad + 1e-9 <
-      proposal.initial_error.rotation_rad;
+    if (proposal.initial_loop_errors.size() != problem.loop_edges.size() ||
+      proposal.final_loop_errors.size() != problem.loop_edges.size())
+    {
+      result.reason = "relative_loop_error_coverage_mismatch";
+      return result;
+    }
+    bool within_threshold = true;
+    bool improved = false;
+    for (size_t index = 0; index < proposal.final_loop_errors.size(); ++index) {
+      const auto & initial = proposal.initial_loop_errors[index];
+      const auto & final = proposal.final_loop_errors[index];
+      within_threshold = within_threshold &&
+        final.translation_m <= problem.loop_translation_threshold_m &&
+        final.rotation_rad <= problem.loop_rotation_threshold_rad;
+      improved = improved || final.translation_m + 1e-9 < initial.translation_m ||
+        final.rotation_rad + 1e-9 < initial.rotation_rad;
+    }
     const bool cost_improved = std::isfinite(proposal.final_cost) &&
       proposal.final_cost <= proposal.initial_cost + 1e-8;
+    for (const auto & residual : proposal.edge_residuals) {
+      if (residual.kind == PoseGraphEdgeKind::CurrentLoop) {
+        continue;
+      }
+      ++result.structural_edges_checked;
+      const double translation_increase = std::max(
+        0.0, residual.final_error.translation_m - residual.initial_error.translation_m);
+      const double rotation_increase = std::max(
+        0.0, residual.final_error.rotation_rad - residual.initial_error.rotation_rad);
+      result.max_structural_translation_increase_m = std::max(
+        result.max_structural_translation_increase_m, translation_increase);
+      result.max_structural_rotation_increase_rad = std::max(
+        result.max_structural_rotation_increase_rad, rotation_increase);
+      double translation_limit = problem.structural_temporal_increase_m;
+      double rotation_limit = problem.structural_temporal_increase_rad;
+      if (residual.kind == PoseGraphEdgeKind::CovisibilityNative) {
+        translation_limit = problem.structural_covisibility_increase_m;
+        rotation_limit = problem.structural_covisibility_increase_rad;
+      } else if (residual.kind == PoseGraphEdgeKind::PriorLoop) {
+        translation_limit = problem.structural_prior_loop_increase_m;
+        rotation_limit = problem.structural_prior_loop_increase_rad;
+      }
+      if (!std::isfinite(residual.final_error.translation_m) ||
+        !std::isfinite(residual.final_error.rotation_rad) ||
+        translation_increase > translation_limit || rotation_increase > rotation_limit)
+      {
+        result.reason = residual.kind == PoseGraphEdgeKind::PriorLoop ?
+          "prior_loop_structure_degraded" :
+          (residual.kind == PoseGraphEdgeKind::CovisibilityNative ?
+          "native_covisibility_structure_degraded" : "temporal_structure_degraded");
+        return result;
+      }
+    }
+
+    std::map<RawKeyFrameId, geometry_msgs::msg::Pose> proposed_keyframes;
+    for (const auto & keyframe : proposal.keyframes) {
+      proposed_keyframes[keyframe.id] = keyframe.world_pose;
+    }
+    for (const auto & keyframe : problem.keyframes) {
+      if (!keyframe.hard_corridor) {
+        continue;
+      }
+      ++result.hard_corridor_keyframes_checked;
+      const auto found = proposed_keyframes.find(keyframe.id);
+      if (found == proposed_keyframes.end()) {
+        result.reason = "hard_corridor_pose_missing";
+        return result;
+      }
+      const auto initial_error = ComputeFiducialError(
+        keyframe.current_world_pose, keyframe.hard_corridor_reference_pose);
+      const auto final_error = ComputeFiducialError(
+        found->second, keyframe.hard_corridor_reference_pose);
+      const double shape = std::clamp(
+        4.0 * keyframe.hard_corridor_alpha *
+        (1.0 - keyframe.hard_corridor_alpha), 0.0, 1.0);
+      const double translation_limit = keyframe.fixed ? 1e-8 :
+        std::max(0.05, shape * problem.hard_corridor_max_translation_m);
+      const double rotation_limit = keyframe.fixed ? 1e-8 :
+        std::max(0.01, shape * problem.hard_corridor_max_rotation_rad);
+      const double initial_translation_excess = std::max(
+        0.0, initial_error.translation_m - translation_limit);
+      const double final_translation_excess = std::max(
+        0.0, final_error.translation_m - translation_limit);
+      const double initial_rotation_excess = std::max(
+        0.0, initial_error.rotation_rad - rotation_limit);
+      const double final_rotation_excess = std::max(
+        0.0, final_error.rotation_rad - rotation_limit);
+      result.max_corridor_translation_excess_before_m = std::max(
+        result.max_corridor_translation_excess_before_m, initial_translation_excess);
+      result.max_corridor_translation_excess_after_m = std::max(
+        result.max_corridor_translation_excess_after_m, final_translation_excess);
+      result.max_corridor_rotation_excess_before_rad = std::max(
+        result.max_corridor_rotation_excess_before_rad, initial_rotation_excess);
+      result.max_corridor_rotation_excess_after_rad = std::max(
+        result.max_corridor_rotation_excess_after_rad, final_rotation_excess);
+      if (final_translation_excess > initial_translation_excess + 1e-8 ||
+        final_rotation_excess > initial_rotation_excess + 1e-8)
+      {
+        result.reason = "hard_corridor_displacement_exceeded";
+        return result;
+      }
+    }
+
     if (within_threshold && improved && cost_improved) {
       result.decision = ValidationDecision::AcceptFull;
       result.reason = "relative_loop_within_fusion_threshold";

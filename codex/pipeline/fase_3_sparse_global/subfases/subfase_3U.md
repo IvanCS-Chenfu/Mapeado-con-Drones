@@ -3,12 +3,20 @@
 ## Estado vigente
 
 ```text
-REHACER
+CONSEGUIDA POR AUDITORIA, TESTS Y CIERRE VISUAL DEL USUARIO
 ```
 
-La infraestructura base ya pertenece a 3B y cada subfase añade su propia
-topologia/instrumentacion. 3U no crea el visualizador desde cero: audita y
-endurece el grafo completo resultante.
+La infraestructura base pertenece a 3B y cada subfase amplio su
+topologia/instrumentacion. La auditoria final confirma que la implementacion
+activa ya retiro la cola fija de 110 ms, conecta SSE desde el presente, usa
+`Last-Event-ID` y `state_reset`, drena por frame y mantiene el camino secundario
+por `flow_id` hasta `done`. El contrato fuente pasa 9/9 y el usuario confirma
+que el grafo web es bueno y funciona bien.
+
+Se acepta la politica visual actual, incluido su buffer acotado y la ausencia
+de metricas adicionales de latencia por etapa. `3V/3W` comprobaran aislamiento,
+reconexion y carga como regresion global, sin convertir esas comprobaciones en
+una reimplementacion pendiente de `3U`.
 
 ### Trabajo que se conserva
 
@@ -17,7 +25,7 @@ endurece el grafo completo resultante.
 - telemetría JSON pequeña, acotada y no funcional para el mapa;
 - regla de cierre visual definida en `../CONTRATO_VISUAL_INCREMENTAL.md`.
 
-### Implementación anterior incorrecta que no debe repetirse
+### Implementación anterior ya retirada que no debe recuperarse
 
 - consumir exactamente un evento cada `110 ms` y acumular hasta `400`;
 - pulsos de `520 ms` que solapan etapas distintas;
@@ -25,25 +33,24 @@ endurece el grafo completo resultante.
 - descartar etapas sueltas dejando flujos visuales incompletos;
 - carecer de latencia backend->bridge->browser->render y señal de gaps.
 
-### Contrato de cierre
+### Contrato de cierre satisfecho
 
-Auditar que todo evento lleva `seq`, timestamps, `flow_id`, `flow_kind`,
-`task_id`, prioridad, fase y revisión; que no faltan ni sobran vertices/aristas;
-y que el grafo converge al presente bajo rafagas y reconexiones. PRIMARY y
-FIDUCIAL se muestran completos; LOOP y DATABASE_UPDATE solo se descartan como
-flujos enteros. Una decision de optimizacion hace obligatorias sus etapas
-posteriores. 3U prueba y corrige la integracion, pero no reasigna a si misma la
-instrumentacion propiedad de otras subfases.
+El bridge asigna secuencia SSE, conserva cursores validos y fuerza
+`state_reset` cuando el historial ya no permite reconstruccion. Los eventos
+funcionales llevan `flow_id` y las tareas secundarias un lifecycle estable por
+`task_id`; la topologia diferencia flujo principal, fiducial, loop, fusion,
+score y publicacion. La observabilidad permanece best-effort y nunca gobierna
+ROS, commits, prioridades o backpressure.
 
 ## Estado histórico anterior
 
-Las secciones posteriores se conservan como contrato/evidencia de la
-implementación anterior. Si contradicen el bloque REHACER de esta cabecera,
-prevalece el contrato de reimplementación nuevo.
+Las secciones posteriores conservan contrato y evidencia de la implementacion
+anterior. Si una formulacion histórica contradice el estado de cierre de esta
+cabecera, prevalece la implementacion live auditada.
 
 ```text
-TRANSPORTE IMPLEMENTADO Y CONECTADO.
-PARCIAL: la cola cliente y la reconexion SSE no representan el presente.
+CONSEGUIDA: transporte live, reconexion, topologia, lifecycle y cierre visual
+aceptados.
 ```
 
 ## Objetivo

@@ -78,7 +78,7 @@ Solo con la puerta cerrada, usar el contrato `subfase_*.md` y seguir:
 |---|---|---|---|
 | 1 | `realizado` | Control del dron en simulación | Cadena Gazebo/Xacro/YAML/control/trayectorias/GUI de simulación documentada como base histórica. |
 | 2 | `sin hacer` | Separación servidor/dron/simulación | Se ejecutará cuando Fase 3 esté cerrada para reorganizar físicamente paquetes y builds. |
-| 3 | `actual` | Mapa sparse global multi-dron | 3B-3P conseguidas; 3Q preparada y pendiente de implementacion autorizada. |
+| 3 | `actual` | Mapa sparse global multi-dron | 3B-3P y 3S-3W conseguidas; 3Q aceptada para continuar y marcada `A REVISAR`; 3X pendiente. |
 | 4 | `sin hacer` | Fiducial real sin ground truth funcional | Sustituirá el fiducial simulado por detección visual de tags ligada a KFs exactos. |
 | 5 | `sin hacer` | Pose global de cada dron sin ground truth | Sustituirá `sensor/GT/pose` y `sensor/GT/vel` por estimación local-global. |
 | 6 | `sin hacer` | Tareas y trayectorias de mapeo | Generará misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |

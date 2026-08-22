@@ -70,9 +70,10 @@ orbslam3_multi/src/raw_map_database.cpp
 - `GetFusionMapPointInputs()` extrae en un unico batch acotado la geometria,
   descriptor, KF de referencia, observadores y revisiones que 3P necesita para
   preparar tracks fuera de locks live.
-- `GetCameraCalibration()` conserva la calibracion pinhole raw por submapa para
-  la evaluacion sparse simetrica de visibilidad; no genera un depth map ni
-  altera el mensaje ORB recibido.
+- `GetCameraCalibration()` conserva `fx/fy/cx/cy/bf` y dimensiones raw por
+  submapa. Fusion usa el modelo pinhole para diagnostico sparse y 3S deriva
+  `baseline=bf/fx` para el factor de distancia; la base nunca genera un depth
+  map ni altera el mensaje ORB recibido.
 - `GetBuilderSnapshot()` expande asociaciones de los KFs dirty y devuelve bajo
   un unico lock solo poses/validez de KFs y geometria/referencia/IDs observadores
   de MPs. Excluye keypoints, BoW, feature vectors, descriptores y metadatos que

@@ -73,8 +73,13 @@ Modificar la decision de error alto para:
 2. acumular una hipotesis compacta por primera query;
 3. exigir segundo apoyo independiente;
 4. resolver ambiguedad entre grupos;
-5. producir `LoopOptimizationInput` con las constraints dominantes;
-6. no terminar en `SameSubmapDiagnostic` solo por compartir dron/submapa.
+5. clasificar primero todo el conjunto: cualquier geometria de error alto con
+   apoyo domina sobre las fusionables;
+6. producir `LoopOptimizationInput` con 1-3 constraints dominantes coherentes,
+   deduplicadas por region candidata;
+7. no terminar en `SameSubmapDiagnostic` solo por compartir dron/submapa;
+8. emitir telemetria de support, independencia, compatibilidad y ambiguedad sin
+   cambiar inicialmente sus umbrales.
 
 Las guardas causal/temporal permanecen. `SameSubmap` sigue apareciendo en logs,
 pero no decide fusion frente a optimizacion.
@@ -84,7 +89,9 @@ pero no decide fusion frente a optimizacion.
 Reutilizar la clase y separar estas etapas:
 
 1. resolver endpoints y autoridades;
-2. consultar el subgrafo minimo de constraints;
+2. cerrar transitivamente la componente por todas las aristas
+   `ServerLoopGeometric` y dependencias soft vigentes, tanto para loop como
+   para fiducial;
 3. capturar snapshots raw/pose/covisibilidad solo de IDs necesarios;
 4. materializar intervalos temporales de cada submapa;
 5. seleccionar controles base con cobertura 3D/temporal del 30 %;
@@ -93,12 +100,16 @@ Reutilizar la clase y separar estas etapas:
 8. crear propagacion por intervalo y tail por submapa;
 9. producir revisiones consumidas y resumen de cobertura.
 
-Las aristas de covisibilidad no expanden recursivamente todo el mapa. Pueden
-formar parte de los caminos minimos y promover controles adicionales.
+Las aristas ORB nativas no expanden entre submapas. Todas las
+`ServerLoopGeometric` de la componente confirmada se materializan como
+`PriorLoop` y sus extremos son controles obligatorios; no quedan sujetas al
+limite sparse de vecinos ORB. Una vez incluido un submapa, covisibilidad nativa
+promueve controles adicionales. No se recorre indiscriminadamente toda la base.
 
-Para optimizacion fiducial, el target absoluto entra como prior. Para loop, la
-constraint principal sigue siendo relativa aunque el solver use una referencia
-de gauge internamente.
+Para optimizacion fiducial, el target absoluto entra como prior y los snapshots
+de todos los submapas conectados forman un problema comun. Para loop, cada una
+de las 1-3 constraints actuales sigue siendo relativa aunque el solver use una
+referencia de gauge internamente.
 
 ## Pesos y robustez
 
@@ -107,7 +118,7 @@ Reutilizar la configuracion fiducial y ampliarla con pesos por familia:
 ```text
 hard fiducial          -> inamovible
 target fiducial        -> absoluto fuerte
-loop actual            -> relativo fuerte verificado
+loops actuales (1-3)   -> relativos fuertes verificados y robustos
 fusion/loop anterior   -> relativo soft inicialmente
 covisibilidad server   -> soporte/residual
 covisibilidad ORB      -> soporte nativo
@@ -130,8 +141,13 @@ El solver debe:
 - fijar hard/gauge;
 - optimizar simultaneamente controles de varios submapas;
 - evaluar todas las familias de constraints;
+- evaluar simultaneamente todas las regiones actuales coherentes, ponderadas
+  por soporte/residual y con kernel robusto;
 - mover ambos extremos de un loop cuando la autoridad lo permite;
 - devolver propuesta privada, costes y residuales;
+- devolver residual inicial/final identificado para cada arista temporal,
+  covisible, previa y actual, ademas de poses propagadas necesarias para
+  validar KFs no control;
 - evitar NaN/divergencia y tener iteraciones acotadas;
 - mantener la API comun para fiducial y loop.
 
@@ -145,11 +161,15 @@ Generalizar la validacion comun:
 - cobertura completa de controles obligatorios;
 - hard/gauge inmoviles;
 - coste final inferior al inicial;
-- target fiducial dentro de umbral o loop dentro del umbral de fusion;
+- target fiducial dentro de umbral o todas las aristas loop actuales dentro
+  del umbral de fusion;
 - residual por aristas temporal/covisible/loop finito;
 - continuidad y epochs validos;
 - propuesta/revisiones completas;
-- diagnostico de degradacion de fusiones anteriores.
+- rechazo de degradacion incompatible de temporal/covisibilidad/fusiones
+  anteriores;
+- desplazamiento de cada KF perteneciente a un corredor hard-hard respecto a
+  la ultima referencia fiducial.
 
 En la primera implementacion loop solo devuelve:
 
@@ -162,6 +182,11 @@ STALE(reason)
 No compromete parciales. Fiducial puede conservar compatibilidad con su
 resultado parcial anterior hasta que la generalizacion demuestre una sustituta
 equivalente.
+
+Para loop se permite como maximo un segundo intento interno del builder/solver:
+si exactamente una region queda discordante y existe otra region valida, se
+reconstruye el problema sin ella. El segundo solve se valida completo y nunca
+genera recursion, nueva tarea ni un tercer intento.
 
 ## Preparacion de patches
 
@@ -193,6 +218,13 @@ Bajo una seccion breve:
 7. marcar KFs, tracks, raws ocultos y scores dirty;
 8. liberar locks.
 
+Para loop, `CommitGraphProposal()` reconsulta snapshot raw y poses world
+vigentes dentro de `state_commit_mutex_`, comprueba el drift raw desde el solve
+y rebasa la correccion sobre esas poses. El batch no repite una expectativa de
+`pose_revision` tomada dentro de esa misma seccion serializada: esa segunda
+comparacion es redundante y puede crear un ciclo de `revision_conflict`. Se
+mantienen revision raw, controles activos, hard y atomicidad multi-submapa.
+
 Si una etapa inesperada falla, se revierten solo los patches ya aplicados y el
 intento termina stale/rollback. El servidor encola despues una `LoopTask` BAJA
 fresca mediante la politica 3P; no existe recursion ni retry dentro del solver.
@@ -215,6 +247,51 @@ world_T_kf = world_T_last_control_accepted
 - hijos soft siguen el delta de su apoyo si quedan fuera del grafo;
 - si entran en el grafo reciben poses propias del mismo commit;
 - KFs futuros usan la continuidad nueva.
+
+La continuidad de tail no sustituye la guarda de perdida. El backend mantiene
+por dron el ultimo submapa visto y crea `RecentLossContinuityRecord` solo cuando
+aparece un epoch nuevo despues de uno anclado. El registro contiene ultimo KF
+fiable, pose world y referencia raw inicial. Antes de `CommitLoopAnchorBatch()`
+se valida la pose world implicita del KF contra distancia/giro raw acumulados y
+margenes configurables. First anchor nunca anclado no usa esta guarda. Un commit
+de anchor valido o un fiducial consume el registro.
+
+`GlobalPoseStore` mantiene por separado referencias de corredores hard-hard.
+Se crean o sustituyen solo tras commit fiducial completo y se consultan al
+construir/validar loops; un commit loop no desplaza esa referencia.
+El validador calcula exceso `before/after` respecto al limite de cada KF: exige
+cero exceso nuevo si partia dentro y, si ya partia fuera, exige que ninguna
+componente del exceso aumente. La telemetria publica ambos valores.
+
+## Reevaluacion de fusion post-opt
+
+`LoopTaskComputation` y `FiducialCommitResult` exponen los IDs movidos y
+propagados. El servidor conserva la fusion directa de las regiones RANSAC del
+loop y, despues de `SecondaryTaskQueue::Complete()`, crea una BAJA deduplicada
+por cada KF movido en commits loop o fiducial.
+
+`LoopPipeline` omite por candidato las parejas que ya poseen una arista
+`ServerLoopGeometric` vigente. No cancela la tarea completa: continua BoW y
+geometria para otras regiones. Esto evita repetir fusiones conocidas y permite
+descubrir nuevas fusiones tras recolocar una componente.
+
+Antes de `PoseGraphBuilder`, el backend ejecuta un `ProtectedRegionLoopGuard`
+o equivalente sobre las regiones RANSAC seleccionadas. Debe:
+
+- derivar representantes y autoridad sin recorrer ilimitadamente la componente;
+- componer relaciones temporales/covisibles y la medida RANSAC;
+- rechazar en O(region) solo cuando ambos lados sean estables y excedan
+  `5 m / 20 grados` configurables;
+- conservar la rama asimetrica si uno de los lados no es fiable;
+- consultar/actualizar un `LoopRejectionLedger` por regiones, transformacion y
+  revisiones;
+- registrar tambien rechazos estructurales post-solver para que los vecinos no
+  repitan la misma hipotesis cara.
+
+`FusionRefresh` usa un filtro espacial world previo al fallback BoW global. La
+proximidad se calcula con limites de subnube y margen configurable, no solo con
+distancia entre centros de camara. Los KFs movidos se agrupan por region para
+reducir tareas equivalentes; una `Full` pendiente nunca se degrada a refresh.
 
 ## Primer fiducial de hijo soft
 
@@ -245,8 +322,11 @@ La guarda RAII o equivalente debe liberar el flag ante excepcion. El flag dura
 hasta terminar la fusion directa y la tarea completa. No cambia prioridad ni
 interrumpe la tarea. Una MAX pendiente empieza inmediatamente despues.
 
-La presion total sigue siendo OR de watermarks principal/secundario y cualquier
-optimizacion fiducial/loop activa, con la histeresis existente.
+La presion total sigue incluyendo watermarks principal, trabajo secundario
+critico y cualquier optimizacion fiducial/loop activa. El conteo de
+`FusionRefresh` pendiente se publica como telemetria pero, por si solo, no
+mantiene el mission gate. Una optimizacion real conserva `stop_drones` hasta el
+final de su rama.
 
 ## Grafo web y logs
 
@@ -277,6 +357,15 @@ F3Q-TASK-END
 
 Incluir `task_id`, kind, KFs/submapas, hard/soft, vertices, edges por fuente,
 errores, residuales, IDs movidos, tails, tiempos y estado de stop.
+
+Añadir razones y contadores para `recent_loss_gate`, arista estructural que
+rechaza, corredor excedido, closure de fusiones y KFs post-opt creados,
+deduplicados u omitidos por pareja ya fusionada.
+
+La correccion de repetitividad añade al menos: `protected_region_rejected`,
+`rejection_ledger_hit`, autoridad de ambos lados, error previo, region/bucket,
+refresh agrupados/omitidos por distancia y pending secundario separado en
+critico/mantenimiento.
 
 ## Archivos probables
 
