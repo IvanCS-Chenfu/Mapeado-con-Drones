@@ -6,68 +6,58 @@ archivo y reconciliarlo con la peticion mas reciente.
 ## Estado
 
 ```text
-Fase: 3 - mapa sparse global multi-dron
-3B-3P: CONSEGUIDAS
-3Q: A REVISAR; aceptada para continuar
-3S: CONSEGUIDA; recalibracion tecnica y cierre RViz2 confirmados
-3T: CONSEGUIDA; arquitectura auditada y rendimiento aceptado
-3U: CONSEGUIDA; grafo web y transporte live aceptados
-3V: CONSEGUIDA; regresion integral acumulada aceptada
-3W: CONSEGUIDA; rendimiento y robustez aceptados
+Fase actual: Fase 2 - separacion servidor/dron/simulacion
+Fase 3: CONSEGUIDA
+Subfases 3B-3T: CONSEGUIDAS
 ```
 
-## Runtime
+La numeracion final posterior a 3Q es:
+
+- `3R`: scoring raw/fused incremental;
+- `3S`: perfil YAML de observabilidad y debug;
+- `3T`: limpieza, configuracion y handoff.
+
+Las auditorias provisionales de arquitectura, visualizador, regresion y
+rendimiento quedaron absorbidas por capacidades ya implantadas. Sus historiales
+se conservan en `historial/absorbidas/`, pero ya no son subfases activas.
+
+## Runtime entregado
 
 ```text
-wrapper -> PrimaryQueue -> PrimaryWorker -> SparseGlobalBackend -> builder/ROS
+wrapper -> PrimaryQueue -> PrimaryWorker -> SparseGlobalBackend -> ROS
 fiducial MAX / database MEDIA / loop BAJA -> SecondaryWorker
-LandmarkScoreManager: raw ORB*distancia*aislamiento+inliers -> fused media+0.04*N
+raw score = ORB * distancia * aislamiento + inliers
+fused score = media(raw miembros) + 0.04 * N
 ```
 
-- raw y BoW originales permanecen inmutables;
-- score geometrico se actualiza por IDs y voxels afectados;
-- cambios raw/pose se propagan solo a fused tracks miembros;
-- visibilidad sparse no resta score; oclusion queda para Fase 8;
-- builder no filtra y RViz2 usa rojo-amarillo-verde.
+- raw ORB-SLAM3 y BoW permanecen inmutables;
+- `GlobalPoseStore` posee anchors y poses globales/optimizadas;
+- `LandmarkScoreManager` posee score raw/fused y el builder publica fused
+  tracks con score/rgb;
+- visibilidad sparse no penaliza; la correccion por oclusion se aplaza a Fase 8;
+- el YAML `simulacion_dron/config/fase3_debug.yaml` gobierna RViz2, grafo web,
+  navegador y logs terminales de Fase 3.
 
-## Evidencia vigente
+## Evidencia de cierre
 
-- build 3/3; tests multi 9/9, servidor 4/4 y web 1/1;
-- 192 `success=true` pero backlog primario 45, corregido sin cambiar politica;
-- 193 `success=true`, principal/secundario `pending=0`, `hard_failed=0`;
-- 60.524 tracked, 24.969 anchored, 529 isolated, 1 near y 24.195 far;
-- score min/media/max `0/0.1502/1`, incluyendo 30.836 bad a cero;
-- 77 commits fused muestreados y cero penalizaciones sparse;
-- 23.531 puntos publicados con score/rgb; recursos estables.
-- 194 recalibra banda 1-5 m: 24.977 anchored, 99 near, 11.433 far y media
-  0.2596; colas cero, 23.564 puntos score/rgb y recursos estables.
+- prueba 195: simulacion completa correcta, colas 0/0, 11 commits loop y
+  23.978 puntos con score/rgb; revision humana de RViz2: resultado correcto;
+- prueba 196: escenario corto `success=true`, servidor operativo, cuatro goals
+  correctos, cero marcadores `[F3*]` y ningun proceso RViz2/web/navegador con
+  los cuatro flags de debug a false;
+- build final 3/3 y CTest final: `orbslam3_multi` 9/9,
+  `orbslam3_server` 10/10 y `simulacion_dron` 8/8.
+
+La deformacion observada en la prueba 194 permanece documentada en 3Q, pero no
+se reprodujo en la revision visual de 195 y no bloquea el cierre. Como mejora
+futura, 3Q propone acumular dos apoyos independientes para candidatos cercanos
+y hasta 8-10 para candidatos lejanos o ambiguos antes de una unica
+optimizacion. No se modifico el algoritmo con esa hipotesis.
 
 ## Lectura siguiente
 
 ```text
-codex/contexto/01_ESTADO_ACTUAL_RESUMEN.md
-codex/pipeline/fase_3_sparse_global/subfases/subfase_3X.md
-codex/pipeline/fase_3_sparse_global/historial/por_subfase/historial_3V_RESUMEN.md
-codex/pipeline/fase_3_sparse_global/historial/por_subfase/historial_3W_RESUMEN.md
+codex/pipeline/fase_2_separacion_paquetes/
+codex/pipeline/fase_3_sparse_global/RESULTADO_FINAL_FASE_3.md
+codex/pipeline/fase_3_sparse_global/historial/INDEX.md
 ```
-
-Revision visual: las revisitas elevan correctamente el score, pero la estructura
-valida queda demasiado baja y los puntos a menos de 1 m demasiado altos. Con
-baseline aproximado `0.06 m`, los umbrales actuales son `0.20 m` y `2.4 m`.
-El usuario confirma que los scores visuales de 194 han salido perfectos y
-concluye 3S. Diagnostico separado: dos loops 3Q asimetricos y ambiguos movieron
-359/362 KFs del dron 2 antes del segundo fiducial hard; el dominante corrigio
-3.950 m/0.454 rad. El fiducial posterior quedo dentro de umbral y no corrigio
-el interior. No se aplicaron cambios. Los logs completos nunca se leen
-directamente.
-
-La auditoria posterior confirma que 3T ya estaba implantada por 3C-3S y que 3U
-ya habia retirado la cola 110 ms y el replay SSE desde cero. El contrato web
-pasa 9/9; el usuario considera muy buenos tanto el rendimiento como el grafo y
-concluye ambas subfases. No hubo cambios funcionales ni simulacion nueva.
-
-El usuario acepta tambien el conjunto de pruebas 187/188/191/194 como regresion
-integral suficiente para 3V y considera buenos rendimiento y robustez para 3W.
-Ambas quedan concluidas sin codigo ni simulacion adicional; se conservan los
-picos residuales y la ausencia de una nueva prueba A/B/stress como evidencia
-explicita. El siguiente bloque pendiente es 3X.

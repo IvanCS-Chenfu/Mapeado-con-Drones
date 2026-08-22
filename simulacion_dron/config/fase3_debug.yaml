@@ -1,0 +1,5 @@
+fase3_debug:
+  fase3_rviz2: false
+  fase3_grafo_web: false
+  fase3_abrir_navegador_web: false
+  fase3_logs_terminal: false

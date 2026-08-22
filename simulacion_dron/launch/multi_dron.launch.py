@@ -11,7 +11,11 @@ from launch_ros.actions import PushRosNamespace, Node
 
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
+from launch.substitutions import (
+    LaunchConfiguration,
+    PathJoinSubstitution,
+    PythonExpression,
+)
 from launch_ros.substitutions import FindPackageShare
 
 import yaml
@@ -47,8 +51,25 @@ def generate_launch_description():
 
     params_sim_read = params_sim_yaml.get('/**', {}).get('ros__parameters', {})
 
+    debug_path = os.path.join(
+        get_package_share_directory('simulacion_dron'),
+        'config',
+        'fase3_debug.yaml'
+    )
+    with open(debug_path, 'r') as f:
+        debug_yaml = yaml.safe_load(f) or {}
+    debug_values = debug_yaml.get('fase3_debug', {})
+
+    def debug_default(name):
+        value = debug_values.get(name)
+        if not isinstance(value, bool):
+            raise RuntimeError(
+                f'fase3_debug.{name} debe existir y ser booleano')
+        return str(value).lower()
+
     default_n = int(params_sim_read.get('dron.numero', 1))
-    default_namespace_base = str(params_sim_read.get('dron.namespace_base', 'drone'))
+    default_namespace_base = str(
+        params_sim_read.get('dron.namespace_base', 'drone'))
     default_elegir_mundo = str(params_sim_read.get('world.activar', 'empty'))
 
     # World
@@ -69,6 +90,11 @@ def generate_launch_description():
         FindPackageShare('simulacion_dron'),
         'config',
         'sim_dron.yaml'
+    ])
+    global_map_config_dir = PathJoinSubstitution([
+        FindPackageShare('simulacion_dron'),
+        'config',
+        'global_map',
     ])
 
     sparse_global_rviz_config = PathJoinSubstitution([
@@ -105,60 +131,30 @@ def generate_launch_description():
 
     ld = LaunchDescription()
 
-    ld.add_action(DeclareLaunchArgument('launch_gazebo_gui', default_value='true'))
-    ld.add_action(DeclareLaunchArgument('launch_mission_gui', default_value='true'))
+    ld.add_action(DeclareLaunchArgument(
+        'launch_gazebo_gui', default_value='true'))
+    ld.add_action(DeclareLaunchArgument(
+        'launch_mission_gui', default_value='true'))
     ld.add_action(DeclareLaunchArgument(
         'drone_start_stagger_sec', default_value='8.0'))
     ld.add_action(DeclareLaunchArgument(
         'orb_vocabulary_path', default_value=compact_orb_vocabulary))
-    ld.add_action(DeclareLaunchArgument('launch_sparse_global_rviz', default_value='true'))
     ld.add_action(DeclareLaunchArgument(
-        'launch_pipeline_flow_visualizer', default_value='true'))
+        'fase3_rviz2', default_value=debug_default('fase3_rviz2')))
     ld.add_action(DeclareLaunchArgument(
-        'open_pipeline_flow_browser', default_value='true'))
-    ld.add_action(DeclareLaunchArgument('pipeline_flow_port', default_value='8765'))
+        'fase3_grafo_web', default_value=debug_default('fase3_grafo_web')))
     ld.add_action(DeclareLaunchArgument(
-        'primary_queue_high_watermark', default_value='8'))
+        'fase3_abrir_navegador_web',
+        default_value=debug_default('fase3_abrir_navegador_web')))
     ld.add_action(DeclareLaunchArgument(
-        'primary_queue_low_watermark', default_value='2'))
+        'fase3_logs_terminal',
+        default_value=debug_default('fase3_logs_terminal')))
     ld.add_action(DeclareLaunchArgument(
-        'secondary_queue_high_watermark', default_value='64'))
-    ld.add_action(DeclareLaunchArgument(
-        'secondary_queue_low_watermark', default_value='16'))
-    ld.add_action(DeclareLaunchArgument(
-        'primary_worker_debug_delay_ms', default_value='0'))
+        'pipeline_flow_port', default_value='8765'))
     ld.add_action(DeclareLaunchArgument(
         'rawdb_record_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
         'rawdb_record_path', default_value='/tmp/f3c_raw.record'))
-    ld.add_action(DeclareLaunchArgument(
-        'full_snapshot_enabled', default_value='true'))
-    ld.add_action(DeclareLaunchArgument(
-        'full_snapshot_startup_delay_sec', default_value='35.0'))
-    ld.add_action(DeclareLaunchArgument(
-        'full_snapshot_period_sec', default_value='35.0'))
-    ld.add_action(DeclareLaunchArgument(
-        'debug_drop_one_delta_for_snapshot_test', default_value='false'))
-    ld.add_action(DeclareLaunchArgument(
-        'debug_drop_delta_drone_id', default_value='1'))
-    ld.add_action(DeclareLaunchArgument(
-        'fiducial_sim_enabled', default_value='true'))
-    ld.add_action(DeclareLaunchArgument(
-        'fiducial_gt_max_dt_sec', default_value='1.0'))
-    ld.add_action(DeclareLaunchArgument(
-        'fiducial_translation_threshold_m', default_value='0.35'))
-    ld.add_action(DeclareLaunchArgument(
-        'fiducial_rotation_threshold_rad', default_value='0.35'))
-    ld.add_action(DeclareLaunchArgument(
-        'fiducial_yaw_threshold_rad', default_value='0.25'))
-    ld.add_action(DeclareLaunchArgument(
-        'pose_graph_control_vertex_ratio', default_value='0.30'))
-    ld.add_action(DeclareLaunchArgument(
-        'pose_graph_endpoint_neighborhood_ratio', default_value='0.20'))
-    ld.add_action(DeclareLaunchArgument(
-        'fiducial_max_correction_fraction_per_pass', default_value='1.0'))
-    ld.add_action(DeclareLaunchArgument(
-        'fiducial_max_refinement_passes', default_value='4'))
 
     # Gazebo visual o servidor headless, nunca ambos a la vez.
     ld.add_action(
@@ -210,7 +206,7 @@ def generate_launch_description():
             }],
             output='screen',
             condition=IfCondition(
-                LaunchConfiguration('launch_pipeline_flow_visualizer'))
+                LaunchConfiguration('fase3_grafo_web'))
         )
     )
 
@@ -224,8 +220,12 @@ def generate_launch_description():
                 '--timeout', '20.0',
             ],
             output='screen',
-            condition=IfCondition(
-                LaunchConfiguration('open_pipeline_flow_browser'))
+            condition=IfCondition(PythonExpression([
+                "'", LaunchConfiguration('fase3_grafo_web'),
+                "'.lower() == 'true' and '",
+                LaunchConfiguration('fase3_abrir_navegador_web'),
+                "'.lower() == 'true'",
+            ]))
         )
     )
 
@@ -238,7 +238,7 @@ def generate_launch_description():
             parameters=[{'use_sim_time': True}],
             env=rviz_environment,
             output='screen',
-            condition=IfCondition(LaunchConfiguration('launch_sparse_global_rviz'))
+            condition=IfCondition(LaunchConfiguration('fase3_rviz2'))
         )
     )
 
@@ -310,50 +310,18 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(global_server_launch_path),
             launch_arguments={
+                'config_dir': global_map_config_dir,
                 'use_sim_time': 'true',
                 'drone_count': str(default_n),
                 'drone_namespace_base': default_namespace_base,
-                'primary_queue_high_watermark': LaunchConfiguration(
-                    'primary_queue_high_watermark'),
-                'primary_queue_low_watermark': LaunchConfiguration(
-                    'primary_queue_low_watermark'),
-                'secondary_queue_high_watermark': LaunchConfiguration(
-                    'secondary_queue_high_watermark'),
-                'secondary_queue_low_watermark': LaunchConfiguration(
-                    'secondary_queue_low_watermark'),
-                'primary_worker_debug_delay_ms': LaunchConfiguration(
-                    'primary_worker_debug_delay_ms'),
                 'rawdb_record_enabled': LaunchConfiguration(
                     'rawdb_record_enabled'),
                 'rawdb_record_path': LaunchConfiguration('rawdb_record_path'),
-                'full_snapshot_enabled': LaunchConfiguration(
-                    'full_snapshot_enabled'),
-                'full_snapshot_startup_delay_sec': LaunchConfiguration(
-                    'full_snapshot_startup_delay_sec'),
-                'full_snapshot_period_sec': LaunchConfiguration(
-                    'full_snapshot_period_sec'),
-                'debug_drop_one_delta_for_snapshot_test': LaunchConfiguration(
-                    'debug_drop_one_delta_for_snapshot_test'),
-                'debug_drop_delta_drone_id': LaunchConfiguration(
-                    'debug_drop_delta_drone_id'),
-                'fiducial_sim_enabled': LaunchConfiguration(
-                    'fiducial_sim_enabled'),
-                'fiducial_gt_max_dt_sec': LaunchConfiguration(
-                    'fiducial_gt_max_dt_sec'),
-                'fiducial_translation_threshold_m': LaunchConfiguration(
-                    'fiducial_translation_threshold_m'),
-                'fiducial_rotation_threshold_rad': LaunchConfiguration(
-                    'fiducial_rotation_threshold_rad'),
-                'fiducial_yaw_threshold_rad': LaunchConfiguration(
-                    'fiducial_yaw_threshold_rad'),
-                'pose_graph_control_vertex_ratio': LaunchConfiguration(
-                    'pose_graph_control_vertex_ratio'),
-                'pose_graph_endpoint_neighborhood_ratio': LaunchConfiguration(
-                    'pose_graph_endpoint_neighborhood_ratio'),
-                'fiducial_max_correction_fraction_per_pass': LaunchConfiguration(
-                    'fiducial_max_correction_fraction_per_pass'),
-                'fiducial_max_refinement_passes': LaunchConfiguration(
-                    'fiducial_max_refinement_passes'),
+                'log_level': PythonExpression([
+                    "'info' if '",
+                    LaunchConfiguration('fase3_logs_terminal'),
+                    "'.lower() == 'true' else 'error'",
+                ]),
             }.items()
         )
     )

@@ -2,7 +2,7 @@
 
 ## Estado vigente
 
-`A REVISAR; RESULTADO AUTOMATICO Y VISUAL ACEPTADO PARA CONTINUAR`.
+`CONSEGUIDA PARA EL CIERRE DE FASE 3; MEJORA FUTURA DOCUMENTADA`.
 
 3Q ejecuta `OptimizationEvidence` dentro de la misma `LoopTask` BAJA y reutiliza
 builder, solver, validator, store y fusion para fiducial absoluto y loop
@@ -88,16 +88,19 @@ relativo. No crea cola, worker ni solver duplicados.
   (`query` no protegida, candidato protegido), ambiguos y con diez competidores.
   El fiducial posterior queda dentro de umbral y no reoptimiza el interior.
 
-## Pendiente
+## Cierre
 
 La prueba 191 termina con cola vacia y corrige el bloqueo operativo de 189. La
 seleccion multi-region aun puede iniciar ventanas grandes cuando la relacion
 directa protegida es coherente; queda como perfeccionamiento futuro acordado.
-El usuario valora muy positivamente el resultado y autoriza continuar a la
-siguiente subfase. No obstante, 3Q queda `A REVISAR` por el error visual
-comunicado anteriormente, el incidente reproducido en 194 y el coste residual
-de algunas ventanas. El punto de reentrada es admision de loops asimetricos,
-ambiguedad/competidores, tamaño de ventana, proteccion regional y validacion de
-deformacion antes del commit.
+La prueba 195 no reproduce la mala optimizacion final y el usuario confirma que
+RViz2 se vio perfecto; las correcciones observadas ocurrieron al alcanzar el
+fiducial. 3Q queda conseguida para cerrar Fase 3, sin ocultar 194.
+
+Como mejora futura, un candidato cercano podria requerir dos apoyos
+independientes y uno lejano/ambiguo un umbral creciente de hasta 8-10 antes de
+una unica optimizacion. No se implementa en este cierre. El punto de reentrada
+continua siendo admision asimetrica, ambiguedad, tamaño de ventana y validacion
+de deformacion.
 
 Detalle cronologico: `historial_3Q.md`.

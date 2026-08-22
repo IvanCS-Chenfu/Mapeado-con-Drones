@@ -7,8 +7,8 @@ CONSEGUIDA
 ```
 
 Reimplementada el 2026-08-10 como punto de reinicio limpio de Fase 3. El
-runtime anterior se conserva completo en `legacy2` y queda fuera de
-build/install.
+runtime anterior se congeló fuera de build/install durante la reconstrucción y
+3T lo retiró después de validar la sustitución.
 
 ### Resultado activo
 
@@ -19,10 +19,9 @@ build/install.
 - el launch del servidor solo declara `use_sim_time`;
 - `multi_dron.launch.py` incluye el servidor vacio sin reenviar parametros
   legacy;
-- fuentes, cabeceras, tests, launches, CMake, metadatos y MD anteriores estan
-  congelados en los `legacy2` de codigo y documentacion;
-- el visualizador anterior esta congelado en
-  `simulacion_dron/legacy2/pipeline_flow_visualizer/`;
+- fuentes, cabeceras, tests, launches, CMake, metadatos y MD anteriores quedaron
+  congelados durante la reconstrucción y fueron retirados en 3T;
+- el visualizador anterior siguió el mismo ciclo de congelación y retirada;
 - el grafo activo contiene solo `Wrappers ORB-SLAM3` y `GlobalMapServer`, sin
   aristas, porque en 3B no existe conexion global entre ambos;
 - el bridge SSE empieza live, recupera solo una reconexion valida y emite
@@ -89,7 +88,7 @@ puede abrir manualmente por el usuario.
   publicación;
 - interpretar que añadir más capacidad a las colas DDS arregla callbacks que
   el executor no llega a atender;
-- reactivar o compilar directamente codigo de `legacy2` en lugar de recuperar
+- reactivar o compilar directamente código anterior en lugar de recuperar
   solo las piezas justificadas por cada contrato nuevo;
 - añadir en 3B subscriptions o clases adelantadas de 3C y subfases posteriores.
 
@@ -250,7 +249,7 @@ SCENARIO-RUNNER
 ### Código fuente de `orbslam3_server`
 
 - `orbslam3_server/src/global_map_server.cpp`
-- `orbslam3_server/src/global_map_server_antiguo.cpp`, solo para crear la copia congelada del servidor anterior
+- checkpoint Git de la implementacion anterior, solo como referencia
 - `orbslam3_server/CMakeLists.txt`, solo si es necesario para que el ejecutable compile usando el nuevo servidor y no compile el antiguo
 - `orbslam3_server/package.xml`, solo si el nuevo servidor mínimo necesita una dependencia ya usada realmente por el paquete
 
@@ -263,32 +262,15 @@ El planificador debe localizar primero los launches reales del servidor y de sim
 
 Se permite:
 
-- congelar el launch antiguo del servidor como `*_antiguo.launch.py` si existe un launch específico de servidor;
+- conservar la version previa mediante Git antes de sustituir el launch;
 - crear un nuevo launch activo con el nombre público normal;
 - mantener el launch principal de simulación con el mismo nombre y el mínimo cambio necesario.
 
-### Referencia legacy de `orbslam3_multi`
+### Referencia historica de `orbslam3_multi`
 
-Se permite crear una carpeta de referencia, por ejemplo:
-
-```text
-orbslam3_multi/legacy/
-```
-
-Dentro de ella se pueden copiar archivos actuales relevantes de `orbslam3_multi` como referencia histórica, por ejemplo:
-
-```text
-orbslam3_multi/legacy/*_antiguo.hpp
-orbslam3_multi/legacy/*_antiguo.cpp
-orbslam3_multi/legacy/README.md
-```
-
-Condiciones obligatorias:
-
-- esos archivos no deben añadirse a `CMakeLists.txt`;
-- ningún archivo activo debe incluirlos;
-- no deben contener funcionalidad nueva;
-- solo sirven para observación durante la migración.
+Durante 3B se creo una copia no compilada para apoyar la migracion. 3T la
+retiro de la version actual; se recupera desde el checkpoint `1b96a7a` y su
+evidencia permanece en `historial_3B_RESUMEN.md`.
 
 ### Archivos auxiliares y documentación
 
@@ -313,9 +295,8 @@ No modificar en esta subfase:
 - `ORB_SLAM3/`
 - `orbslam3_ros2/` salvo que se demuestre que el topic documentado no coincide con el wrapper y sea imposible validar 3B sin un cambio mínimo. En principio está prohibido.
 - `orbslam3_msgs/`, porque los mensajes se consideran estables.
-- lógica de fiduciales, loops, fused map u optimización heredada más allá de moverla a archivo antiguo como referencia.
-- archivos legacy de `orbslam3_multi` una vez copiados a `legacy/`; no se deben editar para implementar nada.
-- `global_map_server_antiguo.cpp` después de crearlo, salvo para añadir un comentario inicial que indique que es legacy/no activo, si se considera útil.
+- logica de fiduciales, loops, fused map u optimizacion heredada;
+- referencias historicas conservadas en Git; no se editan para implementar;
 - `build/`, `install/` y `log/` manualmente, salvo limpiezas mínimas permitidas por `AGENTS.md` si bloquean build/simulación.
 
 No renombrar el paquete completo `orbslam3_multi` ni cambiar su `package.xml` para darle otro nombre.
@@ -379,9 +360,8 @@ Intención:
 Cambio:
 
 ```text
-orbslam3_server/src/global_map_server.cpp
-→
-orbslam3_server/src/global_map_server_antiguo.cpp
+estado previo del servidor
+-> checkpoint Git recuperable
 ```
 
 Condiciones de seguridad:
@@ -465,9 +445,8 @@ Intención:
 Cambio permitido si existe launch específico del servidor:
 
 ```text
-orbslam3_server/launch/<launch_servidor>.launch.py
-→
-orbslam3_server/launch/<launch_servidor>_antiguo.launch.py
+estado previo del launch
+-> checkpoint Git recuperable
 ```
 
 Crear de nuevo el launch activo con el nombre público normal.
@@ -490,25 +469,11 @@ Validación:
 
 ---
 
-### 4. Crear referencia legacy de `orbslam3_multi` sin compilarla
+### 4. Conservar una referencia recuperable
 
-Intención:
-
-- dejar congelados archivos antiguos de `orbslam3_multi` para observación durante la migración.
-
-Cambio recomendado:
-
-```text
-orbslam3_multi/legacy/
-orbslam3_multi/legacy/README.md
-```
-
-Copiar ahí archivos relevantes actuales, renombrados con sufijo `_antiguo`, si el planificador confirma que existen y son útiles.
-
-Condiciones de seguridad:
-
-- no tocar el nombre del paquete `orbslam3_multi`;
-- no añadir `legacy/` al build;
+La referencia no compilada usada durante 3B fue retirada en 3T. No se recrea
+en el arbol actual: el checkpoint `1b96a7a` y el historial de 3B conservan el
+estado necesario.
 - no incluir headers de `legacy/` desde código activo;
 - no reescribir todavía clases activas de `orbslam3_multi`;
 - si copiar todos los archivos genera ruido excesivo, copiar solo los módulos principales y documentar el criterio.
@@ -562,9 +527,8 @@ Intención:
 Documentar en `codex/contexto/paquetes/orbslam3_server/`:
 
 - nuevo `global_map_server.cpp` activo;
-- `global_map_server_antiguo.cpp` como referencia congelada;
+- referencia congelada recuperable desde Git;
 - launch activo nuevo;
-- launch antiguo si existe;
 - topics suscritos;
 - logs `[F1B-*]`.
 
@@ -593,7 +557,7 @@ No hacer en 3B:
 - no modificar mensajes `orbslam3_msgs`;
 - no modificar wrapper `orbslam3_ros2`;
 - no renombrar el paquete `orbslam3_multi`;
-- no compilar archivos de `orbslam3_multi/legacy/`;
+- no compilar ni recrear copias historicas dentro del paquete activo;
 - no borrar masivamente legacy;
 - no arreglar problemas heredados del servidor antiguo;
 - no crear una segunda arquitectura paralela fuera de `orbslam3_multi`.
@@ -725,8 +689,8 @@ La subfase se considera `CONSEGUIDA` solo si:
 9. los logs `[F1B-ORBMAP-RX]` incluyen `drone_id`, `map_epoch`, `map_sequence`, número de `KeyFrames` y número de `MapPoints`;
 10. aparece `[F1B-SERVER-STATS]` con contadores acumulados;
 11. no aparecen `Segmentation fault`, `Killed`, `FATAL` ni errores graves no explicados;
-12. `global_map_server_antiguo.cpp` queda como referencia y no como servidor activo;
-13. si se crea `orbslam3_multi/legacy/`, esos archivos no se compilan;
+12. el servidor anterior queda recuperable desde Git y no participa en runtime;
+13. la referencia historica no participa en el build activo;
 14. la documentación e historial quedan actualizados.
 
 No es necesario que se publique nube global ni que RViz2 muestre mapa.
@@ -783,10 +747,9 @@ codex/contexto/paquetes/orbslam3_server/
 
 Debe quedar documentado:
 
-- `global_map_server.cpp` es el servidor activo nuevo y mínimo de 3B;
-- `global_map_server_antiguo.cpp` es referencia congelada de migración;
-- qué launch es activo;
-- qué launch es antiguo, si existe;
+- `global_map_server.cpp` es el servidor activo nuevo y minimo de 3B;
+- la referencia de migracion queda recuperable desde Git;
+- que launch es activo;
 - topics suscritos;
 - parámetros mínimos leídos;
 - logs `[F1B-*]`;
@@ -814,12 +777,10 @@ Debe quedar documentado:
 
 - `orbslam3_multi` no se renombra como paquete;
 - en la nueva Fase 3 será el backend algorítmico;
-- en 3B solo se prepara referencia legacy si aplica;
-- `orbslam3_multi/legacy/` contiene copias congeladas no compiladas;
-- los archivos legacy no deben modificarse para añadir funcionalidad;
+- en 3B se preparo una referencia historica, retirada posteriormente por 3T;
+- el checkpoint `1b96a7a` permite recuperar esas copias sin mantenerlas en el
+  paquete activo;
 - las clases nuevas reales empezarán en 3C con `RawMapDatabase`.
-
-Si se crea `orbslam3_multi/legacy/README.md`, mencionar su existencia.
 
 ### `simulacion_dron`
 

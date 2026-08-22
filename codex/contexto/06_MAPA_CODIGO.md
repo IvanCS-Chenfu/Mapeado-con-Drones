@@ -16,10 +16,10 @@ Este documento ayuda a localizar rápido zonas importantes. Si el código contra
 
 Usar `rg` antes de abrir archivos grandes.
 
-## Fase 3 activa
+## Fase 3 entregada
 
 ```text
-Planificación activa: subfase_3A.md a subfase_3X.md
+Planificación activa: subfase_3A.md a subfase_3T.md
 Subfase 3A: baseline histórica conservada
 Subfase 3B: CONSEGUIDA; runtime/grafo base validados en prueba 78
 Subfase 3C: CONSEGUIDA; raw y flujo principal activos
@@ -28,12 +28,15 @@ Subfase 3E: CONSEGUIDA; primer anchor fiducial y replay
 Subfase 3F: CONSEGUIDA; implementacion, replay, live y layout visual aceptados
 Subfase 3G: CONSEGUIDA; snapshots y rendimiento live 2/3 drones validados
 Subfases 3H-3P: CONSEGUIDAS
-Subfase 3Q: A REVISAR; aceptada para continuar
-Subfases 3S-3W: CONSEGUIDAS
-Subfase 3X: pendiente; siguiente preparacion
+Subfase 3Q: CONSEGUIDA; mejora futura documentada
+Subfase 3R: CONSEGUIDA; scoring raw/fused
+Subfase 3S: CONSEGUIDA; observabilidad y debug
+Subfase 3T: CONSEGUIDA; limpieza/configuracion/handoff final
 ```
 
-No usar `12R-D4` ni otras subfases residuales como planificación activa. Se conservan como legacy.
+Los contratos residuales `12R-*`/`13`-`15` y los contratos absorbidos
+de arquitectura, visualizador, regresion y rendimiento fueron retirados en 3T.
+Sus historiales siguen disponibles en `historial/absorbidas/`.
 
 ## Servidor global activo y snapshot
 
@@ -58,20 +61,12 @@ WorkerLoop / SecondaryWorkerLoop / BackpressureHysteresis
 [F3F-SCORE-UPDATE] / [F3F-GLOBALMAP-PUBLISH]
 ```
 
-Snapshot completo del servidor anterior:
-
-```text
-orbslam3_server/legacy2/src/
-orbslam3_server/legacy2/include/
-orbslam3_server/legacy2/launch/
-```
-
 Búsquedas útiles:
 
 ```bash
 rg -n "class GlobalMapServer|WorkerLoop|BuildAndPublishGlobalMap|F3F-" orbslam3_server/src
 rg -n "class PrimaryQueue|MarkReady|BackpressureHysteresis" orbslam3_server/include
-rg -n "RawMapDatabase|OnOrbMapDelta" orbslam3_server/legacy2 orbslam3_multi/legacy2
+rg -n "RawMapDatabase|InsertDelta|ProcessLoopTask" orbslam3_server orbslam3_multi
 ```
 
 El servidor recibe `OrbMap` delta, delega en `SparseGlobalBackend` y publica la
@@ -85,7 +80,7 @@ Paquete:
 orbslam3_multi
 ```
 
-Estado activo hasta 3F:
+Estado activo hasta 3R:
 
 ```text
 orbslam3_multi/include/orbslam3_multi/raw_map_types.hpp
@@ -106,54 +101,38 @@ orbslam3_multi/test/test_landmark_score_manager.cpp
 orbslam3_multi/test/test_global_map_builder.cpp
 ```
 
-El resto de clases anteriores está en:
+Las copias antiguas fueron retiradas en 3T. Para recuperar una decisión
+histórica se consulta primero el historial de subfase y, solo si no basta, el
+checkpoint Git `1b96a7a`.
 
-```text
-orbslam3_multi/legacy2/include/orbslam3_multi/
-orbslam3_multi/legacy2/src/
-```
-
-La carpeta `orbslam3_multi/legacy/` más antigua permanece separada. Para buscar
-referencias recuperables:
-
-```bash
-rg -n "RawMapDatabase|GlobalPoseStore|GlobalMapBuilder|LoopDetector" orbslam3_multi/legacy2
-```
-
-Si una clase nueva aún no existe, la subfase correspondiente define cómo crearla.
-
-## Mapa historico y contratos de reimplementacion
-
-Las descripciones de capacidades de la tabla son históricas. Desde 3B su codigo
-está en `legacy2`; el estado vigente de cada subfase lo define su contrato
-`REHACER` hasta que vuelva a ejecutarse.
+## Mapa de capacidades ejecutadas
 
 | Subfase | Archivo | Código esperado |
 |---|---|---|
 | 3A | `subfase_3A.md` | Realizada: no corrigió código; capturó baseline del servidor actual. |
-| 3B | `subfase_3B.md` | Conseguida: snapshot `legacy2`, runtime vacío y grafo live de dos nodos/cero aristas, validados técnica y visualmente. |
+| 3B | `subfase_3B.md` | Conseguida: baseline vacía y grafo live de dos nodos/cero aristas, validados técnica y visualmente. |
 | 3C | `subfase_3C.md` | Conseguida de nuevo: deltas raw, `PrimaryQueue`/`PrimaryWorker`, journal/replay, backpressure 8/2 y grafo 6/5; snapshots quedan para 3G. |
 | 3D | `subfase_3D.md` | Realizada: `GlobalPoseStore`, replay debug y separación raw/world; la herencia simple queda obsoleta para cola fiducial larga. |
 | 3E | `subfase_3E.md` | Realizada: `FiducialAnchorManager`, anclaje inicial real por fiducial simulado y `.record` v2 con observaciones fiduciales. |
 | 3F | `subfase_3F.md` | Conseguida: score y builder incrementales, cloud/KFs coherentes, replay/live correctos y layout web final aceptado. |
 | 3G | `subfase_3G.md` | Conseguida: snapshots selectivos, dirty diferido, record delta-only y rendimiento live. |
-| 3H | `subfase_3H.md` | Parcial visual: revisit, tarea MAX, queue/worker, stale, visitas v3 y mission gate validados. |
-| 3I | `subfase_3I.md` | Parcial visual: grafo temporal mono-submapa 30/20 e inactivos filtrados. |
-| 3J | `subfase_3J.md` | Parcial visual: solver SE(3) privado, control fijo y target absoluto. |
-| 3K | `subfase_3K.md` | Parcial visual: commit atomico, revision retry, late-window/tail y dirty KFs. |
-| 3L | `subfase_3L.md` | Parcial visual: validacion/refinamiento; pruebas 144-146 tecnicamente correctas. |
+| 3H | `subfase_3H.md` | Conseguida: revisit, tarea MAX, queue/worker, stale, visitas v3 y mission gate. |
+| 3I | `subfase_3I.md` | Conseguida: grafo temporal mono-submapa 30/20 e inactivos filtrados. |
+| 3J | `subfase_3J.md` | Conseguida: solver SE(3) privado, control fijo y target absoluto. |
+| 3K | `subfase_3K.md` | Conseguida: commit atomico, revision retry, late-window/tail y dirty KFs. |
+| 3L | `subfase_3L.md` | Conseguida: validacion/refinamiento y pruebas tecnicas/visuales. |
 | 3M | `subfase_3M.md` | Conseguida: `CovisibilityDatabase` importa aristas ORB-SLAM3 y `PoseGraphBuilder` consulta ventanas con aristas confirmadas. |
 | 3N | `subfase_3N.md` | Conseguida: `LoopDetector` BoW real, filtros y skip por covisibilidad confirmada; live/replay validados. |
 | 3O | `subfase_3O.md` | `SubcloudLoopVerifier`. |
-| 3P | `subfase_3P.md` | Parcial: `LoopDecisionManager`, fusión y scoring multi-dron; falta calidad global. |
-| 3Q | `subfase_3Q.md` | Técnica conseguida: optimización covisible loop/fiducial con commits/rechazos estructurales; pendiente revisión visual de 188. |
-| 3R | `subfase_3R.md` | Cola post-optimización absorbida por arquitectura actual. |
-| 3S | `subfase_3S.md` | Scoring centralizado y fused tracks. |
-| 3T | `subfase_3T.md` | Contratos, IDs, frames e invariantes. |
-| 3U | `subfase_3U.md` | Rehacer auditoría/hardening de RViz2 y del grafo incremental creado desde 3B. |
-| 3V | `subfase_3V.md` | Pruebas end-to-end y regresión. |
-| 3W | `subfase_3W.md` | Rendimiento y límites. |
-| 3X | `subfase_3X.md` | Cierre documental y handoff. |
+| 3P | `subfase_3P.md` | Conseguida: `LoopDecisionManager`, fusion transitiva y commit incremental. |
+| 3Q | `subfase_3Q.md` | Conseguida: optimizacion covisible loop/fiducial; incidencia 194 y mejora futura conservadas. |
+| 3R | `subfase_3R.md` | Conseguida: scoring centralizado y fused tracks. |
+| 3S | `subfase_3S.md` | Conseguida: `fase3_debug.yaml` consumido por launches y modo silencioso validado. |
+| 3T | `subfase_3T.md` | Cierre documental y handoff. |
+
+Las auditorias provisionales se cerraron con arquitectura, visualizacion,
+regresiones y limites ya implantados. 3T retiro sus contratos independientes y
+conserva sus resumenes historicos.
 
 ## Wrapper ORB-SLAM3
 

@@ -120,12 +120,13 @@ restaura `optimization_active`, se convierte en fallo duro observable y pasa
 por el cierre comun (`Complete`, contadores, backpressure y lifecycle `done`),
 evitando un aborto sin diagnostico del nodo.
 
-## Scoring 3S
+## Configuración y scoring 3R
 
-El constructor declara parametros `score_*`,
-`fusion_score_inlier_reward=0.04` y `fusion_score_member_bonus=0.04`. Los
-parametros sparse negativos de 3P se retiraron porque la oclusion es solo
-diagnostica hasta Fase 8.
+El constructor declara el contrato ROS completo y recibe sus valores desde los
+YAML temáticos descritos en `launches.md`. `scoring.yaml` posee `score_*`;
+`loop_fusion.yaml` posee `fusion_score_inlier_reward=0.04` y
+`fusion_score_member_bonus=0.04`. Los parámetros sparse negativos de 3P se
+retiraron porque la oclusión es solo diagnóstica hasta Fase 8.
 
 Los defaults de distancia son `score_suspicious_near_distance_m=1.0`,
 `score_suspicious_near_min_factor=0.05`,
@@ -133,9 +134,9 @@ Los defaults de distancia son `score_suspicious_near_distance_m=1.0`,
 `score_far_distance_fallback_m=5.0` y `score_far_min_factor=0.25`. Con baseline
 `0.06 m`, el factor queda neutro entre 1 y 5 m.
 
-El principal emite `[F3S-RAW-SCORE-COMMIT]` con dirty raw/fused y
-`[F3S-SCORE-STATS]` cada 25 arrivals live. El secundario emite
-`[F3S-FUSED-SCORE-COMMIT]`; rejected/stale muestran `committed=false dirty=0`.
+El principal emite `[F3R-RAW-SCORE-COMMIT]` con dirty raw/fused y
+`[F3R-SCORE-STATS]` cada 25 arrivals live. El secundario emite
+`[F3R-FUSED-SCORE-COMMIT]`; rejected/stale muestran `committed=false dirty=0`.
 `PointCloud2` mantiene `score` y `rgb`, con rojo en 0, amarillo en 0.5 y verde
 en 1, sin filtrar puntos.
 
@@ -159,6 +160,9 @@ temporales invertidos.
 orbslam3_server/src/global_map_server.cpp
   -> GlobalMapServer::{WorkerLoop,SecondaryWorkerLoop,ProcessFiducialObservation}
   -> rg -n "SecondaryWorkerLoop|EnqueueSecondaryWork|EnqueueLoopTasks|ProcessFiducialObservation"
+orbslam3_server/launch/global_orb_map_server.launch.py
+  -> _launch_setup / CONFIG_FILES
+  -> rg -n "config_dir|replay_debug_config|parameter_overrides"
 ```
 
 ## Telemetria 3H-3L
@@ -177,7 +181,7 @@ orbslam3_server/src/global_map_server.cpp
 [F3P-FUSION] [F3P-FUSION-RETRY] [F3P-FUSION-RETRY-SKIP]
 [F3Q-OPT-START] [F3Q-LOOP-OPT] [F3Q-OPT-END]
 [F3H-SECONDARY-EXCEPTION]
-[F3S-RAW-SCORE-COMMIT] [F3S-SCORE-STATS] [F3S-FUSED-SCORE-COMMIT]
+[F3R-RAW-SCORE-COMMIT] [F3R-SCORE-STATS] [F3R-FUSED-SCORE-COMMIT]
 [F3F-GLOBALMAP-PUBLISH ... recalculated_tracks=... fusion_revision=...]
 ```
 

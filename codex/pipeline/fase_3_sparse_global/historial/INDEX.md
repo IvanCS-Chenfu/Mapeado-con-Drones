@@ -28,14 +28,13 @@ fragmentos solo si falta evidencia concreta.
 | `3N` | `por_subfase/historial_3N_RESUMEN.md` | `CONSEGUIDA`: indice BoW, regiones y ledger causal con cola drenada. |
 | `3O` | `por_subfase/historial_3O_RESUMEN.md` | `CONSEGUIDA`: reanchor, propagacion, carga y validacion RViz2/web completados. |
 | `3P` | `por_subfase/historial_3P_RESUMEN.md` | `CONSEGUIDA`: prueba 161 y cierre del usuario; queda pulido de layout web. |
-| `3Q` | `por_subfase/historial_3Q_RESUMEN.md` | `A REVISAR`: 194 reproduce mala deformacion por dos loops asimetricos ambiguos antes del segundo fiducial hard; sin correccion aplicada. |
-| `3R` | `../subfases/subfase_3R.md` | Cancelada como subfase independiente; absorbida por 3D/3K/3Q. |
-| `3S` | `por_subfase/historial_3S_RESUMEN.md` | `CONSEGUIDA`: prueba 194 valida recalibracion 1-5 m y el usuario confirma scores visuales perfectos. |
-| `3T` | `por_subfase/historial_3T_RESUMEN.md` | `CONSEGUIDA`: arquitectura ya implantada en 3C-3S, auditada y aceptada sin mas optimizacion de locks. |
-| `3U` | `por_subfase/historial_3U_RESUMEN.md` | `CONSEGUIDA`: SSE live/reconexion, drenaje por frame, lifecycle y grafo aceptados por el usuario. |
-| `3V` | `por_subfase/historial_3V_RESUMEN.md` | `CONSEGUIDA`: regresion acumulada 187/188/191/194 aceptada por el usuario. |
-| `3W` | `por_subfase/historial_3W_RESUMEN.md` | `CONSEGUIDA`: rendimiento y robustez vigentes aceptados, sin mas tuning preventivo. |
-| `3X` | `../subfases/subfase_3X.md` | Limpieza final preparada; 3C-3W validadas y 3Q debe conservarse `A REVISAR` en el cierre. |
+| `3Q` | `por_subfase/historial_3Q_RESUMEN.md` | `CONSEGUIDA`: 195 no reproduce el fallo final de 194; mejora de apoyo adaptativo documentada, no implementada. |
+| `3R` | `por_subfase/historial_3R_RESUMEN.md` | `CONSEGUIDA`: scoring 1-5 m y scores visuales confirmados; antes denominada 3S. |
+| `3S` | `por_subfase/historial_3S_RESUMEN.md` | `CONSEGUIDA`: perfil silencioso validado por prueba 196, sin RViz2/web ni marcadores F3. |
+| `3T` | `por_subfase/historial_3T_RESUMEN.md` | `CONSEGUIDA`: limpieza, renumeracion y handoff final; antes denominada 3X. |
+
+Los historiales de auditorias transversales absorbidas se conservan en
+`historial/absorbidas/`; no son subfases activas de la numeracion final.
 
 ## Cómo añadir historial nuevo
 

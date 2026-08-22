@@ -47,11 +47,9 @@ global real.
 | 3O | `SubcloudLoopVerifier`; candidatos->geometria verificada. |
 | 3P | `LoopDecisionManager` y `FusedLandmarkManager`; decision/fusion. |
 | 3Q | Ramas reales de optimizacion por loop y commit multi-base. |
-| 3S | `LandmarkScoreManager`; eventos/patches de score y builder dirty. |
-| 3T | IDs, revisiones y ownership completos en eventos ya existentes. |
-| 3U | Auditoria de completitud, frescura, gaps, reconexion y stress visual. |
-| 3V/3W | Regresion, limites y causas finales de backpressure sin duplicar el mission gate ni añadir topologia ficticia. |
-| 3X | Retirada de rutas/aristas obsoletas junto con el codigo sustituido. |
+| 3R | `LandmarkScoreManager`; eventos/patches de score y builder dirty. |
+| 3S | Perfil de debug que habilita por separado RViz2, grafo web, navegador y logs terminales sin afectar al mapa. |
+| 3T | Retirada de rutas obsoletas y handoff; conserva eventos, IDs, auditorias visuales y limites aceptados. |
 
 La tabla es un reparto de propiedad, no permiso para adelantar componentes.
 Si el diseño real cambia, la subfase debe actualizar su incremento antes de
@@ -95,3 +93,7 @@ incorrectos.
 Una subfase con criterio visual pendiente permanece `PARCIAL` aunque build,
 tests y scenario sean correctos. Solo pasa a `CONSEGUIDA` tras comprobar que la
 topologia, orden, payload y resultado visual corresponden al runtime real.
+
+3S es la excepcion deliberada de observabilidad negativa: con sus cuatro flags
+a false se valida que RViz2/web/navegador no arrancan y que no aparecen
+marcadores `[F3*]`, mientras el servidor y el escenario siguen operativos.

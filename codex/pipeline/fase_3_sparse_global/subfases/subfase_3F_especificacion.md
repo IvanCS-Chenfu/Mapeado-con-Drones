@@ -112,7 +112,7 @@ propietarias. 3F no simula resultados que aun no existen.
 - Mezclar nube y KFs de revisiones distintas.
 - Calcular score o geometria dentro de `GlobalMapServer`.
 - Publicar union bruta de todos los MapPoints, incluidos submapas no anclados.
-- Aplazar `/global_keyframes` hasta 3U: se publica ya en 3F; 3U solo audita y
+- Aplazar `/global_keyframes`: se publica ya en 3F; la auditoria absorbida solo
   endurece la visualizacion acumulada.
 
 ## Fuera de alcance
@@ -122,7 +122,7 @@ propietarias. 3F no simula resultados que aun no existen.
 - BoW, matching, RANSAC y loops.
 - Optimizacion fiducial o de loop.
 - Fusion real de landmarks.
-- Politica avanzada de score de 3S.
+- Politica avanzada de score de 3R.
 - Snapshots periodicos, publication worker o ACK visual.
 - Cambios en `ORB_SLAM3`, `orbslam3_ros2` u `orbslam3_msgs`.
 - GUI operacional de Fase 7.

@@ -35,14 +35,13 @@ La documentación extensa sigue existiendo, pero no debe abrirse por defecto.
 | Logs/sublogs | `09_LOGS_Y_SUBLOGS.md` |
 | Historial | `codex/pipeline/fase_3_sparse_global/historial/INDEX.md` y luego `historial_<ID>_RESUMEN.md` |
 
-## Fase activa
+## Estado de fases
 
 ```text
-Fase 3 — Mapa sparse global multi-dron
-3B-3P y 3S-3W — CONSEGUIDAS; 3Q — A REVISAR y aceptada para continuar.
-3X — pendiente; siguiente punto de preparacion.
-Fase 2 — separación de paquetes queda pendiente para después del cierre de Fase 3.
-Punto de reentrada 3Q — leer obligatoriamente su historial antes de modificarla.
+Fase actual — Fase 2, separacion servidor/dron/simulacion.
+Fase 3 — CONSEGUIDA; subfases 3B-3T cerradas.
+Secuencia final — 3Q optimizacion, 3R scoring, 3S debug, 3T limpieza/handoff.
+3Q — incidencia 194 y mejora futura conservadas; leer su historial al retomarla.
 ```
 
 ## Reglas rápidas
@@ -64,7 +63,7 @@ Punto de reentrada 3Q — leer obligatoriamente su historial antes de modificarl
   dudas en `00_CONTEXTO_COMPACTACION.md`.
 - La autorización solo cubre ese acuerdo; cualquier duda funcional o cambio de
   alcance/prueba la suspende hasta una nueva confirmación del usuario.
-- **Subfases grandes** (`3O`, `3P`, `3Q`, `3S`) se dividen en subarchivos temáticos cuando aplica:
+- **Subfases grandes** (`3O`, `3P`, `3Q`, `3R`) se dividen en subarchivos temáticos cuando aplica:
   leer primero `subfase_<ID>.md` (índice breve), luego abrir el subarchivo temático
   necesario (`especificacion`, `implementacion`, `testing` o `criterios`).
 

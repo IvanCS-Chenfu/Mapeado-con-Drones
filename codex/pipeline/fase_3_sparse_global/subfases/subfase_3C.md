@@ -55,7 +55,8 @@ alargaran esta misma tarea; no crearan otra cola ni otro worker principal.
 - No descarta, sustituye ni agrupa deltas raw.
 - El acceso a la cola usa un mutex breve y `condition_variable`, sin polling.
 - No existe todavia una capacidad dura que pueda causar perdida raw. Los
-  limites finales, no-progreso y memoria pertenecen a 3W.
+  los limites finales, no-progreso y memoria se validan en la auditoria de
+  rendimiento absorbida por 3T.
 
 ### `PrimaryWorker`
 
@@ -158,7 +159,7 @@ bajo locks. Su valor normal y real es `0`; solo se usa un valor no nulo en la
 prueba dedicada para acumular cola, observar el gate y despues permitir el
 drenaje. No se activa en pruebas de otras funciones.
 
-3W ampliara esta base con cola secundaria, edad, drenaje estimado,
+La politica final amplio esta base con cola secundaria, edad, drenaje estimado,
 optimizaciones activas, dwell, capacidad y deteccion de no-progreso. El umbral
 por profundidad de 3C es un bootstrap deliberado, no la politica final.
 
@@ -216,8 +217,8 @@ codex/archivos_auxiliares/trayectorias/tray_prueba_79.yaml
 codex/archivos_auxiliares/trayectorias/tray_prueba_80.yaml
 ```
 
-Se actualizaran los MD vigentes de cada paquete tocado. `legacy2/` es solo
-referencia: no se compila, modifica ni copia en bloque.
+Se actualizarán los MD vigentes de cada paquete tocado. La baseline anterior
+era solo referencia: no se compilaba, modificaba ni copiaba en bloque.
 
 ## Fuera de alcance
 
@@ -226,7 +227,7 @@ referencia: no se compila, modifica ni copia en bloque.
 - covisibilidad derivada, score, BoW global, loops, matching o RANSAC;
 - fusion, grafo, solver u optimizacion;
 - `SecondaryQueue`/`SecondaryWorker` y sus prioridades (`3K`);
-- politica completa de rendimiento y capacidad (`3W`);
+- politica completa de rendimiento y capacidad, absorbida por `3T`;
 - compatibilidad obligatoria con `.record` legacy.
 
 ## Validacion acordada

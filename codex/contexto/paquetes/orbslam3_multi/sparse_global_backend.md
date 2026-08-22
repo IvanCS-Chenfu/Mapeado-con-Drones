@@ -141,7 +141,7 @@ siguen fuera de locks live.
   se realiza despues en `LoopPipeline`, de modo que un commit grande no genera
   una busqueda global por cada KF movido.
 
-## Operaciones 3S
+## Operaciones 3R
 
 - Tras cada raw commit, `ApplyRawChanges()` actualiza base ORB solo para IDs
   afectados y `RefreshGeometryScores()` construye entradas world desde KFs

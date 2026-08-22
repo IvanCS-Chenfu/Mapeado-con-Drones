@@ -166,6 +166,8 @@ Eigen::Matrix4d BuildBodyToCamera(
 
 }  // namespace
 
+/// Adaptador ROS y único owner de workers, colas, publicación y backpressure.
+/// El principal publica; el secundario solo prepara/compromete cambios y marca dirty.
 class GlobalMapServer final : public rclcpp::Node
 {
 public:
@@ -202,7 +204,7 @@ public:
     debug_drop_one_delta_ = declare_parameter<bool>(
       "debug_drop_one_delta_for_snapshot_test", false);
     debug_drop_drone_id_ = static_cast<uint32_t>(declare_parameter<int64_t>(
-      "debug_drop_delta_drone_id", 1));
+        "debug_drop_delta_drone_id", 1));
     debug_anchor_enabled_ = declare_parameter<bool>("pose_store_debug_anchor_enabled", false);
     debug_anchor_drone_id_ = static_cast<uint32_t>(
       declare_parameter<int64_t>("pose_store_debug_anchor_drone_id", 1));
@@ -229,34 +231,34 @@ public:
     optimization_config.max_correction_fraction_per_pass = declare_parameter<double>(
       "fiducial_max_correction_fraction_per_pass", 1.0);
     optimization_config.max_refinement_passes = static_cast<uint32_t>(std::max<int64_t>(
-      1, declare_parameter<int64_t>("fiducial_max_refinement_passes", 4)));
+        1, declare_parameter<int64_t>("fiducial_max_refinement_passes", 4)));
     fiducial_optimization_config_ = optimization_config;
     backend_.ConfigureFiducialOptimization(optimization_config);
     orbslam3_multi::LoopPipelineConfig loop_config;
     loop_config.min_query_mappoints = static_cast<size_t>(std::max<int64_t>(
-      6, declare_parameter<int64_t>("loop_min_query_mappoints", 12)));
+        6, declare_parameter<int64_t>("loop_min_query_mappoints", 12)));
     loop_config.max_bow_candidates = static_cast<size_t>(std::max<int64_t>(
-      1, declare_parameter<int64_t>("loop_max_bow_candidates", 10)));
+        1, declare_parameter<int64_t>("loop_max_bow_candidates", 10)));
     loop_config.max_candidate_regions = static_cast<size_t>(std::max<int64_t>(
-      1, declare_parameter<int64_t>("loop_max_candidate_regions", 3)));
+        1, declare_parameter<int64_t>("loop_max_candidate_regions", 3)));
     loop_config.max_candidate_window_keyframes = static_cast<size_t>(std::max<int64_t>(
-      1, declare_parameter<int64_t>("loop_max_candidate_window_keyframes", 12)));
+        1, declare_parameter<int64_t>("loop_max_candidate_window_keyframes", 12)));
     loop_config.max_subcloud_points = static_cast<size_t>(std::max<int64_t>(
-      32, declare_parameter<int64_t>("loop_max_subcloud_points", 320)));
+        32, declare_parameter<int64_t>("loop_max_subcloud_points", 320)));
     loop_config.strong_covisibility_support = static_cast<uint64_t>(std::max<int64_t>(
-      1, declare_parameter<int64_t>("loop_strong_covisibility_support", 15)));
+        1, declare_parameter<int64_t>("loop_strong_covisibility_support", 15)));
     loop_config.temporal_window_radius = static_cast<uint64_t>(std::max<int64_t>(
-      0, declare_parameter<int64_t>("loop_temporal_window_radius", 8)));
+        0, declare_parameter<int64_t>("loop_temporal_window_radius", 8)));
     loop_config.min_bow_score = declare_parameter<double>("loop_min_bow_score", 0.01);
     loop_config.max_hamming_distance = static_cast<uint32_t>(std::max<int64_t>(
-      1, declare_parameter<int64_t>("loop_max_hamming_distance", 80)));
+        1, declare_parameter<int64_t>("loop_max_hamming_distance", 80)));
     loop_config.descriptor_ratio = declare_parameter<double>("loop_descriptor_ratio", 0.90);
     loop_config.min_ransac_matches = static_cast<size_t>(std::max<int64_t>(
-      3, declare_parameter<int64_t>("loop_min_ransac_matches", 6)));
+        3, declare_parameter<int64_t>("loop_min_ransac_matches", 6)));
     loop_config.min_ransac_inliers = static_cast<size_t>(std::max<int64_t>(
-      3, declare_parameter<int64_t>("loop_min_ransac_inliers", 6)));
+        3, declare_parameter<int64_t>("loop_min_ransac_inliers", 6)));
     loop_config.max_ransac_iterations = static_cast<size_t>(std::max<int64_t>(
-      1, declare_parameter<int64_t>("loop_max_ransac_iterations", 80)));
+        1, declare_parameter<int64_t>("loop_max_ransac_iterations", 80)));
     loop_config.ransac_inlier_threshold_m = declare_parameter<double>(
       "loop_ransac_inlier_threshold_m", 0.30);
     loop_config.min_inlier_ratio = declare_parameter<double>(
@@ -278,9 +280,9 @@ public:
     loop_config.hypothesis_rotation_tolerance_rad = declare_parameter<double>(
       "loop_hypothesis_rotation_tolerance_rad", 0.35);
     loop_config.hypothesis_min_support = static_cast<size_t>(std::max<int64_t>(
-      2, declare_parameter<int64_t>("loop_hypothesis_min_support", 2)));
+        2, declare_parameter<int64_t>("loop_hypothesis_min_support", 2)));
     loop_config.ambiguity_margin = static_cast<size_t>(std::max<int64_t>(
-      1, declare_parameter<int64_t>("loop_ambiguity_margin", 2)));
+        1, declare_parameter<int64_t>("loop_ambiguity_margin", 2)));
     loop_config.structural_temporal_increase_m = declare_parameter<double>(
       "loop_structural_temporal_increase_m", 2.0);
     loop_config.structural_temporal_increase_rad = declare_parameter<double>(
@@ -312,31 +314,31 @@ public:
     fused_config.visibility_depth_tolerance_m = declare_parameter<double>(
       "fusion_visibility_depth_tolerance_m", 0.30);
     fused_config.visibility_cell_size_px = static_cast<uint32_t>(std::max<int64_t>(
-      1, declare_parameter<int64_t>("fusion_visibility_cell_size_px", 8)));
+        1, declare_parameter<int64_t>("fusion_visibility_cell_size_px", 8)));
     fused_config.inlier_reward = static_cast<float>(declare_parameter<double>(
-      "fusion_score_inlier_reward", 0.04));
+        "fusion_score_inlier_reward", 0.04));
     fused_config.member_bonus = static_cast<float>(declare_parameter<double>(
-      "fusion_score_member_bonus", 0.04));
+        "fusion_score_member_bonus", 0.04));
     backend_.ConfigureFusedLandmarks(fused_config);
     orbslam3_multi::LandmarkScoreConfig score_config;
     score_config.isolation_radius_m = declare_parameter<double>(
       "score_isolation_radius_m", 0.35);
     score_config.isolation_min_neighbors = static_cast<uint32_t>(declare_parameter<int>(
-      "score_isolation_min_neighbors", 2));
+        "score_isolation_min_neighbors", 2));
     score_config.isolation_min_observations = static_cast<uint32_t>(declare_parameter<int>(
-      "score_isolation_min_observations", 3));
+        "score_isolation_min_observations", 3));
     score_config.isolation_min_factor = static_cast<float>(declare_parameter<double>(
-      "score_isolation_min_factor", 0.35));
+        "score_isolation_min_factor", 0.35));
     score_config.suspicious_near_distance_m = declare_parameter<double>(
       "score_suspicious_near_distance_m", 1.0);
     score_config.suspicious_near_min_factor = static_cast<float>(declare_parameter<double>(
-      "score_suspicious_near_min_factor", 0.05));
+        "score_suspicious_near_min_factor", 0.05));
     score_config.far_baseline_multiplier = declare_parameter<double>(
       "score_far_baseline_multiplier", 83.33333333333333);
     score_config.far_distance_fallback_m = declare_parameter<double>(
       "score_far_distance_fallback_m", 5.0);
     score_config.far_min_factor = static_cast<float>(declare_parameter<double>(
-      "score_far_min_factor", 0.25));
+        "score_far_min_factor", 0.25));
     backend_.ConfigureLandmarkScores(score_config);
     const double body_camera_x = declare_parameter<double>("body_T_camera_x", 0.10);
     const double body_camera_y = declare_parameter<double>("body_T_camera_y", 0.03);
@@ -690,7 +692,7 @@ private:
             auto map = std::shared_ptr<const orbslam3_msgs::msg::OrbMap>(
               response, &response->map);
             if (map->drone_id == 0U ||
-              (map->keyframes.empty() && map->mappoints.empty()))
+            (map->keyframes.empty() && map->mappoints.empty()))
             {
               RCLCPP_WARN(
                 get_logger(),
@@ -922,7 +924,7 @@ private:
         return std::tie(
           lhs.keyframe_id.drone_id, lhs.keyframe_id.map_epoch,
           lhs.observation_stamp_sec, lhs.keyframe_id.local_kf_id) <
-               std::tie(
+        std::tie(
           rhs.keyframe_id.drone_id, rhs.keyframe_id.map_epoch,
           rhs.observation_stamp_sec, rhs.keyframe_id.local_kf_id);
       });
@@ -934,8 +936,8 @@ private:
         auto & state = replay_visit_state_[submap_id];
         const bool new_visit = state.visit_id == 0 ||
           state.fiducial_id != observation.fiducial_id ||
-          observation.observation_stamp_sec < state.last_stamp_sec ||
-          observation.observation_stamp_sec - state.last_stamp_sec > 2.0;
+          observation.observation_stamp_sec<state.last_stamp_sec ||
+            observation.observation_stamp_sec - state.last_stamp_sec>2.0;
         if (new_visit) {
           state.visit_id = next_fiducial_visit_id_++;
         }
@@ -999,6 +1001,7 @@ private:
       streamed_entries, max_pending, high_watermark_);
   }
 
+  // Preserva el orden arrival_id: ingesta raw, derivados baratos y publicación coherente.
   void WorkerLoop()
   {
     PrimaryInput input;
@@ -1096,7 +1099,7 @@ private:
             primary_queue_.Pending(), score_detail.str());
           RCLCPP_INFO(
             get_logger(),
-            "[F3S-RAW-SCORE-COMMIT] arrival_id=%lu created=%zu updated=%zu "
+            "[F3R-RAW-SCORE-COMMIT] arrival_id=%lu created=%zu updated=%zu "
             "invalidated=%zu input_updated=%zu fused_updated=%zu revision=%lu",
             input.arrival_id, scores.created_ids.size(), scores.updated_ids.size(),
             scores.invalidated_ids.size(), scores.input_updated_ids.size(),
@@ -1105,7 +1108,7 @@ private:
         } else if (!scores.input_updated_ids.empty()) {
           RCLCPP_INFO(
             get_logger(),
-            "[F3S-SCORE-NOOP] arrival_id=%lu input_updated=%zu revision=%lu "
+            "[F3R-SCORE-NOOP] arrival_id=%lu input_updated=%zu revision=%lu "
             "builder_dirty=0",
             input.arrival_id, scores.input_updated_ids.size(),
             scores.score_revision_after);
@@ -1114,7 +1117,7 @@ private:
           const auto score_stats = backend_.GetScoreStats();
           RCLCPP_INFO(
             get_logger(),
-            "[F3S-SCORE-STATS] revision=%lu tracked=%lu bad=%lu anchored=%lu "
+            "[F3R-SCORE-STATS] revision=%lu tracked=%lu bad=%lu anchored=%lu "
             "isolated=%lu near=%lu far=%lu min=%.4f mean=%.4f max=%.4f",
             score_stats.score_revision, score_stats.tracked_points,
             score_stats.bad_points, score_stats.anchored_points,
@@ -1279,7 +1282,7 @@ private:
         const auto score_stats = backend_.GetScoreStats();
         RCLCPP_INFO(
           get_logger(),
-          "[F3S-SCORE-STATS] revision=%lu tracked=%lu bad=%lu anchored=%lu "
+          "[F3R-SCORE-STATS] revision=%lu tracked=%lu bad=%lu anchored=%lu "
           "isolated=%lu near=%lu far=%lu min=%.4f mean=%.4f max=%.4f",
           score_stats.score_revision, score_stats.tracked_points, score_stats.bad_points,
           score_stats.anchored_points, score_stats.isolated_points,
@@ -1289,6 +1292,7 @@ private:
     }
   }
 
+  // Ejecuta una tarea cada vez. La barrera por tarea convierte excepciones en fallo bloqueante.
   void SecondaryWorkerLoop()
   {
     SecondaryTask queued;
@@ -1323,476 +1327,476 @@ private:
       std::vector<orbslam3_multi::RawKeyFrameId> post_optimization_rerun_ids;
       uint64_t post_optimization_arrival = 0U;
       try {
-      if (queued.kind == SecondaryTaskKind::DatabaseUpdate &&
-        queued.database_update.has_value())
-      {
-        EmitSecondaryFlowEvent(
-          "secondary_worker_covisibility_database", "database_update", queued,
-          secondary_queue_.Pending(), "");
-        const auto update = backend_.ProcessDatabaseUpdate(*queued.database_update);
-        stale = update.stale;
-        full_success = update.committed;
-        final_reason = update.reason;
-        RCLCPP_WARN(
-          get_logger(),
-          "[F3M-DATABASE-UPDATE] task=%lu arrival=%lu submap=(%u,%lu) "
-          "committed=%s stale=%s added=%zu updated=%zu removed=%zu unchanged=%zu "
-          "revision=%lu reason=%s",
-          queued.task_id, queued.database_update->source_arrival_id,
-          queued.database_update->submap_id.drone_id,
-          queued.database_update->submap_id.map_epoch,
-          update.committed ? "true" : "false", update.stale ? "true" : "false",
-          update.added, update.updated, update.removed, update.unchanged,
-          update.revision_after, update.reason.c_str());
-        if (update.committed) {
-          auto loops = backend_.CreateLoopTasks(
-            queued.database_update->source_arrival_id,
-            queued.database_update->loop_keyframe_ids);
-          const size_t enqueued = EnqueueLoopTasks(
-            &loops, "database_update_complete");
-          EmitSecondaryFlowEvent(
-            "covisibility_database_secondary_queue", "loop_enqueue", queued,
-            secondary_queue_.Pending(), " loops=" + std::to_string(enqueued));
-        }
-      } else if (queued.kind == SecondaryTaskKind::Loop && queued.loop.has_value()) {
-        EmitSecondaryFlowEvent(
-          "secondary_worker_loop_detector", "bow_search", queued,
-          secondary_queue_.Pending(), "");
-        auto loop = backend_.ProcessLoopTask(*queued.loop);
-        if (loop.decision ==
-          orbslam3_multi::LoopTaskDecisionKind::OptimizationEvidence)
+        if (queued.kind == SecondaryTaskKind::DatabaseUpdate &&
+          queued.database_update.has_value())
         {
-          optimization_active_.store(true);
-          UpdateBackpressure();
           EmitSecondaryFlowEvent(
-            "loop_decision_pose_graph_builder", "opt_loop", queued,
-            secondary_queue_.Pending(),
-            " evidence=" + std::to_string(loop.geometry_results.size()));
+            "secondary_worker_covisibility_database", "database_update", queued,
+            secondary_queue_.Pending(), "");
+          const auto update = backend_.ProcessDatabaseUpdate(*queued.database_update);
+          stale = update.stale;
+          full_success = update.committed;
+          final_reason = update.reason;
           RCLCPP_WARN(
             get_logger(),
-            "[F3Q-OPT-START] task=%lu query=(%u,%lu,%lu) priority=NORMAL "
-            "intent=%s stop_drones=true geometry=%zu selected_regions=%zu",
+            "[F3M-DATABASE-UPDATE] task=%lu arrival=%lu submap=(%u,%lu) "
+            "committed=%s stale=%s added=%zu updated=%zu removed=%zu unchanged=%zu "
+            "revision=%lu reason=%s",
+            queued.task_id, queued.database_update->source_arrival_id,
+            queued.database_update->submap_id.drone_id,
+            queued.database_update->submap_id.map_epoch,
+            update.committed ? "true" : "false", update.stale ? "true" : "false",
+            update.added, update.updated, update.removed, update.unchanged,
+            update.revision_after, update.reason.c_str());
+          if (update.committed) {
+            auto loops = backend_.CreateLoopTasks(
+              queued.database_update->source_arrival_id,
+              queued.database_update->loop_keyframe_ids);
+            const size_t enqueued = EnqueueLoopTasks(
+              &loops, "database_update_complete");
+            EmitSecondaryFlowEvent(
+              "covisibility_database_secondary_queue", "loop_enqueue", queued,
+              secondary_queue_.Pending(), " loops=" + std::to_string(enqueued));
+          }
+        } else if (queued.kind == SecondaryTaskKind::Loop && queued.loop.has_value()) {
+          EmitSecondaryFlowEvent(
+            "secondary_worker_loop_detector", "bow_search", queued,
+            secondary_queue_.Pending(), "");
+          auto loop = backend_.ProcessLoopTask(*queued.loop);
+          if (loop.decision ==
+            orbslam3_multi::LoopTaskDecisionKind::OptimizationEvidence)
+          {
+            optimization_active_.store(true);
+            UpdateBackpressure();
+            EmitSecondaryFlowEvent(
+              "loop_decision_pose_graph_builder", "opt_loop", queued,
+              secondary_queue_.Pending(),
+              " evidence=" + std::to_string(loop.geometry_results.size()));
+            RCLCPP_WARN(
+              get_logger(),
+              "[F3Q-OPT-START] task=%lu query=(%u,%lu,%lu) priority=NORMAL "
+              "intent=%s stop_drones=true geometry=%zu selected_regions=%zu",
+              queued.task_id, queued.loop->query_keyframe_id.drone_id,
+              queued.loop->query_keyframe_id.map_epoch,
+              queued.loop->query_keyframe_id.local_kf_id,
+              orbslam3_multi::ToString(queued.loop->intent),
+              loop.geometry_results.size(), loop.optimization_geometry_indices.size());
+            loop = backend_.ProcessLoopOptimization(std::move(loop));
+            if (loop.optimization.committed) {
+              post_optimization_rerun_ids = loop.rerun_keyframe_ids;
+              post_optimization_arrival = queued.loop->source_arrival_id;
+            }
+            optimization_active_.store(false);
+            UpdateBackpressure();
+          }
+          stale = loop.decision == orbslam3_multi::LoopTaskDecisionKind::Stale;
+          hard_failure = loop.decision == orbslam3_multi::LoopTaskDecisionKind::Error;
+          full_success = !stale && !hard_failure;
+          final_reason = loop.reason;
+          if (stale && (loop.fusion.attempted || loop.optimization.attempted)) {
+            fusion_retry_keyframe = queued.loop->query_keyframe_id;
+            fusion_retry_arrival = queued.loop->source_arrival_id;
+            fusion_retry_cause = loop.optimization.attempted ?
+              "loop_optimization_stale_retry" :
+              (loop.fusion.rolled_back ?
+              "fusion_rollback_retry" : "fusion_stale_retry");
+          }
+          EmitSecondaryFlowEvent(
+            "loop_detector_loop_bow_index", "upsert_search", queued,
+            secondary_queue_.Pending(),
+            " candidates=" + std::to_string(loop.bow_candidates));
+          EmitSecondaryFlowEvent(
+            "loop_bow_index_subcloud_loop_verifier", "geometry", queued,
+            secondary_queue_.Pending(),
+            " regions=" + std::to_string(loop.regions.size()) +
+            " results=" + std::to_string(loop.geometry_results.size()));
+          EmitSecondaryFlowEvent(
+            "subcloud_loop_verifier_loop_decision", "decision", queued,
+            secondary_queue_.Pending(),
+            " result=" + std::string(orbslam3_multi::ToString(loop.decision)));
+          if (loop.optimization.attempted) {
+            EmitSecondaryFlowEvent(
+              "pose_graph_builder_optimization_manager", "solve_loop", queued,
+              secondary_queue_.Pending(),
+              " controls=" + std::to_string(loop.optimization.controls) +
+              " iterations=" + std::to_string(loop.optimization.iterations));
+            EmitSecondaryFlowEvent(
+              "optimization_manager_validation", "validate_loop", queued,
+              secondary_queue_.Pending(),
+              " accepted=" + std::string(
+                loop.optimization.accepted ? "true" : "false"));
+            if (loop.optimization.committed) {
+              EmitSecondaryFlowEvent(
+                "validation_global_pose_store", "commit_loop", queued,
+                secondary_queue_.Pending(),
+                " moved=" + std::to_string(loop.optimization.moved_keyframes));
+              EmitSecondaryFlowEvent(
+                "global_pose_store_global_map_builder", "pose_dirty", queued,
+                secondary_queue_.Pending(),
+                " kfs=" + std::to_string(loop.optimization.moved_keyframes));
+            }
+            RCLCPP_WARN(
+              get_logger(),
+              "[F3Q-LOOP-OPT] task=%lu graph=%s optimized=%s accepted=%s committed=%s "
+              "stale=%s submaps=%zu window=%zu controls=%zu edges=(temporal=%zu,covis=%zu,loop=%zu) "
+              "iterations=%zu error_before=(%.6f,%.6f) error_after=(%.6f,%.6f) "
+              "structure=(edges=%zu,corridor_kfs=%zu,max_increase=%.6fm/%.6frad,"
+              "corridor_excess=%.6fm/%.6frad->%.6fm/%.6frad) "
+              "cost=(%.6f->%.6f) time_ms=(graph=%.3f,solve=%.3f,validation=%.3f,commit=%.3f) "
+              "rebuilds=%zu discarded_regions=%zu moved=%zu propagated=%zu "
+              "rebased_skipped=%zu rebased_inactive=%zu fusion_after=%s reason=%s",
+              queued.task_id, loop.optimization.graph_built ? "true" : "false",
+              loop.optimization.optimized ? "true" : "false",
+              loop.optimization.accepted ? "true" : "false",
+              loop.optimization.committed ? "true" : "false",
+              loop.optimization.stale ? "true" : "false",
+              loop.optimization.submaps, loop.optimization.window_keyframes,
+              loop.optimization.controls, loop.optimization.temporal_edges,
+              loop.optimization.covisibility_edges, loop.optimization.loop_edges,
+              loop.optimization.iterations,
+              loop.optimization.initial_translation_error_m,
+              loop.optimization.initial_rotation_error_rad,
+              loop.optimization.final_translation_error_m,
+              loop.optimization.final_rotation_error_rad,
+              loop.optimization.structural_edges_checked,
+              loop.optimization.hard_corridor_keyframes_checked,
+              loop.optimization.max_structural_translation_increase_m,
+              loop.optimization.max_structural_rotation_increase_rad,
+              loop.optimization.max_corridor_translation_excess_before_m,
+              loop.optimization.max_corridor_rotation_excess_before_rad,
+              loop.optimization.max_corridor_translation_excess_after_m,
+              loop.optimization.max_corridor_rotation_excess_after_rad,
+              loop.optimization.initial_cost, loop.optimization.final_cost,
+              loop.optimization.graph_ms, loop.optimization.solve_ms,
+              loop.optimization.validation_ms, loop.optimization.commit_ms,
+              loop.optimization.rebuilds,
+              loop.optimization.discarded_loop_regions,
+              loop.optimization.moved_keyframes,
+              loop.optimization.propagated_keyframes,
+              loop.optimization.rebased_skipped_controls,
+              loop.optimization.rebased_inactive_controls,
+              loop.optimization.fusion_after_optimization ? "true" : "false",
+              loop.optimization.reason.c_str());
+            RCLCPP_WARN(
+              get_logger(),
+              "[F3Q-OPT-END] task=%lu stop_drones=false committed=%s reason=%s",
+              queued.task_id, loop.optimization.committed ? "true" : "false",
+              loop.reason.c_str());
+          }
+          if (loop.fusion.attempted) {
+            EmitSecondaryFlowEvent(
+              loop.optimization.committed ?
+              "validation_fused_landmark_manager" :
+              "loop_decision_fused_landmark_manager",
+              loop.optimization.committed ? "fusion_after_opt" : "fusion_prepare", queued,
+              secondary_queue_.Pending(),
+              " pairs=" + std::to_string(loop.fusion.pair_results));
+          }
+          if (loop.fusion.committed) {
+            EmitSecondaryFlowEvent(
+              "fused_landmark_manager_covisibility_database", "server_covisibility", queued,
+              secondary_queue_.Pending(),
+              " added=" + std::to_string(loop.fusion.covisibility_added));
+            EmitSecondaryFlowEvent(
+              "fused_landmark_manager_landmark_score_manager", "score_evidence", queued,
+              secondary_queue_.Pending(),
+              " positive=" + std::to_string(loop.fusion.score_positive_events) +
+              " negative=" + std::to_string(loop.fusion.score_negative_events) +
+              " visibility_diagnostics=" +
+              std::to_string(loop.fusion.score_visibility_diagnostics));
+            EmitSecondaryFlowEvent(
+              "fused_landmark_manager_global_map_builder", "fusion_dirty", queued,
+              secondary_queue_.Pending(),
+              " hidden=" + std::to_string(loop.fusion.hidden_raw_members));
+          }
+          if (loop.anchor_commit.status == orbslam3_multi::PoseCommitStatus::Applied) {
+            EmitSecondaryFlowEvent(
+              "loop_decision_loop_anchor_store", "anchor_evidence", queued,
+              secondary_queue_.Pending(),
+              " submaps=" + std::to_string(loop.anchor_commit.anchored_submaps.size()));
+            EmitSecondaryFlowEvent(
+              "loop_anchor_store_global_pose_store", "anchor_commit", queued,
+              secondary_queue_.Pending(),
+              " submaps=" + std::to_string(loop.anchor_commit.anchored_submaps.size()) +
+              " kfs=" + std::to_string(loop.anchor_commit.dirty_keyframe_ids.size()));
+            EmitSecondaryFlowEvent(
+              "global_pose_store_global_map_builder", "pose_dirty", queued,
+              secondary_queue_.Pending(),
+              " kfs=" + std::to_string(loop.anchor_commit.dirty_keyframe_ids.size()));
+            auto reruns = backend_.CreateLoopTasks(
+              queued.loop->source_arrival_id, loop.rerun_keyframe_ids);
+            EnqueueLoopTasks(&reruns, "anchor_revision_changed");
+          }
+          RCLCPP_WARN(
+            get_logger(),
+            "[F3O-LOOP-DONE] task=%lu query=(%u,%lu,%lu) decision=%s fast=%s bow=%zu "
+            "regions=%zu geometry=%zu opt_regions=%zu fusion_pairs=%zu anchors=%zu dirty=%zu "
+            "support=(observed=%s,compatible=%s,independent=%s,count=%zu/%zu,competing=%zu,"
+            "ambiguity=%s,margin=%zu,separation=%.3fm/%.3frad,accepted=%s) "
+            "recent_loss=(checked=%s,passed=%s,error=%.3fm/%.3frad,limit=%.3fm/%.3frad) "
+            "protected=(checked=%s,query=%s,candidate=%s,rejected=%s,ledger=%s,"
+            "error=%.3fm/%.3frad) refresh_spatial=(accepted=%zu,rejected=%zu) "
+            "reason=%s",
             queued.task_id, queued.loop->query_keyframe_id.drone_id,
             queued.loop->query_keyframe_id.map_epoch,
             queued.loop->query_keyframe_id.local_kf_id,
-            orbslam3_multi::ToString(queued.loop->intent),
-            loop.geometry_results.size(), loop.optimization_geometry_indices.size());
-          loop = backend_.ProcessLoopOptimization(std::move(loop));
-          if (loop.optimization.committed) {
-            post_optimization_rerun_ids = loop.rerun_keyframe_ids;
-            post_optimization_arrival = queued.loop->source_arrival_id;
-          }
-          optimization_active_.store(false);
-          UpdateBackpressure();
-        }
-        stale = loop.decision == orbslam3_multi::LoopTaskDecisionKind::Stale;
-        hard_failure = loop.decision == orbslam3_multi::LoopTaskDecisionKind::Error;
-        full_success = !stale && !hard_failure;
-        final_reason = loop.reason;
-        if (stale && (loop.fusion.attempted || loop.optimization.attempted)) {
-          fusion_retry_keyframe = queued.loop->query_keyframe_id;
-          fusion_retry_arrival = queued.loop->source_arrival_id;
-          fusion_retry_cause = loop.optimization.attempted ?
-            "loop_optimization_stale_retry" :
-            (loop.fusion.rolled_back ?
-            "fusion_rollback_retry" : "fusion_stale_retry");
-        }
-        EmitSecondaryFlowEvent(
-          "loop_detector_loop_bow_index", "upsert_search", queued,
-          secondary_queue_.Pending(),
-          " candidates=" + std::to_string(loop.bow_candidates));
-        EmitSecondaryFlowEvent(
-          "loop_bow_index_subcloud_loop_verifier", "geometry", queued,
-          secondary_queue_.Pending(),
-          " regions=" + std::to_string(loop.regions.size()) +
-          " results=" + std::to_string(loop.geometry_results.size()));
-        EmitSecondaryFlowEvent(
-          "subcloud_loop_verifier_loop_decision", "decision", queued,
-          secondary_queue_.Pending(),
-          " result=" + std::string(orbslam3_multi::ToString(loop.decision)));
-        if (loop.optimization.attempted) {
-          EmitSecondaryFlowEvent(
-            "pose_graph_builder_optimization_manager", "solve_loop", queued,
-            secondary_queue_.Pending(),
-            " controls=" + std::to_string(loop.optimization.controls) +
-            " iterations=" + std::to_string(loop.optimization.iterations));
-          EmitSecondaryFlowEvent(
-            "optimization_manager_validation", "validate_loop", queued,
-            secondary_queue_.Pending(),
-            " accepted=" + std::string(
-              loop.optimization.accepted ? "true" : "false"));
-          if (loop.optimization.committed) {
-            EmitSecondaryFlowEvent(
-              "validation_global_pose_store", "commit_loop", queued,
-              secondary_queue_.Pending(),
-              " moved=" + std::to_string(loop.optimization.moved_keyframes));
-            EmitSecondaryFlowEvent(
-              "global_pose_store_global_map_builder", "pose_dirty", queued,
-              secondary_queue_.Pending(),
-              " kfs=" + std::to_string(loop.optimization.moved_keyframes));
-          }
-          RCLCPP_WARN(
-            get_logger(),
-            "[F3Q-LOOP-OPT] task=%lu graph=%s optimized=%s accepted=%s committed=%s "
-            "stale=%s submaps=%zu window=%zu controls=%zu edges=(temporal=%zu,covis=%zu,loop=%zu) "
-            "iterations=%zu error_before=(%.6f,%.6f) error_after=(%.6f,%.6f) "
-            "structure=(edges=%zu,corridor_kfs=%zu,max_increase=%.6fm/%.6frad,"
-            "corridor_excess=%.6fm/%.6frad->%.6fm/%.6frad) "
-            "cost=(%.6f->%.6f) time_ms=(graph=%.3f,solve=%.3f,validation=%.3f,commit=%.3f) "
-            "rebuilds=%zu discarded_regions=%zu moved=%zu propagated=%zu "
-            "rebased_skipped=%zu rebased_inactive=%zu fusion_after=%s reason=%s",
-            queued.task_id, loop.optimization.graph_built ? "true" : "false",
-            loop.optimization.optimized ? "true" : "false",
-            loop.optimization.accepted ? "true" : "false",
-            loop.optimization.committed ? "true" : "false",
-            loop.optimization.stale ? "true" : "false",
-            loop.optimization.submaps, loop.optimization.window_keyframes,
-            loop.optimization.controls, loop.optimization.temporal_edges,
-            loop.optimization.covisibility_edges, loop.optimization.loop_edges,
-            loop.optimization.iterations,
-            loop.optimization.initial_translation_error_m,
-            loop.optimization.initial_rotation_error_rad,
-            loop.optimization.final_translation_error_m,
-            loop.optimization.final_rotation_error_rad,
-            loop.optimization.structural_edges_checked,
-            loop.optimization.hard_corridor_keyframes_checked,
-            loop.optimization.max_structural_translation_increase_m,
-            loop.optimization.max_structural_rotation_increase_rad,
-            loop.optimization.max_corridor_translation_excess_before_m,
-            loop.optimization.max_corridor_rotation_excess_before_rad,
-            loop.optimization.max_corridor_translation_excess_after_m,
-            loop.optimization.max_corridor_rotation_excess_after_rad,
-            loop.optimization.initial_cost, loop.optimization.final_cost,
-            loop.optimization.graph_ms, loop.optimization.solve_ms,
-            loop.optimization.validation_ms, loop.optimization.commit_ms,
-            loop.optimization.rebuilds,
-            loop.optimization.discarded_loop_regions,
-            loop.optimization.moved_keyframes,
-            loop.optimization.propagated_keyframes,
-            loop.optimization.rebased_skipped_controls,
-            loop.optimization.rebased_inactive_controls,
-            loop.optimization.fusion_after_optimization ? "true" : "false",
-            loop.optimization.reason.c_str());
-          RCLCPP_WARN(
-            get_logger(),
-            "[F3Q-OPT-END] task=%lu stop_drones=false committed=%s reason=%s",
-            queued.task_id, loop.optimization.committed ? "true" : "false",
+            orbslam3_multi::ToString(loop.decision),
+            loop.used_fast_overlap ? "true" : "false", loop.bow_candidates,
+            loop.regions.size(), loop.geometry_results.size(),
+            loop.optimization_geometry_indices.size(), loop.fusion_pairs.size(),
+            loop.anchor_commit.anchored_submaps.size(),
+            loop.anchor_commit.dirty_keyframe_ids.size(),
+            loop.hypothesis_support.observed ? "true" : "false",
+            loop.hypothesis_support.compatible_hypothesis ? "true" : "false",
+            loop.hypothesis_support.independent ? "true" : "false",
+            loop.hypothesis_support.support,
+            loop.hypothesis_support.required_support,
+            loop.hypothesis_support.competing_support,
+            loop.hypothesis_support.ambiguity_satisfied ? "true" : "false",
+            loop.hypothesis_support.ambiguity_margin,
+            loop.hypothesis_support.nearest_translation_separation_m,
+            loop.hypothesis_support.nearest_yaw_separation_rad,
+            loop.hypothesis_support.accepted ? "true" : "false",
+            loop.recent_loss_gate_checked ? "true" : "false",
+            loop.recent_loss_gate_passed ? "true" : "false",
+            loop.recent_loss_translation_m,
+            loop.recent_loss_rotation_rad,
+            loop.recent_loss_translation_limit_m,
+            loop.recent_loss_rotation_limit_rad,
+            loop.protected_region_checked ? "true" : "false",
+            loop.protected_query_stable ? "true" : "false",
+            loop.protected_candidate_stable ? "true" : "false",
+            loop.protected_region_rejected ? "true" : "false",
+            loop.rejection_ledger_hit ? "true" : "false",
+            loop.protected_translation_error_m,
+            loop.protected_rotation_error_rad,
+            loop.refresh_spatial_candidates,
+            loop.refresh_spatial_rejected,
             loop.reason.c_str());
-        }
-        if (loop.fusion.attempted) {
-          EmitSecondaryFlowEvent(
-            loop.optimization.committed ?
-            "validation_fused_landmark_manager" :
-            "loop_decision_fused_landmark_manager",
-            loop.optimization.committed ? "fusion_after_opt" : "fusion_prepare", queued,
-            secondary_queue_.Pending(),
-            " pairs=" + std::to_string(loop.fusion.pair_results));
-        }
-        if (loop.fusion.committed) {
-          EmitSecondaryFlowEvent(
-            "fused_landmark_manager_covisibility_database", "server_covisibility", queued,
-            secondary_queue_.Pending(),
-            " added=" + std::to_string(loop.fusion.covisibility_added));
-          EmitSecondaryFlowEvent(
-            "fused_landmark_manager_landmark_score_manager", "score_evidence", queued,
-            secondary_queue_.Pending(),
-            " positive=" + std::to_string(loop.fusion.score_positive_events) +
-            " negative=" + std::to_string(loop.fusion.score_negative_events) +
-            " visibility_diagnostics=" +
-            std::to_string(loop.fusion.score_visibility_diagnostics));
-          EmitSecondaryFlowEvent(
-            "fused_landmark_manager_global_map_builder", "fusion_dirty", queued,
-            secondary_queue_.Pending(),
-            " hidden=" + std::to_string(loop.fusion.hidden_raw_members));
-        }
-        if (loop.anchor_commit.status == orbslam3_multi::PoseCommitStatus::Applied) {
-          EmitSecondaryFlowEvent(
-            "loop_decision_loop_anchor_store", "anchor_evidence", queued,
-            secondary_queue_.Pending(),
-            " submaps=" + std::to_string(loop.anchor_commit.anchored_submaps.size()));
-          EmitSecondaryFlowEvent(
-            "loop_anchor_store_global_pose_store", "anchor_commit", queued,
-            secondary_queue_.Pending(),
-            " submaps=" + std::to_string(loop.anchor_commit.anchored_submaps.size()) +
-            " kfs=" + std::to_string(loop.anchor_commit.dirty_keyframe_ids.size()));
-          EmitSecondaryFlowEvent(
-            "global_pose_store_global_map_builder", "pose_dirty", queued,
-            secondary_queue_.Pending(),
-            " kfs=" + std::to_string(loop.anchor_commit.dirty_keyframe_ids.size()));
-          auto reruns = backend_.CreateLoopTasks(
-            queued.loop->source_arrival_id, loop.rerun_keyframe_ids);
-          EnqueueLoopTasks(&reruns, "anchor_revision_changed");
-        }
-        RCLCPP_WARN(
-          get_logger(),
-          "[F3O-LOOP-DONE] task=%lu query=(%u,%lu,%lu) decision=%s fast=%s bow=%zu "
-          "regions=%zu geometry=%zu opt_regions=%zu fusion_pairs=%zu anchors=%zu dirty=%zu "
-          "support=(observed=%s,compatible=%s,independent=%s,count=%zu/%zu,competing=%zu,"
-          "ambiguity=%s,margin=%zu,separation=%.3fm/%.3frad,accepted=%s) "
-          "recent_loss=(checked=%s,passed=%s,error=%.3fm/%.3frad,limit=%.3fm/%.3frad) "
-          "protected=(checked=%s,query=%s,candidate=%s,rejected=%s,ledger=%s,"
-          "error=%.3fm/%.3frad) refresh_spatial=(accepted=%zu,rejected=%zu) "
-          "reason=%s",
-          queued.task_id, queued.loop->query_keyframe_id.drone_id,
-          queued.loop->query_keyframe_id.map_epoch,
-          queued.loop->query_keyframe_id.local_kf_id,
-          orbslam3_multi::ToString(loop.decision),
-          loop.used_fast_overlap ? "true" : "false", loop.bow_candidates,
-          loop.regions.size(), loop.geometry_results.size(),
-          loop.optimization_geometry_indices.size(), loop.fusion_pairs.size(),
-          loop.anchor_commit.anchored_submaps.size(),
-          loop.anchor_commit.dirty_keyframe_ids.size(),
-          loop.hypothesis_support.observed ? "true" : "false",
-          loop.hypothesis_support.compatible_hypothesis ? "true" : "false",
-          loop.hypothesis_support.independent ? "true" : "false",
-          loop.hypothesis_support.support,
-          loop.hypothesis_support.required_support,
-          loop.hypothesis_support.competing_support,
-          loop.hypothesis_support.ambiguity_satisfied ? "true" : "false",
-          loop.hypothesis_support.ambiguity_margin,
-          loop.hypothesis_support.nearest_translation_separation_m,
-          loop.hypothesis_support.nearest_yaw_separation_rad,
-          loop.hypothesis_support.accepted ? "true" : "false",
-          loop.recent_loss_gate_checked ? "true" : "false",
-          loop.recent_loss_gate_passed ? "true" : "false",
-          loop.recent_loss_translation_m,
-          loop.recent_loss_rotation_rad,
-          loop.recent_loss_translation_limit_m,
-          loop.recent_loss_rotation_limit_rad,
-          loop.protected_region_checked ? "true" : "false",
-          loop.protected_query_stable ? "true" : "false",
-          loop.protected_candidate_stable ? "true" : "false",
-          loop.protected_region_rejected ? "true" : "false",
-          loop.rejection_ledger_hit ? "true" : "false",
-          loop.protected_translation_error_m,
-          loop.protected_rotation_error_rad,
-          loop.refresh_spatial_candidates,
-          loop.refresh_spatial_rejected,
-          loop.reason.c_str());
-        if (loop.fusion.attempted) {
-          RCLCPP_INFO(
-            get_logger(),
-            "[F3S-FUSED-SCORE-COMMIT] task=%lu committed=%s positive=%zu "
-            "negative=%zu visibility_diagnostics=%zu dirty=%zu",
-            queued.task_id, loop.fusion.committed ? "true" : "false",
-            loop.fusion.score_positive_events, loop.fusion.score_negative_events,
-            loop.fusion.score_visibility_diagnostics,
-            loop.fusion.score_raw_updates);
+          if (loop.fusion.attempted) {
+            RCLCPP_INFO(
+              get_logger(),
+              "[F3R-FUSED-SCORE-COMMIT] task=%lu committed=%s positive=%zu "
+              "negative=%zu visibility_diagnostics=%zu dirty=%zu",
+              queued.task_id, loop.fusion.committed ? "true" : "false",
+              loop.fusion.score_positive_events, loop.fusion.score_negative_events,
+              loop.fusion.score_visibility_diagnostics,
+              loop.fusion.score_raw_updates);
+            RCLCPP_WARN(
+              get_logger(),
+              "[F3P-FUSION] task=%lu prepared=%s committed=%s stale=%s rollback=%s "
+              "pairs=%zu tracks=(%zu,%zu,%zu) hidden=%zu score=(+%zu,-%zu,dirty=%zu) "
+              "covis=(+%zu,~%zu) visibility=(regions=%zu/%zu,projected=%zu,time_ms=%.3f) "
+              "timing_ms=(prepare=%.3f,commit=%.3f) reason=%s",
+              queued.task_id, loop.fusion.prepared ? "true" : "false",
+              loop.fusion.committed ? "true" : "false",
+              loop.fusion.stale ? "true" : "false",
+              loop.fusion.rolled_back ? "true" : "false",
+              loop.fusion.pair_results, loop.fusion.tracks_created,
+              loop.fusion.tracks_updated, loop.fusion.tracks_retired,
+              loop.fusion.hidden_raw_members, loop.fusion.score_positive_events,
+              loop.fusion.score_negative_events, loop.fusion.score_raw_updates,
+              loop.fusion.covisibility_added, loop.fusion.covisibility_updated,
+              loop.fusion.visibility_regions_completed,
+              loop.fusion.visibility_regions_started,
+              loop.fusion.visibility_projected_points, loop.fusion.visibility_ms,
+              loop.fusion.prepare_ms, loop.fusion.commit_ms, loop.fusion.reason.c_str());
+          }
+          for (const auto & geometry : loop.geometry_results) {
+            RCLCPP_INFO(
+              get_logger(),
+              "[F3O-RANSAC] task=%lu query=%lu candidate=%lu accepted=%s matches=%zu "
+              "inliers=%zu ratio=%.3f mean=%.4f max=%.4f pose_error=(%.4f,%.4f) reason=%s",
+              queued.task_id, geometry.query_keyframe_id.local_kf_id,
+              geometry.candidate_keyframe_id.local_kf_id,
+              geometry.accepted ? "true" : "false", geometry.matches,
+              geometry.inliers, geometry.inlier_ratio, geometry.mean_residual_m,
+              geometry.max_residual_m, geometry.current_translation_error_m,
+              geometry.current_rotation_error_rad, geometry.reason.c_str());
+          }
+        } else if (queued.kind == SecondaryTaskKind::FiducialOptimization &&
+          queued.fiducial.has_value())
+        {
+          auto revalidation = backend_.RevalidateFiducialTask(*queued.fiducial);
           RCLCPP_WARN(
             get_logger(),
-            "[F3P-FUSION] task=%lu prepared=%s committed=%s stale=%s rollback=%s "
-            "pairs=%zu tracks=(%zu,%zu,%zu) hidden=%zu score=(+%zu,-%zu,dirty=%zu) "
-            "covis=(+%zu,~%zu) visibility=(regions=%zu/%zu,projected=%zu,time_ms=%.3f) "
-            "timing_ms=(prepare=%.3f,commit=%.3f) reason=%s",
-            queued.task_id, loop.fusion.prepared ? "true" : "false",
-            loop.fusion.committed ? "true" : "false",
-            loop.fusion.stale ? "true" : "false",
-            loop.fusion.rolled_back ? "true" : "false",
-            loop.fusion.pair_results, loop.fusion.tracks_created,
-            loop.fusion.tracks_updated, loop.fusion.tracks_retired,
-            loop.fusion.hidden_raw_members, loop.fusion.score_positive_events,
-            loop.fusion.score_negative_events, loop.fusion.score_raw_updates,
-            loop.fusion.covisibility_added, loop.fusion.covisibility_updated,
-            loop.fusion.visibility_regions_completed,
-            loop.fusion.visibility_regions_started,
-            loop.fusion.visibility_projected_points, loop.fusion.visibility_ms,
-            loop.fusion.prepare_ms, loop.fusion.commit_ms, loop.fusion.reason.c_str());
-        }
-        for (const auto & geometry : loop.geometry_results) {
-          RCLCPP_INFO(
-            get_logger(),
-            "[F3O-RANSAC] task=%lu query=%lu candidate=%lu accepted=%s matches=%zu "
-            "inliers=%zu ratio=%.3f mean=%.4f max=%.4f pose_error=(%.4f,%.4f) reason=%s",
-            queued.task_id, geometry.query_keyframe_id.local_kf_id,
-            geometry.candidate_keyframe_id.local_kf_id,
-            geometry.accepted ? "true" : "false", geometry.matches,
-            geometry.inliers, geometry.inlier_ratio, geometry.mean_residual_m,
-            geometry.max_residual_m, geometry.current_translation_error_m,
-            geometry.current_rotation_error_rad, geometry.reason.c_str());
-        }
-      } else if (queued.kind == SecondaryTaskKind::FiducialOptimization &&
-        queued.fiducial.has_value())
-      {
-        auto revalidation = backend_.RevalidateFiducialTask(*queued.fiducial);
-        RCLCPP_WARN(
-          get_logger(),
-          "[F3H-FID-REVALIDATE] task=%lu decision=%s translation=%.6f "
-          "rotation=%.6f yaw=%.6f reason=%s",
-          queued.task_id, orbslam3_multi::ToString(revalidation.decision),
-          revalidation.error.translation_m, revalidation.error.rotation_rad,
-          revalidation.error.yaw_rad, revalidation.reason.c_str());
-        if (revalidation.decision == orbslam3_multi::FiducialTaskDecision::Stale) {
-          stale = true;
-          final_reason = revalidation.reason;
-          EmitSecondaryFlowEvent(
-            "secondary_worker_validation", "stale", queued,
-            secondary_queue_.Pending(), " reason=" + final_reason);
-        } else if (revalidation.decision != orbslam3_multi::FiducialTaskDecision::Ready) {
-          hard_failure = true;
-          final_reason = revalidation.reason;
-        } else {
-          optimization_active_.store(true);
-          UpdateBackpressure();
-          auto active_task = revalidation.task;
-          for (uint32_t pass = 1;
-            pass <= fiducial_optimization_config_.max_refinement_passes; ++pass)
-          {
-            const auto graph = backend_.BuildFiducialPoseGraph(active_task);
-            if (!graph.success) {
-              hard_failure = true;
-              final_reason = graph.reason;
-              break;
-            }
+            "[F3H-FID-REVALIDATE] task=%lu decision=%s translation=%.6f "
+            "rotation=%.6f yaw=%.6f reason=%s",
+            queued.task_id, orbslam3_multi::ToString(revalidation.decision),
+            revalidation.error.translation_m, revalidation.error.rotation_rad,
+            revalidation.error.yaw_rad, revalidation.reason.c_str());
+          if (revalidation.decision == orbslam3_multi::FiducialTaskDecision::Stale) {
+            stale = true;
+            final_reason = revalidation.reason;
             EmitSecondaryFlowEvent(
-              "secondary_worker_pose_graph_builder", "graph_build", queued,
-              secondary_queue_.Pending(),
-              " pass=" + std::to_string(pass) +
-              " window=" + std::to_string(graph.problem.keyframes.size()) +
-              " controls=" + std::to_string(graph.problem.control_indices.size()));
-            RCLCPP_WARN(
-              get_logger(),
-              "[F3I-GRAPH-BUILD] task=%lu pass=%u submap=(%u,%lu) "
-              "control=%lu target=%lu window=%zu controls=%zu edges=%zu propagation=%zu",
-              queued.task_id, pass, active_task.submap_id.drone_id,
-              active_task.submap_id.map_epoch, active_task.control_keyframe_id.local_kf_id,
-              active_task.keyframe_id.local_kf_id, graph.problem.keyframes.size(),
-              graph.problem.control_indices.size(), graph.problem.temporal_edges.size(),
-              graph.problem.propagation_plan.size());
-
-            const auto proposal = backend_.OptimizeFiducialPoseGraph(graph.problem);
-            EmitSecondaryFlowEvent(
-              "pose_graph_builder_optimization_manager", "solve", queued,
-              secondary_queue_.Pending(),
-              " pass=" + std::to_string(pass) +
-              " status=" + orbslam3_multi::ToString(proposal.status));
-            RCLCPP_WARN(
-              get_logger(),
-              "[F3J-OPTIMIZE] task=%lu pass=%u status=%s correction_fraction=%.3f "
-              "before=(%.6f,%.6f,%.6f) after=(%.6f,%.6f,%.6f) reason=%s",
-              queued.task_id, pass, orbslam3_multi::ToString(proposal.status),
-              proposal.correction_fraction, proposal.initial_error.translation_m,
-              proposal.initial_error.rotation_rad, proposal.initial_error.yaw_rad,
-              proposal.final_error.translation_m, proposal.final_error.rotation_rad,
-              proposal.final_error.yaw_rad, proposal.reason.c_str());
-
-            const auto validation = backend_.ValidateFiducialProposal(
-              graph.problem, proposal);
-            EmitSecondaryFlowEvent(
-              "optimization_manager_validation", "validate", queued,
-              secondary_queue_.Pending(),
-              " pass=" + std::to_string(pass) +
-              " decision=" + orbslam3_multi::ToString(validation.decision));
-            RCLCPP_WARN(
-              get_logger(),
-              "[F3L-VALIDATE] task=%lu pass=%u decision=%s final=(%.6f,%.6f,%.6f) "
-              "reason=%s",
-              queued.task_id, pass, orbslam3_multi::ToString(validation.decision),
-              validation.final_error.translation_m, validation.final_error.rotation_rad,
-              validation.final_error.yaw_rad, validation.reason.c_str());
-            if (validation.decision == orbslam3_multi::ValidationDecision::HardFailure) {
-              hard_failure = true;
-              final_reason = validation.reason;
-              break;
-            }
-
-            const auto commit = backend_.CommitFiducialProposal(
-              graph.problem, proposal, validation);
-            if (!commit.committed) {
-              if (commit.reason == "scoped_revision_conflict" ||
-                commit.reason == "revision_conflict")
-              {
-                RCLCPP_WARN(
-                  get_logger(),
-                  "[F3K-COMMIT-STALE] task=%lu pass=%u reason=%s action=revalidate",
-                  queued.task_id, pass, commit.reason.c_str());
-                revalidation = backend_.RevalidateFiducialTask(active_task);
-                if (revalidation.decision ==
-                  orbslam3_multi::FiducialTaskDecision::Stale)
-                {
-                  stale = true;
-                  final_reason = "stale_after_revision_conflict";
-                  break;
-                }
-                if (revalidation.decision ==
-                  orbslam3_multi::FiducialTaskDecision::Ready)
-                {
-                  fiducial_retry_task = revalidation.task;
-                  stale = true;
-                  final_reason = "fiducial_revision_conflict_retry";
-                  break;
-                }
+              "secondary_worker_validation", "stale", queued,
+              secondary_queue_.Pending(), " reason=" + final_reason);
+          } else if (revalidation.decision != orbslam3_multi::FiducialTaskDecision::Ready) {
+            hard_failure = true;
+            final_reason = revalidation.reason;
+          } else {
+            optimization_active_.store(true);
+            UpdateBackpressure();
+            auto active_task = revalidation.task;
+            for (uint32_t pass = 1;
+              pass <= fiducial_optimization_config_.max_refinement_passes; ++pass)
+            {
+              const auto graph = backend_.BuildFiducialPoseGraph(active_task);
+              if (!graph.success) {
+                hard_failure = true;
+                final_reason = graph.reason;
+                break;
               }
-              hard_failure = true;
-              final_reason = commit.reason;
-              break;
-            }
-            EmitSecondaryFlowEvent(
-              "validation_global_pose_store",
-              commit.full_accept ? "commit_full" : "commit_partial", queued,
-              secondary_queue_.Pending(),
-              " pass=" + std::to_string(pass) +
-              " moved=" + std::to_string(commit.pose_changes.updated_ids.size()) +
-              " propagated=" +
-              std::to_string(commit.pose_changes.control_propagated_ids.size()));
-            EmitSecondaryFlowEvent(
-              "global_pose_store_global_map_builder", "pose_dirty", queued,
-              secondary_queue_.Pending(),
-              " kfs=" + std::to_string(commit.pose_changes.updated_ids.size()) +
-              " propagated=" +
-              std::to_string(commit.pose_changes.control_propagated_ids.size()));
-            RCLCPP_WARN(
-              get_logger(),
-              "[F3K-ATOMIC-COMMIT] task=%lu pass=%u full=%s commit=%lu revision=%lu "
-              "window=%zu late_window=%zu tail=%zu moved_kfs=%zu "
-              "control_propagated=%zu hard_added=%zu",
-              queued.task_id, pass, commit.full_accept ? "true" : "false",
-              commit.pose_changes.commit_id, commit.pose_changes.store_revision_after,
-              commit.window_keyframes, commit.late_window_keyframes,
-              commit.tail_keyframes, commit.pose_changes.updated_ids.size(),
-              commit.pose_changes.control_propagated_ids.size(),
-              commit.pose_changes.hard_fiducial_ids.size());
-            post_optimization_rerun_ids.insert(
-              post_optimization_rerun_ids.end(), commit.rerun_keyframe_ids.begin(),
-              commit.rerun_keyframe_ids.end());
-            post_optimization_arrival = active_task.observation_arrival_id;
-            if (commit.full_accept) {
+              EmitSecondaryFlowEvent(
+                "secondary_worker_pose_graph_builder", "graph_build", queued,
+                secondary_queue_.Pending(),
+                " pass=" + std::to_string(pass) +
+                " window=" + std::to_string(graph.problem.keyframes.size()) +
+                " controls=" + std::to_string(graph.problem.control_indices.size()));
               RCLCPP_WARN(
                 get_logger(),
-                "[F3K-CONTINUATION-UPDATE] task=%lu submap=(%u,%lu) control=%lu "
-                "commit=%lu revision=%lu",
-                queued.task_id, active_task.submap_id.drone_id,
-                active_task.submap_id.map_epoch, active_task.keyframe_id.local_kf_id,
-                commit.pose_changes.commit_id, commit.pose_changes.store_revision_after);
-            }
-            if (commit.full_accept) {
-              full_success = true;
-              final_reason = commit.reason;
-              break;
-            }
+                "[F3I-GRAPH-BUILD] task=%lu pass=%u submap=(%u,%lu) "
+                "control=%lu target=%lu window=%zu controls=%zu edges=%zu propagation=%zu",
+                queued.task_id, pass, active_task.submap_id.drone_id,
+                active_task.submap_id.map_epoch, active_task.control_keyframe_id.local_kf_id,
+                active_task.keyframe_id.local_kf_id, graph.problem.keyframes.size(),
+                graph.problem.control_indices.size(), graph.problem.temporal_edges.size(),
+                graph.problem.propagation_plan.size());
 
-            revalidation = backend_.RevalidateFiducialTask(active_task);
-            if (revalidation.decision == orbslam3_multi::FiducialTaskDecision::Stale) {
-              full_success = true;
-              final_reason = "partial_commit_revalidated_within_threshold";
-              break;
+              const auto proposal = backend_.OptimizeFiducialPoseGraph(graph.problem);
+              EmitSecondaryFlowEvent(
+                "pose_graph_builder_optimization_manager", "solve", queued,
+                secondary_queue_.Pending(),
+                " pass=" + std::to_string(pass) +
+                " status=" + orbslam3_multi::ToString(proposal.status));
+              RCLCPP_WARN(
+                get_logger(),
+                "[F3J-OPTIMIZE] task=%lu pass=%u status=%s correction_fraction=%.3f "
+                "before=(%.6f,%.6f,%.6f) after=(%.6f,%.6f,%.6f) reason=%s",
+                queued.task_id, pass, orbslam3_multi::ToString(proposal.status),
+                proposal.correction_fraction, proposal.initial_error.translation_m,
+                proposal.initial_error.rotation_rad, proposal.initial_error.yaw_rad,
+                proposal.final_error.translation_m, proposal.final_error.rotation_rad,
+                proposal.final_error.yaw_rad, proposal.reason.c_str());
+
+              const auto validation = backend_.ValidateFiducialProposal(
+                graph.problem, proposal);
+              EmitSecondaryFlowEvent(
+                "optimization_manager_validation", "validate", queued,
+                secondary_queue_.Pending(),
+                " pass=" + std::to_string(pass) +
+                " decision=" + orbslam3_multi::ToString(validation.decision));
+              RCLCPP_WARN(
+                get_logger(),
+                "[F3L-VALIDATE] task=%lu pass=%u decision=%s final=(%.6f,%.6f,%.6f) "
+                "reason=%s",
+                queued.task_id, pass, orbslam3_multi::ToString(validation.decision),
+                validation.final_error.translation_m, validation.final_error.rotation_rad,
+                validation.final_error.yaw_rad, validation.reason.c_str());
+              if (validation.decision == orbslam3_multi::ValidationDecision::HardFailure) {
+                hard_failure = true;
+                final_reason = validation.reason;
+                break;
+              }
+
+              const auto commit = backend_.CommitFiducialProposal(
+                graph.problem, proposal, validation);
+              if (!commit.committed) {
+                if (commit.reason == "scoped_revision_conflict" ||
+                  commit.reason == "revision_conflict")
+                {
+                  RCLCPP_WARN(
+                    get_logger(),
+                    "[F3K-COMMIT-STALE] task=%lu pass=%u reason=%s action=revalidate",
+                    queued.task_id, pass, commit.reason.c_str());
+                  revalidation = backend_.RevalidateFiducialTask(active_task);
+                  if (revalidation.decision ==
+                    orbslam3_multi::FiducialTaskDecision::Stale)
+                  {
+                    stale = true;
+                    final_reason = "stale_after_revision_conflict";
+                    break;
+                  }
+                  if (revalidation.decision ==
+                    orbslam3_multi::FiducialTaskDecision::Ready)
+                  {
+                    fiducial_retry_task = revalidation.task;
+                    stale = true;
+                    final_reason = "fiducial_revision_conflict_retry";
+                    break;
+                  }
+                }
+                hard_failure = true;
+                final_reason = commit.reason;
+                break;
+              }
+              EmitSecondaryFlowEvent(
+                "validation_global_pose_store",
+                commit.full_accept ? "commit_full" : "commit_partial", queued,
+                secondary_queue_.Pending(),
+                " pass=" + std::to_string(pass) +
+                " moved=" + std::to_string(commit.pose_changes.updated_ids.size()) +
+                " propagated=" +
+                std::to_string(commit.pose_changes.control_propagated_ids.size()));
+              EmitSecondaryFlowEvent(
+                "global_pose_store_global_map_builder", "pose_dirty", queued,
+                secondary_queue_.Pending(),
+                " kfs=" + std::to_string(commit.pose_changes.updated_ids.size()) +
+                " propagated=" +
+                std::to_string(commit.pose_changes.control_propagated_ids.size()));
+              RCLCPP_WARN(
+                get_logger(),
+                "[F3K-ATOMIC-COMMIT] task=%lu pass=%u full=%s commit=%lu revision=%lu "
+                "window=%zu late_window=%zu tail=%zu moved_kfs=%zu "
+                "control_propagated=%zu hard_added=%zu",
+                queued.task_id, pass, commit.full_accept ? "true" : "false",
+                commit.pose_changes.commit_id, commit.pose_changes.store_revision_after,
+                commit.window_keyframes, commit.late_window_keyframes,
+                commit.tail_keyframes, commit.pose_changes.updated_ids.size(),
+                commit.pose_changes.control_propagated_ids.size(),
+                commit.pose_changes.hard_fiducial_ids.size());
+              post_optimization_rerun_ids.insert(
+                post_optimization_rerun_ids.end(), commit.rerun_keyframe_ids.begin(),
+                commit.rerun_keyframe_ids.end());
+              post_optimization_arrival = active_task.observation_arrival_id;
+              if (commit.full_accept) {
+                RCLCPP_WARN(
+                  get_logger(),
+                  "[F3K-CONTINUATION-UPDATE] task=%lu submap=(%u,%lu) control=%lu "
+                  "commit=%lu revision=%lu",
+                  queued.task_id, active_task.submap_id.drone_id,
+                  active_task.submap_id.map_epoch, active_task.keyframe_id.local_kf_id,
+                  commit.pose_changes.commit_id, commit.pose_changes.store_revision_after);
+              }
+              if (commit.full_accept) {
+                full_success = true;
+                final_reason = commit.reason;
+                break;
+              }
+
+              revalidation = backend_.RevalidateFiducialTask(active_task);
+              if (revalidation.decision == orbslam3_multi::FiducialTaskDecision::Stale) {
+                full_success = true;
+                final_reason = "partial_commit_revalidated_within_threshold";
+                break;
+              }
+              if (revalidation.decision != orbslam3_multi::FiducialTaskDecision::Ready) {
+                hard_failure = true;
+                final_reason = revalidation.reason;
+                break;
+              }
+              active_task = revalidation.task;
             }
-            if (revalidation.decision != orbslam3_multi::FiducialTaskDecision::Ready) {
+            if (!full_success && !stale && !hard_failure) {
               hard_failure = true;
-              final_reason = revalidation.reason;
-              break;
+              final_reason = "max_refinement_passes_exceeded";
             }
-            active_task = revalidation.task;
+            optimization_active_.store(false);
           }
-          if (!full_success && !stale && !hard_failure) {
-            hard_failure = true;
-            final_reason = "max_refinement_passes_exceeded";
-          }
-          optimization_active_.store(false);
+        } else {
+          hard_failure = true;
+          final_reason = "secondary_payload_missing";
         }
-      } else {
-        hard_failure = true;
-        final_reason = "secondary_payload_missing";
-      }
       } catch (const std::exception & ex) {
         optimization_active_.store(false);
         hard_failure = true;
@@ -2283,10 +2287,12 @@ private:
     cloud.fields.push_back(MakePointField("score", 12, sensor_msgs::msg::PointField::FLOAT32));
     cloud.fields.push_back(MakePointField("rgb", 16, sensor_msgs::msg::PointField::FLOAT32));
     cloud.fields.push_back(MakePointField("drone_id", 20, sensor_msgs::msg::PointField::UINT32));
-    cloud.fields.push_back(MakePointField(
-      "map_epoch_low", 24, sensor_msgs::msg::PointField::UINT32));
-    cloud.fields.push_back(MakePointField(
-      "map_epoch_high", 28, sensor_msgs::msg::PointField::UINT32));
+    cloud.fields.push_back(
+      MakePointField(
+        "map_epoch_low", 24, sensor_msgs::msg::PointField::UINT32));
+    cloud.fields.push_back(
+      MakePointField(
+        "map_epoch_high", 28, sensor_msgs::msg::PointField::UINT32));
     cloud.data.resize(cloud.row_step);
     for (size_t index = 0; index < build.points.size(); ++index) {
       const auto & point = build.points[index];
@@ -2375,6 +2381,7 @@ private:
     return array;
   }
 
+  // Única frontera de publicación de cloud/KFs; consume la revisión conjunta del builder.
   void BuildAndPublishGlobalMap(
     uint64_t arrival_id,
     const std::string & source,
@@ -2683,6 +2690,7 @@ private:
   std::map<uint32_t, std::string> snapshot_services_;
   rclcpp::TimerBase::SharedPtr snapshot_startup_timer_;
   rclcpp::TimerBase::SharedPtr snapshot_periodic_timer_;
+  // Protege únicamente scheduling de snapshots; nunca se mantiene durante llamadas ROS.
   std::mutex snapshot_state_mutex_;
   std::deque<std::pair<uint32_t, std::string>> snapshot_waiting_;
   uint32_t snapshot_global_active_drone_ = 0;
@@ -2707,6 +2715,7 @@ private:
   size_t low_watermark_ = 2;
   size_t secondary_high_watermark_ = 64;
   size_t secondary_low_watermark_ = 16;
+  // Combina presión principal/secundaria y optimización sin mezclarla con locks del backend.
   std::mutex backpressure_state_mutex_;
   bool secondary_pressure_active_ = false;
   bool combined_backpressure_active_ = false;

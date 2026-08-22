@@ -1,0 +1,10 @@
+/**:
+  ros__parameters:
+    fiducial_translation_threshold_m: 0.35
+    fiducial_rotation_threshold_rad: 0.35
+    fiducial_yaw_threshold_rad: 0.25
+    pose_graph_control_vertex_ratio: 0.30
+    pose_graph_endpoint_neighborhood_ratio: 0.20
+    pose_graph_covisibility_min_support: 15
+    fiducial_max_correction_fraction_per_pass: 1.0
+    fiducial_max_refinement_passes: 4

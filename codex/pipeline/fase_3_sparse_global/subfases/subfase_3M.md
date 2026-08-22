@@ -6,9 +6,9 @@
 CONSEGUIDA; IMPLEMENTADA Y VALIDADA EL 2026-08-15
 ```
 
-Este documento sustituye el contrato legacy de 3M. La evidencia historica se
-conserva en `historial/por_subfase/historial_3M*.md` y la implementacion anterior
-solo se consulta desde `codex/contexto/paquetes/orbslam3_multi/legacy2/`.
+Este documento sustituye el contrato antiguo de 3M. La evidencia histórica se
+conserva en `historial/por_subfase/historial_3M*.md`; 3T retiró la
+implementación anterior después de validar su sustitución.
 
 ## Objetivo
 

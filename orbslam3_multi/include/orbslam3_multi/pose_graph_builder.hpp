@@ -9,6 +9,8 @@
 namespace orbslam3_multi
 {
 
+/// Captura ventanas fiduciales o loop con revisiones suficientes para detectar stale.
+/// Construye problemas privados; no mantiene autoridad ni ejecuta el solver.
 class PoseGraphBuilder
 {
 public:

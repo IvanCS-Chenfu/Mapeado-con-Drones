@@ -5,16 +5,15 @@ Usar este archivo antes de abrir el pipeline o historiales largos.
 ## Estado vigente
 
 ```text
-Fase 3: ACTUAL - REIMPLEMENTACION EN CURSO
+Fase actual: Fase 2 - separacion servidor/dron/simulacion
+Fase 3: CONSEGUIDA
 3B-3L: CONSEGUIDAS tecnica y visualmente
 3M-3O: CONSEGUIDAS tecnica y visualmente
 3P: CONSEGUIDA; CIERRE FUNCIONAL Y VISUAL CONFIRMADO
-3Q: A REVISAR; RESULTADO ACEPTADO PARA CONTINUAR
-3S: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
-3T: CONSEGUIDA; ARQUITECTURA AUDITADA Y RENDIMIENTO ACEPTADO
-3U: CONSEGUIDA; GRAFO WEB Y TRANSPORTE LIVE ACEPTADOS
-3V: CONSEGUIDA; REGRESION ACUMULADA ACEPTADA
-3W: CONSEGUIDA; RENDIMIENTO Y ROBUSTEZ ACEPTADOS
+3Q: CONSEGUIDA PARA EL CIERRE; MEJORA FUTURA DOCUMENTADA
+3R: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
+3S: CONSEGUIDA; PERFIL DEBUG Y MODO SILENCIOSO VALIDADOS
+3T: CONSEGUIDA; LIMPIEZA, CONFIGURACION Y HANDOFF VALIDADOS
 ```
 
 ## Runtime hasta 3Q
@@ -56,13 +55,34 @@ tarea secundaria activa se completa sin preemption.
 | 3N | LoopTask BAJA, indice BoW y regiones | `CONSEGUIDA` |
 | 3O | subnubes, RANSAC y anchor por loop | `CONSEGUIDA` |
 | 3P | fusion transitiva, score geometrico/visibilidad y commit incremental | `CONSEGUIDA` |
-| 3Q | optimizacion covisible comun loop/fiducial | `A REVISAR; ACEPTADA PARA CONTINUAR` |
-| 3S | scoring raw/fused incremental | `CONSEGUIDA` |
-| 3T | arquitectura runtime, ownership e invariantes | `CONSEGUIDA` |
-| 3U | RViz2 y diagrama JavaScript runtime | `CONSEGUIDA` |
-| 3V | regresion integral | `CONSEGUIDA` |
-| 3W | rendimiento, limites y robustez | `CONSEGUIDA` |
-| 3X | limpieza y handoff | pendiente |
+| 3Q | optimizacion covisible comun loop/fiducial | `CONSEGUIDA; MEJORA FUTURA DOCUMENTADA` |
+| 3R | scoring raw/fused incremental | `CONSEGUIDA` |
+| 3S | perfil YAML de observabilidad y debug | `CONSEGUIDA` |
+| 3T | limpieza, configuracion y handoff | `CONSEGUIDA` |
+
+Los contratos provisionales de arquitectura, visualizador, regresion y
+rendimiento se retiraron en 3T porque sus capacidades ya estaban implantadas y
+aceptadas. Sus historiales se conservan en `historial/absorbidas/` sin duplicar
+la planificacion activa.
+
+## Cierre 3T
+
+- legacy/snapshots de Fase 3 retirados con checkpoint `1b96a7a`;
+- ADR 0009 y seis YAML por despliegue, sincronizados mediante tests;
+- build 3/3 y CTest 9/9 + 10/10 + 8/8;
+- prueba 195 `success=true`, colas 0/0, 11 commits loop, cero hard failures y
+  23.978 puntos con score/rgb;
+- handoff en `RESULTADO_FINAL_FASE_3.md`;
+- 3Q conserva como mejora futura la evidencia adaptativa 2 frente a 8-10, sin
+  bloquear el cierre.
+
+## Cierre 3S
+
+- `fase3_debug.yaml` define RViz2, grafo web, navegador y logs de terminal;
+- los cuatro flags quedan inicialmente a false para el perfil de simulacion;
+- prueba 196 `success=true`, cuatro goals correctos y servidor operativo;
+- cero marcadores `[F3*]` y ningun proceso RViz2/bridge/navegador;
+- los errores reales permanecen visibles mediante nivel ROS `error`.
 
 ## Contrato 3H-3L
 
@@ -86,8 +106,8 @@ tarea secundaria activa se completa sin preemption.
 - una busqueda BoW agrupa candidatos por region y entrega inicialmente hasta
   tres seeds a geometria;
 - KFs no anclados tambien ejecutan loops; query/candidate es simetrico;
-- subnubes, matching y RANSAC conservan la base validada de `legacy2` sobre
-  inputs acotados y privados;
+- subnubes, matching y RANSAC usan la base reconstruida y validada sobre inputs
+  acotados y privados;
 - una fusion valida domina y suprime optimizacion de esa tarea, pero 3O no
   fusiona ni optimiza;
 - anchors/optimizaciones/constraints requieren dos queries independientes,
@@ -122,7 +142,7 @@ tarea secundaria activa se completa sin preemption.
 - se reutilizan todas las regiones compatibles de 3O, sin repetir RANSAC;
 - `FusedLandmarkManager` mantiene union transitiva, ID estable, medoid,
   procedencia y representante ponderado;
-- inlier `+0.04`; tras 3S la visibilidad sparse solo diagnostica y la
+- inlier `+0.04`; tras 3R la visibilidad sparse solo diagnostica y la
   penalizacion numerica de oclusion queda aplazada a Fase 8;
 - tracks, covisibilidad y score positivo usan patch/commit breve coherente;
 - stale o rollback termina la tarea y encola una BAJA fresca para el mismo KF;
@@ -172,7 +192,7 @@ tarea secundaria activa se completa sin preemption.
 - queda coste residual de una ventana 786 KFs/83.44 s; el usuario acepta el
   resultado y permite avanzar, manteniendo 3Q como punto de reentrada futuro.
 
-## Runtime y evidencia 3S
+## Runtime y evidencia 3R
 
 - raw = base ORB por factores recuperables de distancia/aislamiento mas
   `+0.04` por inlier; sin anchor usa factores neutros;
@@ -190,11 +210,13 @@ tarea secundaria activa se completa sin preemption.
   near sube 1->99 y media 0.1502->0.2596;
 - 194 cierra ambas colas en cero, publica 23.564 puntos score/rgb, conserva
   cero negativos sparse y recursos estables; el usuario confirma scores
-  visuales perfectos y concluye 3S.
+  visuales perfectos y concluye 3R.
 - incidencia 3Q en la misma 194: dos loops asimetricos del dron 2 corrigen
   3.950 m y 0.780 m antes del segundo fiducial hard, moviendo 359/362 KFs con
   evidencia ambigua. El fiducial posterior no reoptimiza el interior; 3Q sigue
-  `A REVISAR` y no se aplica correccion en este diagnostico.
+  conservando esta incidencia historica y no se aplica correccion en este
+  diagnostico. La revision visual de 195 no reprodujo el problema y permite el
+  cierre, con una mejora futura de evidencia adaptativa documentada.
 
 ## Evidencia 3P
 

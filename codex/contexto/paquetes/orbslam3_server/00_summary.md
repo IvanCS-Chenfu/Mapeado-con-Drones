@@ -2,7 +2,7 @@
 
 ## Estado activo
 
-Servidor ROS 2 reconstruido hasta 3S. Mantiene dos workers independientes:
+Servidor ROS 2 reconstruido hasta 3R. Mantiene dos workers independientes:
 
 ```text
 wrapper -> PrimaryQueue FIFO -> PrimaryWorker -> SparseGlobalBackend -> ROS
@@ -66,11 +66,20 @@ fiducial/corredor se rechazan antes del grafo con umbral 5 m/20 grados. Un
 ledger regional revisionado extiende el rechazo a KFs vecinos equivalentes sin
 impedir la optimizacion asimetrica cuando solo un extremo es fiable.
 
-3S configura score geometrico raw y bonus fused, emite telemetria live cada 25
+3R configura score geometrico raw y bonus fused, emite telemetria live cada 25
 arrivals y conserva `score/rgb` rojo-amarillo-verde en la nube completa. La
 visibilidad sparse solo diagnostica; oclusion numerica queda para Fase 8.
 Los defaults de distancia dejan banda neutra 1-5 m con baseline `0.06 m`;
 prueba 194 cierra colas en cero con 99 near, 11.433 far y media `0.2596`.
+
+3T separa parámetros en `config/global_map/{runtime,fiducials,optimization,
+loop_fusion,scoring,replay_debug}.yaml`. El launch directo usa esta copia;
+`replay_debug.yaml` solo se añade explícitamente y `CMakeLists.txt` instala
+configuración y launches.
+
+3S añade el argumento launch `log_level`. `multi_dron.launch.py` pasa `error`
+cuando `fase3_logs_terminal=false` e `info` cuando esta activo. Asi se ocultan
+los diagnosticos `[F3*]` sin silenciar errores o fallos reales del nodo.
 
 Componentes: `global_map_server.md`, `primary_queue.md`,
 `secondary_queue.md`, `ground_truth_buffer.md` y `launches.md`.
@@ -117,3 +126,8 @@ publishers:    /global_mapping/backpressure_active
   refresh/fusiones descendiendo 323 -> 310, sin `blocking_failure`;
 - recursos 188: servidor RSS maximo 423.4 MiB, grupo 2014.6 MiB, PSI memoria
   cero y guarda inactiva.
+- cierre 3T: CTest 10/10; prueba 195 procesa 741 entradas principales y 1262
+  tareas secundarias, termina `pending=0`/`hard_failed=0`, publica 23.978
+  puntos con score/rgb y alcanza 249.5 MiB RSS maximo.
+- cierre 3S: prueba 196 mantiene el servidor operativo con nivel `error`,
+  completa el escenario y no emite ningun marcador `[F3*]`.

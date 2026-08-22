@@ -18,6 +18,8 @@ struct FusedLandmarkConfig
   float member_bonus = 0.04F;
 };
 
+/// Mantiene tracks transitivos de MapPoints equivalentes sin modificar sus registros raw.
+/// PrepareFusion es privado/costoso; ApplyPatch y RollbackPatch forman la frontera atómica.
 class FusedLandmarkManager
 {
 public:

@@ -11,7 +11,7 @@ Dudas abiertas: ninguna
 ```
 
 Este documento define la implementacion vigente de 3J dentro del flujo conjunto
-3H-3L. El solver final validado de `legacy2` es la referencia algoritmica. Las
+3H-3L. El solver final de la baseline anterior fue referencia algorítmica. Las
 variantes experimentales o descartadas del legado no deben reaparecer.
 
 ## Sucesion acordada en 3Q
@@ -36,7 +36,7 @@ La optimizacion debe llevar el KF fiducial target a su observacion absoluta sin
 mover el control hard anterior y conservando de forma razonable la geometria
 relativa temporal de la ventana.
 
-## Referencia `legacy2`
+## Referencia algorítmica histórica
 
 Se recuperaran selectivamente los parametros y el comportamiento que dieron
 buen resultado:
@@ -156,7 +156,7 @@ capturado. 3K los detectara y propagara de forma coherente durante el commit.
 
 - reimplementar o adaptar `OptimizationManager` para consumir
   `PoseGraphProblem` inmutable;
-- portar la configuracion final validada de `legacy2` y documentar el origen de
+- portar la configuración final validada anteriormente y documentar el origen de
   sus parametros;
 - preservar restricciones SE(3), hard vertices y vecindades de extremos;
 - devolver `OptimizationProposal` sin efectos laterales;
@@ -199,7 +199,7 @@ solver.
 - trayectoria con movimiento vertical y giros fuertes;
 - ventana minima y ventana larga;
 - control inicial/hard exactamente inmovil;
-- target llevado al objetivo con el comportamiento esperado de `legacy2`;
+- target llevado al objetivo con el comportamiento esperado de la baseline;
 - propuesta finita y determinista;
 - `MAX_ITERATIONS` finito distinguible de fallo duro;
 - inyeccion de NaN, problema degenerado y restriccion incoherente;

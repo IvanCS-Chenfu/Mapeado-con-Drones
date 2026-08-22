@@ -5,11 +5,11 @@
 El objetivo es construir un mapa sparse global multi-dron a partir de mapas
 locales ORB-SLAM3 ejecutados en cada dron.
 
-3B congeló el runtime anterior en `legacy2`; 3C ya reconstruyó la primera ruta
-activa. `orbslam3_server` consume deltas de ambos wrappers mediante una FIFO y
-un worker principal único, y `orbslam3_multi` vuelve a exportar
-`RawMapDatabase`. Las capacidades posteriores siguen siendo objetivo, no
-runtime activo.
+3B congeló temporalmente el runtime anterior y 3T lo retiró después de validar
+su sustitución. El runtime actual ya integra la ruta completa 3C-3R:
+`orbslam3_server` consume deltas mediante una FIFO y un worker principal único,
+mientras `orbslam3_multi` mantiene autoridades separadas para raw, poses,
+score, fusión y vista pública.
 
 ## Flujo de alto nivel
 
@@ -21,8 +21,8 @@ Gazebo
   -> OrbMap delta / pose_local
   -> GlobalMapServer -> PrimaryQueue -> PrimaryWorker -> RawMapDatabase
 
-Desde 3D se ampliara incrementalmente:
-  raw -> poses/anchors -> builder -> loops/optimizacion
+Ruta derivada vigente:
+  raw -> poses/anchors -> score/fusion -> builder -> loops/optimizacion
 ```
 
 ## `orbslam3_server`

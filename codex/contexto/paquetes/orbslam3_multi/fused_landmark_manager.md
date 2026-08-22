@@ -19,7 +19,7 @@ privados que el backend coordina con covisibilidad y score.
 - `ApplyPatch()` devuelve rollback para que el backend revierta si falla otra
   autoridad del commit logico.
 
-## Score 3S
+## Score 3R
 
 ```text
 score_fused = clamp(media(score_raw de todos los miembros) + 0.04 * N, 0, 1)
@@ -35,7 +35,7 @@ idempotente. `BuildScoreUpdatesForMembers()` localiza y recalcula solo tracks
 que contienen raw scores modificados posteriormente.
 
 La visibilidad sparse simetrica conserva depth buffers compartidos y contadores
-de proyecciones/contradicciones, pero no emite deltas negativos en 3S. Una
+de proyecciones/contradicciones, pero no emite deltas negativos en 3R. Una
 tarea rejected/stale conserva `dirty=0` y ninguna evidencia se vuelve visible.
 
 ## Referencias
@@ -58,7 +58,7 @@ orbslam3_multi/test/test_fused_landmark_manager.cpp
 ## Telemetria
 
 `[F3P-FUSION]` conserva el resumen estructural y
-`[F3S-FUSED-SCORE-COMMIT]` separa committed, positivos, negativos,
+`[F3R-FUSED-SCORE-COMMIT]` separa committed, positivos, negativos,
 diagnosticos y raw dirty. La prueba 193 observa 166 intentos muestreados, 77
 commits, 12.672 positivos, 6.319 diagnosticos, 4.528 raw dirty y cero eventos
 negativos.

@@ -8,8 +8,8 @@ Completa la rama de error bajo de la misma `LoopTask`: `LoopPipeline` reutiliza
 subnubes/RANSAC de 3O, fusiona tracks transitivos, aplica score por inliers y
 visibilidad sparse simetrica, compromete bases derivadas y deja dirty sets para
 el siguiente `PrimaryInput`. No crea otra tarea, publica, modifica raw/poses ni
-filtra puntos por score. `legacy2` es referencia algoritmica, no integracion a
-copiar. La rama de error alto queda para 3Q; 3P no crea almacenamiento
+filtra puntos por score. La baseline anterior fue referencia algorítmica, no
+una integración a copiar. La rama de error alto queda para 3Q; 3P no crea almacenamiento
 permanente anticipado de sus inliers.
 
 El acuerdo 3Q mantiene la evidencia RANSAC en memoria dentro de la `LoopTask`

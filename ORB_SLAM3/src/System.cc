@@ -191,7 +191,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpMapDrawer = new MapDrawer(mpAtlas, strSettingsFile, settings_);
 
     //Initialize the Tracking thread
-    //(it will live in the main thread of execution, the one that called this constructor)
+    //(it will live in the main thread of execution, the one that called the System object)
     cout << "Seq. Name: " << strSequence << endl;
     mpTracker = new Tracking(this, mpVocabulary, mpFrameDrawer, mpMapDrawer,
                              mpAtlas, mpKeyFrameDatabase, strSettingsFile, mSensor, settings_, strSequence);
@@ -328,6 +328,30 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
     mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
 
     return Tcw;
+}
+
+// ============================================================
+// FASE 4C - Snapshot por valor del último KeyFrame de Tracking.
+// No modifica la política de creación de KFs ni expone el puntero al wrapper.
+// ============================================================
+System::LastKeyFrameInfo System::GetLastKeyFrameInfo()
+{
+    LastKeyFrameInfo info;
+
+    if (!mpTracker)
+        return info;
+
+    KeyFrame* pKF = mpTracker->GetLastKeyFrame();
+
+    if (!pKF)
+        return info;
+
+    info.valid = true;
+    info.keyframe_id = static_cast<uint64_t>(pKF->mnId);
+    info.source_frame_id = static_cast<uint64_t>(pKF->mnFrameId);
+    info.timestamp = pKF->mTimeStamp;
+
+    return info;
 }
 
 Sophus::SE3f System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, const vector<IMU::Point>& vImuMeas, string filename)

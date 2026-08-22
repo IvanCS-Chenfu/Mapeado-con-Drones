@@ -31,6 +31,8 @@ struct GroundTruthMatch
   std::string reason;
 };
 
+/// Buffer acotado usado solo para sintetizar observaciones fiduciales en simulación live.
+/// El ground truth no entra en la pose global final ni en la evaluación de loops.
 class GroundTruthBuffer
 {
 public:

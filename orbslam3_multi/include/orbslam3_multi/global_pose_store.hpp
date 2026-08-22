@@ -10,9 +10,12 @@
 namespace orbslam3_multi
 {
 
+/// Autoridad world de anchors, poses aceptadas, continuidad y dependencias loop blandas.
+/// Cada operación Commit* valida revisiones y publica un ChangeSet atómico sin alterar raw.
 class GlobalPoseStore
 {
 public:
+  // Consultas devuelven copias coherentes bajo el lock único del store.
   bool HasSubmapAnchor(const RawSubmapId & submap_id) const;
   std::optional<GlobalPoseRecord> GetPose(const RawKeyFrameId & keyframe_id) const;
   std::map<RawKeyFrameId, GlobalPoseRecord> GetSubmapPoses(
@@ -30,6 +33,7 @@ public:
   std::optional<HardCorridorReference> GetHardCorridorReference(
     const RawKeyFrameId & keyframe_id) const;
 
+  // Commits de autoridad. Un fiducial hard sustituye la dependencia loop del submapa.
   PoseChangeSet CommitAnchor(
     const RawSubmapPoseSnapshot & snapshot,
     const geometry_msgs::msg::Pose & world_T_local,
@@ -91,6 +95,7 @@ private:
     uint64_t source_commit_id = 0;
   };
 
+  // Protege conjuntamente todas las tablas y contadores para evitar revisiones partidas.
   mutable std::mutex mutex_;
   std::map<RawSubmapId, AnchorRecord> anchors_;
   std::map<RawSubmapId, ContinuationRecord> continuations_;

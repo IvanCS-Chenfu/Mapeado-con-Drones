@@ -15,7 +15,9 @@ import matplotlib.pyplot as plt
 
 def labels_from_uint8_2d(msg: UInt8MultiArray) -> List[str]:
     """
-    Espera layout 2D:
+    Decodifica las etiquetas de un ``UInt8MultiArray`` bidimensional.
+
+    Espera el siguiente layout:
       dim[0] = words (N)
       dim[1] = chars (M)
     data = N*M bytes, cada fila es una palabra (UTF-8/ASCII), relleno con 0.
@@ -58,8 +60,10 @@ class MultiArrayPlotter(Node):
         self.poll_hz = float(self.get_parameter("poll_publishers_hz").value)
 
         # Subscriptores
-        self.sub_num = self.create_subscription(Float64MultiArray, self.numeric_topic, self.on_numeric, 10)
-        self.sub_lbl = self.create_subscription(UInt8MultiArray, self.labels_topic, self.on_labels, 10)
+        self.sub_num = self.create_subscription(
+            Float64MultiArray, self.numeric_topic, self.on_numeric, 10)
+        self.sub_lbl = self.create_subscription(
+            UInt8MultiArray, self.labels_topic, self.on_labels, 10)
 
         # Timer: detectar si hay publishers
         self.create_timer(1.0 / max(self.poll_hz, 0.5), self.poll_publishers)
@@ -141,14 +145,16 @@ class MultiArrayPlotter(Node):
             now = self.get_clock().now()
             t = (now - self.t0).nanoseconds * 1e-9
 
-            # Primer mensaje o cambio de tamaño => reiniciar buffers + pedir init de líneas en main thread
+            # Reinicia buffers cuando cambia el tamaño y pide líneas al main thread.
             if self.expected_len is None:
                 self.expected_len = n
                 self.t_buf.clear()
                 self.series_buf = [deque(maxlen=self.t_buf.maxlen) for _ in range(n)]
                 self._pending_init_len = n
             elif n != self.expected_len:
-                self.get_logger().warn(f"Tamaño del array cambió {self.expected_len} -> {n}. Reiniciando run.")
+                self.get_logger().warn(
+                    f"Tamaño del array cambió {self.expected_len} -> {n}. "
+                    "Reiniciando run.")
                 self.expected_len = n
                 self.t0 = now
                 self.t_buf.clear()
@@ -184,7 +190,9 @@ class MultiArrayPlotter(Node):
             self._need_reset_plot = True
             self._need_redraw = True
 
-        self.get_logger().info(f"📈 Detectado publisher en {self.numeric_topic}. t0(sim) = {self.t0.nanoseconds} ns")
+        self.get_logger().info(
+            f"📈 Detectado publisher en {self.numeric_topic}. "
+            f"t0(sim) = {self.t0.nanoseconds} ns")
 
     def stop_run(self):
         with self._lock:
@@ -228,18 +236,8 @@ class MultiArrayPlotter(Node):
         if self.window_seconds > 0.0:
             tmax = t_list[-1]
             tmin = max(0.0, tmax - self.window_seconds)
-            # índice inicial visible
-            start = 0
-            # búsqueda lineal (suficiente para 5000 puntos). Si quieres, lo optimizo con bisect.
-            for i, tt in enumerate(t_list):
-                if tt >= tmin:
-                    start = i
-                    break
-            t_vis = t_list[start:]
             self.ax.set_xlim(tmin, max(tmax, tmin + 1e-6))
         else:
-            start = 0
-            t_vis = t_list
             self.ax.set_xlim(0.0, max(t_list[-1], 1e-6))
 
         # actualizar líneas con el mismo tramo visible

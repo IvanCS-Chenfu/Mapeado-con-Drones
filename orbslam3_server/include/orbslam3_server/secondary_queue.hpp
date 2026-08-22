@@ -57,6 +57,8 @@ struct SecondaryPendingStats
   size_t maintenance = 0;
 };
 
+/// Cola no preemptiva con prioridad fiducial > base derivada > loop/fusión.
+/// Deduplica revisiones semánticas y separa trabajo crítico de FusionRefresh de mantenimiento.
 class SecondaryTaskQueue
 {
 public:

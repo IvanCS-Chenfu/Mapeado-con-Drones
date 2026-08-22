@@ -99,12 +99,11 @@ tablas siguen reservadas para sus subfases propietarias.
 | `/dron_X/corrected_keyframes` | `orbslam3_msgs/msg/CorrectedKeyFrameArray` | KeyFrames corregidos por optimización global/local. |
 | estado fiducial | `orbslam3_msgs/msg/FiducialLockStatus` | Estado de fiduciales/anclaje. |
 
-## Corrector de pose global congelado
+## Corrector de pose global retirado
 
-El ejecutable `global_pose_corrector` solo existe en
-`orbslam3_server/legacy2/`; no se compila ni instala. Se reintroducirá cuando el
-contrato correspondiente vuelva a publicar `MapCorrection` o
-`CorrectedKeyFrameArray`.
+El ejecutable antiguo `global_pose_corrector` fue eliminado en 3T: no se
+compilaba, instalaba ni publicaba estas interfaces. Si se recupera esta
+capacidad deberá implementarse sobre el backend vigente.
 
 ### Entradas
 

@@ -96,7 +96,7 @@ optimizacion rechazada pertenecen a 3K/3L; no deben adelantarse aqui.
 
 No incluir fiduciales reales, `GlobalMapBuilder`, snapshots completos,
 publicacion espacial, worker secundario, loops, solver, optimizacion, backups o
-rollback. Tampoco copiar en bloque el `GlobalPoseStore` de `legacy2`.
+rollback. Tampoco copiar en bloque el `GlobalPoseStore` de la baseline anterior.
 
 ### Trabajo anterior que se conserva como referencia
 
@@ -350,8 +350,7 @@ No modificar en esta subfase:
 - fusión de landmarks
 - solver/optimización real
 - publicación final de mapa global fused
-- archivos dentro de `orbslam3_multi/legacy/` salvo para documentación o consulta
-- `global_map_server_antiguo.cpp` salvo que se lea como referencia
+- referencias historicas recuperables desde `1b96a7a`, salvo consulta
 
 No modificar manualmente:
 

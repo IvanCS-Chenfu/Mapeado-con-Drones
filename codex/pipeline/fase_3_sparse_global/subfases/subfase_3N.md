@@ -160,7 +160,7 @@ El limite inicial es `max_candidate_regions = 3`. No significa tres busquedas
 BoW ni tres tareas: es una busqueda y hasta tres verificaciones dentro de la
 misma `LoopTask`.
 
-Los parametros legacy2 se usan como punto de partida para score minimo,
+Los parámetros históricos se usan como punto de partida para score mínimo,
 MapPoints y ranking. El limite antiguo de diez KFs puede mantenerse como
 preseleccion antes de agrupar, pero no obliga a ejecutar diez RANSAC.
 

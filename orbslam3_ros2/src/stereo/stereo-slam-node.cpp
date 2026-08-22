@@ -258,44 +258,111 @@ void StereoSlamNode::GrabStereo(
         return;
     }
 
-    Sophus::SE3f Tcw;
+    // ============================================================
+    // FASE 4C - Asociación exacta frame -> KeyFrame.
+    //
+    // Guardamos en variables locales exactamente las imágenes que este
+    // callback entrega a System::TrackStereo(). La futura 4D usará
+    // imLeftForTracking únicamente si esta llamada crea un KeyFrame.
+    // ============================================================
+    cv::Mat imLeftForTracking;
+    cv::Mat imRightForTracking;
 
     if (doRectify)
     {
-        cv::Mat imLeft, imRight;
-
         cv::remap(
             cv_ptrLeft->image,
-            imLeft,
+            imLeftForTracking,
             M1l,
             M2l,
             cv::INTER_LINEAR);
 
         cv::remap(
             cv_ptrRight->image,
-            imRight,
+            imRightForTracking,
             M1r,
             M2r,
             cv::INTER_LINEAR);
-
-        Tcw =
-            m_SLAM->TrackStereo(
-                imLeft,
-                imRight,
-                Utility::StampToSec(msgLeft->header.stamp));
     }
     else
     {
-        Tcw =
-            m_SLAM->TrackStereo(
-                cv_ptrLeft->image,
-                cv_ptrRight->image,
-                Utility::StampToSec(msgLeft->header.stamp));
+        imLeftForTracking = cv_ptrLeft->image;
+        imRightForTracking = cv_ptrRight->image;
     }
 
-    // Muy importante: detectar cambio de mapa justo después de TrackStereo,
-    // no solo cuando toque publicar delta.
-    UpdateMapEpochFromCurrentMap();
+    const double input_timestamp =
+        Utility::StampToSec(msgLeft->header.stamp);
+
+    const ORB_SLAM3::System::LastKeyFrameInfo kf_before =
+        m_SLAM->GetLastKeyFrameInfo();
+
+    Sophus::SE3f Tcw =
+        m_SLAM->TrackStereo(
+            imLeftForTracking,
+            imRightForTracking,
+            input_timestamp);
+
+    // Detectar cambio de mapa una sola vez. Antes se llamaba aquí y de
+    // nuevo más abajo, de forma que la primera llamada podía consumir el
+    // cambio y hacer que epoch_changed fuese false en la segunda.
+    const bool epoch_changed =
+        UpdateMapEpochFromCurrentMap();
+
+    const ORB_SLAM3::System::LastKeyFrameInfo kf_after =
+        m_SLAM->GetLastKeyFrameInfo();
+
+    const bool keyframe_created =
+        kf_after.valid &&
+        (!kf_before.valid ||
+         kf_after.keyframe_id != kf_before.keyframe_id ||
+         kf_after.source_frame_id != kf_before.source_frame_id ||
+         std::abs(kf_after.timestamp - kf_before.timestamp) > 1.0e-9);
+
+    if (keyframe_created)
+    {
+        const double timestamp_delta_sec =
+            std::abs(kf_after.timestamp - input_timestamp);
+
+        RCLCPP_WARN(
+            this->get_logger(),
+            "[KF-EVENT-CREATED] drone_id=%u epoch=%lu keyframe_id=%lu "
+            "source_frame_id=%lu event_timestamp=%.9f input_timestamp=%.9f "
+            "timestamp_delta_sec=%.9f image_width=%d image_height=%d",
+            drone_id_,
+            static_cast<unsigned long>(map_epoch_),
+            static_cast<unsigned long>(kf_after.keyframe_id),
+            static_cast<unsigned long>(kf_after.source_frame_id),
+            kf_after.timestamp,
+            input_timestamp,
+            timestamp_delta_sec,
+            imLeftForTracking.cols,
+            imLeftForTracking.rows);
+
+        if (timestamp_delta_sec > 1.0e-6)
+        {
+            RCLCPP_ERROR(
+                this->get_logger(),
+                "[KF-EVENT-TIMESTAMP-MISMATCH] drone_id=%u keyframe_id=%lu "
+                "source_frame_id=%lu delta_sec=%.9f",
+                drone_id_,
+                static_cast<unsigned long>(kf_after.keyframe_id),
+                static_cast<unsigned long>(kf_after.source_frame_id),
+                timestamp_delta_sec);
+        }
+    }
+    else
+    {
+        RCLCPP_INFO_THROTTLE(
+            this->get_logger(),
+            *this->get_clock(),
+            2000,
+            "[KF-EVENT-NONE] drone_id=%u epoch=%lu frame_counter=%lu "
+            "input_timestamp=%.6f",
+            drone_id_,
+            static_cast<unsigned long>(map_epoch_),
+            static_cast<unsigned long>(frame_counter_),
+            input_timestamp);
+    }
 
     RCLCPP_INFO_THROTTLE(
         this->get_logger(),
@@ -307,7 +374,7 @@ void StereoSlamNode::GrabStereo(
         map_epoch_,
         frame_counter_,
         m_SLAM->GetTrackingState(),
-        Utility::StampToSec(msgLeft->header.stamp));
+        input_timestamp);
 
     // Publicamos pose local de cámara solo si tracking está OK.
     if (m_SLAM->GetTrackingState() == ORB_SLAM3::Tracking::OK)
@@ -317,9 +384,6 @@ void StereoSlamNode::GrabStereo(
 
     // Publicación incremental del mapa cada N frames.
     frame_counter_++;
-
-    const bool epoch_changed =
-        UpdateMapEpochFromCurrentMap();
 
     if (epoch_changed)
     {
@@ -1197,7 +1261,6 @@ std::size_t StereoSlamNode::HashKeyFrame(
 
     const int64_t tz =
         static_cast<int64_t>(std::llround(t.z() * 1000.0f));
-
     const int64_t qx =
         static_cast<int64_t>(std::llround(q.x() * 1000000.0f));
 

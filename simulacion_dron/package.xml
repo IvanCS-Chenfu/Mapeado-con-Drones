@@ -2,10 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>simulacion_dron</name>
-  <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="chenfu@todo.todo">chenfu</maintainer>
-  <license>TODO: License declaration</license>
+  <version>0.1.0</version>
+  <description>Simulacion Gazebo, escenarios y observabilidad del sistema multi-dron.</description>
+  <maintainer email="ivancalvosantos2003@uma.es">Ivan Calvo Santos</maintainer>
+  <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
@@ -14,10 +14,20 @@
   <test_depend>ament_cmake_pytest</test_depend>
 
   <depend>dron_individual</depend>
+  <depend>eigen</depend>
+  <depend>gazebo_msgs</depend>
+  <depend>gazebo_ros</depend>
+  <depend>ament_index_cpp</depend>
   <depend>rclcpp_action</depend>
   <depend>rclcpp</depend>
   <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>xacro</depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>orbslam3_server</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>rviz2</exec_depend>
 

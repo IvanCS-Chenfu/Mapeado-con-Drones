@@ -71,7 +71,7 @@ orbslam3_multi/src/raw_map_database.cpp
   descriptor, KF de referencia, observadores y revisiones que 3P necesita para
   preparar tracks fuera de locks live.
 - `GetCameraCalibration()` conserva `fx/fy/cx/cy/bf` y dimensiones raw por
-  submapa. Fusion usa el modelo pinhole para diagnostico sparse y 3S deriva
+  submapa. Fusion usa el modelo pinhole para diagnostico sparse y 3R deriva
   `baseline=bf/fx` para el factor de distancia; la base nunca genera un depth
   map ni altera el mensaje ORB recibido.
 - `GetBuilderSnapshot()` expande asociaciones de los KFs dirty y devuelve bajo

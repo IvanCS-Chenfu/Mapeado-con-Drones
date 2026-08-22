@@ -9,6 +9,8 @@
 namespace orbslam3_multi
 {
 
+/// Clasifica observaciones fiduciales y reserva un único control por visita/submapa.
+/// Solo evalúa y mantiene el ledger de controles; GlobalPoseStore realiza los commits world.
 class FiducialAnchorManager
 {
 public:

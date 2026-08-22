@@ -9,7 +9,7 @@ a la `LoopTask` BAJA activa y conserva su `task_id`.
 ### Incluido
 
 - rama rapida para queries con pose world;
-- construccion acotada de subnubes estilo `legacy2`;
+- construcción acotada de subnubes según la baseline validada;
 - matching ORB, reduccion robusta y RANSAC 3D-3D;
 - error respecto a poses world cuando ambos lados estan anclados;
 - evaluacion conjunta de hasta tres regiones;
@@ -113,7 +113,7 @@ Por cada region seleccionada:
 10. calcular transformacion relativa y error cuando haya poses world;
 11. conservar todas las revisiones consumidas.
 
-Los parametros geometrico-algoritmicos parten de los defaults de `legacy2` y se
+Los parámetros geométrico-algorítmicos parten de defaults validados previamente y se
 ajustan solo mediante evidencia de pruebas.
 
 ## Resultados por region

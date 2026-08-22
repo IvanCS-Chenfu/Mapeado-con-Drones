@@ -37,6 +37,11 @@ if(BUILD_TESTING)
     test/test_pipeline_flow_contract.py
     TIMEOUT 30
   )
+  ament_add_pytest_test(
+    global_map_config_contract
+    test/test_global_map_config.py
+    TIMEOUT 30
+  )
 endif()
 
 install(DIRECTORY
@@ -72,7 +77,7 @@ install(TARGETS
 )
 
 add_executable(clock src/otros/clock.cpp)
-ament_target_dependencies(clock rclcpp )
+ament_target_dependencies(clock rclcpp)
 
 add_executable(generador_URDF src/generar_URDF/generador_URDF.cpp)
 ament_target_dependencies(generador_URDF rclcpp gazebo_msgs ament_index_cpp)

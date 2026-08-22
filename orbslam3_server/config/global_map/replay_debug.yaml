@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    primary_worker_debug_delay_ms: 0
+    rawdb_replay_path: ''
+    rawdb_replay_entry_delay_ms: 0
+    debug_drop_one_delta_for_snapshot_test: false
+    debug_drop_delta_drone_id: 1
+    pose_store_debug_anchor_enabled: false
+    pose_store_debug_anchor_drone_id: 1
+    pose_store_debug_anchor_map_epoch: 0
+    pose_store_debug_anchor_x: 10.0
+    pose_store_debug_anchor_y: 0.0
+    pose_store_debug_anchor_z: 0.0

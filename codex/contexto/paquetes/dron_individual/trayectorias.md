@@ -61,7 +61,7 @@ Esto permitirá a Codex ejecutar escenarios reproducibles para cada fase.
 
 Esta sección describe un escenario histórico útil para reproducir deriva en el
 servidor monolítico. No es la planificación activa de Fase 3; las pruebas
-activas deben venir del archivo `subfase_3X.md` correspondiente.
+activas deben venir del archivo `subfase_3T.md` correspondiente.
 
 Para observar deriva y loops no basta con cambiar una vez el YAML. Debe poder
 repetirse el mismo escenario N veces y clasificar cada ejecucion con logs + RViz2.

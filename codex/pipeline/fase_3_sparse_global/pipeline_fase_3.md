@@ -9,15 +9,15 @@ codex/pipeline/fase_3_sparse_global/pipeline_fase_3_RESUMEN.md
 ## Estado
 
 ```text
-ACTUAL
-3B-3P y 3S-3U: CONSEGUIDAS
-3Q: A REVISAR; aceptada para continuar
-3V-3W: CONSEGUIDAS por evidencia acumulada y aceptacion del usuario
-3X: pendiente
-Punto siguiente: preparar y acordar 3X
+Fase 3: CONSEGUIDA
+3B-3Q: CONSEGUIDAS
+3R: CONSEGUIDA; scoring
+3S: CONSEGUIDA; observabilidad y debug
+3T: CONSEGUIDA; limpieza y handoff
+Fase actual: Fase 2 - separacion servidor/dron/simulacion
 ```
 
-La planificacion activa comprende `subfase_3A.md` a `subfase_3X.md`. Los
+La planificacion activa comprende `subfase_3A.md` a `subfase_3T.md`. Los
 archivos de subfase son contratos ejecutables; la evidencia cronologica vive
 en `historial/por_subfase/`.
 
@@ -175,8 +175,9 @@ acumulan hasta la siguiente llegada.
 
 En 3C el grafo muestra wrappers, servidor, cola, worker, raw y mission gate con
 cinco aristas/eventos reales. Cada subfase posterior añade solo sus elementos y transferencias según
-`CONTRATO_VISUAL_INCREMENTAL.md`. 3U verifica el conjunto, el comportamiento
-live, la degradación inocua y la correspondencia final con RViz2.
+`CONTRATO_VISUAL_INCREMENTAL.md`. La auditoria visual absorbida verifico el
+conjunto, el comportamiento live, la degradacion inocua y la correspondencia
+final con RViz2.
 
 RViz2 sigue siendo la vista espacial de KFs y nube. El diagrama muestra flujo y
 actividad, no duplica la nube 3D.
@@ -186,8 +187,8 @@ actividad, no duplica la nube 3D.
 3C crea `/global_mapping/backpressure_active` reliable/transient-local con
 histeresis por pendientes principales (high=8, low=2). El goal activo termina
 y `scenario_runner_node` retiene solo el siguiente lote hasta la liberacion.
-3K conserva esta ruta y expone metricas secundarias. 3W integra en la politica
-final ambas colas, edad, drenaje, optimizaciones activas, dwell, capacidad y
+3K conserva esta ruta y expone metricas secundarias. La politica final integra
+ambas colas, edad, drenaje, optimizaciones activas, dwell, capacidad y
 no-progreso.
 
 ## Subfases y estado
@@ -208,39 +209,35 @@ no-progreso.
 | 3M | covisibilidad MEDIA | conseguida |
 | 3N-3O | ledger, BoW y verificación | conseguidas |
 | 3P | fusión | conseguida |
-| 3Q | optimización por loop | `A REVISAR`; aceptada para continuar |
-| 3R | cola post-optimizacion antigua | absorbida, no se ejecuta |
-| 3S | score | conseguida |
-| 3T | contratos/invariantes | conseguida por auditoria y aceptacion |
-| 3U | auditoria/hardening de RViz2 y grafo | conseguida por auditoria, tests y cierre visual |
-| 3V | regresion integral | conseguida por evidencia acumulada |
-| 3W | rendimiento/robustez | conseguida; politica actual aceptada |
-| 3X | limpieza y handoff | preparada, dependiente de 3C-3W |
+| 3Q | optimizacion por loop | conseguida; mejora futura documentada |
+| 3R | score | conseguida |
+| 3S | observabilidad y perfil debug | conseguida |
+| 3T | limpieza y handoff | conseguida |
+
+Las auditorias provisionales de arquitectura, visualizador, regresion y
+rendimiento se cerraron sobre capacidades ya implantadas. Sus contratos
+independientes fueron retirados en 3T y sus historiales siguen disponibles en
+`historial/absorbidas/`.
 
 ## Siguientes pasos
 
-1. Preparar y autorizar `3X` segun su contrato vigente.
-2. Mantener 3Q como punto de reentrada obligatorio si reaparecen optimizaciones
-   incorrectas.
+1. Usar `RESULTADO_FINAL_FASE_3.md` como handoff para Fase 2.
+2. Consultar el historial 3Q si reaparecen optimizaciones incorrectas y evaluar
+   entonces la evidencia adaptativa documentada.
 3. Ejecutar tests deterministas antes de la simulación larga.
-4. Conservar las regresiones de `3V/3W` como referencia ante fallos futuros.
-5. Retirar rutas sustituidas unicamente en `3X`.
+4. Conservar las regresiones absorbidas como referencia ante fallos futuros.
+5. Mantener los tests que protegen la sincronizacion YAML durante Fase 2.
 
-## Prueba acordada
+## Verificacion final ejecutada
 
 ```bash
 ./codex/herramientas/build_selected_packages.sh orbslam3_multi orbslam3_server simulacion_dron
 ```
 
-Despues:
-
-1. tests deterministas de raw/poses/revisiones;
-2. tests de prioridad y ciclo de vida del worker;
-3. tests de fusion, optimizacion y commit multi-base;
-4. tests de captura/publicacion coherente;
-5. prueba larga `prueba_tipica_rodeo_edificio_dos_fiduciales.yaml` con RViz2 y
-   visualizador JavaScript;
-6. desconexion y saturacion del canal de telemetria.
+Resultado: build 3/3, CTest 9/9 + 10/10 + 8/8 y prueba 196
+`success=true`. Con el perfil 3S completamente false, el servidor proceso el
+escenario, no aparecieron marcadores `[F3*]` y no se iniciaron RViz2, bridge ni
+navegador.
 
 Los logs completos se reducen antes de leerse. Cada ejecucion mantiene su
 entrada historica y conclusion propia.
@@ -259,8 +256,8 @@ entrada historica y conclusion propia.
 - se eliminan rutas duplicadas solo tras probar sus sustitutas;
 - la documentacion coincide con el codigo y conserva la evidencia historica.
 
-## Legacy
+## Evidencia retirada
 
-Las subfases `12R-*`, `13`, `14` y `15` son referencia historica y no forman
-parte de la planificacion activa. No se borran sin una limpieza explicitamente
-autorizada. Indice: `LEGACY_SUBFASES.md`.
+Los contratos `12R-*`, `13`, `14` y `15` fueron retirados en 3T. Los
+aprendizajes verificables permanecen en `historial/por_subfase/` y en Git, pero
+ya no forman parte de la planificación ni del árbol documental vigente.

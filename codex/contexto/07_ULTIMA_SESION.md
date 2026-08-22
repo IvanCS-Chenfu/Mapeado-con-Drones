@@ -2,25 +2,31 @@
 
 ## Objetivo
 
-Decidir si 3V necesitaba otra regresion integral y si 3W requeria mas cambios de
-rendimiento o robustez.
+Cerrar Fase 3 con la numeracion definitiva 3Q-3T, incorporar una subfase de
+debug configurable, validarla en Gazebo y dejar Fase 2 como fase actual.
 
-## Evidencia reutilizada
+## Cambios
 
-- 187: tres optimizaciones/commits, 1047 tareas, cola final vacia y cero hard
-  failures;
-- 188: recorrido doble, nueve commits loop, ocho fiduciales, 995 fusiones y
-  recursos estables;
-- 191: recorrido completo y 2104 tareas secundarias drenadas a `pending=0`;
-- 194: colas principal/secundaria en cero, score/rgb completo, memoria estable
-  y confirmacion visual del usuario;
-- runtime vigente con histeresis, prioridad fiducial, separacion entre trabajo
-  critico y mantenimiento, coalescing y `FusionRefresh` no recursivo.
+- scoring renumerado de 3S a 3R, incluidos los marcadores vigentes `[F3R-*]`;
+- nueva 3S con `fase3_debug.yaml` y cuatro controles independientes para
+  RViz2, grafo web, navegador y logs terminales;
+- limpieza/handoff renumerada de 3X a 3T y contratos provisionales absorbidos
+  preservados bajo `historial/absorbidas/`;
+- 3Q documenta la posible evidencia adaptativa 2 frente a 8-10, sin cambio de
+  algoritmo;
+- contexto, pipeline, historiales y documentacion de paquetes sincronizados.
+
+## Verificacion
+
+- build: 3/3 paquetes;
+- CTest: `orbslam3_multi` 9/9, `orbslam3_server` 10/10 y
+  `simulacion_dron` 8/8;
+- prueba 196: `success=true`, cuatro goals correctos y servidor operativo;
+- con los cuatro flags false: cero `[F3*]`, sin RViz2, bridge ni navegador;
+- errores ROS reales siguen siendo visibles por el nivel `error`.
 
 ## Conclusion
 
-3V queda `CONSEGUIDA` por regresion integral acumulada y aceptacion del usuario.
-3W queda `CONSEGUIDA` porque el usuario considera buenos rendimiento y robustez
-y decide mantener la politica actual. No se modifico codigo ni se ejecuto una
-simulacion, A/B o stress nuevo. Los picos residuales documentados se conservan.
-3Q sigue `A REVISAR`; el unico bloque nuevo pendiente es 3X.
+3R, 3S y 3T quedan `CONSEGUIDAS`. La Fase 3 queda `CONSEGUIDA` y su resultado
+final vive en `RESULTADO_FINAL_FASE_3.md`. La fase actual pasa a ser Fase 2,
+separacion de paquetes de servidor, dron y simulacion.

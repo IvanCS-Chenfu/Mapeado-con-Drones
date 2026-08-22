@@ -1,0 +1,76 @@
+name: prueba_debug_fase3_silencioso
+description: "Dos drones alcanzan el fiducial 2 y avanzan unos metros con la observabilidad de Fase 3 desactivada."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 240.0
+steps:
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: ambos_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.0]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -9.0, 1.3]
+        yaw_deg: 90.0
+        tx: 22.0
+        ty: 22.0
+        tz: 22.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: espera_anclaje
+    type: wait
+    seconds: 8.0
+
+  - name: avance_corto
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-2.0, -7.0, 1.0]
+        yaw_deg: 90.0
+        tx: 12.0
+        ty: 12.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [2.0, -7.0, 1.3]
+        yaw_deg: 90.0
+        tx: 12.0
+        ty: 12.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: drenaje_corto
+    type: wait
+    seconds: 15.0

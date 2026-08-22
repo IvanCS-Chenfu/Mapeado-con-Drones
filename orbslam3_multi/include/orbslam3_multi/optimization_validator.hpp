@@ -29,6 +29,8 @@ struct ValidationResult
   std::string reason;
 };
 
+/// Aplica los invariantes fiduciales, temporales, covisibles y de corredores hard-hard.
+/// Su resultado es puro: aceptar o rechazar nunca implica por sí mismo un commit.
 class OptimizationValidator
 {
 public:

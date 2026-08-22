@@ -52,6 +52,8 @@ struct PrimaryEnqueueResult
   size_t pending = 0;
 };
 
+/// FIFO causal de entradas ORB. Un elemento reservado no puede adelantarse hasta MarkReady.
+/// Live asigna arrival_id; replay conserva IDs estrictamente crecientes del record.
 class PrimaryQueue
 {
 public:
@@ -164,6 +166,7 @@ private:
   bool closed_ = false;
 };
 
+/// Histeresis high/low que evita oscilar la señal de presión con cada dequeue.
 class BackpressureHysteresis
 {
 public:

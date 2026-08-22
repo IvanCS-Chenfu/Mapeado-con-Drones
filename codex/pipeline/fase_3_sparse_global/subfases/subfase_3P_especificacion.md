@@ -47,7 +47,7 @@ Antes de escribir se consideran todas las regiones geometrizadas:
   ni cambiar score.
 
 No se fusionan simplemente los MPs de los KFs seed de BoW. Se usan las
-subnubes query/candidate construidas en 3O siguiendo el enfoque de `legacy2`.
+subnubes query/candidate construidas en 3O con el enfoque validado previamente.
 
 ## Tracks fusionados
 
@@ -149,9 +149,9 @@ negative_evidence / negative_adjustment
 final_score
 ```
 
-El score fused conserva provisionalmente la formula util de `legacy2`: combina
+El score fused conserva provisionalmente la fórmula histórica útil: combina
 los mejores/scores de miembros y bonuses acotados por miembros, drones y
-submapas. `3S` podra refinar la formula sin cambiar ownership.
+submapas. `3R` podra refinar la formula sin cambiar ownership.
 
 `GlobalMapBuilder` no filtra por score. Publica todos los raws no sustituidos y
 un representante por track, copiando el score vigente como atributo. El

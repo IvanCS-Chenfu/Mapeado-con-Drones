@@ -40,6 +40,12 @@ def generate_launch_description():
         'rviz',
         'sparse_global_debug.rviz',
     ])
+    config_dir = PathJoinSubstitution([
+        FindPackageShare('simulacion_dron'),
+        'config',
+        'global_map',
+    ])
+    replay_config = PathJoinSubstitution([config_dir, 'replay_debug.yaml'])
 
     return LaunchDescription([
         DeclareLaunchArgument('rawdb_replay_path'),
@@ -81,13 +87,14 @@ def generate_launch_description():
         TimerAction(period=1.0, actions=[IncludeLaunchDescription(
             PythonLaunchDescriptionSource(server_launch),
             launch_arguments={
+                'config_dir': config_dir,
+                'replay_debug_config': replay_config,
                 'use_sim_time': 'false',
                 'rawdb_record_enabled': 'false',
                 'rawdb_replay_path': LaunchConfiguration('rawdb_replay_path'),
                 'rawdb_replay_entry_delay_ms': LaunchConfiguration(
                     'rawdb_replay_entry_delay_ms'),
                 'pose_store_debug_anchor_enabled': 'false',
-                'fiducial_sim_enabled': 'true',
             }.items(),
         )]),
     ])

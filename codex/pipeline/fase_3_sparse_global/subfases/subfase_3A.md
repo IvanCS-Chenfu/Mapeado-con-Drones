@@ -144,7 +144,7 @@ Si se añaden logs, no se debe corregir comportamiento funcional ni reestructura
 No modificar en esta subfase:
 
 - `orbslam3_server/src/global_map_server.cpp`, salvo la excepción limitada de logs mínimos
-- `orbslam3_server/src/global_map_server_antiguo.cpp`, si ya existiera
+- fuentes historicas del servidor, hoy recuperables desde Git
 - archivos de `orbslam3_multi`, salvo documentación si fuese imprescindible
 - mensajes de `orbslam3_msgs`
 - wrapper `orbslam3_ros2`, salvo la excepción limitada de logs mínimos
@@ -160,7 +160,8 @@ No renombrar todavía:
 orbslam3_server/src/global_map_server.cpp
 ```
 
-El renombrado a `global_map_server_antiguo.cpp` pertenece a la subfase 3B.
+La congelacion historica del servidor pertenecio a 3B y fue retirada en 3T;
+se recupera desde el checkpoint `1b96a7a`.
 
 ---
 

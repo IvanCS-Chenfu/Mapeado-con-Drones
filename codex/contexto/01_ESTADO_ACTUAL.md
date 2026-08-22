@@ -6,16 +6,13 @@ Leer primero `00_CONTEXTO_COMPACTACION.md` y
 ## Estado vivo
 
 ```text
-Fase activa: Fase 3 - mapa sparse global multi-dron
-3B-3O: CONSEGUIDAS
-3P: CONSEGUIDA; CIERRE FUNCIONAL Y VISUAL CONFIRMADO
-3Q: A REVISAR; RESULTADO ACEPTADO PARA CONTINUAR
-3S: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
-3T: CONSEGUIDA; ARQUITECTURA AUDITADA Y RENDIMIENTO ACEPTADO
-3U: CONSEGUIDA; GRAFO WEB Y TRANSPORTE LIVE ACEPTADOS
-3V: CONSEGUIDA; REGRESION ACUMULADA ACEPTADA
-3W: CONSEGUIDA; RENDIMIENTO Y ROBUSTEZ ACEPTADOS
-Ultimas ejecuciones: 193 identifica mala calibracion y 194 valida su correccion
+Fase actual: Fase 2 - separacion servidor/dron/simulacion
+Fase 3: CONSEGUIDA
+3B-3Q: CONSEGUIDAS
+3R: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
+3S: CONSEGUIDA; PERFIL DEBUG Y MODO SILENCIOSO VALIDADOS
+3T: CONSEGUIDA; LIMPIEZA, CONFIGURACION Y HANDOFF VALIDADOS
+Ultima ejecucion: 196 valida el perfil 3S completamente false
 ```
 
 ## Arquitectura
@@ -36,7 +33,7 @@ reancla todo el submapa, corta la dependencia y queda hard. El
 worker secundario solo marca KFs dirty; el siguiente principal reproyecta MPs y
 publica.
 
-3S hace al score raw dependiente de base ORB, distancia y aislamiento
+3R hace al score raw dependiente de base ORB, distancia y aislamiento
 recuperables, mas inliers confirmados. El fused score es la media de todos sus
 raw miembros mas `0.04*N`. La visibilidad sparse solo diagnostica y el builder
 publica todos los puntos con score/rgb. La distancia usa limite cercano fijo
@@ -121,15 +118,18 @@ y gate maximo 80.272 s. Permanece una ventana residual de 786 KFs/83.44 s
 porque su relacion protegida directa era coherente y otra region disparo el
 solve; queda para perfeccionar seleccion/umbrales.
 
-El usuario valora muy positivamente el resultado y decide avanzar. 3Q queda
-`A REVISAR`: si reaparecen loops incorrectos, dobles paredes, optimizaciones
-innecesarias o ventanas excesivas, se retomaran seleccion multi-region,
-umbrales y admision previa al solver desde la evidencia 189/191.
+El usuario valora muy positivamente el resultado y decide avanzar. En ese
+momento 3Q queda `A REVISAR`; tras la revision visual correcta de 195 se acepta
+para el cierre. Si reaparecen loops incorrectos, dobles paredes,
+optimizaciones innecesarias o ventanas excesivas, se retomaran seleccion
+multi-region, umbrales y admision previa al solver desde 189/191/194. Queda
+documentada, sin implementar, evidencia adaptativa de dos apoyos para
+candidatos cercanos y hasta 8-10 para candidatos lejanos o ambiguos.
 
-## Cierre 3T-3U
+## Auditorias absorbidas de arquitectura y visualizador
 
 La auditoria del runtime confirma que la arquitectura transversal de 3T ya fue
-implantada por 3C-3S: un worker principal y uno secundario, autoridades
+implantada por 3C-3R: un worker principal y uno secundario, autoridades
 separadas, propuestas privadas, commits revisionados, dirty sets y publicacion
 exclusiva del principal. El usuario considera muy bueno el rendimiento y no
 solicita mas cambios de sincronizacion.
@@ -141,7 +141,7 @@ contrato fuente pasa 9/9 y el usuario confirma que el grafo web es muy bueno y
 funciona bien. Ambas subfases quedan `CONSEGUIDAS`; no hubo codigo ni simulacion
 nueva durante el cierre.
 
-## Cierre 3V-3W
+## Auditorias absorbidas de regresion y rendimiento
 
 El usuario acepta las pruebas 187, 188, 191 y 194 como regresion integral
 suficiente: ejercitan flujo principal/secundario, loops, fiduciales, fusion,
@@ -154,3 +154,29 @@ critico/mantenimiento, prioridad fiducial, `FusionRefresh` no recursivo,
 coalescing y monitorizacion de recursos. El usuario considera bueno el
 resultado y decide no introducir mas limites o metricas. 3W queda `CONSEGUIDA`;
 los picos residuales documentados se aceptan y no se ocultan.
+
+## Cierre 3T
+
+Se retiraron las rutas `legacy/`/`legacy2/`, snapshots y contratos absorbidos,
+con recuperacion disponible desde el checkpoint `1b96a7a`. La auditoria deja
+una unica ruta activa por scheduling, autoridad y publicacion. ADR 0009 define
+la propiedad de configuracion y los despliegues servidor/simulacion cargan seis
+YAML tematicos cuya igualdad y cobertura estan protegidas por tests.
+
+El build final pasa 3/3 paquetes y los CTest 9/9, 10/10 y 8/8. La prueba 195
+termina `success=true`, drena 741 principales y 1262 secundarias a cero,
+mantiene `max_active=1`/`hard_failed=0`, compromete 11 loops y publica 23.978
+puntos con score/rgb. Recursos estables y guarda inactiva. La validacion visual
+humana de 195 fue confirmada por el usuario como correcta.
+
+## Cierre 3S y Fase 3
+
+La nueva 3S incorpora `fase3_debug.yaml` con controles independientes para
+RViz2, grafo web, navegador y logs terminales. La prueba 196 termina
+`success=true`: cuatro goals correctos, servidor operativo, cero marcadores
+`[F3*]` y ningun proceso RViz2, bridge o navegador con los flags a false. Los
+errores reales permanecen visibles mediante nivel ROS `error`.
+
+El handoff completo esta en `RESULTADO_FINAL_FASE_3.md`. La Fase 3 queda
+`CONSEGUIDA`; 3Q conserva la incidencia 194 y la mejora adaptativa como
+referencia futura, sin bloquear el inicio de Fase 2.

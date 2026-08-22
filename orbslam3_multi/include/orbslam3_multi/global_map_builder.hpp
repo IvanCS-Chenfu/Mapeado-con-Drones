@@ -64,9 +64,12 @@ struct GlobalMapBuildResult
   std::vector<GlobalKeyFrameView> keyframes;
 };
 
+/// Proyección incremental final de autoridades raw/world/score/fusión para publicación.
+/// Consume dirty sets y conserva puntos válidos de cualquier score; no es una autoridad.
 class GlobalMapBuilder
 {
 public:
+  // Los Mark* acumulan causalidad; Update materializa una revisión coherente bajo su owner.
   void MarkRawChanges(const RawInsertResult & changes);
   void MarkPoseChanges(const PoseChangeSet & changes);
   void MarkScoreChanges(const ScoreChangeSet & changes);

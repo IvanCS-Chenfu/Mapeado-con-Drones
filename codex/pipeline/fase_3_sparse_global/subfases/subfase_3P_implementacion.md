@@ -67,7 +67,7 @@ No se repiten BoW, region building, descriptor matching ni RANSAC en esta rama.
 
 ## Nucleo de `FusedLandmarkManager`
 
-Reimplementar conservando del enfoque `legacy2`:
+Reimplementar conservando del enfoque validado previamente:
 
 - indice raw a track O(1);
 - union transitiva;

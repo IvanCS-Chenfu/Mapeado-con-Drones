@@ -1,12 +1,18 @@
 # 00_summary - simulacion_dron
 
-Paquete de launch, escenarios y observabilidad Gazebo. Hasta 3P integra servidor,
-RViz2 y grafo web, y ofrece replay visible sin Gazebo ni GT live.
+Paquete de launch, escenarios y observabilidad Gazebo. Integra servidor y, de
+forma configurable, RViz2 y grafo web; tambien ofrece replay sin Gazebo ni GT
+live.
+
+Desde 3T contiene en `config/global_map/` el perfil de parámetros controlables
+por el despliegue simulado. Es una copia exacta del perfil del servidor durante
+la etapa de simulación y un test contractual impide divergencias o parámetros
+sin propietario.
 
 ## Launches
 
 ```text
-launch/multi_dron.launch.py -> Gazebo + N drones + servidor + RViz2 + web
+launch/multi_dron.launch.py -> Gazebo + N drones + servidor + debug opcional
 launch/f3c_replay.launch.py -> replay raw 3C
 launch/f3d_replay.launch.py -> replay 3D con anchor sintetico
 launch/f3e_replay.launch.py -> replay raw + observaciones fiduciales
@@ -18,8 +24,7 @@ launch/pipeline_flow_only.launch.py -> diagnostico web aislado
 
 - `launch_gazebo_gui=false`: usa `gzserver` sin `gzclient`;
 - `launch_mission_gui=false`: omite la GUI de mision;
-- `launch_sparse_global_rviz` y `launch_pipeline_flow_visualizer`: vistas
-  diagnosticas independientes;
+- `fase3_debug.yaml`: RViz2, grafo, navegador y logs `[F3*]` independientes;
 - `drone_start_stagger_sec=8.0`: arranque 0/8/16... s por defecto;
 - `orb_vocabulary_path`: L5 compacto por defecto, L6 seleccionable.
 
@@ -72,8 +77,15 @@ fases dense se usa headless y se habilitan solo las vistas necesarias.
 - prueba 161: mismo escenario completo, guard inactivo, contrato web 9/9 y
   cierre de servidor/colas limpio. La revision visual humana de esta ejecucion
   aun no se ha comunicado.
+- cierre 3T: CTest 8/8; prueba 195 completa el escenario tipico con exit 0,
+  guarda de recursos inactiva y perfiles YAML de simulacion cargados; el
+  usuario confirma el resultado visual correcto.
+- cierre 3S: prueba 196 `success=true`, cuatro goals correctos y servidor
+  operativo; con los cuatro flags false no arrancan RViz2, bridge ni navegador
+  y no aparece telemetria `[F3*]`.
 
-La validacion automatica de topologia y lifecycle 3P esta conseguida.
+La validacion automatica de topologia, lifecycle y configuracion 3T esta
+conseguida.
 
 Detalle: `launches.md`, `scenario_runner_node.md` y
 `pipeline_flow_visualizer.md`.

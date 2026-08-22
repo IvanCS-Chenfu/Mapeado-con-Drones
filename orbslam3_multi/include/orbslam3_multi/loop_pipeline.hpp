@@ -241,6 +241,8 @@ struct LoopTaskComputation
   std::string reason;
 };
 
+/// Pipeline derivado BoW -> regiones -> subnubes/RANSAC -> decisión loop/fusión.
+/// Conserva índices y ledgers de hipótesis, pero nunca escribe poses ni datos raw.
 class LoopPipeline
 {
 public:

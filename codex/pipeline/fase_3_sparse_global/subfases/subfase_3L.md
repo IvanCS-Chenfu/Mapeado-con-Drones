@@ -113,7 +113,7 @@ yaw_error_rad
 ```
 
 Los defaults iniciales son los mismos de 3H: 0.35 m, 0.35 rad y 0.25 rad. El
-comportamiento esperado de la variante final de `legacy2` es dejar un error
+comportamiento esperado de la variante final anterior es dejar un error
 cercano a cero, pero el contrato de aceptacion exige estar dentro del umbral.
 
 ## Decisiones estructuradas

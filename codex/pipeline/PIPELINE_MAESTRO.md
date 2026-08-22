@@ -77,27 +77,26 @@ Solo con la puerta cerrada, usar el contrato `subfase_*.md` y seguir:
 | Fase | Estado | Nombre | Conclusión breve |
 |---|---|---|---|
 | 1 | `realizado` | Control del dron en simulación | Cadena Gazebo/Xacro/YAML/control/trayectorias/GUI de simulación documentada como base histórica. |
-| 2 | `sin hacer` | Separación servidor/dron/simulación | Se ejecutará cuando Fase 3 esté cerrada para reorganizar físicamente paquetes y builds. |
-| 3 | `actual` | Mapa sparse global multi-dron | 3B-3P y 3S-3W conseguidas; 3Q aceptada para continuar y marcada `A REVISAR`; 3X pendiente. |
+| 2 | `actual` | Separación servidor/dron/simulación | Siguiente fase activa tras el cierre validado de Fase 3. |
+| 3 | `conseguida` | Mapa sparse global multi-dron | 3B-3T conseguidas; 3R scoring, 3S debug y 3T limpieza forman la numeracion final. |
 | 4 | `sin hacer` | Fiducial real sin ground truth funcional | Sustituirá el fiducial simulado por detección visual de tags ligada a KFs exactos. |
 | 5 | `sin hacer` | Pose global de cada dron sin ground truth | Sustituirá `sensor/GT/pose` y `sensor/GT/vel` por estimación local-global. |
 | 6 | `sin hacer` | Tareas y trayectorias de mapeo | Generará misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |
-| 7 | `sin hacer` | GUI 3D propia de operación | GUI C++/Qt/OpenGL independiente de RViz2 y del visualizador web diagnóstico de 3U. |
+| 7 | `sin hacer` | GUI 3D propia de operación | GUI C++/Qt/OpenGL independiente de RViz2 y del visualizador web entregado en Fase 3. |
 | 8 | `sin hacer` | Nube densa global multi-dron | Reconstrucción dense en servidor a partir de estéreo, poses globales y sparse. |
 | 9 | `opcional` | Mejoras avanzadas y robustez | Placeholder futuro; sus subfases se definirán cuando toque avanzar ahí. |
 
-La numeración refleja el pipeline nuevo completo. La Fase 3 permanece como fase
-actual porque hereda el trabajo ya iniciado cuando el mapa sparse global era la
-antigua Fase 1. Al cerrar Fase 3, el siguiente bloque previsto es Fase 2
-`separacion_paquetes`; después se continúa por dependencias y contratos de las
-Fases 4-9.
+La numeracion refleja el pipeline nuevo completo. La Fase 3 esta concluida; 3Q
+conserva una mejora futura documentada que no bloquea el avance. La fase actual
+es Fase 2 `separacion_paquetes`; despues se continua por dependencias y
+contratos de las Fases 4-9.
 
 Los archivos específicos de pipeline de fases futuras son contratos
 preparatorios, no autorización de ejecución. Codex debe tratarlos como no
 ejecutables hasta que el usuario pida preparar o ejecutar una fase/subfase y se
 cierre la puerta de preparación correspondiente.
 
-## Fase 3 activa
+## Fase 3 entregada
 
 Documento específico:
 
@@ -110,11 +109,11 @@ Subfases activas:
 ```text
 codex/pipeline/fase_3_sparse_global/subfases/subfase_3A.md
 ...
-codex/pipeline/fase_3_sparse_global/subfases/subfase_3X.md
+codex/pipeline/fase_3_sparse_global/subfases/subfase_3T.md
 ```
 
-La planificación antigua `12R-*`, `13`, `14` y `15` queda como legacy dentro de
-Fase 3. No borrarla salvo fase explícita de limpieza validada.
+La planificacion antigua `12R-*`, `13`, `14` y `15` fue retirada por 3T. Sus
+aprendizajes verificables permanecen en historiales y Git.
 
 ## Objetivo de Fase 3
 
@@ -143,7 +142,7 @@ anchors y poses world. `FusedLandmarkManager` y `LandmarkScoreManager` poseen
 tracks y score. El servidor coordina transiciones explicitas; ninguna de esas
 bases ejecuta calculo secundario durante una escritura raw. 3C crea el flujo
 principal y su backpressure basico; 3K añade solo la cola y el worker
-secundarios, y 3W endurece la politica de presion.
+secundarios, y la auditoria de rendimiento absorbida valida la politica final.
 
 ## Criterio de fin de Fase 3
 
@@ -211,7 +210,7 @@ salvo petición explícita del usuario.
 ### Fase 7 — GUI propia
 
 Crear una GUI 3D de escritorio en C++/Qt/OpenGL para operación multi-dron. El
-visualizador JavaScript de `3U` es diagnóstico de flujo de datos y no sustituye
+visualizador JavaScript entregado en Fase 3 es diagnostico de flujo de datos y no sustituye
 esta GUI funcional.
 
 No ejecutar ni completar su pipeline específico mientras Fase 3 siga activa,

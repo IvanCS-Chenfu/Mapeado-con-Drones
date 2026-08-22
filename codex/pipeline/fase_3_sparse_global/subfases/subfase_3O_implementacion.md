@@ -135,7 +135,7 @@ La nube final deduplica puntos y registra que KFs aportaron soporte.
 5. fallback a la nube no reducida si hay pocos matches o degeneracion;
 6. matching refinado sobre la region reducida.
 
-Los valores parten de `legacy2`; no se copian ciegamente si los tipos o marcos
+Los valores parten de la baseline validada; no se copian ciegamente si los tipos o marcos
 del runtime nuevo difieren.
 
 ### RANSAC

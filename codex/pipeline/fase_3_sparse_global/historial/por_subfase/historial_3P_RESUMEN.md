@@ -65,7 +65,7 @@ Esos defectos no pertenecen enteros a `3P`:
 - BoW y verificacion: `3N/3O`;
 - fusion: `3P`;
 - optimizacion por loop: `3Q`;
-- scores: `3S`;
+- scores: `3R`;
 - contratos y observabilidad: `3T/3U`.
 
 El runtime historico del 2026-08-05 ejecutaba toda la cadena en una `LoopTask` y llamaba a

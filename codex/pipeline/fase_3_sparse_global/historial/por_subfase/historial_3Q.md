@@ -563,3 +563,17 @@
 - Punto de reentrada futuro, sin aplicarlo ahora: admision de loops asimetricos,
   ambiguedad/competidores, tamaño de ventana y validacion de deformacion en
   tramos con un solo extremo hard.
+
+## 2026-08-22 - Revision visual de prueba 195 y cierre
+
+- No es una nueva ejecucion: se incorpora la lectura visual comunicada por el
+  usuario sobre la prueba 195 ya registrada en el cierre de limpieza.
+- RViz2 se vio perfecto. La mala optimizacion final de 194 no se reprodujo;
+  las correcciones observadas ocurrieron al alcanzar el fiducial.
+- La evidencia no borra el fallo 194 ni demuestra que toda ambiguedad futura
+  sea imposible, pero permite cerrar Fase 3 sin aplicar otra correccion.
+- Mejora futura documentada, no implementada: exigir dos apoyos independientes
+  para candidatos cercanos y un umbral creciente de hasta 8-10 para candidatos
+  lejanos/ambiguos, seguido de una unica optimizacion.
+- Conclusion agregada revisada: `CONSEGUIDA PARA EL CIERRE DE FASE 3`, con
+  mejora futura y punto de reentrada conservados.

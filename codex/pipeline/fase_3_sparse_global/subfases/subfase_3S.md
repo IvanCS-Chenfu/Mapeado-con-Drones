@@ -1,93 +1,91 @@
-# Subfase 3S - Scoring raw y fused incremental
+# Subfase 3S - Perfil de debug y observabilidad opcional
 
-## Estado vigente
+## Estado
 
 ```text
-CONSEGUIDA: RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
+CONSEGUIDA
 ```
 
 ## Objetivo
 
-Convertir `LandmarkScoreManager` en la unica autoridad numerica para que el
-score evolucione con la calidad ORB, la geometria global y las fusiones, sin
-usar ground truth, bloquear publicacion ni reconstruir snapshots completos.
+Permitir que el launch normal de simulacion ejecute el mapa sparse global sin
+abrir herramientas visuales ni inundar la terminal con diagnosticos de Fase 3.
+La configuracion debe residir en un YAML legible y no alterar el procesamiento,
+las colas ni las publicaciones funcionales.
 
-Para cada raw MapPoint:
+## Configuracion
 
-```text
-score_raw = clamp(
-  base_score_orb * factor_distancia * factor_aislamiento
-  + 0.04 * inliers_confirmados,
-  0, 1)
-```
-
-- `base_score_orb` se recalcula cuando ORB-SLAM3 cambia sus datos de calidad;
-- un raw no anclado conserva la base ORB y los refuerzos confirmados;
-- al anclarse se aplican factores geometricos configurables y acotados;
-- una distancia fisicamente sospechosa o excesiva respecto al keyframe
-  observador reduce score de forma progresiva;
-- el aislamiento global persistente reduce score cuando ya existe soporte
-  suficiente para juzgarlo;
-- ambos factores son recuperables si ORB actualiza la posicion o aparecen
-  vecinos coherentes.
-
-Para cada fused track:
+Crear `simulacion_dron/config/fase3_debug.yaml` con cuatro booleanos:
 
 ```text
-score_fused = clamp(media(score_raw de todos los miembros) + 0.04 * N, 0, 1)
+fase3_rviz2
+fase3_grafo_web
+fase3_abrir_navegador_web
+fase3_logs_terminal
 ```
 
-`N` es el numero de raw MapPoints miembros. Por tanto, la primera fusion de dos
-miembros suma `0.08` y cada miembro posterior suma `0.04`. Se conserva ademas
-el refuerzo raw `+0.04` por inlier confirmado: el doble refuerzo es
-intencional.
+Todos quedan inicialmente en `false`. El launch usa esos valores como defaults
+y permite sobrescribirlos mediante argumentos homonimos.
 
-## Integracion
+- `fase3_rviz2=false`: no crea el proceso RViz2 sparse;
+- `fase3_grafo_web=false`: no crea el bridge/servidor web;
+- `fase3_abrir_navegador_web=false`: no crea el helper del navegador;
+- `fase3_logs_terminal=false`: ejecuta `global_map_server` con nivel ROS
+  `ERROR`, suprimiendo diagnosticos `[F3*]` pero conservando errores reales.
 
-- Los cambios raw ORB se limitan a IDs del `RawChangeSet`.
-- El indice espacial actualiza solo celdas vecinas a altas, movimientos o
-  retiradas; no recorre toda la nube por llegada.
-- Cambios raw o geometricos recalculan solo fused tracks que contienen esos
-  miembros.
-- Altas, extensiones, merges y bajas de tracks recalculan el fused score en el
-  mismo commit logico de fusion.
-- `ScoreChangeSet` entrega IDs exactos a `GlobalMapBuilder`; el builder publica
-  todos los puntos y solo copia `score`/`rgb`.
-- RViz2 conserva el gradiente rojo-amarillo-verde para scores `0-0.5-1`.
+El helper del navegador solo puede arrancar cuando tanto el grafo como su
+propio booleano estan activos.
 
-## Oclusiones
+## Alcance
 
-La visibilidad sparse de 3P se conserva como diagnostico, pero no modifica
-numericamente el score en 3S. Decidir si un punto esta realmente ocluido exige
-la nube densa prevista para Fase 8; alli se podran corregir posiciones y scores
-sin premiar accidentalmente ruido foreground.
+- leer el YAML al construir `multi_dron.launch.py` y fallar pronto si falta una
+  clave o no es booleana;
+- añadir un argumento `log_level` al launch standalone del servidor;
+- mantener el perfil como configuracion exclusiva del despliegue simulado;
+- instalar el YAML mediante el `config/` ya exportado por CMake;
+- proteger claves, defaults y consumidores mediante tests.
 
-## Limites
+## Exclusiones
 
-- sin GT, nueva cola o worker de score;
-- sin cambiar geometria, fusion u optimizacion para mejorar una puntuacion;
-- sin ocultar puntos por score dentro de `GlobalMapBuilder`;
-- sin score visible procedente de una fusion rechazada o stale;
-- sin snapshots completos en la ruta incremental.
+- no desactivar `/global_sparse_cloud`, `/global_keyframes`, backpressure ni
+  eventos internos;
+- no cambiar algoritmos, prioridades, score, fusion u optimizacion;
+- no ocultar errores `ERROR`/`FATAL`;
+- no modificar los launches replay, que conservan sus controles explicitos;
+- no corregir 3Q.
 
 ## Prueba acordada
 
-Ejecutar `prueba_tipica_rodeo_edificio_dos_fiduciales.yaml`, reducir logs y
-comprobar grafo web, commits `F3S-*`, score raw/fused y RViz2. La inspeccion
-visual se centra especialmente en observar que el ruido pierde score sin que
-desaparezca de la nube publicada.
+Ejecutar `prueba_debug_fase3_silencioso.yaml`: dos drones arrancan tracking,
+llegan al fiducial 2, avanzan unos metros y esperan un drenaje corto.
 
-La prueba 193 confirma el refuerzo por revisitas, pero no valida los umbrales
-actuales: estructura habitual queda demasiado penalizada y puntos a menos de
-1 m conservan score excesivo. La recalibracion acordada fija el limite cercano
-fisico en 1 m y hace el limite lejano proporcional al baseline: con los `0.06 m`
-actuales, la banda neutra es 1-5 m. Ambos extremos usan caida cuadratica
-acotada. La penalizacion permanece en cada raw y puede diluirse mediante la
-media fused, sin cap permanente.
+Comprobar mediante log reducido y procesos del launch:
 
-## Subdocumentos
+1. escenario y acciones terminan con `success=true`;
+2. no arrancan `sparse_global_rviz`, `pipeline_flow_bridge` ni
+   `pipeline_flow_browser`;
+3. no aparece ningun marcador `[F3*]` si no existe un error real;
+4. `global_map_server` permanece vivo hasta el cierre;
+5. no aparecen errores graves ni fallos de acciones.
 
-- `subfase_3S_especificacion.md`: ownership, formula e invariantes.
-- `subfase_3S_implementacion.md`: APIs e integracion incremental.
-- `subfase_3S_testing.md`: regresiones y simulacion.
-- `subfase_3S_criterios.md`: criterios de cierre.
+## Criterio de exito
+
+3S queda `CONSEGUIDA` si YAML, launch y tests coinciden y la prueba corta
+cumple los cinco criterios. Queda `PARCIAL` si el mapa funciona pero alguna
+herramienta o diagnostico sigue activo. Queda `NO CONSEGUIDA` si el perfil
+impide arrancar el servidor, oculta errores reales o rompe el escenario.
+
+## Riesgos aceptados
+
+- un nivel `ERROR` reduce la evidencia diagnóstica disponible durante una
+  ejecución normal;
+- una combinación manual incoherente de grafo apagado y navegador encendido se
+  resuelve no iniciando el navegador;
+- la ausencia de marcadores obliga a usar éxito del escenario, lifecycle de
+  procesos y ausencia de errores como evidencia de esta prueba.
+
+## Resultado
+
+Build 3/3, CTest 9/9 + 10/10 + 8/8 y prueba 196 `success=true`. El servidor
+permanece operativo, no se crean procesos visuales y no aparece ningun marcador
+`[F3*]`. Evidencia resumida en `historial_3S_RESUMEN.md`.

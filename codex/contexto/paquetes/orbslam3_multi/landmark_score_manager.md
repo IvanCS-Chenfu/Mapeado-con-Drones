@@ -6,7 +6,7 @@ Autoridad numerica unica de score raw y fused. Conserva base ORB, factores
 geometricos, evidencias idempotentes, score final y revisiones; ninguna clase
 externa modifica valores directamente.
 
-## Politica raw 3S
+## Politica raw 3R
 
 ```text
 base_score_orb = clamp(
@@ -21,8 +21,8 @@ score_raw = clamp(
   0, 1)
 ```
 
-En el runtime 3S `positive_adjustment` recibe `+0.04` por inlier de fusion
-confirmado. `negative_adjustment` se conserva en el modelo/rollback, pero 3S no
+En el runtime 3R `positive_adjustment` recibe `+0.04` por inlier de fusion
+confirmado. `negative_adjustment` se conserva en el modelo/rollback, pero 3R no
 genera penalizaciones sparse: la oclusion queda para Fase 8 con nube densa.
 
 - `ApplyRawChanges()` consume solo MPs nuevos o con inputs ORB modificados.

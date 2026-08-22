@@ -1,0 +1,14 @@
+/**:
+  ros__parameters:
+    use_sim_time: true
+    drone_count: 2
+    drone_namespace_base: dron
+    primary_queue_high_watermark: 8
+    primary_queue_low_watermark: 2
+    secondary_queue_high_watermark: 64
+    secondary_queue_low_watermark: 16
+    rawdb_record_enabled: false
+    rawdb_record_path: /tmp/f3c_raw.record
+    full_snapshot_enabled: true
+    full_snapshot_startup_delay_sec: 35.0
+    full_snapshot_period_sec: 35.0

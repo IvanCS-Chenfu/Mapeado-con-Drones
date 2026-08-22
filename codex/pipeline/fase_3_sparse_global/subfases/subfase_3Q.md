@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-A REVISAR; RESULTADO ACTUAL ACEPTADO PARA CONTINUAR
+CONSEGUIDA PARA EL CIERRE DE FASE 3; MEJORA FUTURA DOCUMENTADA
 ```
 
 ## Lectura obligatoria antes de retomar 3Q
@@ -132,4 +132,24 @@ registrado sin ocultar los intentos anteriores.
   ambiguos movieron 359/362 KFs antes del segundo fiducial hard. El diagnostico
   completo y el punto de reentrada estan en el historial obligatorio.
 
-Conclusion agregada: `A REVISAR; RESULTADO ACTUAL ACEPTADO PARA CONTINUAR`.
+Conclusion agregada: `CONSEGUIDA PARA EL CIERRE DE FASE 3`. La prueba 194
+permanece como fallo historico y punto de aprendizaje; la prueba 195 no
+reproduce la mala optimizacion final y el usuario confirma RViz2 perfecto.
+
+## Posible mejora futura no implementada
+
+Una futura revision puede hacer crecer el apoyo independiente exigido antes de
+optimizar segun la magnitud de la correccion propuesta y la ambiguedad o
+separacion de las regiones:
+
+- candidato cercano y poco ambiguo: al menos dos detecciones independientes;
+- candidato lejano o arriesgado: umbral creciente, incluso 8-10 detecciones;
+- los apoyos deben proceder de KFs, instantes o puntos de vista distintos; una
+  repeticion correlacionada del mismo candidato no cuenta como nueva evidencia;
+- al alcanzar el umbral se ejecuta una unica optimizacion, no 2-10 solves
+  consecutivos que puedan reforzar una hipotesis falsa.
+
+La distancia por si sola no debe dominar: una correccion grande o una fachada
+repetitiva pueden exigir mas evidencia aunque las poses estimadas esten cerca.
+Esta politica queda solo documentada como punto de estudio. No se modifica el
+runtime, los umbrales ni la logica de 3Q en el cierre de Fase 3.

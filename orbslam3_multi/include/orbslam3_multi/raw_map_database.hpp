@@ -42,9 +42,12 @@ struct RawRecordMetadata
   std::vector<RecordedFiducialObservation> fiducial_observations;
 };
 
+/// Autoridad de datos ORB-SLAM3 crudos, indexada siempre por (drone_id, map_epoch).
+/// Ninguna optimización escribe aquí: snapshots sustituyen estado raw y deltas lo refinan.
 class RawMapDatabase
 {
 public:
+  // Ingesta serializada y versionada; el journal conserva el mismo orden de arrival_id.
   RawInsertResult InsertDelta(
     uint64_t arrival_id,
     std::shared_ptr<const orbslam3_msgs::msg::OrbMap> delta);
@@ -52,6 +55,7 @@ public:
     uint64_t arrival_id,
     std::shared_ptr<const orbslam3_msgs::msg::OrbMap> snapshot);
 
+  // Lecturas copiadas para que consumidores costosos trabajen fuera del lock interno.
   RawDatabaseStats GetStats() const;
   std::optional<orbslam3_msgs::msg::OrbKeyFrame> GetKeyFrame(const RawKeyFrameId & id) const;
   std::optional<orbslam3_msgs::msg::OrbMapPoint> GetMapPoint(const RawMapPointId & id) const;
@@ -79,6 +83,7 @@ public:
   std::vector<RecordedFiducialObservation> GetFiducialObservationsForArrival(
     uint64_t arrival_id) const;
 
+  // Persistencia record v3. El archivo temporal solo se publica al finalizar correctamente.
   bool StartIncrementalRecord(
     const std::string & path, std::string * error_message = nullptr);
   bool FinalizeIncrementalRecord(std::string * error_message = nullptr);

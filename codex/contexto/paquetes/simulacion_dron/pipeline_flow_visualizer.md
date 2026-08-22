@@ -59,7 +59,7 @@ Las aristas se activan solo por eventos reales emitidos por el servidor. La
 revalidacion `STALE` evita mostrar grafo/solver cuando una tarea ya fue
 corregida. Backpressure conserva el enlace servidor->mission gate.
 
-En 3S el nodo `LandmarkScoreManager` describe base ORB, distancia,
+En 3R el nodo `LandmarkScoreManager` describe base ORB, distancia,
 aislamiento y score fused derivado. La arista desde fusion representa inliers
 raw, media fused y visibilidad solo diagnostica; no afirma penalizaciones
 sparse. Los eventos transportan cantidades/revisiones, nunca arrays completos
@@ -95,5 +95,5 @@ rg -n "F3P-FLOW-WEB-READY" simulacion_dron/src/visualizer/pipeline_flow_bridge.p
   390x844; visualizador aislado abierto sin Gazebo en
   `http://127.0.0.1:8765/` para revision del usuario.
 
-El snapshot previo permanece en
-`simulacion_dron/legacy2/pipeline_flow_visualizer/`.
+El snapshot previo fue retirado en 3T después de validar que esta copia activa
+cubre topología, lifecycle, reconexión y apertura desde launch.

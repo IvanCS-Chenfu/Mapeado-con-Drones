@@ -49,6 +49,8 @@ struct OptimizationProposal
   std::string reason;
 };
 
+/// Resuelve una propuesta SE(3) privada a partir de un PoseGraphProblem autocontenido.
+/// No valida política estructural ni escribe poses; esas responsabilidades son externas.
 class OptimizationManager
 {
 public:

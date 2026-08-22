@@ -172,7 +172,8 @@ Uso esperado:
 - Fase 3H: provocar revisits fiduciales y medir residual absoluto.
 - Fases 3I-3L: alimentar tareas de optimizacion fiducial.
 - Fases 3N-3Q: generar candidatos de loop/subnube en lados opuestos.
-- Fases 3V-3W: prueba integral de regresion con trayectoria mas larga.
+- Auditorias absorbidas por 3T: regresion integral y rendimiento con
+  trayectoria mas larga.
 
 ## Prueba tipica 3 — fiducial 2 a fiducial 1 por dos lados
 

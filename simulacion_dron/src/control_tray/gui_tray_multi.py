@@ -17,12 +17,15 @@ from geometry_msgs.msg import PoseStamped
 from dron_individual.action import TrayAction
 
 
-ACTION_NAME = "AccionTrayectoria"   # nombre del servidor de acción (relativo al namespace del dron)
+# Nombre relativo del servidor de acción dentro del namespace del dron.
+ACTION_NAME = "AccionTrayectoria"
 
 
 def load_sim_cfg():
     """
-    Lee mi_tfg/config/sim_dron.yaml (formato ros__parameters) y devuelve:
+    Lee ``sim_dron.yaml`` y devuelve la configuración de la GUI.
+
+    El resultado contiene:
       - n_drones (int)
       - namespace_base (str)
       - spawn_box (lista [x1,x2,y1,y2] o None)
@@ -71,7 +74,8 @@ class TrayActionGUI(Node):
 
         self._build_gui()
         self.get_logger().info(
-            f"GUI lista. n_drones={self.n_drones}, namespace_base='{self.namespace_base}', action='{ACTION_NAME}'"
+            f"GUI lista. n_drones={self.n_drones}, "
+            f"namespace_base='{self.namespace_base}', action='{ACTION_NAME}'"
         )
 
     # ---------- helpers para action ----------
@@ -146,13 +150,13 @@ class TrayActionGUI(Node):
         self.lbl_target.grid(row=1, column=0, columnspan=4, sticky="w", pady=(0, 10))
 
         # --- sliders originales ---
-        self.var_x    = tk.DoubleVar(value=self.defaults["x"])
-        self.var_y    = tk.DoubleVar(value=self.defaults["y"])
-        self.var_z    = tk.DoubleVar(value=self.defaults["z"])
-        self.var_yaw  = tk.DoubleVar(value=self.defaults["yaw_deg"])
-        self.var_tx   = tk.DoubleVar(value=self.defaults["tx"])
-        self.var_ty   = tk.DoubleVar(value=self.defaults["ty"])
-        self.var_tz   = tk.DoubleVar(value=self.defaults["tz"])
+        self.var_x = tk.DoubleVar(value=self.defaults["x"])
+        self.var_y = tk.DoubleVar(value=self.defaults["y"])
+        self.var_z = tk.DoubleVar(value=self.defaults["z"])
+        self.var_yaw = tk.DoubleVar(value=self.defaults["yaw_deg"])
+        self.var_tx = tk.DoubleVar(value=self.defaults["tx"])
+        self.var_ty = tk.DoubleVar(value=self.defaults["ty"])
+        self.var_tz = tk.DoubleVar(value=self.defaults["tz"])
         self.var_tyaw = tk.DoubleVar(value=self.defaults["tyaw"])
 
         # --- checkboxes absoluto ---
@@ -186,19 +190,39 @@ class TrayActionGUI(Node):
                 )
 
         r = 3
-        add_slider(r, "x (m)", self.var_x, (-10.0, 10.0), absoluto_var=self.var_absoluto_x); r += 1
-        add_slider(r, "y (m)", self.var_y, (-10.0, 10.0), absoluto_var=self.var_absoluto_y); r += 1
-        add_slider(r, "z (m)", self.var_z, (0.0, 10.0), absoluto_var=self.var_absoluto_z); r += 1
-        add_slider(r, "yaw (deg)", self.var_yaw, (-180.0, 180.0), fmt="{:.0f}", absoluto_var=self.var_absoluto_yaw); r += 1
+        add_slider(
+            r, "x (m)", self.var_x, (-10.0, 10.0),
+            absoluto_var=self.var_absoluto_x)
+        r += 1
+        add_slider(
+            r, "y (m)", self.var_y, (-10.0, 10.0),
+            absoluto_var=self.var_absoluto_y)
+        r += 1
+        add_slider(
+            r, "z (m)", self.var_z, (0.0, 10.0),
+            absoluto_var=self.var_absoluto_z)
+        r += 1
+        add_slider(
+            r, "yaw (deg)", self.var_yaw, (-180.0, 180.0),
+            fmt="{:.0f}", absoluto_var=self.var_absoluto_yaw)
+        r += 1
 
-        ttk.Separator(frm, orient="horizontal").grid(row=r, column=0, columnspan=4, sticky="we", pady=(6, 6)); r += 1
+        ttk.Separator(frm, orient="horizontal").grid(
+            row=r, column=0, columnspan=4, sticky="we", pady=(6, 6))
+        r += 1
 
-        add_slider(r, "tx (s)", self.var_tx, (1.0, 60.0), fmt="{:.0f}"); r += 1
-        add_slider(r, "ty (s)", self.var_ty, (1.0, 60.0), fmt="{:.0f}"); r += 1
-        add_slider(r, "tz (s)", self.var_tz, (1.0, 60.0), fmt="{:.0f}"); r += 1
-        add_slider(r, "tyaw (s)", self.var_tyaw, (1.0, 60.0), fmt="{:.0f}"); r += 1
+        add_slider(r, "tx (s)", self.var_tx, (1.0, 60.0), fmt="{:.0f}")
+        r += 1
+        add_slider(r, "ty (s)", self.var_ty, (1.0, 60.0), fmt="{:.0f}")
+        r += 1
+        add_slider(r, "tz (s)", self.var_tz, (1.0, 60.0), fmt="{:.0f}")
+        r += 1
+        add_slider(r, "tyaw (s)", self.var_tyaw, (1.0, 60.0), fmt="{:.0f}")
+        r += 1
 
-        ttk.Separator(frm, orient="horizontal").grid(row=r, column=0, columnspan=4, sticky="we", pady=(10, 10)); r += 1
+        ttk.Separator(frm, orient="horizontal").grid(
+            row=r, column=0, columnspan=4, sticky="we", pady=(10, 10))
+        r += 1
 
         ttk.Button(frm, text="Enviar goal", command=self._on_send).grid(
             row=r,
@@ -222,13 +246,13 @@ class TrayActionGUI(Node):
         tipo = max(0, min(tipo, 2))
         self.var_tipo_trayectoria.set(tipo)
         self.lbl_tipo_trayectoria.config(text=self._tipo_trayectoria_txt(tipo))
-    
+
     # ------------- Acción -------------
     def _on_send(self):
         i = int(self.var_drone.get())
         full_action_name = self._action_full_name(i)
         client = self._get_client(i)
-        
+
         tipo_trayectoria = int(round(float(self.var_tipo_trayectoria.get())))
         tipo_trayectoria = max(0, min(tipo_trayectoria, 2))
 

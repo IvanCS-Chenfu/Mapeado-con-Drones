@@ -11,8 +11,8 @@ Dudas abiertas: ninguna
 ```
 
 Este es el contrato vigente y ejecutado de 3I dentro de la entrega conjunta
-3H-3L. El codigo y la documentacion de `legacy2` son referencia de un algoritmo
-que funcionaba bien, no una arquitectura que deba copiarse completa.
+3H-3L. El código y la documentación anteriores fueron referencia de un algoritmo
+que funcionaba bien, no una arquitectura que debiera copiarse completa.
 
 ## Sucesion acordada en 3Q
 
@@ -89,7 +89,7 @@ el plan de propagacion se calculan fuera de locks sobre esta copia privada.
 
 ## Seleccion de controles
 
-Se conserva el comportamiento final validado en `legacy2`:
+Se conserva el comportamiento final validado en la baseline anterior:
 
 ```text
 control_ratio = 0.30
@@ -105,8 +105,7 @@ equilibrada usando:
   pueda romper la cobertura;
 - vecindades protegidas de los extremos.
 
-Las vecindades protegidas usan inicialmente el reparto validado de
-`legacy2`:
+Las vecindades protegidas usan inicialmente el reparto validado previamente:
 
 ```text
 endpoint_neighborhood_ratio = 0.20
@@ -179,7 +178,7 @@ No contiene referencias mutables a `RawMapDatabase` o `GlobalPoseStore`.
   ownership explicito y revisiones;
 - implementar en `PoseGraphBuilder` la captura mono-submapa desde el ultimo
   control aceptado hasta el target;
-- portar selectivamente de `legacy2` el 30 % de controles, cobertura por camino
+- portar selectivamente de la baseline el 30 % de controles, cobertura por camino
   3D/tiempo, preferencias de esquinas y vecindades de extremos;
 - generar aristas temporales SE(3) completas y restricciones absolutas de los
   extremos;

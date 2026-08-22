@@ -122,8 +122,8 @@ El goal actual no se cancela. No se envia el siguiente goal mientras el flag
 este activo. Los snapshots/deltas ya en vuelo se procesan y no se pierde el
 estado necesario para propagar KFs posteriores.
 
-La implementacion no puede conservar el comportamiento antiguo de
-`legacy2` que dejaba backpressure permanentemente a false o descartaba trabajo
+La implementación no puede conservar el comportamiento antiguo que dejaba
+backpressure permanentemente a false o descartaba trabajo
 al llenar una cola pequeña.
 
 ## Resultados y fallos

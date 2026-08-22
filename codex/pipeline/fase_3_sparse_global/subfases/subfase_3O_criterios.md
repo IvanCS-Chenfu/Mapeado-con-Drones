@@ -161,7 +161,7 @@ min_independent_query_translation = 0.20 m
 min_independent_query_yaw = 5 grados
 required_consistent_queries = 2
 ambiguity_support_margin = 2
-thresholds BoW/matching/RANSAC de legacy2
+thresholds BoW/matching/RANSAC validados en la baseline anterior
 limites de ventana y puntos
 ```
 

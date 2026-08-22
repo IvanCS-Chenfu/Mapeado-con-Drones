@@ -70,7 +70,7 @@ Codex no debe reactivar `force_pose_graph_optimization_` para resolver deuda fid
 
 ## En Fase 3 actual
 
-La planificación activa `3A`-`3X` mantiene la separación conceptual:
+La planificación activa `3A`-`3T` mantiene la separación conceptual:
 
 - `3E` y `3H` gestionan observaciones fiduciales y tareas fiduciales;
 - `3N`-`3Q` gestionan candidatos BoW, verificación por subnubes, decisión de loop

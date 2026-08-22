@@ -26,6 +26,7 @@
 #include<stdlib.h>
 #include<string>
 #include<thread>
+#include<cstdint>
 #include<opencv2/core/core.hpp>
 
 #include "Tracking.h"
@@ -99,6 +100,18 @@ public:
         BINARY_FILE=1,
     };
 
+    // ============================================================
+    // FASE 4C - Snapshot mínimo del último KeyFrame de Tracking.
+    // Cambio aditivo: no modifica la política de creación de KFs.
+    // ============================================================
+    struct LastKeyFrameInfo
+    {
+        bool valid = false;
+        uint64_t keyframe_id = 0;
+        uint64_t source_frame_id = 0;
+        double timestamp = 0.0;
+    };
+
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     // Initialize the SLAM system. It launches the Local Mapping, Loop Closing and Viewer threads.
@@ -108,6 +121,12 @@ public:
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
     // Returns the camera pose (empty if tracking fails).
     Sophus::SE3f TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp, const vector<IMU::Point>& vImuMeas = vector<IMU::Point>(), string filename="");
+
+    // FASE 4C: copia por valor de la identidad del último KF mantenido por
+    // Tracking. El wrapper la consulta inmediatamente antes y después de
+    // TrackStereo para saber de forma determinista si ESA llamada creó un KF.
+    // No se expone el puntero interno al wrapper.
+    LastKeyFrameInfo GetLastKeyFrameInfo();
 
     // Process the given rgbd frame. Depthmap must be registered to the RGB frame.
     // Input image: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.

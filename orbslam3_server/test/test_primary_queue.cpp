@@ -71,7 +71,8 @@ TEST(PrimaryQueue, WorkerCannotPopBeforeEnqueueTelemetryIsReady)
   map->drone_id = 1;
   const auto enqueued = queue.PushLive(map);
 
-  auto waiting_pop = std::async(std::launch::async, [&queue]() {
+  auto waiting_pop = std::async(
+    std::launch::async, [&queue]() {
       PrimaryInput input;
       queue.WaitPop(&input);
       return input.arrival_id;
@@ -113,7 +114,8 @@ TEST(PrimaryQueue, CapacityWaitBlocksUntilWorkerPops)
   queue.MarkReady(first.arrival_id);
   queue.MarkReady(second.arrival_id);
 
-  auto capacity = std::async(std::launch::async, [&queue]() {
+  auto capacity = std::async(
+    std::launch::async, [&queue]() {
       return queue.WaitUntilPendingBelow(2);
     });
   EXPECT_EQ(capacity.wait_for(std::chrono::milliseconds(30)), std::future_status::timeout);

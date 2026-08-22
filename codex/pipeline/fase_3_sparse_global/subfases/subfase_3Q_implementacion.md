@@ -133,7 +133,7 @@ usar GT para afinarlos.
 ## `OptimizationManager`
 
 Mantener una unica clase y adaptar el codigo SE(3) existente. Reutilizar las
-partes estables de la optimizacion fiducial y las ideas utiles de `legacy2`,
+partes estables de la optimización fiducial y las ideas útiles de la baseline,
 sin portar su infraestructura, snapshots globales, dumps ni locks largos.
 
 El solver debe:

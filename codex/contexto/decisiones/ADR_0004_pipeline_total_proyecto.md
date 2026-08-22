@@ -208,7 +208,7 @@ El archivo `PIPELINE_MAESTRO.md` debe reflejar estas nueve fases.
 
 Cada fase puede tener subfases.
 
-La Fase 3 activa se planifica ahora como una secuencia `3A`-`3X`.
+La Fase 3 activa se planifica ahora como una secuencia `3A`-`3T`.
 
 Las subfases antiguas `12R-*`, `13`, `14` y `15` se conservan como legacy/solo
 referencia. No deben ejecutarse como planificación activa.

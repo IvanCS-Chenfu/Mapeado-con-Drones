@@ -1,284 +1,276 @@
-# Subfase 3T - Arquitectura runtime, ownership e invariantes
+# Subfase 3T - Limpieza, configuracion y handoff de Fase 3
 
-## Estado vigente
-
-```text
-CONSEGUIDA POR AUDITORIA TECNICA Y ACEPTACION DEL USUARIO
-```
-
-La arquitectura exigida quedo implantada incrementalmente entre `3C` y `3S`.
-La auditoria final confirma dos workers persistentes, autoridades separadas,
-propuestas privadas, commits revisionados, dirty sets y publicacion exclusiva
-del flujo principal. El usuario considera bueno el rendimiento actual y decide
-no estrechar mas los locks por ahora.
-
-No se ejecuta una reimplementacion adicional en `3T`. Las mediciones globales
-de carga y la regresion transversal permanecen en `3V/3W` y no reabren esta
-subfase salvo que descubran una violacion real de ownership o atomicidad.
-
-### Trabajo que se conserva
-
-- invariantes de identidad, frames, raw inmutable y GT restringido;
-- separación entre fuentes de verdad y telemetría descartable;
-- necesidad de commits coherentes y revisiones monotónicas.
-
-### Implementación anterior incorrecta que no debe repetirse
-
-- representar el servidor como propietario directo de todas las mutaciones;
-- utilizar un snapshot/publication request global como frontera universal;
-- tener varios writers sin contrato explícito de propuesta/commit;
-- usar un mutex recursivo común para simular atomicidad;
-- dejar IDs, revisiones y origen de poses/tracks implícitos.
-
-### Contrato vigente validado
-
-`GlobalMapServer` orquesta exactamente `PrimaryWorker` y `SecondaryWorker`.
-Cada base define writer, vista inmutable, patch y revisión. Los secundarios
-preparan propuestas y el commit valida por entidad; los cambios a publicación
-se acumulan como dirty sets. Todo evento incluirá `flow_id`, `task_id`, origen,
-revisiones. La telemetria web detallada es observabilidad descartable y su
-presentacion pertenece a `3U`; no condiciona commits ni publicacion. Las
-pruebas existentes y las simulaciones hasta 194 cubren un solo worker por
-flujo, raw inmutable, commits atomicos y progreso del principal.
-
-## Estado histórico anterior
-
-Las secciones posteriores conservan el contrato que fue implantado
-incrementalmente. Si una formulacion histórica contradice el estado de cierre
-de esta cabecera, prevalece el runtime auditado.
+## Estado
 
 ```text
-CONSEGUIDA: ownership y flujo vigentes auditados; 3V/3W los reutilizan en la
-regresion y el stress globales.
+CONSEGUIDA
 ```
 
-## Objetivo
-
-Convertir las decisiones transversales de `3C-3S` en invariantes verificables,
-sin trasladar a `3T` las responsabilidades algoritmicas de cada subfase.
-
-## Arquitectura vigente
+Checkpoint anterior a la limpieza:
 
 ```text
-wrappers
-   |
-   | delta / full snapshot
-   v
-Server -----------------------------------------------+
-   |                                                  |
-   | commit + ChangeSet                               | observacion fiducial
-   v                                                  v
-RawMapDatabase                                 FiducialAnchorManager
-   |                                                  |
-   +--> GlobalPoseStore <-----------------------------+
-   +--> CovisibilityDatabase
-   +--> LandmarkScoreManager
-   +--> PublicationRequest -----------------------+
-   +--> enqueue LoopTask                          |
-                                                 v
-                                     GlobalMapBuilder -> ROS/RViz2
-
-PriorityQueue -> SecondaryWorker
-   |                |
-   |                +--> FiducialOptimizationTask
-   |                +--> LoopTask (3N -> 3O -> 3P/3Q)
-   |                           |
-   +---------------------------+--> commits derivados
-                                      |
-                                      +--> nueva PublicationRequest
-
-FlowTracer -> telemetria descartable -> visualizador JavaScript
+1b96a7a checkpoint: guardar estado de fase 3 antes de limpieza 3X
 ```
 
-## Ownership
+`3T` no redisenha los algoritmos de Fase 3. Audita la implementacion vigente,
+elimina rutas sustituidas, ordena la configuracion y deja un handoff
+reproducible para Fase 2.
 
-| Componente | Posee | Puede escribir | No puede hacer |
-|---|---|---|---|
-| `Server` | orquestacion, colas, timers, revisiones globales | coordinacion/estado de ejecucion | duplicar bases o ejecutar algoritmos largos en callbacks |
-| `RawMapDatabase` | estado ORB crudo y journal | solo datos recibidos/reconciliados de ORB | anchors, poses world, fusion, optimizacion, ROS |
-| `GlobalPoseStore` | anchors, poses world, propagacion y autoridad futura | commits de anchor/pose | descriptores, MPs, BoW, publishers |
-| `FiducialAnchorManager` | semantica/visitas fiduciales | su estado ligero de visitas | pose DB duplicada, loops, solver |
-| `CovisibilityDatabase` | aristas KF-KF confirmadas | import ORB y commits geometricos | candidatos/rechazos BoW |
-| `LoopDetector` | indice/consulta BoW | su indice/caches propios | scheduling, RANSAC, bases globales |
-| `SubcloudLoopVerifier` | calculo geometrico privado | ninguno live | cola, fusion, optimizacion |
-| `LoopDecisionManager` | decision estructurada | memoria canonica acotada | crear workers o escribir bases por pasos |
-| `FusedLandmarkManager` | equivalencias/tracks | commit de fusion | modificar raw/poses, publicar ROS |
-| `LandmarkScoreManager` | scores raw/fused | commits de score | geometria, scheduling, publicacion |
-| `PoseGraphBuilder` | grafo temporal privado | ninguno live | solver, commit, thread propio |
-| `OptimizationManager` | solver/candidato privado | ninguno live | scheduler, publicacion, raw |
-| `GlobalMapBuilder` | caches derivadas publicables, slots, indices inversos y dirty sets | ninguna base autoritativa | anchors, politica de score, fusion o poses |
-| `FlowTracer` | cola de eventos descartables | solo telemetria | bloquear o decidir funcionalidad |
+La ejecucion original de la limpieza conservo 3Q `A REVISAR` por la deformacion
+de la prueba 194. Tras la revision visual correcta de 195, el usuario acepto
+3Q para el cierre de Fase 3 y dejo la politica adaptativa de evidencia como
+mejora futura, no como bloqueo. La incidencia historica no se elimina.
 
-Los nombres existentes `GlobalPoseStore` y `FiducialAnchorManager` se conservan;
-no se renombran a `KFPoseDatabase`/`FiducialManager` si eso solo genera churn.
+## Objetivos
 
-## Flujo principal
+1. Conservar una unica ruta runtime por responsabilidad.
+2. Retirar el legacy de Fase 3 ya sustituido.
+3. Absorber las subfases que no representan trabajo independiente.
+4. Diagnosticar duplicacion, codigo muerto y configuracion sin consumidor.
+5. Documentar el codigo activo y sus invariantes.
+6. Organizar los parametros en YAML por dominio y despliegue.
+7. Actualizar launches, manifiestos, documentacion y resultado final.
+8. Demostrar con build, tests y Gazebo que no aparecen regresiones.
 
-El flujo principal reutiliza el unico `PrimaryWorker`; no existe un worker
-propio de publicacion. Debe:
-
-1. recibir y validar deltas/snapshots;
-2. hacer commit raw y obtener `ChangeSet`;
-3. registrar KFs nuevos en poses si existe anchor;
-4. procesar el primer anchor o una observacion fiducial;
-5. importar covisibilidad ORB y score base afectados;
-6. drenar dirty sets y actualizar `GlobalMapBuilder` por IDs;
-7. serializar/publicar cloud y KFs coherentes si cambia la vista;
-8. encolar trabajo secundario cuando corresponda;
-9. terminar la `PrimaryTask` y volver a atender ROS.
-
-Nunca espera BoW, RANSAC, fusion, grafo, solver, HTML, RViz2 o navegador. Si el
-worker secundario se detiene, este flujo sigue siendo util.
-
-## Flujo secundario
-
-- un worker persistente;
-- una tarea activa como maximo;
-- prioridad `FIDUCIAL > LOOP`;
-- no preemption: la activa termina;
-- FIFO dentro de cada prioridad;
-- `LoopTask` unica desde BoW hasta fusion/optimizacion y commit;
-- calculo sobre snapshots;
-- tarea finalizada al comprometer/rechazar bases;
-- publicacion solicitada despues, sin ACK.
-
-No hay tareas independientes para RANSAC, fusion, optimizacion por loop,
-scoring o reprocesado post-optimizacion.
-
-## Sincronizacion
-
-### Regla de locks
-
-Los mutex protegen exclusivamente:
-
-- push/pop/coalescing de cola;
-- captura corta o intercambio de version;
-- validacion y commit de lote.
-
-Nunca cubren algoritmos, I/O o construccion de mensajes. Los lectores largos
-usan snapshots inmutables. Cuando una base prepara copy-on-write, la version
-anterior permanece disponible hasta el intercambio atomico.
-
-### Revisiones
-
-Separar como minimo:
+La arquitectura que debe permanecer es:
 
 ```text
-raw_revision
-appearance_revision
-association_revision
-geometry_revision
-pose_revision
-covisibility_revision
-fusion_revision
-score_revision
-derived_state_revision
-publication_revision
+principal: ingesta -> raw -> ChangeSet -> derivados -> publicacion
+secundario: cola priorizada -> un worker -> tarea -> commit/rechazo
+observabilidad: eventos -> RViz2/web, sin gobernar el pipeline
 ```
 
-No incrementar revisiones geometricas por metadata. Cada tarea declara sus
-dependencias y valida solo esas revisiones.
+## Diagnostico y retirada
 
-### Commit multi-base
+Antes de borrar se deben localizar y clasificar:
 
-Una rama que modifica varias bases prepara todas las versiones fuera del lock.
-El servidor publica una nueva `DerivedStateRevision` solo cuando los lotes son
-compatibles. `GlobalMapBuilder` nunca combina estados parciales.
+- implementaciones repetidas, helpers equivalentes y clases pasarela;
+- codigo, parametros, metricas y topics sin consumidor;
+- rutas duplicadas de scheduling, optimizacion o publicacion;
+- launches o tests de replay sin cobertura vigente;
+- archivos instalados innecesariamente por CMake;
+- defaults repetidos entre C++, launch y YAML;
+- referencias activas hacia archivos legacy.
 
-## Identidades y frames
+Cada candidato se retira solo si no participa en build, instalacion, tests o
+runtime, o si su sustituto activo esta probado. El diagnostico se registra en
+el historial 3T y se resume en el resultado final. No se divide codigo grande
+por estetica ni se adelanta la separacion de paquetes de Fase 2.
+
+Eliminar de la version actual los directorios `legacy/`, `legacy2/`, snapshots,
+codigo antiguo y documentacion duplicada de Fase 3. No se reescribe Git. Se
+conservan historiales, conclusiones, trayectorias y evidencia reproducible. El
+resultado final enumera lo retirado y remite al checkpoint para recuperarlo;
+no se crea un indice que presente el legacy como contenido disponible.
+
+## Renumeracion final
+
+La limpieza se ejecuto inicialmente con el identificador provisional `3X`.
+Antes del cierre definitivo se fijo la secuencia activa:
 
 ```text
-SubmapId       = (drone_id, map_epoch)
-KeyFrameId     = (drone_id, map_epoch, local_kf_id)
-RawMapPointId  = (drone_id, map_epoch, local_mp_id)
-FusedTrackId   = ID estable del servidor
-TaskId         = monotono, con tipo y clave canonica separados
-ArrivalId      = orden de entrada, no identidad geometrica
+3Q optimizacion -> 3R scoring -> 3S debug -> 3T limpieza/handoff
 ```
 
-Convenciones obligatorias:
+Por ello este contrato y su historial pasan de 3X a 3T. La subfase de scoring
+pasa de 3S a 3R y la nueva 3S controla la observabilidad del launch. Los
+marcadores actuales de scoring son `[F3R-*]`; los logs 192-195 conservan
+`[F3S-*]` porque reflejan la numeracion existente cuando se ejecutaron.
 
-- nombres `target_T_source`;
-- pose world de KF autoritativa en `GlobalPoseStore`;
-- pose local raw autoritativa en `RawMapDatabase`;
-- fiducial como observacion absoluta;
-- loop como relacion geometrica relativa;
-- GT solo fiducial simulado/debug/metrica.
+## Subfases absorbidas
 
-## Publicacion
+Eliminar como contratos independientes:
 
-`GlobalMapBuilder` drena IDs dirty y consulta por entidad las autoridades
-raw/pose/fusion/score. Actualiza sus caches stateful, produce KFs y MPs de una
-revision conjunta y deja que el servidor serialice. No existe timer de
-reconciliacion pesado ni captura global. Los commits secundarios solo acumulan
-IDs/revisiones; la siguiente `PrimaryTask` construye/publica y ninguna tarea
-secundaria condiciona su scheduler a RViz2.
+- responsabilidad transversal anterior a la 3R final;
+- auditoria de arquitectura que usaba provisionalmente 3T;
+- auditoria del visualizador que usaba provisionalmente 3U;
+- regresion integral que usaba provisionalmente 3V;
+- rendimiento y robustez que usaban provisionalmente 3W.
 
-## Backpressure
+Sus invariantes y conclusiones utiles se integran en `3T`, la documentacion
+vigente y `RESULTADO_FINAL_FASE_3.md`. Los historiales se conservan bajo
+`historial/absorbidas/` con nombres descriptivos para no colisionar con la
+numeracion activa.
 
-El unico topic puede gobernar el siguiente movimiento del runner, pero nunca
-pausa subscriptions, commits principales o publicacion. Fiduciales mantienen el
-gate hasta commit/rechazo. Loops usan histeresis de cola. No se espera ACK
-visual.
+## Comentarios del codigo
 
-## Simplificacion obligatoria
+El codigo activo de `orbslam3_multi`, `orbslam3_server` y la observabilidad de
+`simulacion_dron` debe explicar:
 
-Antes de añadir clases, auditar las actuales y eliminar solo tras tests:
+- responsabilidad y ownership de clases;
+- contratos de funciones publicas e internas complejas;
+- locks, revisiones, atomicidad y orden de commit;
+- invariantes geometricos y de identidad;
+- decisiones algoritmicas o de rendimiento no evidentes.
 
-- scheduling anterior ya sustituido por el worker unico de `3K`;
-- scheduler separado de loop optimization;
-- colas independientes de fusion/scoring;
-- `PostOptimizationKeyFrameQueue`;
-- estados `AWAITING_VISUAL_ACK`;
-- caches/vistas duplicadas solo para RViz2;
-- `FusionManager` si solo reenvia a `FusedLandmarkManager`;
-- callbacks/timers que vuelven a escanear bases para suplir `ChangeSet`;
-- parametros y logs sin consumidor.
+No se comentan instrucciones obvias. Los comentarios explican contratos y
+motivos, no traducen el codigo linea por linea.
 
-La evidencia historica se conserva en historial; no se conserva codigo muerto
-solo para reproducir arquitectura antigua.
+## ADR y dominios
 
-## Visualizador
+Crear:
 
-La observabilidad `3U` usa eventos best-effort. El tracer hace `try_push` en una
-cola acotada; si falla, incrementa `dropped_events` y retorna. La topologia,
-descripciones y estilos viven en JavaScript, fuera del backend algoritmico.
+```text
+codex/contexto/decisiones/ADR_0009_configuracion_por_dominio_y_despliegue.md
+```
 
-## Pruebas de contrato
+El ADR prepara los tres grupos de Fase 2:
 
-1. `RawMapDatabase` no cambia tras fusion/optimizacion.
-2. No hay poses globales fuera de `GlobalPoseStore` como autoridad.
-3. No hay score escrito fuera de `LandmarkScoreManager`.
-4. No hay dos tareas secundarias activas.
-5. Orden: activa completa, fiduciales FIFO, loops FIFO.
-6. KFs nuevos se publican durante una tarea lenta.
-7. Commit multi-base no produce vista parcial.
-8. No existe espera funcional de RViz2/JS.
-9. Desconectar/saturar telemetria no cambia resultados.
-10. No aparece `PostOptimizationKeyFrameQueue` ni scheduling duplicado.
+- **dron**: masa, inercia, controladores, calibracion y propiedades fisicas;
+- **servidor**: fusion, scoring, loops, optimizacion, colas y snapshots;
+- **simulacion**: mundo, modelos, ruido, GUI y comportamiento de Gazebo.
 
-## Criterio de exito
+La propiedad depende de la responsabilidad semantica, no solo del consumidor
+actual. Por ejemplo, `body_T_camera` pertenece conceptualmente al dron aunque
+el servidor lo consuma hoy; Fase 2 decidira su interfaz definitiva.
 
-Los invariantes anteriores estan expresados en APIs/tests y la simulacion larga
-los cumple. Cualquier excepcion de ownership debe documentarse y justificarse;
-si dos clases poseen el mismo estado, `3T` no puede cerrarse.
+El ADR distingue propiedad, consumidor, seleccion y distribucion. Cargar un
+YAML en el servidor no configura automaticamente nodos ROS 2 remotos. `3T` no
+introduce un protocolo de distribucion.
 
-## Archivos probables
+## YAML
 
-Los contratos afectan a headers/componentes ya listados en `3C-3S`, al
-orquestador `global_map_server.cpp` y a tests de ownership/concurrencia. No se
-crea un `system_invariants` complejo si tests pequeños y APIs de tipos expresan
-mejor las reglas.
+Organizar todos los parametros activos controlables por el servidor:
+
+```text
+orbslam3_server/config/global_map/
+simulacion_dron/config/global_map/
+  runtime.yaml
+  fiducials.yaml
+  optimization.yaml
+  loop_fusion.yaml
+  scoring.yaml
+  replay_debug.yaml
+```
+
+Cada paquete contiene sus propias copias. El launch standalone carga solo las
+de `orbslam3_server`; Gazebo carga solo las de `simulacion_dron`. Ahora los
+parametros compartidos y sus valores deben ser iguales.
+
+Reglas:
+
+- un test detecta claves desconocidas, omisiones y divergencias;
+- `replay_debug.yaml` no se carga normalmente;
+- los argumentos launch quedan para valores dinamicos como numero de drones,
+  namespace o seleccion de configuracion;
+- los defaults C++ son fallback seguro, no perfil operativo oculto;
+- CMake instala todos los YAML;
+- parametros intrinsecos de dron o exclusivos de simulacion no se copian al
+  servidor; su movimiento definitivo corresponde a Fase 2.
+
+## Launches y manifiestos
+
+Actualizar launches y `launches.md` para describir los YAML de cada modo, los
+argumentos dinamicos y los visualizadores opcionales, sin afirmar que siguen
+pendientes componentes ya implementados.
+
+Actualizar `package.xml` de `orbslam3_multi`, `orbslam3_server` y
+`simulacion_dron`:
+
+```text
+version: 0.1.0
+license: GPL-3.0-only
+maintainer: ivancalvosantos2003@uma.es
+```
+
+Sustituir tambien descripciones `TODO`. No usar ni modificar
+`fase45_sandbox`.
+
+## Resultado final
+
+Crear `RESULTADO_FINAL_FASE_3.md` con:
+
+- arquitectura, flujos y responsabilidades vigentes;
+- topics, launches y YAML activos;
+- pruebas finales y evidencia relevante;
+- codigo y contratos absorbidos o retirados;
+- recuperacion mediante el checkpoint;
+- la incidencia 3Q de la prueba 194 y su mejora futura documentada;
+- punto de entrada y decisiones pendientes para Fase 2.
+
+Sincronizar pipeline maestro, resumen de Fase 3, estado actual, ultima sesion,
+catalogo de pruebas y documentacion de paquetes tocados.
 
 ## Exclusiones
 
-No implementar hard real-time. No modificar wrappers, `ORB_SLAM3` ni mensajes
-sin bloqueo demostrado y autorizacion.
+- No corregir ni cerrar 3Q dentro de 3T.
+- No cambiar algoritmos para mejorar resultados visuales.
+- No modificar `ORB_SLAM3`, `orbslam3_ros2`, `orbslam3_msgs` ni
+  `fase45_sandbox`.
+- No borrar historiales o evidencia de intentos fallidos.
+- No reescribir Git.
+- No implementar distribucion remota ni separar paquetes de Fase 2.
+- No introducir workers, colas, publishers o autoridades nuevas.
 
-## Incremento Visual Obligatorio
+## Verificacion
 
-Se aplico `../CONTRATO_VISUAL_INCREMENTAL.md` sin añadir nodos documentales. El
-grafo representa IDs, ownership y fronteras de autoridad suficientes para
-seguir el runtime real; la telemetria sigue siendo best-effort y no funcional.
-Una regresion futura que confunda autoridades o altere el pipeline reabriria
-3T, pero no se exigen mas campos visuales para su cierre actual.
+### Revision estatica
+
+- ausencia de legacy y enlaces rotos por los contratos retirados;
+- ausencia de scheduling, publicacion o autoridad duplicada;
+- parametros YAML declarados, consumidos y sincronizados;
+- perfiles debug fuera del arranque normal;
+- YAML y launches instalados por CMake;
+- visualizador local, opcional y ajeno a decisiones ROS;
+- `git diff --check` correcto.
+
+### Build y tests
+
+```bash
+./codex/herramientas/build_selected_packages.sh \
+  orbslam3_multi orbslam3_server simulacion_dron
+```
+
+Ejecutar regresiones funcionales y tests nuevos de YAML, sincronizacion,
+parametros declarados, launches, enlaces, colas, commits, fusion, optimizacion,
+publicacion y visualizador web.
+
+### Prueba integrada
+
+Ejecutar con RViz2 y el visualizador web:
+
+```text
+codex/archivos_auxiliares/trayectorias/
+  prueba_tipica_rodeo_edificio_dos_fiduciales.yaml
+```
+
+Debe conservar ingesta/publicacion, un solo secundario activo, prioridad,
+backpressure, revisiones coherentes, scoring, color RViz2, grafo web, drenaje y
+recursos sin degradacion material. El objetivo no es mejorar 3Q. Una incidencia
+3Q se trata como limitacion conocida salvo evidencia de que la limpieza la
+introdujo o agravo. La validacion visual final corresponde al usuario.
+
+## Criterio de exito
+
+`3T` queda `CONSEGUIDA` si:
+
+1. legacy y contratos absorbidos desaparecen sin referencias rotas;
+2. no queda duplicacion activa injustificada;
+3. el codigo vigente tiene comentarios utiles;
+4. ADR, YAML, launches y manifiestos coinciden con el runtime;
+5. build, tests y Gazebo no muestran regresiones de limpieza;
+6. el resultado final mantiene visible la incidencia 3Q y su mejora futura.
+
+Queda `PARCIAL` si permanece limpieza, configuracion, documentacion o evidencia
+pendiente. Queda `NO CONSEGUIDA` si la retirada rompe comportamiento, elimina
+evidencia necesaria o deja responsabilidades duplicadas.
+
+Concluir `3T` no cambio por si solo el estado de 3Q. El cierre posterior de 3Q
+y de toda la Fase 3 procede de la revision visual y decision expresa del
+usuario, no de la limpieza.
+
+## Resultado
+
+El contrato se completo el 2026-08-22. La evidencia de build, tests, limpieza
+y Gazebo vive en `historial/por_subfase/historial_3T_RESUMEN.md`; el handoff
+operativo completo esta en `RESULTADO_FINAL_FASE_3.md`. La inspeccion visual
+humana de la prueba 195 fue confirmada posteriormente como correcta por el
+usuario. La Fase 3 queda conseguida y 3Q conserva una mejora futura sin aplicar.
+
+## Riesgos aceptados
+
+- referencias no detectadas al borrar legacy;
+- drift entre YAML, mitigado mediante tests;
+- cambios de tipos o precedencia al mover defaults;
+- ruido documental por exceso de comentarios;
+- reproduccion de la incidencia conocida de 3Q en la prueba final.

@@ -92,6 +92,8 @@ struct CovisibilityDatabaseStats
   uint64_t server_loop_geometric_edges = 0;
 };
 
+/// Base derivada de covisibilidad nativa ORB y relaciones geométricas confirmadas server.
+/// PrepareOrbslam3Patch calcula sin lock; Apply/Rollback son commits breves y revisionados.
 class CovisibilityDatabase
 {
 public:
@@ -102,6 +104,7 @@ public:
   CovisibilityApplyResult ApplyPatchTransactional(const CovisibilityPatch & patch);
   bool RollbackPatch(const CovisibilityRollbackPatch & patch);
 
+  // Consultas canónicas: el orden de los dos KFs no cambia la identidad de una arista.
   std::optional<CovisibilityEdge> GetEdge(
     const RawKeyFrameId & first, const RawKeyFrameId & second) const;
   std::vector<CovisibilityEdge> GetNeighbors(

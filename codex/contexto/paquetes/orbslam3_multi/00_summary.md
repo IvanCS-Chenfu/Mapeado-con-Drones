@@ -2,7 +2,7 @@
 
 ## Estado activo
 
-Backend reconstruido hasta 3S. Separa estado raw, poses world, score, tracks
+Backend reconstruido hasta 3R. Separa estado raw, poses world, score, tracks
 fusionados y vista publica; integra optimizacion fiducial, deteccion geometrica
 de loops y la rama de fusion de error bajo:
 
@@ -90,7 +90,7 @@ commit full actualiza poses y continuidad; todo KF posterior al control mantiene
 su `raw_world_pose` bajo el anchor inicial y deriva `world_pose` desde el ultimo
 control aceptado. Un parcial no cambia esa frontera.
 
-## Scoring 3S
+## Scoring 3R
 
 - raw = base ORB por factores recuperables de distancia/aislamiento mas
   `+0.04` por inlier;
@@ -98,7 +98,7 @@ control aceptado. Un parcial no cambia esa frontera.
 - fused = media de todos los raw miembros mas `0.04*N`;
 - cambios ORB/pose/vecindad se propagan solo a tracks afectados y builder dirty;
 - builder publica todos los puntos con score, sin filtro ni GT.
-- distancia 3S usa near fijo 1 m y far `83.333333*baseline`; con baseline
+- distancia 3R usa near fijo 1 m y far `83.333333*baseline`; con baseline
   `0.06 m`, la banda neutra es 1-5 m y ambas caidas son cuadraticas acotadas.
 
 El primer KF observado de una visita reserva el control: si es coherente se
@@ -134,8 +134,8 @@ Detalle: `fiducial_anchor_manager.md`, `pose_graph_builder.md`,
 ## Limites
 
 No contiene callbacks ROS, GT, colas ni publicacion. No filtra la nube por
-score; ese consumo queda para fases posteriores. El codigo de `legacy2` solo
-es referencia.
+score; ese consumo queda para fases posteriores. Las copias antiguas fueron
+retiradas en 3T tras validar esta implementación.
 
 ## Validacion vigente
 
@@ -177,3 +177,6 @@ es referencia.
   el error medio loop baja de 0.469849 a 0.089286 m;
 - tests finales: grafos/validacion 14/14, pipeline 9/9, cola 6/6, CTest
   `orbslam3_multi` 9/9, servidor funcional 4/4 y web 1/1.
+- cierre 3T: CTest `orbslam3_multi` 9/9 y prueba 195 con 11 commits loop,
+  453 KFs activos publicados, colas drenadas y cero hard failures tras retirar
+  las copias legacy.

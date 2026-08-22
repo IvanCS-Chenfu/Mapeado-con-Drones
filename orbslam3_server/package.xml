@@ -2,10 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>orbslam3_server</name>
-  <version>0.0.0</version>
-  <description>Servidor ROS 2 base para reconstruir el mapa sparse global.</description>
-  <maintainer email="chenfu@todo.todo">chenfu</maintainer>
-  <license>TODO: License declaration</license>
+  <version>0.1.0</version>
+  <description>Servidor ROS 2 del mapa sparse global multi-dron.</description>
+  <maintainer email="ivancalvosantos2003@uma.es">Ivan Calvo Santos</maintainer>
+  <license>GPL-3.0-only</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
@@ -17,6 +17,9 @@
   <depend>orbslam3_multi</depend>
   <depend>std_msgs</depend>
   <depend>visualization_msgs</depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>ament_lint_auto</test_depend>

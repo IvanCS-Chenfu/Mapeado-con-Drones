@@ -92,7 +92,7 @@ codex/pipeline/fase_3_sparse_global/subfases/subfase_<ID>.md
 
 son contratos ejecutables, no historiales.
 
-Subfases grandes de Fase 3 (`3O`, `3P`, `3Q`, `3S`) se dividen en subarchivos
+Subfases grandes de Fase 3 (`3O`, `3P`, `3Q`, `3R`) se dividen en subarchivos
 temáticos cuando aplica:
 
 - `subfase_<ID>.md`: índice breve (5-10 líneas) que lista los 4 subarchivos.

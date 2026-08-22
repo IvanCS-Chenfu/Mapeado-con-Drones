@@ -18,6 +18,9 @@ def generate_launch_description():
         'web',
         'pipeline_flow',
     ])
+    config_dir = PathJoinSubstitution([
+        FindPackageShare('simulacion_dron'), 'config', 'global_map'])
+    replay_config = PathJoinSubstitution([config_dir, 'replay_debug.yaml'])
 
     return LaunchDescription([
         DeclareLaunchArgument('rawdb_replay_path'),
@@ -26,8 +29,9 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(server_launch),
             launch_arguments={
+                'config_dir': config_dir,
+                'replay_debug_config': replay_config,
                 'use_sim_time': 'false',
-                'primary_worker_debug_delay_ms': '0',
                 'rawdb_record_enabled': 'false',
                 'rawdb_replay_path': LaunchConfiguration('rawdb_replay_path'),
             }.items(),

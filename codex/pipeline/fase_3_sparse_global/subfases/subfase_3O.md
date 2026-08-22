@@ -6,7 +6,7 @@
 CONSEGUIDA; CORRECCIONES TECNICAS Y VALIDACION VISUAL COMPLETADAS
 ```
 
-3O conserva el matching y RANSAC validados de `legacy2`, pero rehace la
+3O conserva el matching y RANSAC validados previamente, pero rehace la
 integracion, la politica de candidatos y el tratamiento de submapas no anclados.
 
 ## Sucesion acordada en 3Q

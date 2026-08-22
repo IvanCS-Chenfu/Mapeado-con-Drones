@@ -38,9 +38,13 @@ struct SecondaryWorkPlan
   std::vector<LoopTask> direct_loop_tasks;
 };
 
+/// Fachada sin ROS que coordina las autoridades raw, poses, score, fusión y vista pública.
+/// Los cálculos secundarios preparan propuestas privadas; solo los métodos Commit* mutan
+/// autoridades y state_commit_mutex_ serializa commits que abarcan varios componentes.
 class SparseGlobalBackend
 {
 public:
+  // Ruta principal: importa ORB y devuelve únicamente los cambios incrementales derivados.
   PrimaryBackendResult InsertDelta(
     uint64_t arrival_id,
     std::shared_ptr<const orbslam3_msgs::msg::OrbMap> delta);
@@ -60,6 +64,7 @@ public:
     const RawKeyFrameId & id) const;
   std::vector<RecordedFiducialObservation> GetFiducialObservationJournal() const;
 
+  // Ruta secundaria: planifica y calcula fuera del worker principal; nunca publica.
   SecondaryWorkPlan PlanSecondaryWork(const RawInsertResult & raw_result) const;
   std::vector<LoopTask> CreateLoopTasks(
     uint64_t source_arrival_id,
@@ -73,6 +78,7 @@ public:
   CovisibilityDatabaseStats GetCovisibilityStats() const;
   FusedLandmarkStats GetFusedLandmarkStats() const;
 
+  // Configuración inmutable durante una ejecución normal del servidor.
   void ConfigureFiducialOptimization(const FiducialOptimizationConfig & config);
   void ConfigureLoopPipeline(const LoopPipelineConfig & config);
   void ConfigureFusedLandmarks(const FusedLandmarkConfig & config);
@@ -91,6 +97,7 @@ public:
     const OptimizationProposal & proposal,
     const ValidationResult & validation);
 
+  // Snapshots de diagnóstico y construcción de la vista pública coherente.
   RawDatabaseStats GetRawStats() const;
   GlobalPoseStoreStats GetPoseStats() const;
   LandmarkScoreStats GetScoreStats() const;
@@ -153,6 +160,7 @@ private:
   std::map<uint32_t, RawSubmapId> last_submap_by_drone_;
   std::map<RawSubmapId, RecentLossContinuityRecord> recent_loss_continuity_;
   std::set<LoopRejectionKey> loop_rejection_ledger_;
+  // Orden de locks: state_commit -> componentes; builder y ledger nunca se toman al revés.
   mutable std::mutex state_commit_mutex_;
   mutable std::mutex loop_rejection_mutex_;
   mutable std::mutex builder_mutex_;

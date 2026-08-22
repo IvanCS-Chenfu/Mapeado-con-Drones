@@ -1,43 +1,93 @@
-# Subfase 3R - Absorbida: KFs llegados durante/despues de optimizacion
+# Subfase 3R - Scoring raw y fused incremental
 
-## Estado
+## Estado vigente
 
 ```text
-CANCELADA COMO SUBFASE INDEPENDIENTE; responsabilidad absorbida.
+CONSEGUIDA: RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
 ```
 
-La antigua propuesta creaba una cola post-optimizacion para reprocesar KFs
-llegados durante una optimizacion. El nuevo flujo hace innecesaria esa ruta:
+## Objetivo
 
-- `3C/3G` producen un `ChangeSet` por cada KF nuevo o modificado;
-- `3D` incorpora inmediatamente el KF a `GlobalPoseStore` si el submapa esta
-  anclado;
-- `3K` reconcilia en su commit los KFs tardios que pertenecen a la ventana y
-  actualiza el control desde el que se extienden los posteriores;
-- `3N` recibe cada KF materialmente nuevo mediante la admision normal de una
-  `LoopTask` canonica;
-- `3Q` valida revisiones y nunca necesita reinyectar el KF por una ruta especial.
+Convertir `LandmarkScoreManager` en la unica autoridad numerica para que el
+score evolucione con la calidad ORB, la geometria global y las fusiones, sin
+usar ground truth, bloquear publicacion ni reconstruir snapshots completos.
 
-No se debe implementar `PostOptimizationKeyFrameQueue`, estados `REBASED`
-especiales ni un segundo pipeline de loop. Corregir una pose tampoco debe
-simular que el KF acaba de llegar: solo una revision material relevante puede
-crear/coalescer otra `LoopTask`.
+Para cada raw MapPoint:
 
-## Regresiones conservadas
+```text
+score_raw = clamp(
+  base_score_orb * factor_distancia * factor_aislamiento
+  + 0.04 * inliers_confirmados,
+  0, 1)
+```
 
-Las pruebas futuras deben cubrir:
+- `base_score_orb` se recalcula cuando ORB-SLAM3 cambia sus datos de calidad;
+- un raw no anclado conserva la base ORB y los refuerzos confirmados;
+- al anclarse se aplican factores geometricos configurables y acotados;
+- una distancia fisicamente sospechosa o excesiva respecto al keyframe
+  observador reduce score de forma progresiva;
+- el aislamiento global persistente reduce score cuando ya existe soporte
+  suficiente para juzgarlo;
+- ambos factores son recuperables si ORB actualiza la posicion o aparecen
+  vecinos coherentes.
 
-1. KF nuevo posterior al target durante solver;
-2. KF insertado tarde dentro de la ventana capturada;
-3. cambio de epoch durante una tarea;
-4. commit stale sin retry inmediato;
-5. ningun KF procesado dos veces por una cola post-optimizacion.
+Para cada fused track:
 
-Este archivo conserva la decision para evitar que la subfase o su clase sean
-recreadas. El detalle funcional esta en `subfase_3D.md`, `subfase_3K.md`,
-`subfase_3K_worker_secundario.md` y `subfase_3Q_implementacion.md`.
+```text
+score_fused = clamp(media(score_raw de todos los miembros) + 0.04 * N, 0, 1)
+```
 
-## Incremento Visual
+`N` es el numero de raw MapPoints miembros. Por tanto, la primera fusion de dos
+miembros suma `0.08` y cada miembro posterior suma `0.04`. Se conserva ademas
+el refuerzo raw `+0.04` por inlier confirmado: el doble refuerzo es
+intencional.
 
-No añade vertices ni aristas. `3R` esta absorbida; recrear una cola o etapa
-visual propia ocultaria el ownership real fijado por 3D/3K/3Q.
+## Integracion
+
+- Los cambios raw ORB se limitan a IDs del `RawChangeSet`.
+- El indice espacial actualiza solo celdas vecinas a altas, movimientos o
+  retiradas; no recorre toda la nube por llegada.
+- Cambios raw o geometricos recalculan solo fused tracks que contienen esos
+  miembros.
+- Altas, extensiones, merges y bajas de tracks recalculan el fused score en el
+  mismo commit logico de fusion.
+- `ScoreChangeSet` entrega IDs exactos a `GlobalMapBuilder`; el builder publica
+  todos los puntos y solo copia `score`/`rgb`.
+- RViz2 conserva el gradiente rojo-amarillo-verde para scores `0-0.5-1`.
+
+## Oclusiones
+
+La visibilidad sparse de 3P se conserva como diagnostico, pero no modifica
+numericamente el score en 3R. Decidir si un punto esta realmente ocluido exige
+la nube densa prevista para Fase 8; alli se podran corregir posiciones y scores
+sin premiar accidentalmente ruido foreground.
+
+## Limites
+
+- sin GT, nueva cola o worker de score;
+- sin cambiar geometria, fusion u optimizacion para mejorar una puntuacion;
+- sin ocultar puntos por score dentro de `GlobalMapBuilder`;
+- sin score visible procedente de una fusion rechazada o stale;
+- sin snapshots completos en la ruta incremental.
+
+## Prueba acordada
+
+Ejecutar `prueba_tipica_rodeo_edificio_dos_fiduciales.yaml`, reducir logs y
+comprobar grafo web, commits `F3R-*`, score raw/fused y RViz2. La inspeccion
+visual se centra especialmente en observar que el ruido pierde score sin que
+desaparezca de la nube publicada.
+
+La prueba 193 confirma el refuerzo por revisitas, pero no valida los umbrales
+actuales: estructura habitual queda demasiado penalizada y puntos a menos de
+1 m conservan score excesivo. La recalibracion acordada fija el limite cercano
+fisico en 1 m y hace el limite lejano proporcional al baseline: con los `0.06 m`
+actuales, la banda neutra es 1-5 m. Ambos extremos usan caida cuadratica
+acotada. La penalizacion permanece en cada raw y puede diluirse mediante la
+media fused, sin cap permanente.
+
+## Subdocumentos
+
+- `subfase_3R_especificacion.md`: ownership, formula e invariantes.
+- `subfase_3R_implementacion.md`: APIs e integracion incremental.
+- `subfase_3R_testing.md`: regresiones y simulacion.
+- `subfase_3R_criterios.md`: criterios de cierre.

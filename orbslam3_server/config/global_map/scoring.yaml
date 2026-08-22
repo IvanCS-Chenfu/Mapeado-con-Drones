@@ -1,0 +1,11 @@
+/**:
+  ros__parameters:
+    score_isolation_radius_m: 0.35
+    score_isolation_min_neighbors: 2
+    score_isolation_min_observations: 3
+    score_isolation_min_factor: 0.35
+    score_suspicious_near_distance_m: 1.0
+    score_suspicious_near_min_factor: 0.05
+    score_far_baseline_multiplier: 83.33333333333333
+    score_far_distance_fallback_m: 5.0
+    score_far_min_factor: 0.25

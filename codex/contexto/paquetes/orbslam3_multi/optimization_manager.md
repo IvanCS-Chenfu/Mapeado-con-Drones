@@ -32,6 +32,6 @@ src/optimization_manager.cpp
   -> rg -n "OptimizationManager::Optimize|FiducialAbsolute|LoopRelative|practical_convergence"
 ```
 
-La formulacion toma de `legacy2` sus propiedades estables: SE(3), control fijo,
-target absoluto y vecindades rigidas. No porta su infraestructura, dumps ni
-variantes experimentales.
+La formulación vigente conserva SE(3), control fijo, target absoluto y
+vecindades rígidas, recuperados durante la reconstrucción. La infraestructura,
+dumps y variantes experimentales anteriores fueron retirados en 3T.

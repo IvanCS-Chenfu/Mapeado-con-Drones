@@ -11,8 +11,8 @@ Dudas abiertas: ninguna
 ```
 
 Este documento es el contrato vigente y ejecutado de 3H. La evidencia de
-implementaciones anteriores se conserva en el historial de la subfase y en
-`legacy2`; no forma parte del runtime activo.
+implementaciones anteriores se conserva en el historial de la subfase; 3T
+retiró sus fuentes después de validar el runtime activo.
 
 ## Sucesion acordada en 3Q
 
@@ -124,7 +124,7 @@ Para cada observacion se consulta el estado mas reciente de `GlobalPoseStore`.
 - si cualquier error supera su umbral, se crea una tarea MAX ligera.
 
 Valores iniciales, configurables y apoyados en el comportamiento validado de
-`legacy2`:
+la baseline anterior:
 
 ```text
 fiducial_translation_threshold_m: 0.35

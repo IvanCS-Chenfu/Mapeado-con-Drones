@@ -145,9 +145,12 @@ struct LandmarkScoreStats
   float score_max = 0.0F;
 };
 
+/// Autoridad incremental del score raw y fused; no filtra geometría ni decide publicación.
+/// Los factores geométricos son recuperables y el score fused se deriva de sus miembros raw.
 class LandmarkScoreManager
 {
 public:
+  // La ingesta actualiza la evidencia ORB; la geometría se refresca al disponer de world.
   void Configure(const LandmarkScoreConfig & config);
   ScoreChangeSet ApplyRawChanges(
     const RawInsertResult & raw_changes,
@@ -156,6 +159,7 @@ public:
     const std::vector<LandmarkScoreGeometryInput> & upserts,
     const std::vector<RawMapPointId> & removals);
 
+  // Patches transaccionales usados por fusión y sus rollbacks por stale posterior.
   std::optional<LandmarkScoreRecord> GetScore(const RawMapPointId & id) const;
   std::optional<FusedLandmarkScoreRecord> GetFusedScore(uint64_t track_id) const;
   ScoreApplyResult ApplyPatch(const ScorePatch & patch);
@@ -187,6 +191,7 @@ private:
   float IsolationFactor(const RawMapPointId & id, const LandmarkScoreRecord & record) const;
   static void RecomputeOutput(LandmarkScoreRecord * record);
 
+  // records_, geometry_, índice espacial y evidencia comparten una sola revisión atómica.
   mutable std::mutex mutex_;
   std::map<RawMapPointId, LandmarkScoreRecord> records_;
   std::map<RawMapPointId, GeometryState> geometry_;

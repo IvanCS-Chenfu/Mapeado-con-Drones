@@ -3,30 +3,48 @@
 ## `multi_dron.launch.py`
 
 Arranca Gazebo, el numero de drones definido en `config/sim_dron.yaml`,
-wrappers, `global_map_server`, RViz2, bridge web y el helper que abre una
-pestaña del grafo. Reenvia colas principal/secundaria, record, snapshots,
-inyeccion drop, fiduciales, umbrales y parametros de grafo/refinamiento.
+wrappers y `global_map_server`. RViz2, bridge web, navegador y telemetria de
+terminal son opcionales mediante `config/fase3_debug.yaml`. Pasa
+`config/global_map/` al launch del servidor y solo sobrescribe identidad del
+despliegue y opciones explicitas de record/log.
 
 Referencia:
 
 ```text
 simulacion_dron/launch/multi_dron.launch.py
-rg -n "primary_queue|rawdb_|full_snapshot|debug_drop|fiducial_|pipeline_flow|sparse_global_rviz" \
+rg -n "global_map_config_dir|rawdb_|pipeline_flow|sparse_global_rviz" \
   simulacion_dron/launch/multi_dron.launch.py
 ```
 
 RViz2 usa `sparse_global_debug.rviz`, recibe `use_sim_time=true` y un entorno
 sin rutas Snap/VS Code para evitar bibliotecas GUI incompatibles. El bridge
-sirve la topologia 3O de 22 nodos/34 aristas en 8765.
+sirve la topología 3Q vigente en el puerto 8765.
 
-Argumentos de rendimiento/operacion:
+## Configuración global
+
+`config/global_map/` replica los seis YAML del servidor por decisión de
+despliegue: ejecutar simulación usa estos valores; ejecutar directamente el
+servidor usa su propia copia. En la etapa actual ambas copias deben ser
+idénticas y `test_global_map_config.py` lo comprueba automáticamente.
+
+Perfil `config/fase3_debug.yaml` y argumentos homonimos:
+
+```text
+fase3_rviz2=false
+fase3_grafo_web=false
+fase3_abrir_navegador_web=false
+fase3_logs_terminal=false
+```
+
+Con `fase3_logs_terminal=false`, el servidor usa nivel ROS `ERROR`: se
+suprimen los diagnosticos `[F3*]`, pero no los errores reales. El navegador
+solo arranca si tambien esta activo `fase3_grafo_web`.
+
+Otros argumentos de rendimiento/operacion:
 
 ```text
 launch_gazebo_gui=true
 launch_mission_gui=true
-launch_sparse_global_rviz=true
-launch_pipeline_flow_visualizer=true
-open_pipeline_flow_browser=true
 drone_start_stagger_sec=8.0
 orb_vocabulary_path=<ORBvoc_L5.txt>
 ```
@@ -40,13 +58,13 @@ este launch, pero puede sustituirse por el L6 completo mediante el argumento.
 Perfiles validados:
 
 ```text
-2 drones / desarrollo:
-  launch ordinario con Gazebo GUI, RViz2, web y GUI de mision
+2 drones / ejecucion normal:
+  launch con Gazebo GUI y GUI de mision; observabilidad 3S desactivada
 
 3+ drones / escala o futuras fases dense:
   launch_gazebo_gui:=false
   launch_mission_gui:=false
-  RViz2 y web solo durante el diagnostico que los necesite
+  RViz2 y web solo al habilitar sus booleanos de debug
 ```
 
 La prueba 137 confirmo seis goals, tres anchors, 141 KFs activos y 7981 puntos
@@ -56,7 +74,8 @@ a dos drones y la prueba visual 138 verifico el estado normal.
 ## `f3f_replay.launch.py`
 
 Inicia bridge, helper de navegador, RViz2 y servidor en replay, sin Gazebo,
-wrappers ni GT live. Argumentos:
+wrappers ni GT live. Carga los YAML normales de simulación y añade
+`replay_debug.yaml`. Argumentos:
 
 ```text
 rawdb_replay_path                 obligatorio
