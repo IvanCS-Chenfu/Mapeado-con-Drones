@@ -41,6 +41,18 @@
 - siguiente paso recomendado: iniciar el handoff de Fase 2 conservando ADR
   0009 y volver a 3Q si reaparece la deformacion conocida.
 
+## 2026-08-22 - Correccion final de limpieza 3X
+
+- objetivo intentado: retirar `ORB_SLAM3_MULTI/`, paquete obsoleto que debio
+  eliminarse durante la limpieza ejecutada originalmente como 3X;
+- archivos retirados: directorio completo `ORB_SLAM3_MULTI/`, incluida su copia
+  de `g2o` y `MultiEssentialGraphOptimizer`;
+- recuperacion: ultimo estado disponible en `f725edc`;
+- build y simulacion: no ejecutados; el paquete no formaba parte del pipeline
+  activo ni era descubierto como paquete ROS 2 vigente;
+- conclusion: `CONSEGUIDA`; la correccion no cambia el resultado funcional de
+  Fase 3.
+
 ## 2026-08-22 - Renumeracion y cierre definitivo
 
 - la subfase de scoring pasa de 3S a 3R y su telemetria vigente de `[F3S-*]` a

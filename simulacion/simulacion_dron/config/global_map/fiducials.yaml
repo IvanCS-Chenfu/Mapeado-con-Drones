@@ -1,0 +1,12 @@
+/**:
+  ros__parameters:
+    fiducial_sim_enabled: true
+    fiducial_gt_max_dt_sec: 1.0
+    fiducial_1_x: 0.0
+    fiducial_1_y: 9.0
+    fiducial_1_z: 1.0
+    fiducial_1_radius: 2.0
+    fiducial_2_x: 0.0
+    fiducial_2_y: -9.0
+    fiducial_2_z: 1.0
+    fiducial_2_radius: 2.0

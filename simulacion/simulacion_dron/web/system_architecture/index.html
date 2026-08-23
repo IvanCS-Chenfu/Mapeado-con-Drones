@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>System Architecture</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>System Architecture</h1>
+      <span id="connection-status" class="status">estatico</span>
+    </div>
+    <div class="layers" role="group" aria-label="Capas">
+      <label><input type="checkbox" data-layer="sensor" checked> Sensores</label>
+      <label><input type="checkbox" data-layer="control" checked> Control</label>
+      <label><input type="checkbox" data-layer="map" checked> Mapa</label>
+      <label><input type="checkbox" data-layer="observability" checked> Observabilidad</label>
+      <label><input type="checkbox" data-layer="dependency" checked> Dependencias</label>
+    </div>
+    <button id="fit" type="button">Ajustar</button>
+  </header>
+  <main>
+    <div id="cy" aria-label="Arquitectura del sistema"></div>
+    <div id="tooltip" role="status" hidden></div>
+  </main>
+  <script src="vendor/cytoscape.min.js"></script>
+  <script src="graph_definition.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

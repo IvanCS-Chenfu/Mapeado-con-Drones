@@ -1,0 +1,4 @@
+/**:
+  ros__parameters:
+    fisico.total.masa: 1.4
+    fisico.total.matriz_inercia: [1e-4, 1e-4, 1e-4, 0.0, 0.0, 0.0]

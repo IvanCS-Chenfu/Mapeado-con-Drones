@@ -1,0 +1,78 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, "Segoe UI", sans-serif;
+  color: #17212b;
+  background: #f4f6f7;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+
+body { display: grid; grid-template-rows: auto 1fr; }
+
+.topbar {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #c8d0d4;
+  background: #ffffff;
+}
+
+.topbar > div:first-child { display: flex; align-items: baseline; gap: 12px; }
+h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: 0; }
+
+.status {
+  color: #5a6670;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.status.live { color: #087a55; font-weight: 700; }
+.status.disconnected { color: #b33a2f; }
+
+.layers { min-width: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; }
+.layers label { font-size: 12px; white-space: nowrap; cursor: pointer; }
+.layers input { accent-color: #1273a8; vertical-align: -2px; }
+
+button {
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #8d9aa2;
+  border-radius: 4px;
+  color: #17212b;
+  background: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:hover { background: #edf2f4; }
+
+main { position: relative; min-height: 0; }
+#cy { position: absolute; inset: 0; background: #f4f6f7; }
+
+#tooltip {
+  position: fixed;
+  z-index: 10;
+  max-width: min(360px, calc(100vw - 24px));
+  padding: 9px 11px;
+  border: 1px solid #89979f;
+  border-radius: 4px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgb(30 44 54 / 18%);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+#tooltip strong { display: block; margin-bottom: 3px; }
+#tooltip code { overflow-wrap: anywhere; color: #245873; }
+
+@media (max-width: 860px) {
+  .topbar { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  .layers { justify-content: flex-start; gap: 7px 12px; }
+  button { width: 100%; }
+  h1 { font-size: 17px; }
+}

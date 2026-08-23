@@ -51,6 +51,8 @@ simulacion_dron         -> src/simulacion/
 ```
 
 `codex` permanece en `src/codex/`.
+`mi_tfg` permanece en la raíz como excepción legacy explícita y no participa en
+los builds. `ORB_SLAM3_MULTI` debe permanecer ausente.
 
 Fallar si un paquete principal reaparece en la raíz de `src/` o en un grupo no
 permitido.
@@ -306,10 +308,12 @@ documentar por qué sigue siendo necesaria.
 Ejecutar todos los tests obligatorios de paquetes, configuración, herramientas y
 visualizadores.
 
-### 5. Prueba base sin debug
+### 5. Prueba oficial con debug visual
 
-Ejecutar dos drones alrededor del edificio con todos los flags de debug en
-`false`.
+Ejecutar dos drones alrededor del edificio con RViz2, `pipeline_flow`,
+`system_architecture`, navegadores, telemetría arquitectónica y logs de Fase 3
+activados mediante overrides explícitos. Los valores almacenados en YAML
+permanecen `false` por defecto.
 
 ### 6. Pruebas de visualización
 
@@ -318,6 +322,8 @@ Ejecutar comprobaciones independientes:
 - `pipeline_flow`;
 - `system_architecture` estático y en vivo;
 - desconexión/saturación de ambos.
+- smoke negativo con todos los flags en `false`, comprobando que no arranca
+  ningún proceso de debug.
 
 No es necesario repetir siempre toda la prueba larga si un smoke controlado
 prueba un fallo aislado, pero la actividad en vivo del nuevo diagrama debe verse
@@ -367,7 +373,8 @@ Fase 2 queda `CONSEGUIDA` solo si:
 5. las copias de `orbslam3_msgs` son idénticas;
 6. YAML, réplicas y debug cumplen la política;
 7. todos los tests obligatorios pasan;
-8. dos drones completan la vuelta al edificio sin debug;
+8. dos drones completan la vuelta al edificio con el perfil de debug visual
+   acordado;
 9. ambos visualizadores se validan por separado;
 10. desconectar visualizadores no afecta al sistema;
 11. la documentación coincide con el repositorio;

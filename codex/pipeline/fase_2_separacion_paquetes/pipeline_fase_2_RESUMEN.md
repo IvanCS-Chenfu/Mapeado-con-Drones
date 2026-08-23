@@ -50,7 +50,8 @@ src/
 │   └── orbslam3_msgs/
 ├── simulacion/
 │   └── simulacion_dron/
-└── codex/
+├── codex/
+└── mi_tfg/                 # legacy conservado temporalmente
 ```
 
 `orbslam3_msgs` se copia completo en `dron` y `servidor`, conservando el mismo
@@ -69,8 +70,9 @@ log/{dron,servidor,simulacion}/
 ```
 
 Cada grupo se descubre con `--base-paths` y se compila paquete a paquete en
-orden topológico. `simulacion` se construye después de cargar los prefijos de
-`dron` y `servidor`.
+orden topológico. Cada invocación selecciona exactamente un paquete y limita
+también el paralelismo interno para evitar picos de recursos. `simulacion` se
+construye después de cargar los prefijos de `dron` y `servidor`.
 
 Si esta estrategia produce un bloqueo real no resoluble de forma razonable, las
 alternativas, en este orden, son:
@@ -121,9 +123,10 @@ La prueba funcional oficial es la vuelta completa al edificio con dos drones,
 usando el escenario típico existente y comunicación ROS 2 directa mediante
 topics, services y actions.
 
-La prueba base se ejecuta con todos los flags de debug en `false`. Después se
-realizan comprobaciones específicas de los dos visualizadores, activando solo
-los flags necesarios y devolviéndolos a `false` al cerrar.
+La prueba oficial se ejecuta con debug visual activo: RViz2, `pipeline_flow`,
+`system_architecture`, sus navegadores, telemetría arquitectónica y logs de
+Fase 3. Los flags conservan default `false`; una comprobación negativa separada
+verifica que al desactivarlos no arrancan procesos de debug.
 
 ## Exclusiones
 

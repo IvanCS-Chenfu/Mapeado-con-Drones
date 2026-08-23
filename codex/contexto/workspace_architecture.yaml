@@ -1,0 +1,49 @@
+version: 1
+
+groups:
+  dron:
+    packages:
+      ORB_SLAM3: ORB_SLAM3
+      dron_individual: dron_individual
+      lib_tray: lib_tray
+      orbslam3_ros2: orbslam3
+      orbslam3_msgs: orbslam3_msgs
+  servidor:
+    packages:
+      orbslam3_msgs: orbslam3_msgs
+      orbslam3_multi: orbslam3_multi
+      orbslam3_server: orbslam3_server
+  simulacion:
+    packages:
+      simulacion_dron: simulacion_dron
+
+root_exceptions:
+  - mi_tfg
+  - fase45_sandbox
+
+canonical_interfaces: servidor/orbslam3_msgs
+interface_replicas:
+  - dron/orbslam3_msgs
+
+yaml_replicas:
+  - source: dron/dron_individual/config/calibration.yaml
+    targets:
+      - servidor/orbslam3_server/config/calibration_dron.yaml
+      - simulacion/simulacion_dron/config/calibration_dron.yaml
+    mode: ros_parameters
+  - source: servidor/orbslam3_server/config/global_map
+    targets:
+      - simulacion/simulacion_dron/config/global_map
+    mode: tree
+
+official_scenario: simulacion/simulacion_dron/config/scenarios/prueba_tipica_rodeo_edificio_dos_fiduciales.yaml
+
+debug_profile: simulacion/simulacion_dron/config/debug.yaml
+debug_flags:
+  - debug_sparse_global_rviz
+  - debug_pipeline_flow_web
+  - debug_open_pipeline_flow_browser
+  - debug_fase3_logs_terminal
+  - debug_system_architecture_web
+  - debug_open_system_architecture_browser
+  - debug_architecture_telemetry

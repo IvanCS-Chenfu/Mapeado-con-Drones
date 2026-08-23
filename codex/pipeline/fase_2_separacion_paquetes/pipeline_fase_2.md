@@ -13,7 +13,7 @@ FASE: SIN HACER
 Preparación documental: CERRADA
 Acuerdo cerrado: sí
 Autorización funcional de ejecución: PENDIENTE
-Prueba acordada: dos drones completan la vuelta al edificio
+Prueba acordada: dos drones completan la vuelta al edificio con debug visual activo
 Dudas abiertas: ninguna
 ```
 
@@ -72,10 +72,14 @@ src/
 ├── simulacion/
 │   └── simulacion_dron/
 │
-└── codex/
+├── codex/
+└── mi_tfg/                 # legacy conservado temporalmente
 ```
 
 `codex` permanece en `src/codex/`; no es un cuarto grupo de despliegue.
+`mi_tfg` permanece temporalmente en la raíz como paquete legacy y queda fuera
+de los builds y dependencias de los tres grupos. `ORB_SLAM3_MULTI` fue retirado
+completamente antes de ejecutar Fase 2.
 
 Los nombres de paquetes ROS 2 no se cambian en Fase 2 salvo que exista una
 imposibilidad técnica demostrada. La ruta física puede cambiar sin renombrar el
@@ -187,9 +191,11 @@ y usar, cuando sea compatible con la versión instalada de `colcon`:
 --log-base
 ```
 
-Cada paquete se compila individualmente en orden topológico. Entre paquetes se
-carga el prefijo local del mismo grupo. El orden concreto no se inventa: se
-obtiene de los manifests, `colcon list` y las dependencias reales.
+Cada paquete se compila individualmente en orden topológico, con exactamente un
+paquete por invocación. Entre paquetes se carga el prefijo local del mismo
+grupo. El build limita tanto los workers de `colcon` como el paralelismo interno
+de CMake/Make para evitar picos de CPU y memoria. El orden concreto no se
+inventa: se obtiene de los manifests, `colcon list` y las dependencias reales.
 
 ### Errores que forman parte de la subfase
 
@@ -483,7 +489,10 @@ La validación incluye:
 8. ausencia de rutas inexistentes, paquetes duplicados descubiertos o recursos
    cargados desde `src/`;
 9. logs reducidos sin errores graves no explicados;
-10. repetición específica para validar ambos visualizadores.
+10. RViz2, `pipeline_flow`, `system_architecture`, sus navegadores, telemetría
+    arquitectónica y logs de Fase 3 activos durante la prueba oficial;
+11. comprobación negativa separada de que los defaults `false` no arrancan
+    procesos de debug.
 
 La comunicación se mantiene en ROS 2 directo. No se prueba Bluetooth.
 

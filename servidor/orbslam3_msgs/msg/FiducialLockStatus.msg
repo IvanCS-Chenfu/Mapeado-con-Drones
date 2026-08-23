@@ -1,0 +1,27 @@
+std_msgs/Header header
+
+uint32 drone_id
+uint64 map_epoch
+uint32 fiducial_id
+
+bool inside_radius
+bool window_active
+bool ready_to_leave
+
+float64 distance_to_fiducial
+float64 min_distance_to_fiducial
+float64 seconds_since_enter
+float64 seconds_since_last_seen
+
+uint32 constrained_kfs
+uint32 good_priors
+uint32 total_priors_estimate
+
+bool local_warp_applied
+uint32 local_warp_moved_kfs
+
+bool graph_has_fiducial_priors
+bool graph_optimized_after_fiducial
+
+string state
+string reason

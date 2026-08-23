@@ -219,6 +219,11 @@ pero la decisión se registra. No se omite un paquete para fingir independencia.
 
 ## Flujo por paquete
 
+Cada invocación debe contener exactamente un paquete en `--packages-select`.
+No se permite agrupar varios paquetes aunque pertenezcan al mismo grupo. La
+herramienta limita workers de `colcon` y el paralelismo interno de CMake/Make;
+el build especial de `ORB_SLAM3` aplica el mismo límite.
+
 Para cada paquete:
 
 1. registrar el paquete y comando exacto;

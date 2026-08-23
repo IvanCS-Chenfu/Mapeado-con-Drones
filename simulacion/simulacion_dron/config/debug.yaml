@@ -1,0 +1,8 @@
+debug:
+  debug_sparse_global_rviz: false
+  debug_pipeline_flow_web: false
+  debug_open_pipeline_flow_browser: false
+  debug_fase3_logs_terminal: false
+  debug_system_architecture_web: false
+  debug_open_system_architecture_browser: false
+  debug_architecture_telemetry: false

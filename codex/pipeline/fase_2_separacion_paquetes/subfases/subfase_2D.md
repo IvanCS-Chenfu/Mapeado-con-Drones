@@ -57,7 +57,8 @@ Antes de ejecutar la prueba larga:
 3. `simulacion` ha compilado como overlay;
 4. las dos copias de `orbslam3_msgs` han sido comparadas y son idénticas;
 5. los YAML parsean y están instalados;
-6. todos los flags de `debug.yaml` están en `false`;
+6. todos los flags de `debug.yaml` tienen default `false` y el perfil de prueba
+   activa explícitamente los recursos visuales acordados;
 7. el escenario oficial existe en `simulacion_dron/config/scenarios/`;
 8. no hay procesos Gazebo/ROS 2 residuales;
 9. hay espacio suficiente en disco;
@@ -178,14 +179,15 @@ la prueba más fácil salvo acuerdo explícito.
 número de drones: 2
 mundo: edificio/casa habitual
 comunicación: ROS 2 directa
-pipeline_flow: desactivado
-system_architecture: desactivado
-navegadores: desactivados
-RViz de debug: desactivado salvo que forme parte obligatoria de la evidencia
-dumps/animaciones/logs verbose: desactivados
+pipeline_flow: activado
+system_architecture: no disponible todavía en 2D; se valida en 2F/2G
+navegador de pipeline_flow: activado
+RViz de debug: activado
+logs de Fase 3: activados
 ```
 
-El objetivo es comprobar funcionalidad sin ayudas de debug.
+El objetivo es comprobar funcionalidad y permitir observación visual. Los
+defaults siguen siendo `false` y se validan por separado.
 
 ### Secuencia
 
@@ -229,12 +231,11 @@ configuración.
 - no hay crash, deadlock o bloqueo causado por la separación;
 - el cleanup no deja procesos persistentes.
 
-## Comprobaciones visuales posteriores
+## Comprobaciones visuales
 
-La validación de los visualizadores se completa en 2F, pero 2D puede realizar
-una repetición acotada después de la prueba base:
+La validación completa de ambos visualizadores se cierra en 2F/2G. En 2D:
 
-- activar solo `debug_pipeline_flow_web` y su navegador si se desea;
+- activar `debug_pipeline_flow_web` y su navegador;
 - confirmar que la herramienta existente sigue funcionando;
 - desactivar de nuevo el flag.
 

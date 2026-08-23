@@ -121,6 +121,8 @@ resultado.
 Se retiraron de la version actual:
 
 - `legacy/` y `legacy2/` de los paquetes de Fase 3;
+- el paquete independiente obsoleto `ORB_SLAM3_MULTI/`, retirado en una
+  correccion posterior de la limpieza ejecutada originalmente como 3X;
 - snapshots y documentacion duplicada asociada;
 - contratos legacy `12R-*`, `13`, `14` y `15`;
 - contratos transversales absorbidos, cuyas capacidades ya estaban implantadas

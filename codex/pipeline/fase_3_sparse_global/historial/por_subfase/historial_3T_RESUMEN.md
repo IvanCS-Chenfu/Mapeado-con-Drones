@@ -13,7 +13,8 @@ YAML tematicos por despliegue. No cambio algoritmos de mapa ni corrigio 3Q.
 ## Evidencia
 
 - checkpoint recuperable: `1b96a7a`;
-- sin directorios `legacy/`/`legacy2/` ni referencias activas rotas;
+- sin directorios `legacy/`/`legacy2/`, sin `ORB_SLAM3_MULTI/` y sin
+  referencias activas rotas;
 - una sola ruta runtime de scheduling, autoridad y publicacion;
 - ADR 0009 y copias YAML servidor/simulacion protegidas por tests;
 - manifests `0.1.0`, `GPL-3.0-only` e Ivan Calvo Santos;
@@ -33,3 +34,7 @@ resultado visual correcto de 195. Fase 3 queda concluida; la deformacion 3Q de
 194 y su posible mejora se conservan como referencia futura, no como bloqueo.
 El resultado operativo y el punto de entrada para Fase 2 estan en
 `RESULTADO_FINAL_FASE_3.md`.
+
+Una correccion posterior solicitada por el usuario retiro completamente el
+paquete obsoleto `ORB_SLAM3_MULTI/`, olvidado durante la ejecucion original de
+3X. No se requirio build ni simulacion porque no pertenecia al pipeline activo.

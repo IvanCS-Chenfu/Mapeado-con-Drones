@@ -49,6 +49,44 @@ SCENARIO_PACKAGE="simulacion_dron"
 SCENARIO_EXECUTABLE="scenario_runner_node"
 SCENARIO_PARAM_NAME="scenario_file"
 
+strip_workspace_paths() {
+  local variable="$1"
+  local current="${!variable:-}"
+  local filtered=""
+  local entry
+  local -a entries=()
+
+  IFS=':' read -r -a entries <<< "$current"
+  for entry in "${entries[@]}"; do
+    [ -z "$entry" ] && continue
+    case "$entry" in
+      "$WS_DIR/install"|"$WS_DIR/install/"*|"$WS_DIR/build"|"$WS_DIR/build/"*|/opt/ros/*)
+        continue
+        ;;
+    esac
+    if [ -z "$filtered" ]; then
+      filtered="$entry"
+    else
+      filtered="$filtered:$entry"
+    fi
+  done
+  printf -v "$variable" '%s' "$filtered"
+  export "$variable"
+}
+
+source_runtime_setup() {
+  local setup_file="$1"
+  if [ ! -f "$setup_file" ]; then
+    log "[SIM-ERROR] No existe el setup requerido: $setup_file"
+    return 1
+  fi
+  set +u
+  # shellcheck disable=SC1090
+  source "$setup_file"
+  set -u
+  log "[SIM-INFO] Sourced $setup_file"
+}
+
 usage() {
   cat <<USAGE
 Uso:
@@ -443,18 +481,14 @@ cd "$WS_DIR" || {
   exit 2
 }
 
-if [ -f "$WS_DIR/install/setup.bash" ]; then
-  # shellcheck disable=SC1091
-  # Los setup de colcon pueden leer variables no definidas como COLCON_TRACE;
-  # desactivamos nounset solo durante el source para no abortar la prueba.
-  set +u
-  source "$WS_DIR/install/setup.bash"
-  set -u
-  log "[SIM-INFO] Sourced $WS_DIR/install/setup.bash"
-else
-  log "[SIM-ERROR] No existe $WS_DIR/install/setup.bash. Compila antes de simular."
-  exit 2
-fi
+for variable in AMENT_PREFIX_PATH CMAKE_PREFIX_PATH COLCON_PREFIX_PATH PYTHONPATH LD_LIBRARY_PATH; do
+  strip_workspace_paths "$variable"
+done
+
+source_runtime_setup "/opt/ros/${ROS_DISTRO:-iron}/setup.bash" || exit 2
+source_runtime_setup "$WS_DIR/install/dron/local_setup.bash" || exit 2
+source_runtime_setup "$WS_DIR/install/servidor/local_setup.bash" || exit 2
+source_runtime_setup "$WS_DIR/install/simulacion/local_setup.bash" || exit 2
 
 attempt=0
 while [ "$attempt" -le "$MAX_GAZEBO_RETRIES" ]; do

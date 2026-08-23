@@ -53,11 +53,16 @@ fase45_sandbox/
 # Grabaciones / datos pesados de pruebas
 codex/archivos_auxiliares/repeticiones/*.record
 
+# Archivos auxiliares raros
+codex/archivos_auxiliares/baselines
+codex/archivos_auxiliares/chrome-*
+
+
 # Vocabulario ORB-SLAM descomprimido (>100 MB)
-ORB_SLAM3/Vocabulary/ORBvoc.txt
-dron_individual/config/orbslam/vocabulary/ORBvoc.txt
+dron/ORB_SLAM3/Vocabulary/ORBvoc.txt
+dron/dron_individual/config/orbslam/vocabulary/ORBvoc.txt
 mi_tfg/config/orbslam/vocabulary/ORBvoc.txt
-simulacion_dron/config/orbslam/vocabulary/ORBvoc.txt
+simulacion/simulacion_dron/config/orbslam/vocabulary/ORBvoc.txt
 
 # Cachés
 .pytest_cache/
@@ -65,3 +70,4 @@ __pycache__/
 
 # Logs
 log/
+

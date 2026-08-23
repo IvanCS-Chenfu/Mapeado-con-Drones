@@ -1,0 +1,5 @@
+uint64 keyframe_id
+
+geometry_msgs/Pose original_local_pose
+geometry_msgs/Pose original_global_pose
+geometry_msgs/Pose corrected_global_pose

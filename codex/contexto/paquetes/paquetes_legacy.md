@@ -5,7 +5,10 @@
 | Paquete | Estado | Regla |
 |---|---|---|
 | `mi_tfg` | legacy/bajo interés | No modificar salvo petición explícita. |
-| `ORB_SLAM3_MULTI` | legacy/bajo interés | No modificar salvo petición explícita. |
+
+`ORB_SLAM3_MULTI/` se retiro completamente como correccion final de la
+limpieza 3T, ejecutada originalmente como 3X. Su ultimo estado previo a la
+eliminacion permanece recuperable en el commit `f725edc`.
 
 El pipeline activo usa:
 
@@ -20,6 +23,6 @@ El pipeline activo usa:
 
 ## Regla para Codex
 
-No extender estos paquetes salvo que una fase activa lo exija explícitamente.
+No extender `mi_tfg` salvo que una fase activa lo exija explicitamente.
 Las rutas legacy internas de Fase 3 ya fueron retiradas en 3T; su evidencia
 cronológica permanece únicamente en los historiales y en Git.

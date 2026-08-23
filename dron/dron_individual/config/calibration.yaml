@@ -1,0 +1,9 @@
+/**:
+  ros__parameters:
+    body_T_camera_x: 0.10
+    body_T_camera_y: 0.03
+    body_T_camera_z: 0.03
+    body_T_camera_roll_deg: 0.0
+    body_T_camera_pitch_deg: -90.0
+    body_T_camera_yaw_deg: 90.0
+    use_camera_optical_frame_convention: true

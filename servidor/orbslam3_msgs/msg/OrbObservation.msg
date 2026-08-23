@@ -1,0 +1,3 @@
+uint64 keyframe_id
+uint32 keypoint_index
+int32 right_keypoint_index
