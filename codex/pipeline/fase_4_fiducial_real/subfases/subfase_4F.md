@@ -1,5 +1,18 @@
 # Subfase 4F — Recepción y sincronización exacta de observaciones en el servidor
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Impacto obligatorio en system_architecture
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+4F crea la comunicación runtime real `orbslam3 -> orbslam3_server` para el batch
+fiducial. Añadir/actualizar esa arista y su evidencia live directa. No reutilizar GT ni
+`flow_events` para fingir actividad. La arista debe poder indicar `drone_id` y KF sin
+transportar payload pesado al visualizador.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 ```text

@@ -1,5 +1,27 @@
 # ADR 0002 — Uso de ground truth solo para fiducial simulado y debug
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Aclaración de la excepción legacy temporal de GT
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+La regla objetivo de esta ADR sigue siendo que GT no participe en el sistema funcional
+final. Sin embargo, el repositorio actual conserva una excepción legacy **conocida y
+acotada**: `gen_tray` y `control_calcular_fuerzas` consumen `sensor/GT/pose` y
+`sensor/GT/vel`.
+
+Esta excepción:
+- no autoriza nuevos consumidores funcionales de GT;
+- no convierte GT en arquitectura final;
+- pertenece a la deuda programada de Fase 5;
+- debe desaparecer funcionalmente en 5H;
+- hasta entonces `system_architecture` la muestra como dependencia actual/provisional.
+
+El fiducial simulado basado en GT es otra excepción temporal, propietaria de Fase 4.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 Aceptada.

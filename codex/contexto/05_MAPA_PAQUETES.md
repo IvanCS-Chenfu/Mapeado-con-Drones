@@ -1,5 +1,25 @@
 # 05 — Mapa de paquetes
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Relación con system_architecture
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+`system_architecture` usa **paquetes como nodos principales**. Ejecutables, nodos ROS,
+librerías y YAML aparecen como metadata/tooltip/panel, no como cajas principales salvo
+que una fase futura justifique explícitamente otro nivel de vista.
+
+La lista de paquetes no se codifica mediante un número mágico. La policy declarativa,
+el descubrimiento real y el grafo deben coincidir. Cuando una fase futura cree un
+paquete —por ejemplo GUI o dense— debe actualizarse en la misma subfase:
+1. mapa/policy de paquetes;
+2. `system_architecture`;
+3. guardas/tests;
+4. documentación del paquete.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Propósito
 
 Índice rápido de paquetes y responsabilidades. La documentación detallada vive en:

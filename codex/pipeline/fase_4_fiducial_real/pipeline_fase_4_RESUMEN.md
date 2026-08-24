@@ -1,5 +1,26 @@
 # Pipeline Fase 4 — Fiducial Real — resumen
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Obligación de mantener system_architecture durante Fase 4
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+Fase 4 no solo sustituye el fiducial GT: las subfases que cambien interfaces deben
+actualizar el visualizador arquitectónico.
+
+Puntos explícitos:
+- 4E: nuevo contrato ROS de observaciones por KF; metadata declarativa.
+- 4F: nace el consumo wrapper→Servidor; nueva arista runtime y telemetría directa.
+- 4H: el anchor visual sustituye funcionalmente al feed GT; retirar/marcar la arista
+  GT fiducial como no funcional.
+- 4K: integración multi-dron y verificación final de topología/live.
+
+La instrumentación del grafo sigue siendo debug opcional, ligera y totalmente dormida
+cuando se desactiva.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 Usar este archivo como primera lectura antes de `pipeline_fase_4.md` y de los contratos de subfase.
 
 ## Estado vigente

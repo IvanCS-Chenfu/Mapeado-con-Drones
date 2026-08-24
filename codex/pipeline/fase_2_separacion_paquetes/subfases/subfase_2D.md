@@ -1,5 +1,31 @@
 # Subfase 2D — Comprobar el funcionamiento completo tras la separación
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Evidencia vigente y regresión que corresponde a 2D
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+La **prueba 198 fue ejecutada y el usuario confirmó que funcionó correctamente**,
+incluida su valoración visual. Esta conclusión corrige cualquier auditoría externa que
+la marque como no ejecutada.
+
+El log 198 entregado es completo. Se conserva como evidencia pero no se lee
+directamente; cualquier comprobación técnica adicional debe obtenerse mediante un
+reducido específico.
+
+La prueba 198 valida el snapshot anterior a las correcciones de cierre. Después de
+modificar código/YAML/launch se ejecutará una regresión equivalente.
+
+El smoke con todos los debug en `false` debe endurecerse: además de comprobar que no
+arrancan RViz/web/navegadores, debe demostrar que los productores no generan ni
+serializan telemetría específica de `pipeline_flow`/`system_architecture`.
+
+La prueba visual con debug activo debe validar ambos grafos por separado y confirmar
+que cerrar cualquiera de ellos no afecta al pipeline.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 ```text

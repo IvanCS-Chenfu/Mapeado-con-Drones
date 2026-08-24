@@ -1,5 +1,26 @@
 # Pipeline Fase 5 — Poses de los drones sin Ground Truth — RESUMEN
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Frontera cross-group cerrada y obligación de actualizar system_architecture
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+La frontera de despliegue de Fase 5 queda fijada:
+```text
+Servidor <-> orbslam3 (wrapper)
+```
+`dron_individual` no abrirá comunicación directa con Servidor. 5A puede decidir dónde
+vive el estimador embarcado y qué contrato local usa `orbslam3` hacia control, pero no
+puede romper esa frontera.
+
+GT se mantiene como métrica externa y desaparece del camino funcional en 5H.
+
+Actualizar `system_architecture` explícitamente en 5A, 5B, 5D, 5E, 5H y 5I según los
+cambios reales de interfaces. No dibujar conexiones futuras antes de que existan.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 ```text

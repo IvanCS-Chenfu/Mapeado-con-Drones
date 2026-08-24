@@ -1,5 +1,48 @@
 # Subfase 2C — Reorganizar YAML, parámetros, launch y recursos de configuración
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Acuerdo definitivo de configuración para ejecutar 2C
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+### Modelo de ownership
+No imponer la regla antigua “toda réplica debe ser parcial” como absoluta. La regla es:
+- duplicado accidental: prohibido;
+- réplica parcial declarada: permitida con lista de claves;
+- réplica completa de deployment profile: permitida solo si está declarada, justificada
+  y guardada. `global_map` Servidor↔Simulación permanece completo.
+
+### Caja negra Dron
+Simulación no puede abrir `dron_individual/config/hardware.yaml`. Los datos necesarios
+para Gazebo se trasladan/replican en Simulación según su ownership real:
+- propiedades exclusivas de Gazebo/modelo: propiedad de Simulación;
+- intrínsecos Dron usados también por Simulación: réplica declarada;
+- parámetros de control/actuadores de Dron: propiedad de Dron; replica solo las claves
+  que Simulación consuma.
+
+`actuadores.conversor.fuerza2torque` es un ejemplo de dato Dron consumido también por
+el modelo simulado y debe tratarse como réplica declarada, no como dos propietarios.
+
+### Reloj e identidad
+Standalone Dron/Servidor: `use_sim_time=false`. Simulación pasa `true`.
+`drone_count`, namespace e identidad/selección por ejecución deben tener autoridad
+visible en launch y no competir silenciosamente con YAML operacionales.
+
+### Deudas concretas que se corregirán al implementar
+- eliminar `control.tray.usar_veltrap` y su launch argument tras un `rg` completo local;
+- corregir `<mass value="1.0"/>` para usar `fisico_cuerpo_masa`;
+- definir bootstrap/preflight del `ORBvoc.txt` completo;
+- conservar `body_T_camera` como intrínseco Dron y documentar transporte futuro;
+- no mover/refactorizar el fiducial actual: Fase 4 es su propietaria;
+- no retirar GT de control: Fase 5 es su propietaria.
+
+### Artefactos
+La prohibición es que los paquetes funcionales escriban/lean runtime desde `src/`.
+`codex/archivos_auxiliares` queda permitido como evidencia diagnóstica de Codex.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 ```text

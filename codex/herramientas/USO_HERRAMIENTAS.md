@@ -1,5 +1,53 @@
 # Uso de herramientas de Codex
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Reglas corregidas de ejecución, logs y entorno
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+### Logs
+El log completo se conserva, pero ningún agente lo lee directamente. Tanto en build
+como en simulación:
+
+```text
+log completo -> reductor -> reducido/sublog -> agente
+```
+
+Si falta contexto se vuelve a ejecutar el reductor con patrones más precisos. Queda
+anulada cualquier instrucción anterior que autorizase abrir el log completo.
+
+### Artefactos
+Los outputs ROS/colcon viven en el workspace:
+```text
+build/dron       install/dron       log/dron
+build/servidor   install/servidor   log/servidor
+build/simulacion install/simulacion log/simulacion
+```
+`codex/archivos_auxiliares/` puede guardar evidencia diagnóstica, incluidos logs
+completos, reducidos, replays, trayectorias y métricas. No es fuente runtime para un
+paquete funcional.
+
+### Entorno de simulación
+La secuencia reproducible es:
+1. limpiar prefijos antiguos;
+2. source de `/opt/ros/<distro>/setup.bash`;
+3. source de `install/dron/local_setup.bash`;
+4. source de `install/servidor/local_setup.bash`;
+5. source de `install/simulacion/local_setup.bash`;
+6. ejecutar el comando sin volver a cargar perfiles personales.
+
+Por ello, cuando se implemente la corrección acordada, `run_simulation.sh` conservará
+`setsid` pero usará `bash -c`, no `bash -lc`, salvo que una prueba demuestre una
+dependencia real del login shell.
+
+### Vocabulario ORB
+El runtime normal usa el vocabulario completo `ORBvoc.txt`. En clon limpio debe existir
+un procedimiento reproducible de extracción/preflight a partir del recurso versionado;
+`ORBvoc_L5.txt` no sustituye silenciosamente al vocabulario completo.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 Este archivo explica cómo usar las herramientas de `src/codex/herramientas/` para automatizar compilación, simulación y reducción de logs durante una fase del pipeline.
 
 La idea general es que los scripts hagan solo trabajo mecánico:

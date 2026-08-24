@@ -1,5 +1,35 @@
 # 00 - Contexto de compactacion
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Checkpoint vivo del cierre documental de Fase 2
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+```text
+Estado: Fase 3 CONSEGUIDA; Fase 2 EN CIERRE
+Preparación del bloque de correcciones: CERRADA
+Acuerdo funcional: CERRADO
+Autorización para código/YAML/launch: PENDIENTE
+Trabajo actual autorizado: solo documentación
+Prueba 198: PASADA por validación funcional/visual del usuario
+Log 198: completo conservado; prohibido leerlo directamente
+Siguiente acción tras subir estos MD: releer GitHub y verificar que no quedan dudas
+Siguiente acción posterior, solo con nueva autorización: implementar las correcciones
+```
+
+Decisiones cerradas principales: caja negra Dron; ownership/authority/deployment
+diferenciados; réplica completa `global_map` Servidor↔Simulación permitida y guardada;
+`use_sim_time=false` standalone y override `true` desde Simulación; eliminación futura
+de `usar_veltrap`; corrección futura de masa Xacro; ORBvoc completo con bootstrap/preflight;
+GT actual marcado provisional hasta Fase 5; fiducial actual no se refactoriza en este
+cierre; visualizadores con coste específico prácticamente nulo al estar apagados;
+`system_architecture` basado en evidencia real; builds/logs por grupo; logs completos
+solo para reductores; `bash -c` en ejecución reproducible; guardas y documentación
+actualizadas como parte del cierre.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado vivo
 
 ```text

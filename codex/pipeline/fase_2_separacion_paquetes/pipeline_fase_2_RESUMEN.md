@@ -1,5 +1,35 @@
 # Pipeline Fase 2 — Resumen
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Acuerdos definitivos para el cierre de Fase 2
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+La fase no se considera aún cerrada: primero se fija esta documentación, después se
+relee GitHub y solo con nueva autorización se implementan las correcciones.
+
+Reglas de cierre:
+- Dron es caja negra de despliegue.
+- ownership, authority y deployment profile son conceptos distintos.
+- carga directa de YAML entre grupos: prohibida.
+- réplicas completas están permitidas únicamente cuando son perfiles de despliegue
+  declarados; `global_map` Servidor↔Simulación es el caso vigente y exige igualdad.
+- `use_sim_time=false` en standalone Dron/Servidor; Simulación hace override `true`.
+- `body_T_camera` pertenece a Dron; su transporte futuro a Servidor será TF/calibración.
+- fiducial actual no se refactoriza aquí; Fase 4 lo sustituirá.
+- GT de control no se retira aquí; Fase 5 lo sustituirá.
+- `usar_veltrap` se eliminará por estar muerto; `TrayAction.tipo_trayectoria` manda.
+- el Xacro debe usar la masa configurada en vez del literal `1.0`.
+- el vocabulario ORB completo debe disponer de bootstrap/preflight reproducible.
+- los dos grafos web deben quedar dormidos cuando sus debugs estén apagados.
+- `system_architecture` muestra la realidad actual, con paquetes como nodos y aristas
+  runtime iluminadas solo por evidencia directa.
+- prueba 198: pasada por validación del usuario; tras los cambios se repetirá una
+  regresión equivalente.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 Usar este archivo antes de abrir `pipeline_fase_2.md` o los contratos de las
 subfases.
 

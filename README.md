@@ -1,5 +1,26 @@
 # Mapeado-MultiDrone-Orbslam
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Estado del repositorio y alcance del cierre de Fase 2
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+El repositorio ya está organizado físicamente en los grupos `dron/`, `servidor/` y
+`simulacion/`; no debe describirse como un repositorio limitado a la antigua Fase 1.
+La Fase 3 sparse global está conseguida y la Fase 2 se encuentra en cierre técnico.
+
+En este checkpoint se documentan primero las correcciones acordadas y se pospone su
+implementación. La prueba oficial 198 fue ejecutada y el usuario confirmó
+funcionalmente/visualmente que funcionó correctamente. Tras las correcciones de Fase 2
+se repetirá una regresión equivalente, porque la prueba 198 valida el snapshot anterior
+a esos cambios.
+
+La arquitectura de configuración, observabilidad y aislamiento se rige por ADR 0009 y
+ADR 0010.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Alcance del repositorio en GitHub
 
 Este repositorio de GitHub no contiene todos los paquetes del workspace completo del proyecto. Solo se han subido los paquetes y archivos que deben poder editarse desde Codex Web durante la Fase 1.

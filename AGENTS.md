@@ -1,5 +1,40 @@
 # AGENTS.md — Arranque compacto para Codex
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Acuerdos permanentes añadidos durante el cierre de Fase 2
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+- La fase de trabajo vigente es **Fase 2 — separación Dron/Servidor/Simulación**. La
+  Fase 3 está conseguida; Fases 4 y 5 siguen sin ejecutar.
+- El log completo de build o simulación es exclusivamente entrada de reductores. Codex
+  **nunca** lo abre directamente. Si un reducido no basta, se genera otro reducido o
+  sublog con patrones más precisos.
+- Los artefactos ROS/colcon se mantienen fuera de `src/` en
+  `build/{dron,servidor,simulacion}`, `install/{dron,servidor,simulacion}` y
+  `log/{dron,servidor,simulacion}`.
+- `codex/archivos_auxiliares/` sí puede contener logs completos, reducidos, trayectorias,
+  replays, métricas y otras evidencias diagnósticas. Ningún paquete funcional puede
+  depender de esa ruta para arrancar o funcionar.
+- Un visualizador web de debug desactivado debe quedar **funcionalmente dormido**:
+  sin bridge, HTTP/SSE, navegador, suscripciones de observabilidad, generación de
+  eventos, serialización ni publicaciones específicas del grafo. No basta con ocultar
+  la interfaz gráfica.
+- `pipeline_flow` y `system_architecture` son herramientas independientes. Activar una
+  nunca obliga a activar la instrumentación de la otra.
+- `system_architecture` muestra la arquitectura **real vigente**. Solo las aristas
+  runtime con evidencia directa pueden iluminarse; dependencias build/config/deployment
+  son estáticas. Un evento desconocido no se asigna a ninguna arista por aproximación.
+- Toda subfase futura que añada/elimine paquetes o cambie interfaces, dependencias
+  cross-group, réplicas de configuración o despliegue debe actualizar
+  `system_architecture` y sus tests/guardas en la misma subfase.
+- Antes de implementar las correcciones acordadas en este cierre documental, Codex debe
+  volver a leer GitHub y comprobar que estos MD son coherentes. Esta actualización
+  documental **no autoriza todavía cambios de código/YAML/launch**.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 Este archivo es el punto de entrada ligero del proyecto. No existe una copia
 larga activa de `AGENTS.md`: si falta una regla, buscarla en los documentos
 específicos de `codex/contexto/`, `codex/pipeline/` o `codex/contexto/decisiones/`.

@@ -1,5 +1,38 @@
 # ADR 0009 - Configuracion por dominio y modo de despliegue
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Extensión: ownership, authority y deployment profile
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+La decisión se amplía con tres conceptos independientes:
+1. **semantic ownership**: quién posee conceptualmente el dato;
+2. **authority/control**: quién decide su valor;
+3. **deployment source/profile**: desde qué copia local lo carga un despliegue.
+
+Dron es caja negra. Un YAML ROS no distribuye parámetros remotamente.
+
+Réplicas:
+- accidental/semánticamente duplicada: prohibida;
+- parcial declarada: permitida con claves y regla de igualdad;
+- completa declarada: permitida solo para un deployment profile justificado y guardado.
+`global_map` Servidor↔Simulación es una réplica completa deliberada y se mantiene.
+
+Contratos futuros:
+- valor controlado por Servidor y consumido en Dron: cliente Dron al arrancar → servicio
+  de configuración Servidor → valor local Dron;
+- intrínseco Dron requerido por Servidor (`body_T_camera`): TF o contrato de calibración
+  Dron→Servidor.
+No se implementan estos servicios en Fase 2 si no existe necesidad actual.
+
+Reloj:
+- standalone Dron/Servidor false;
+- Simulación hace override true.
+Defaults C++ son fallback/tipo, no perfiles operacionales ocultos.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 Aceptada para preparar la separacion de Fase 2.

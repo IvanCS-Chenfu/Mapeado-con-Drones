@@ -1,5 +1,31 @@
 # Subfase 2E — Actualizar toda la documentación y el contexto de Codex
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Documentación que debe quedar sincronizada en 2E
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+Además de las rutas y ownership ya exigidos, la documentación final debe explicar:
+- diferencia entre ownership, authority y deployment profile;
+- excepción declarada de réplica completa `global_map`;
+- caja negra Dron y contratos futuros Server→Dron config / Dron→Server calibration;
+- GT actual como deuda provisional de Fase 5;
+- fiducial GT actual como deuda provisional de Fase 4;
+- `use_sim_time` standalone vs Simulación;
+- ORBvoc completo y bootstrap/preflight;
+- layout exacto `build/install/log` por grupo;
+- permiso de `codex/archivos_auxiliares` como evidencia sin convertirlo en dependencia;
+- regla estricta de logs reducidos;
+- ejecución sin login shell;
+- semántica y coste de los dos grafos web.
+
+Debe existir documentación específica de `system_architecture` y actualizarse la de
+`pipeline_flow`. No describir como implementado un cambio que todavía esté pendiente:
+separar “estado actual” de “corrección acordada”.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 ```text

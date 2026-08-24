@@ -1,5 +1,18 @@
 # Subfase 4K — Integración multi-dron y validación completa en simulación
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Puerta arquitectónica de cierre de Fase 4
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+La integración multi-dron debe comprobar que `system_architecture` representa la
+arquitectura final de Fase 4, con actividad por múltiples namespaces y sin feed GT como
+dependencia funcional del fiducial. Probar herramienta apagada, estática y live, y
+confirmar que cerrar bridge/navegador no altera la misión.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 ```text

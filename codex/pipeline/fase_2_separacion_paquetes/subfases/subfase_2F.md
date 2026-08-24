@@ -1,5 +1,61 @@
 # Subfase 2F — Crear el diagrama arquitectónico estático y en vivo
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Especificación definitiva de system_architecture
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+### Nivel del grafo
+Los nodos principales son **paquetes** agrupados en Dron/Servidor/Simulación.
+Ejecutables, nodos ROS, librerías, YAML y responsabilidades aparecen como metadata.
+
+### Capas
+Distinguir `runtime`, `build/API`, `config/replica` y `deployment`.
+Solo `runtime` puede iluminarse por tráfico. Una dependencia estática no “late”.
+
+### Regla de evidencia
+Una arista runtime se ilumina únicamente por evidencia directa o un evento semántico
+explícito del productor. No inferir actividad a partir de topics parecidos. Evento
+desconocido = ninguna arista.
+
+Corregir la topología actual, entre otros:
+- cámaras Simulación→`orbslam3`;
+- GT Simulación→`dron_individual` como provisional;
+- GT→Servidor como feed provisional del fiducial simulado;
+- eliminar `orbslam3_to_dron` como flujo funcional actual si solo representa una
+  arquitectura futura;
+- control cross-group por topics `motor/*`;
+- separar delta `OrbMap` del servicio `GetOrbMap` y reflejar dirección request/response;
+- añadir `AccionTrayectoria` Simulación→Dron;
+- conservar observabilidad/backpressure/cloud/keyframes donde sean interfaces reales.
+
+### Telemetría live
+No suscribirse a imágenes/nubes/mapas pesados para “mirar tráfico”. Los productores o
+consumidores emiten eventos ligeros y muestreados: `edge_id`, `drone_id`, timestamp,
+interfaz, contador/estado. El navegador recibe SSE ligero.
+
+No usar `/global_mapping/flow_events` como bus universal del grafo arquitectónico.
+`system_architecture` tendrá telemetría propia y no dependerá de `pipeline_flow`.
+
+### Debug y consumo
+- `debug_system_architecture_web=false`: nada específico del visualizador debe trabajar.
+- web=true + telemetry=false: se permite grafo estático, sin observación ROS.
+- web=true + telemetry=true: topología + actividad live.
+- browser solo controla apertura automática.
+Si web=false, telemetry=true accidental no debe activar productores.
+
+### UI
+Gris significa “declarado sin actividad reciente”, no error. Mostrar cuando sea útil
+última actividad, contador, dron y frecuencia reciente. Usar TTL corto para alta tasa y
+más largo para eventos esporádicos.
+
+### Futuro
+4E/4F/4H/4K y 5A/5B/5D/5E/5H/5I actualizarán explícitamente el grafo. La regla global
+del Pipeline Maestro cubre también Fases 6–9.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 ```text

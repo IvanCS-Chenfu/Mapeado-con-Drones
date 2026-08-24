@@ -1,5 +1,33 @@
 # 03 — Arquitectura actual y objetivo de Fase 3
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Lectura correcta de la arquitectura actual y sus deudas programadas
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+La arquitectura documentada debe separar **lo que existe hoy** de lo previsto en Fases
+4 y 5.
+
+Estado funcional actual relevante:
+- Simulación produce cámaras estéreo para `orbslam3`.
+- `dron_individual` todavía consume `sensor/GT/pose` y `sensor/GT/vel` para trayectoria
+  y control. Es una dependencia provisional conocida, no la arquitectura final.
+- el wrapper `orbslam3` intercambia el mapa ORB con Servidor;
+- Servidor mantiene el fiducial simulado basado en GT como mecanismo provisional;
+- Dron publica comandos por motor hacia los plugins de Simulación;
+- `pipeline_flow` observa el pipeline interno de mapa;
+- `system_architecture` debe representar paquetes y comunicaciones reales vigentes.
+
+Fase 4 sustituirá la ruta funcional del fiducial GT por observaciones visuales asociadas
+al KF exacto. Fase 5 retirará GT del control y fijará que la comunicación cross-group
+Servidor↔Dron pase por `orbslam3`; `dron_individual` no abrirá una conexión directa con
+Servidor.
+
+No representar como activa una arista futura solo porque esté planificada.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Resumen
 
 El objetivo es construir un mapa sparse global multi-dron a partir de mapas

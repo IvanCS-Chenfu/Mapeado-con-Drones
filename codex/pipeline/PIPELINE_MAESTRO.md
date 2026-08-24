@@ -1,5 +1,31 @@
 # PIPELINE_MAESTRO — Proyecto multi-dron ORB-SLAM3 + ROS 2 + Gazebo
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Invariante global de system_architecture y debugs de observabilidad
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+A partir de este acuerdo, toda subfase futura que altere cualquiera de los elementos
+siguientes debe actualizar `system_architecture` en esa misma subfase:
+- paquetes o pertenencia a grupo;
+- dependencias build/config/deployment entre paquetes;
+- topic/service/action/TF relevante;
+- relación cross-group;
+- réplica de configuración;
+- productor/consumidor de un flujo runtime.
+
+La actualización incluye topología declarativa, metadata, telemetría live cuando
+corresponda y guardas/tests. La subfase no se considera cerrada si la arquitectura real
+y el visualizador divergen.
+
+Los visualizadores web son opcionales y separados. Un debug desactivado debe eliminar
+su trabajo específico, no solo ocultar la ventana. Esta regla cubre Fases 4–9 sin
+necesidad de añadir texto anticipado en todas sus subfases; se añaden referencias
+explícitas únicamente en las subfases de Fase 4/5 que ya sabemos que cambian el grafo.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Objetivo final
 
 El objetivo final no es solo construir una nube sparse común. El objetivo final es construir una nube densa global de un entorno definido por YAML, usando varios drones, sin ground truth para estimar la pose final ni para colocar puntos en el mapa final.

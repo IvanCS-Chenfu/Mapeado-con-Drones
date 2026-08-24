@@ -1,5 +1,32 @@
 # Visualizador `pipeline_flow`
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Semántica de debug y deuda de consumo detectada
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+`pipeline_flow` es observabilidad interna de Fase 3 y no debe trabajar cuando está
+desactivado.
+
+Estado actual detectado durante la auditoría de Fase 2:
+- con `debug_pipeline_flow_web=false` no arranca el bridge/web;
+- sin embargo `GlobalMapServer` sigue creando/publicando `/global_mapping/flow_events`
+  y construyendo JSON/eventos. Esto es una deuda a corregir en la implementación del
+  cierre de Fase 2.
+
+Objetivo:
+```text
+debug_pipeline_flow_web=false
+=> sin bridge + sin HTTP/SSE + sin navegador
+=> sin publisher/eventos/serialización específicos de pipeline_flow
+```
+
+La comprobación debe hacerse también en el lado productor, no solo mirando procesos web.
+`system_architecture` no debe necesitar `/global_mapping/flow_events`.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado activo
 
 Visualizador web incremental de Fase 3. El bridge transforma

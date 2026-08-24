@@ -1,5 +1,30 @@
 # Launches de `simulacion_dron`
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Matriz de debug acordada
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+Los flags de visualizadores son independientes y `false` por defecto.
+
+`pipeline_flow`:
+- `debug_pipeline_flow_web=false` implica ausencia total de trabajo específico de la
+  herramienta, incluida la instrumentación productora.
+- `debug_open_pipeline_flow_browser` solo abre navegador y nunca activa el pipeline.
+
+`system_architecture`:
+- web=false => herramienta completamente dormida;
+- web=true + telemetry=false => solo vista estática;
+- web=true + telemetry=true => vista live;
+- browser solo controla apertura automática;
+- telemetry=true no puede saltarse un web=false maestro.
+
+Simulación es la autoridad que activa estas capacidades de integración. Dron/Servidor
+standalone deben conservarlas apagadas por defecto.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## `multi_dron.launch.py`
 
 Arranca Gazebo, el numero de drones definido en `config/sim_dron.yaml`,

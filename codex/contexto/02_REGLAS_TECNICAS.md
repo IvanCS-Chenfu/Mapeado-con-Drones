@@ -1,5 +1,48 @@
 # 02 — Reglas técnicas permanentes
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Reglas permanentes de grupos, configuración y observabilidad
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+### Configuración
+Distinguir siempre:
+1. **ownership semántico**: qué grupo es propietario conceptual del dato;
+2. **authority/control**: qué componente decide su valor;
+3. **deployment source/profile**: qué copia local carga cada despliegue.
+
+Dron se trata como caja negra de despliegue. Un YAML ROS configura al nodo que lo
+carga; no distribuye parámetros a otra máquina. La carga directa de YAML entre grupos
+queda prohibida.
+
+La duplicación accidental semántica queda prohibida. Se permiten réplicas declaradas:
+- parciales, con lista exacta de claves;
+- completas, solo como excepción de perfil de despliegue documentada y con guarda de
+  igualdad. El caso vigente es `servidor/orbslam3_server/config/global_map/` ↔
+  `simulacion/simulacion_dron/config/global_map/`.
+
+### Reloj
+- Dron standalone/real: `use_sim_time=false` por defecto.
+- Servidor standalone/real: `use_sim_time=false` por defecto.
+- Simulación: override explícito `use_sim_time=true` a todos los nodos que dependan del
+  reloj simulado.
+Identidad y valores por ejecución deben tener una única autoridad visible en launch.
+
+### Observabilidad web
+Los grafos son diagnóstico, nunca dependencia funcional. Debug apagado implica:
+sin bridge, sin observers, sin eventos específicos, sin JSON/serialización, sin publish,
+sin HTTP/SSE y sin navegador. `pipeline_flow` y `system_architecture` son independientes.
+
+### Futuro entre grupos
+- Parámetro controlado por Servidor y consumido por Dron: futuro contrato
+  `Dron startup client -> servicio de configuración del Servidor -> Dron`.
+- Intrínseco del Dron requerido por Servidor, como `body_T_camera`: futuro contrato
+  Dron→Servidor mediante TF/calibración.
+No implementar esos transportes en Fase 2 si no existe necesidad funcional actual.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## 1. Identidad de submapa
 
 La unidad correcta del sistema es:

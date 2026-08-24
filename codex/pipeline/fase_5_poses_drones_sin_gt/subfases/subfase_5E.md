@@ -1,5 +1,18 @@
 # Subfase 5E — Estimador embarcado de pose local-global a frecuencia ORB
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Estimador embarcado y representación arquitectónica
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+Tras elegir físicamente dónde vive el estimador, actualizar metadata y flujos
+locales sin inventar un paquete/nodo separado si no existe. El grafo principal sigue
+siendo por paquetes. La actividad live debe observar interfaces reales y permanecer
+apagada cuando el debug está off.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Estado
 
 ```text

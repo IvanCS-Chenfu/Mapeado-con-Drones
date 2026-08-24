@@ -1,5 +1,33 @@
 # 04 — Topics, servicios y acciones
 
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
+## Aclaraciones de interfaces que debe reflejar system_architecture
+
+> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
+> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
+> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+
+Interfaces actuales que deben representarse sin inferencias:
+- cámaras de Simulación → `orbslam3` por los topics estéreo remapeados;
+- `sensor/GT/pose` y `sensor/GT/vel` → `dron_individual` mientras Fase 5 no los retire;
+- GT → Servidor únicamente como soporte provisional del fiducial simulado;
+- `OrbMap` delta → Servidor;
+- `GetOrbMap`: la solicitud va Servidor→wrapper y la respuesta wrapper→Servidor; no
+  mezclar service y delta en una única dirección simplificada;
+- control Dron→Simulación: topics `motor/*` realmente consumidos por el plugin, no los
+  topics internos `control/tray/*`;
+- `AccionTrayectoria`: Simulación/runner → `dron_individual`;
+- backpressure, nube global, keyframes y observabilidad del Servidor → Simulación cuando
+  corresponda.
+
+`/global_mapping/flow_events` es telemetría de `pipeline_flow`, no un bus universal para
+inferir cualquier arista de `system_architecture`. Los eventos desconocidos no se
+mapean a `server_backend_internal`.
+
+La telemetría arquitectónica futura será ligera y específica, sin payloads de imagen,
+nube o mapa.
+<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
 ## Aviso
 
 Este documento resume las conexiones conocidas. Si Codex modifica launches, namespaces o nombres de nodos/topics, debe actualizarlo.
