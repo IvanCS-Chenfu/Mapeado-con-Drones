@@ -1,11 +1,6 @@
 # ADR 0009 - Configuracion por dominio y modo de despliegue
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
-## Extensión: ownership, authority y deployment profile
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+## Decisión vigente: ownership, authority y deployment profile
 
 La decisión se amplía con tres conceptos independientes:
 1. **semantic ownership**: quién posee conceptualmente el dato;
@@ -31,7 +26,6 @@ Reloj:
 - standalone Dron/Servidor false;
 - Simulación hace override true.
 Defaults C++ son fallback/tipo, no perfiles operacionales ocultos.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 
@@ -84,8 +78,7 @@ perfil operacional oculto.
 - un parametro puede pertenecer al dron aunque hoy lo consuma el servidor.
 
 `body_T_camera` es el caso principal: representa calibracion del dron. El
-servidor lo consume temporalmente para el fiducial simulado, pero Fase 2 debera
-definir su transporte mediante TF o un contrato de calibracion.
+servidor lo consume temporalmente para el fiducial simulado, pero Su transporte futuro será mediante TF o un contrato de calibración Dron→Servidor; no se implementa ese transporte en Fase 2 si no es necesario para el comportamiento actual.
 
 ## Fuera de alcance
 

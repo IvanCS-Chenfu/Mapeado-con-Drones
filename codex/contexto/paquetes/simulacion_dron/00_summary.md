@@ -24,9 +24,9 @@ launch/pipeline_flow_only.launch.py -> diagnostico web aislado
 
 - `launch_gazebo_gui=false`: usa `gzserver` sin `gzclient`;
 - `launch_mission_gui=false`: omite la GUI de mision;
-- `fase3_debug.yaml`: RViz2, grafo, navegador y logs `[F3*]` independientes;
+- `debug.yaml`: flags independientes para observabilidad; todos `false` por defecto;
 - `drone_start_stagger_sec=8.0`: arranque 0/8/16... s por defecto;
-- `orb_vocabulary_path`: L5 compacto por defecto, L6 seleccionable.
+- `orb_vocabulary_path`: configurable; el cierre deja el vocabulario completo como runtime normal y compactos solo para pruebas explícitas.
 
 El perfil visual completo se usa con dos drones. Para tres o mas drones y para
 fases dense se usa headless y se habilitan solo las vistas necesarias.

@@ -1,30 +1,36 @@
 # Mapeado-MultiDrone-Orbslam
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
-## Estado del repositorio y alcance del cierre de Fase 2
+Proyecto ROS 2 + Gazebo + ORB-SLAM3 para mapeado multi-dron. El objetivo final es obtener una nube densa global sin usar Ground Truth como fuente funcional de pose final ni de mapa final.
 
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+## Estado
 
-El repositorio ya está organizado físicamente en los grupos `dron/`, `servidor/` y
-`simulacion/`; no debe describirse como un repositorio limitado a la antigua Fase 1.
-La Fase 3 sparse global está conseguida y la Fase 2 se encuentra en cierre técnico.
+- Fase 1: realizada.
+- Fase 3 sparse global: conseguida.
+- Fase 2 separación Dron/Servidor/Simulación: fase activa, en cierre técnico.
+- Fases 4 y 5: planificadas, todavía sin ejecutar.
 
-En este checkpoint se documentan primero las correcciones acordadas y se pospone su
-implementación. La prueba oficial 198 fue ejecutada y el usuario confirmó
-funcionalmente/visualmente que funcionó correctamente. Tras las correcciones de Fase 2
-se repetirá una regresión equivalente, porque la prueba 198 valida el snapshot anterior
-a esos cambios.
+La prueba 198 de dos drones alrededor del edificio fue ejecutada y validada funcional y visualmente por el usuario sobre el snapshot anterior a las correcciones finales de Fase 2. Tras aplicar esas correcciones se repetirá una regresión equivalente.
 
-La arquitectura de configuración, observabilidad y aislamiento se rige por ADR 0009 y
-ADR 0010.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+## Estructura de despliegue
 
-## Alcance del repositorio en GitHub
+```text
+dron/       software embarcado por dron
+servidor/   backend sparse/global y servidor ROS 2
+simulacion/ Gazebo, escenarios, integración y observabilidad
+codex/      documentación, herramientas y evidencias de trabajo
+```
 
-Este repositorio de GitHub no contiene todos los paquetes del workspace completo del proyecto. Solo se han subido los paquetes y archivos que deben poder editarse desde Codex Web durante la Fase 1.
+`orbslam3_msgs` existe de forma deliberada en Dron y Servidor; la copia de Servidor es canónica y la igualdad se protege automáticamente.
 
-La documentación de contexto puede mencionar más paquetes de los que aparecen en `src/`. En particular, `codex/contexto/paquetes/` describe el conjunto más amplio de paquetes del proyecto y sirve como referencia para entender qué existe en el entorno completo, aunque no todos esos paquetes estén presentes en este repositorio remoto.
+## Decisiones principales
 
-Durante la Fase 1, los cambios de código deben centrarse en los paquetes incluidos aquí, que son los paquetes previstos para edición desde Codex Web en esta etapa. Los paquetes ausentes deben tratarse como dependencias externas o componentes del workspace completo, no como archivos omitidos por error en este repositorio.
+- Dron es caja negra de despliegue.
+- Configuración: distinguir ownership, autoridad y perfil de despliegue.
+- No se cargan YAML directamente entre grupos.
+- `global_map` Servidor↔Simulación es una réplica completa de deployment profile deliberada y guardada.
+- `use_sim_time=false` en Dron/Servidor standalone; Simulación aplica `true`.
+- GT de control es deuda legacy temporal hasta Fase 5; fiducial GT temporal hasta Fase 4.
+- `pipeline_flow` y `system_architecture` son debug opcional y deben tener coste específico prácticamente nulo cuando están apagados.
+- Los logs completos se conservan, pero Codex solo analiza reducidos/sublogs.
+
+La fuente de verdad operativa para Codex comienza en `AGENTS.md` y `codex/contexto/00_CONTEXTO_COMPACTACION.md`.

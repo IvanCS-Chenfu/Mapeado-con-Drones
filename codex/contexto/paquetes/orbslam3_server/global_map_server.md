@@ -72,6 +72,8 @@ servidor solo comunica los KFs dirty. `[F3K-ATOMIC-COMMIT]` distingue
 `moved_kfs` de `control_propagated` para hacer observable el movimiento rigido
 de hijos blandos.
 
+La telemetría histórica de `pipeline_flow` usa un único lifecycle `start/done` por tarea. Durante el cierre de Fase 2 toda su producción debe quedar completamente gateada por el debug de `pipeline_flow`, antes de construir strings/JSON. `system_architecture` no reutiliza esos eventos como bus universal.
+
 La telemetria usa un unico lifecycle `start/done` por tarea. Las etapas BoW,
 geometria, decision y commit se acumulan dentro de ese owner visual.
 

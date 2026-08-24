@@ -1,17 +1,11 @@
 # Subfase 5B — Pose local, navegación sin anchor y gestión de estados de localización
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Pose local y system_architecture
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 Cuando `pose_local` pase a ser entrada funcional local, actualizar la relación
 `orbslam3 -> dron_individual` con la interfaz realmente implementada. No presentarla
 como activa antes. GT puede continuar temporalmente para métricas/pruebas, pero debe
 marcarse provisional y no confundirse con el camino objetivo.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 

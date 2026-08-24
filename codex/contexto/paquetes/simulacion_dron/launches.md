@@ -1,11 +1,6 @@
 # Launches de `simulacion_dron`
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Matriz de debug acordada
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 Los flags de visualizadores son independientes y `false` por defecto.
 
@@ -23,7 +18,6 @@ Los flags de visualizadores son independientes y `false` por defecto.
 
 Simulación es la autoridad que activa estas capacidades de integración. Dron/Servidor
 standalone deben conservarlas apagadas por defecto.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## `multi_dron.launch.py`
 
@@ -71,7 +65,7 @@ Otros argumentos de rendimiento/operacion:
 launch_gazebo_gui=true
 launch_mission_gui=true
 drone_start_stagger_sec=8.0
-orb_vocabulary_path=<ORBvoc_L5.txt>
+orb_vocabulary_path=<ORBvoc.txt>  # objetivo normal tras el cierre
 ```
 
 Con `launch_gazebo_gui=false`, el launch inicia `gzserver` directamente. Cada

@@ -17,8 +17,6 @@ servidor mantiene la autoridad sobre loops y optimizaciones globales.
 
 Perfil multi-dron vigente desde 3G: camaras 480x360 a 20 Hz, calibracion
 coherente con baseline 0.057 m y 900 features. `generar_dron.launch.py` acepta
-`orb_vocabulary_path`; el launch superior multi-dron selecciona el vocabulario
-L5 compacto, mientras el launch individual conserva el vocabulario L6 completo
-por defecto. Los procesos ORB limitan arenas glibc con `MALLOC_ARENA_MAX=2`.
+`orb_vocabulary_path`; el launch individual conserva el vocabulario completo como referencia normal. El cierre de Fase 2 elimina sustituciones compactas silenciosas en Simulación y añade bootstrap/preflight reproducible. Los procesos ORB limitan arenas glibc con `MALLOC_ARENA_MAX=2`.
 
 Detalles en `launches.md`, `control.md` y archivos de config del paquete.

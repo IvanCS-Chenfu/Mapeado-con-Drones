@@ -1,11 +1,6 @@
 # Visualizador `pipeline_flow`
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
-## Semántica de debug y deuda de consumo detectada
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+## Estado de debug y deuda de consumo de Fase 2
 
 `pipeline_flow` es observabilidad interna de Fase 3 y no debe trabajar cuando está
 desactivado.
@@ -25,7 +20,6 @@ debug_pipeline_flow_web=false
 
 La comprobación debe hacerse también en el lado productor, no solo mirando procesos web.
 `system_architecture` no debe necesitar `/global_mapping/flow_events`.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado activo
 

@@ -1,17 +1,11 @@
 # Subfase 5H — Sustitución de Ground Truth en generación y control de trayectorias
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Retirada funcional de GT reflejada en system_architecture
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 Al sustituir finalmente `sensor/GT/pose` y `sensor/GT/vel` en `gen_tray` y
 `control_calcular_fuerzas`, retirar esas aristas como dependencia funcional. GT puede
 figurar únicamente como métrica externa de Simulación. Validar que control usa el estado
 estimado real y que el visualizador no maquilla datos incorrectos.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 

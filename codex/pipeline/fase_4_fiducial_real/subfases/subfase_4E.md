@@ -1,18 +1,12 @@
 # Subfase 4E — Contrato ROS 2 de observaciones fiduciales por KeyFrame
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Impacto obligatorio en system_architecture
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 Cuando 4E cree/active el batch fiducial, actualizar metadata de `orbslam3_msgs` y
 `orbslam3` en `system_architecture`: topic, tipo, patrón de namespace, dirección,
 datos transportados y QoS. No iluminar todavía una recepción de Servidor que no exista
 hasta 4F. La telemetría de debug del publisher debe ser ligera y quedar completamente
 inactiva cuando `system_architecture` esté apagado.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 

@@ -1,18 +1,12 @@
 # Subfase 4H — Primer anchor visual del submapa sin Ground Truth
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Transición del feed GT al anchor visual en system_architecture
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 Al demostrar el primer anchor visual, `system_architecture` debe dejar de presentar
 GT→Servidor como camino funcional de fiducial. La ruta visual wrapper→Servidor pasa a
 ser la vigente. GT puede seguir apareciendo únicamente como métrica/debug externo si
 realmente existe. No borrar prematuramente código legacy antes de la validación prevista
 en 4K.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 

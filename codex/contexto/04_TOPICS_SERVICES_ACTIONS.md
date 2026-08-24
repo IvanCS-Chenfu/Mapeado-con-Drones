@@ -1,11 +1,6 @@
 # 04 — Topics, servicios y acciones
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Aclaraciones de interfaces que debe reflejar system_architecture
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 Interfaces actuales que deben representarse sin inferencias:
 - cámaras de Simulación → `orbslam3` por los topics estéreo remapeados;
@@ -26,7 +21,15 @@ mapean a `server_backend_internal`.
 
 La telemetría arquitectónica futura será ligera y específica, sin payloads de imagen,
 nube o mapa.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
+
+
+## Clasificación de estado
+
+- **ACTIVA AHORA**: cámaras→`orbslam3`, GT→`dron_individual` provisional, GT→Servidor fiducial provisional, `OrbMap` delta, `GetOrbMap`, motores Dron→Simulación, `AccionTrayectoria`, backpressure, nube/keyframes y telemetría que el código realmente publique.
+- **LEGACY/INFRAESTRUCTURA NO ACTIVA**: contratos históricos no lanzados actualmente.
+- **FUTURA/RESERVADA**: interfaces de corrección/pose que Fase 5 reactive o rediseñe.
+
+`system_architecture` solo dibuja como runtime activo la primera categoría.
 
 ## Aviso
 
@@ -123,8 +126,8 @@ tablas siguen reservadas para sus subfases propietarias.
 | `/global_mapping/flow_events` | `std_msgs/msg/String` | Activa en 3C; metadatos no bloqueantes para el grafo web. |
 | `/global_keyframes` | `visualization_msgs/msg/MarkerArray` | Activo en 3F; frustums `LINE_LIST`, color por submapa, IDs estables y `DELETE` para retiradas; reliable/transient-local depth 1. |
 | `/global_sparse_cloud` | `sensor_msgs/msg/PointCloud2` | Activo en 3F, frame `world`; campos `x,y,z,score,rgb,drone_id,map_epoch_low,map_epoch_high`; reliable/transient-local depth 1. |
-| `/dron_X/map_correction` | `orbslam3_msgs/msg/MapCorrection` | Corrección mundo-local para el dron/submapa. |
-| `/dron_X/corrected_keyframes` | `orbslam3_msgs/msg/CorrectedKeyFrameArray` | KeyFrames corregidos por optimización global/local. |
+| `/dron_X/map_correction` | `orbslam3_msgs/msg/MapCorrection` | FUTURA/RESERVADA en el runtime actual; Fase 5 decide si se reutiliza. |
+| `/dron_X/corrected_keyframes` | `orbslam3_msgs/msg/CorrectedKeyFrameArray` | FUTURA/RESERVADA en el runtime actual; Fase 5 decide si se reutiliza. |
 | estado fiducial | `orbslam3_msgs/msg/FiducialLockStatus` | Estado de fiduciales/anclaje. |
 
 ## Corrector de pose global retirado

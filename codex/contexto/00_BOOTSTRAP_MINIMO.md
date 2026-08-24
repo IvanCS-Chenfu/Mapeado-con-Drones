@@ -1,97 +1,40 @@
 # 00 — Bootstrap mínimo para nuevo chat
 
-Este archivo queda como respaldo corto. Antes de leerlo, abrir físicamente:
-
-```text
-codex/contexto/00_CONTEXTO_COMPACTACION.md
-```
-
-Tras una compactación hay que repetir esa lectura antes de continuar. El resumen
-automático del chat no la sustituye.
-
-## Lectura recomendada
+## Lectura obligatoria
 
 1. `codex/contexto/00_CONTEXTO_COMPACTACION.md`
 2. `codex/contexto/CONTEXTO_MINIMO_ACTUAL.md`
-3. `codex/contexto/08_POLITICA_TOKENS_DOCUMENTACION.md`
-4. `codex/pipeline/fase_3_sparse_global/pipeline_fase_3_RESUMEN.md`
-5. Subfase concreta si se va a implementar.
-6. `historial/INDEX.md` y `historial_<ID>_RESUMEN.md` de la subfase necesaria.
-7. Docs del paquete/componente que se vaya a tocar.
+3. `codex/contexto/01_ESTADO_ACTUAL_RESUMEN.md`
+4. `codex/pipeline/fase_2_separacion_paquetes/pipeline_fase_2_RESUMEN.md`
+5. subfase concreta y docs de paquetes afectados.
 
-## Estado operativo
-
-- Fase 3 — mapa sparse global multi-dron esta `CONSEGUIDA`.
-- Fase 1 — control del dron está documentada como `realizado`.
-- Fase 2 — separacion de paquetes es la fase actual.
-- `3B-3T` estan `CONSEGUIDAS`; la secuencia final es 3Q optimizacion, 3R
-  scoring, 3S debug y 3T limpieza/handoff.
-- `3Q` conserva en su historial una incidencia de 194 y una mejora futura de
-  evidencia adaptativa; no bloquea el cierre.
-- Objetivo global del proyecto: nube densa global sin usar ground truth para mapa
-  final ni pose final.
-
-## Invariantes que no se negocian
-
-- `submapa = (drone_id, map_epoch)`.
-- `RawMapDatabase` conserva raw ORB-SLAM3 y no se modifica por optimización.
-- `GlobalPoseStore` conserva poses globales, anchors, optimizaciones y rollback.
-- Fiduciales son observaciones absolutas, no loops.
-- Ground truth solo para fiducial simulado, debug o métricas externas.
-- Wrapper y mensajes son estables.
-- `ORB_SLAM3` no se toca salvo permiso explícito; si reaparecen errores de la
-  librería, leer primero
-  `codex/contexto/paquetes/ORB_SLAM3/sim3_solver_guard.md`.
-- Una primera orden de ejecutar una subfase nunca autoriza código, configuración,
-  build ni simulación: primero debatir y comprobar comprensión mutua.
-- No repetir preguntas si `00_CONTEXTO_COMPACTACION.md` conserva un acuerdo
-  previo completo, confirmado y sin dudas.
-- La autorización se limita al acuerdo; una duda funcional o cambio de
-  alcance/prueba obliga a suspender, parar y pedir nueva confirmación.
-- En tareas largas, reemplazar `00_CONTEXTO_COMPACTACION.md` tras plan, cambios,
-  build, prueba y diagnóstico, y cerrarlo al terminar.
-
-## Ruta actual de la arquitectura
+## Estado
 
 ```text
-orbslam3_ros2
-  -> orbslam3_server
-  -> orbslam3_multi
-      RawMapDatabase
-      GlobalPoseStore
-      FiducialAnchorManager
-      CovisibilityDatabase
-      LoopDetector
-      SubcloudLoopVerifier
-      PoseGraphBuilder
-      OptimizationManager
-      GlobalMapBuilder
+Fase activa: Fase 2 — separación Dron/Servidor/Simulación, en cierre
+Fase 3: CONSEGUIDA
+Prueba 198: PASADA por validación funcional/visual del usuario
+Correcciones finales de Fase 2: documentadas, implementación pendiente de autorización
 ```
 
-`orbslam3_server` debe ser adaptador ROS 2; `orbslam3_multi` debe concentrar la
-lógica algorítmica.
+## Invariantes
+
+- `submapa=(drone_id,map_epoch)`.
+- Raw ORB-SLAM3 no se sobrescribe por optimización.
+- `GlobalPoseStore` es autoridad del estado global.
+- GT no es fuente funcional final; control GT actual es deuda legacy hasta 5H y fiducial GT hasta Fase 4.
+- Dron es caja negra.
+- No carga YAML cross-group.
+- Réplicas declaradas: parciales por claves o completas solo como deployment profile explícito; `global_map` es la excepción completa vigente.
+- Dron/Servidor standalone `use_sim_time=false`; Simulación `true`.
+- Logs completos: solo entrada de reductores.
+- Debug web apagado: herramienta dormida también en productores.
 
 ## Herramientas
 
 ```bash
-./codex/herramientas/build_selected_packages.sh <paquetes>
-./codex/herramientas/reduce_build_log.sh
+./codex/herramientas/build_selected_packages.sh --group <grupo> <paquete>
 ./codex/herramientas/run_simulation.sh --prueba X --launch "ros2 launch simulacion_dron multi_dron.launch.py"
+./codex/herramientas/reduce_build_log.sh
 ./codex/herramientas/reduce_simulation_log.sh --prueba X --patterns "<patrones>"
 ```
-
-Los logs completos nunca se leen directamente. Reducir primero y leer solo el
-reducido; si falta evidencia, regenerarlo con otros patrones o crear sublogs.
-
-## Dónde está el detalle
-
-| Necesidad | Archivo |
-|---|---|
-| Memoria viva | `codex/contexto/00_CONTEXTO_COMPACTACION.md` |
-| Estado completo | `codex/contexto/01_ESTADO_ACTUAL.md` |
-| Estado corto | `codex/contexto/01_ESTADO_ACTUAL_RESUMEN.md` |
-| Contexto mínimo | `codex/contexto/CONTEXTO_MINIMO_ACTUAL.md` |
-| Reglas técnicas | `codex/contexto/02_REGLAS_TECNICAS.md` |
-| Mapa de código | `codex/contexto/06_MAPA_CODIGO.md` |
-| Historial | `codex/pipeline/fase_3_sparse_global/historial/INDEX.md` y `historial_<ID>_RESUMEN.md` |
-| Política antitokens | `codex/contexto/08_POLITICA_TOKENS_DOCUMENTACION.md` |

@@ -1,17 +1,11 @@
 # Subfase 5D — Transporte versionado de correcciones servidor→dron
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Transporte Server→Dron exclusivamente a través del wrapper
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 El transporte de correcciones globales desde Servidor debe terminar en `orbslam3`
 como frontera cross-group. Si el estimador acaba en `dron_individual`, el wrapper
 reexpone los datos mediante un contrato **local dentro de Dron**. Actualizar aristas,
 tipo, QoS, versionado y actividad live en `system_architecture`.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 

@@ -16,7 +16,7 @@ También incluye `orbslam_use.launch.py` si `activar_orbslam=true`.
 
 Argumentos:
 
-- `usar_veltrap`;
+- `usar_veltrap` — legacy/dead; se elimina en el cierre de Fase 2 tras búsqueda global;
 - `activar_orbslam`;
 - `drone_id`;
 - `drone_name`;
@@ -71,9 +71,7 @@ El estereo usa `fx=fy=286.02185016085167`, centro `(240.5,180.5)` y
 `bf=16.303245459168547`, equivalentes a baseline 0.057 m. Estos valores deben
 mantenerse sincronizados con `config/hardware.yaml` y la camara Xacro.
 
-`generar_dron.launch.py` conserva por defecto el vocabulario completo
-`ORBvoc.txt`. `simulacion_dron/multi_dron.launch.py` reemplaza ese argumento por
-`ORBvoc_L5.txt` para el perfil multi-dron. La ruta sigue siendo configurable:
+`generar_dron.launch.py` usa el vocabulario completo `ORBvoc.txt` como referencia normal. El snapshot previo de Simulación podía sobreescribirlo con un compacto para ahorrar memoria; el cierre de Fase 2 elimina esa sustitución silenciosa y añade bootstrap/preflight reproducible. La ruta sigue siendo configurable:
 
 ```text
 orb_vocabulary_path:=/ruta/a/ORBvoc.txt
@@ -106,3 +104,9 @@ Parámetros enviados:
 - Si se cambian nombres de topics de cámara, actualizar remappings.
 - El vocabulario L5 reduce mucho la memoria, pero no sustituye una comparacion
   L6 en pruebas especificas de relocalizacion y loops.
+
+## Deudas de cierre Fase 2
+
+- `use_sim_time` standalone debe quedar `false`; Simulación lo sobreescribe a `true`.
+- `usar_veltrap` se retira; `TrayAction.tipo_trayectoria` selecciona el generador.
+- Los debugs de arquitectura/flow que puedan propagarse al Dron son `false` standalone y solo generan telemetría si el master de la herramienta está activo.

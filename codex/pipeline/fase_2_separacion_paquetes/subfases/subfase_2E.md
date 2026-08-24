@@ -1,11 +1,6 @@
 # Subfase 2E — Actualizar toda la documentación y el contexto de Codex
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Documentación que debe quedar sincronizada en 2E
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 Además de las rutas y ownership ya exigidos, la documentación final debe explicar:
 - diferencia entre ownership, authority y deployment profile;
@@ -24,14 +19,12 @@ Además de las rutas y ownership ya exigidos, la documentación final debe expli
 Debe existir documentación específica de `system_architecture` y actualizarse la de
 `pipeline_flow`. No describir como implementado un cambio que todavía esté pendiente:
 separar “estado actual” de “corrección acordada”.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 
 ```text
-SIN HACER
-Dependencia: nueva distribución y YAML suficientemente estabilizados
-Objetivo: Codex debe comprender el workspace sin redescubrir rutas ni ownership
+PARCIAL — documentación de cierre en curso
+Debe quedar sincronizada tras implementar y validar las correcciones finales
 ```
 
 ## Objetivo técnico

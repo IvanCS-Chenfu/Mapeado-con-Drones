@@ -3,10 +3,8 @@
 ## Estado
 
 ```text
-SIN HACER
-Contrato documental: CERRADO
-Ejecución: requiere autorización explícita conforme a AGENTS.md
-Dudas abiertas: ninguna
+CONSEGUIDA EN EL SNAPSHOT PROBADO
+Evidencia: grupos físicos creados y réplica orbslam3_msgs validada
 ```
 
 ## Objetivo técnico

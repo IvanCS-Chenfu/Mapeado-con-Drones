@@ -3,10 +3,8 @@
 ## Estado
 
 ```text
-SIN HACER
-Dependencia: 2A conseguida o árbol equivalente validado
-Idea principal de build: bases separadas por grupo
-Alternativas: permitidas solo tras demostrar un bloqueo real
+CONSEGUIDA EN EL SNAPSHOT PROBADO
+Evidencia: 9/9 builds aislados, un paquete por invocación
 ```
 
 ## Objetivo técnico

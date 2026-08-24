@@ -1,11 +1,6 @@
 # Subfase 2C — Reorganizar YAML, parámetros, launch y recursos de configuración
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Acuerdo definitivo de configuración para ejecutar 2C
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 ### Modelo de ownership
 No imponer la regla antigua “toda réplica debe ser parcial” como absoluta. La regla es:
@@ -41,14 +36,12 @@ visible en launch y no competir silenciosamente con YAML operacionales.
 ### Artefactos
 La prohibición es que los paquetes funcionales escriban/lean runtime desde `src/`.
 `codex/archivos_auxiliares` queda permitido como evidencia diagnóstica de Codex.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 
 ```text
-SIN HACER
-Dependencia: 2A completada y 2B con builds suficientes para trabajar
-Objetivo: ownership claro, configuración reutilizable y sin duplicados internos
+PARCIAL — cierre pendiente
+Base implementada; faltan las correcciones de ownership/configuración acordadas
 ```
 
 ## Objetivo técnico
@@ -60,8 +53,7 @@ Reorganizar los archivos YAML y su carga desde launch para que:
 - los paquetes de un grupo puedan reutilizar YAML de otros paquetes del mismo
   grupo mediante recursos instalados;
 - ningún paquete cargue directamente YAML de otro grupo;
-- cuando un grupo necesite un dato de otro, exista una réplica parcial local y
-  verificable;
+- cuando un grupo necesite un dato de otro, exista una réplica local declarada y verificable: parcial por defecto o completa únicamente si es un deployment profile explícito;
 - los parámetros físicos completos del dron se consuman desde un único YAML;
 - los parámetros de control, trayectoria, cámara, ORB-SLAM3, servidor,
   simulación y debug queden separados por responsabilidad;
@@ -138,33 +130,13 @@ física. Si necesita el dato, crea una réplica parcial local.
 
 ### 3. Réplica parcial local
 
-Formato de nombre:
+Las réplicas entre grupos deben estar declaradas.
 
-```text
-<nombre_yaml_origen>_<grupo_origen>.yaml
-```
+**Parcial**: opción normal. Contiene únicamente las claves consumidas por el grupo receptor y documenta origen conceptual, paquete/YAML origen, claves, consumidores, regla de igualdad y política de modificación.
 
-Ejemplo:
+**Completa**: excepción reservada a un `deployment profile` deliberado, justificado y protegido por guarda. El caso vigente es `global_map` Servidor↔Simulación, que permanece completo mientras ambas copias representen el mismo perfil validado.
 
-```text
-Dron:       physical.yaml
-Simulación: physical_dron.yaml
-```
-
-La réplica contiene solo parámetros realmente usados por el grupo receptor.
-Cada archivo debe declarar en comentarios o metadatos:
-
-```text
-origen conceptual
-grupo de origen
-paquete y YAML de origen
-claves replicadas
-consumidores locales
-regla de igualdad
-política de modificación
-```
-
-No copiar configuraciones enteras “por si acaso”.
+No copiar configuraciones completas “por si acaso”.
 
 ### 4. No duplicación semántica
 
@@ -367,7 +339,7 @@ El número de drones no puede vivir en Dron ni Servidor.
 - publicación de sensores;
 - parámetros de plugins simulados.
 
-#### Réplicas parciales
+#### Réplicas declaradas
 
 Ejemplos:
 
@@ -377,8 +349,7 @@ camera_dron.yaml
 actuators_dron.yaml
 ```
 
-Solo se crean si Simulación consume esas claves. No se copia todo el YAML de
-Dron.
+Estas réplicas de Dron en Simulación son parciales y solo existen si Simulación consume esas claves. La única réplica completa vigente es el deployment profile `global_map` Servidor↔Simulación, declarado aparte y protegido por igualdad.
 
 #### `debug.yaml`
 

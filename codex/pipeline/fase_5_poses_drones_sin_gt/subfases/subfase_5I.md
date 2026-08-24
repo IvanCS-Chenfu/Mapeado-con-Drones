@@ -1,17 +1,11 @@
 # Subfase 5I — Integración final, adquisición inicial de anchor y regresión multi-dron
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Puerta arquitectónica de cierre de Fase 5
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 La prueba final multi-dron debe verificar: ninguna dependencia funcional de GT en
 control; Server↔Dron solo mediante `orbslam3`; flujos locales correctos hacia control;
 `system_architecture` coherente en modo estático/live; herramienta apagada sin coste de
 telemetría; cerrar visualizadores no afecta al pipeline.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 

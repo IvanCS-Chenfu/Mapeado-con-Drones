@@ -1,11 +1,6 @@
 # PIPELINE_MAESTRO — Proyecto multi-dron ORB-SLAM3 + ROS 2 + Gazebo
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
-## Invariante global de system_architecture y debugs de observabilidad
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
+## Invariante global de system_architecture y observabilidad
 
 A partir de este acuerdo, toda subfase futura que altere cualquiera de los elementos
 siguientes debe actualizar `system_architecture` en esa misma subfase:
@@ -24,7 +19,6 @@ Los visualizadores web son opcionales y separados. Un debug desactivado debe eli
 su trabajo específico, no solo ocultar la ventana. Esta regla cubre Fases 4–9 sin
 necesidad de añadir texto anticipado en todas sus subfases; se añaden referencias
 explícitas únicamente en las subfases de Fase 4/5 que ya sabemos que cambian el grafo.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Objetivo final
 

@@ -1,11 +1,6 @@
-# 03 — Arquitectura actual y objetivo de Fase 3
+# 03 — Arquitectura actual del proyecto
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Lectura correcta de la arquitectura actual y sus deudas programadas
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 La arquitectura documentada debe separar **lo que existe hoy** de lo previsto en Fases
 4 y 5.
@@ -26,7 +21,6 @@ Servidor↔Dron pase por `orbslam3`; `dron_individual` no abrirá una conexión 
 Servidor.
 
 No representar como activa una arista futura solo porque esté planificada.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Resumen
 

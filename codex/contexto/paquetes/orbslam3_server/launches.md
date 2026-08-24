@@ -52,3 +52,10 @@ optimización y scoring vigente.
 un único YAML propietario, que todos los `declare_parameter` estén cubiertos y
 que las copias servidor/simulación sean idénticas mientras se trabaje solo con
 simulación.
+
+## Correcciones de cierre Fase 2
+
+- `use_sim_time` standalone debe quedar `false`; Simulación pasa `true` explícitamente.
+- Identidad/valores por ejecución deben tener una única autoridad visible en launch y no duplicarse silenciosamente en YAML operacionales.
+- La producción de `/global_mapping/flow_events` debe quedar gobernada por el debug de `pipeline_flow`; con la herramienta apagada no se crea/serializa/publica telemetría específica.
+- `system_architecture` usa telemetría propia e independiente.

@@ -1,11 +1,6 @@
 # Subfase 2D — Comprobar el funcionamiento completo tras la separación
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Evidencia vigente y regresión que corresponde a 2D
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 La **prueba 198 fue ejecutada y el usuario confirmó que funcionó correctamente**,
 incluida su valoración visual. Esta conclusión corrige cualquier auditoría externa que
@@ -24,15 +19,13 @@ serializan telemetría específica de `pipeline_flow`/`system_architecture`.
 
 La prueba visual con debug activo debe validar ambos grafos por separado y confirmar
 que cerrar cualquiera de ellos no afecta al pipeline.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 
 ```text
-SIN HACER
-Dependencias: 2A, 2B y 2C suficientemente completadas
-Prueba oficial: dos drones rodean completamente el edificio
-Debug base: todos los flags en false
+PARCIAL — evidencia pre-cambios conseguida
+Prueba 198 pasada por validación del usuario
+Pendiente: regresión equivalente después de las correcciones finales
 ```
 
 ## Objetivo técnico
@@ -206,7 +199,7 @@ número de drones: 2
 mundo: edificio/casa habitual
 comunicación: ROS 2 directa
 pipeline_flow: activado
-system_architecture: no disponible todavía en 2D; se valida en 2F/2G
+system_architecture: disponible en el snapshot actual; su semántica/coste se termina de corregir en 2F/2G
 navegador de pipeline_flow: activado
 RViz de debug: activado
 logs de Fase 3: activados

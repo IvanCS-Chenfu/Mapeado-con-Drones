@@ -1,11 +1,6 @@
 # Subfase 2G — Guardas automáticas, regresión final y cierre de Fase 2
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Guardas y cierre revisados
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 Las guardas deben codificar la **semántica**, no solo el snapshot actual:
 - paquetes esperados desde policy, sin `len(packages)==9`;
@@ -17,7 +12,6 @@ Las guardas deben codificar la **semántica**, no solo el snapshot actual:
 - arquitectura declarativa consistente con paquetes/interfaces reales;
 - runtime edge con metadata suficiente;
 - eventos desconocidos no mapeados;
-- `fase45_sandbox` fuera de policy/docs;
 - `codex/archivos_auxiliares` permitido como evidencia, prohibido como dependencia
   funcional;
 - outputs colcon únicamente en `build/install/log/<grupo>`;
@@ -37,14 +31,12 @@ cruzadas.
 guardas -> builds aislados -> tests -> smoke debug-off -> pruebas independientes de
 visualizadores -> regresión equivalente a 198 -> guardas otra vez -> documentación.
 La prueba 198 previa se conserva como evidencia pasada, no se sustituye.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 
 ```text
-SIN HACER
-Dependencias: 2A-2F implementadas y con evidencia suficiente
-Propósito: convertir la arquitectura acordada en una propiedad verificable
+PARCIAL — guardas existentes
+Pendiente: endurecimiento semántico, regresión final y cierre
 ```
 
 ## Objetivo técnico

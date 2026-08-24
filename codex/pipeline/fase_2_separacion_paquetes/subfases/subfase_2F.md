@@ -1,11 +1,6 @@
 # Subfase 2F — Crear el diagrama arquitectónico estático y en vivo
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Especificación definitiva de system_architecture
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 ### Nivel del grafo
 Los nodos principales son **paquetes** agrupados en Dron/Servidor/Simulación.
@@ -54,15 +49,12 @@ más largo para eventos esporádicos.
 ### Futuro
 4E/4F/4H/4K y 5A/5B/5D/5E/5H/5I actualizarán explícitamente el grafo. La regla global
 del Pipeline Maestro cubre también Fases 6–9.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 
 ```text
-SIN HACER
-Dependencias: distribución, interfaces y launch estabilizados
-Herramienta nueva: system_architecture
-Herramienta existente: pipeline_flow, se conserva separada
+PARCIAL — herramienta existente
+Pendiente: corregir topología, metadata, evidencia live y gating de consumo
 ```
 
 ## Objetivo técnico

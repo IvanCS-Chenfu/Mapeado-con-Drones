@@ -1,18 +1,12 @@
 # Subfase 5A — Investigación técnica y cierre de contratos de la Fase 5
 
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_START -->
 ## Investigación con frontera cross-group y system_architecture
-
-> **Vigencia:** acuerdo cerrado el 2026-08-24. Este bloque prevalece sobre cualquier
-> frase anterior incompatible del mismo documento. No borra ni reescribe evidencia
-> histórica; distingue siempre entre estado actual, deuda conocida y arquitectura objetivo.
 
 Además del estudio previsto, 5A debe inventariar el grafo real posterior a Fase 4.
 La única frontera Servidor↔Dron permitida para esta fase es Servidor↔`orbslam3`.
 Cualquier alternativa que conecte Servidor directamente con `dron_individual` requiere
 detenerse y consultar al usuario. Refinar 5B–5I incluyendo los cambios exactos que cada
 subfase hará en `system_architecture`.
-<!-- ACUERDOS_CIERRE_F2_2026_08_24_END -->
 
 ## Estado
 
