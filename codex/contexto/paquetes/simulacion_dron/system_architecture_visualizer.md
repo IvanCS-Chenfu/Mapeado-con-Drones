@@ -1,68 +1,67 @@
-# system_architecture — Arquitectura declarativa y actividad live
+# Visualizador `system_architecture`
 
 ## Estado
 
-Herramienta existente desde Fase 2. Este documento fija la semántica objetivo acordada
-para su corrección antes del cierre de la fase.
+Implementado y validado en Fase 2.
 
-## Responsabilidad
+## Componentes
 
-Mostrar la arquitectura real vigente del proyecto a nivel de paquetes y grupos. No
-sustituye `pipeline_flow` ni la GUI operativa futura.
+```text
+simulacion/simulacion_dron/src/visualizer/system_architecture_bridge.py
+simulacion/simulacion_dron/src/visualizer/system_architecture_browser.py
+simulacion/simulacion_dron/web/system_architecture/graph_definition.js
+simulacion/simulacion_dron/web/system_architecture/graph_layout.js
+simulacion/simulacion_dron/web/system_architecture/graph_metadata.js
+simulacion/simulacion_dron/web/system_architecture/app.js
+```
 
-## Nodos
+La topologia representa paquetes dentro de Dron, Servidor y Simulacion. Separa
+capas `runtime`, `build`, `config` y `deployment`; solo runtime puede mostrar
+actividad. `graph_metadata.js` conserva rutas, ejecutables, YAML propietarios,
+dependencias y metadata ROS de interfaces fuera de la UI.
 
-Paquetes como nodos principales, agrupados en Dron, Servidor y Simulación. Tooltips o
-paneles contienen ruta, nombre ROS, responsabilidad, ejecutables/librerías, YAML,
-dependencias, estado y documentación.
+`graph_layout.js` conserva las posiciones de presentación separadas de la
+topología. Simulación y Servidor ocupan la franja superior; Dron ocupa la franja
+inferior con sus librerías debajo de los consumidores. `app.js` aplica esas
+posiciones antes de crear el layout `preset`, y el contrato comprueba relaciones
+espaciales y cobertura de paquetes sin inmovilizar coordenadas concretas.
 
-## Aristas
+## Telemetria
 
-Clasificación:
-- `runtime`;
-- `build/API`;
-- `config/replica`;
-- `deployment`.
-
-Solo runtime puede iluminarse.
-
-## Actividad
-
-Una arista se activa solo con evidencia directa o un evento semántico explícito. No
-inferir por similitud de nombre ni mapear eventos desconocidos. La telemetría debe ser
-ligera y nunca transportar imágenes, PointCloud2, OrbMap completo ni payloads pesados.
-
-## Topología actual que debe corregirse
-
-- cámaras Simulación → `orbslam3`;
-- GT Simulación → `dron_individual`, marcado provisional hasta Fase 5;
-- GT → Servidor, marcado provisional para fiducial simulado hasta Fase 4;
-- OrbMap delta wrapper → Servidor;
-- GetOrbMap con dirección request/response explícita;
-- comandos de motor Dron → Simulación;
-- AccionTrayectoria Simulación/runner → Dron;
-- backpressure/cloud/keyframes/observabilidad según productores reales;
-- no representar ORB→control como flujo funcional si el control actual usa GT.
-
-## Debug
+La evidencia directa live llega exclusivamente por
+`/system_architecture/activity` como eventos JSON ligeros con `edge_id`,
+`source`, `drone_id`, `interface`, `interface_kind` y timestamp. Productores o
+consumidores reales emiten los eventos muestreados; el bridge no se suscribe a
+imagenes, nubes ni mapas pesados y descarta eventos desconocidos.
 
 ```text
 debug_system_architecture_web=false
-  -> ninguna actividad específica
-
-web=true + debug_architecture_telemetry=false
-  -> servidor web y grafo estático, sin subscriptions runtime
-
+  -> sin bridge, HTTP, SSE, navegador ni productores
+web=true + telemetry=false
+  -> grafo estatico
 web=true + telemetry=true
-  -> modo live
-
-debug_open_system_architecture_browser
-  -> únicamente apertura automática
+  -> grafo estatico y actividad live
 ```
 
-No depende de `pipeline_flow` ni de `/global_mapping/flow_events` como bus universal.
+El bridge conserva una unica referencia de suscripcion propia, sin sobrescribir
+las colecciones internas de `rclpy`; asi el shutdown no repite la destruccion
+observada en la prueba 198.
 
-## Evolución
+La validacion aislada confirmo modo estatico, assets HTTP y un evento ROS real
+en modo live. La prueba 200 confirmo ambos bridges, navegadores, RViz2 y cierre
+limpio de `system_architecture_bridge` durante la vuelta oficial.
 
-4E/4F/4H/4K y 5A/5B/5D/5E/5H/5I tienen obligaciones explícitas de actualizarlo. La
-regla global del Pipeline Maestro cubre cualquier cambio posterior en Fases 6–9.
+El cierre visual recompiló `simulacion_dron`, pasó CTest 9/9 y la guarda 15/15.
+Las capturas 1440x900 y 820x1000 verificaron contenedores completos, texto
+legible y ausencia de solapes incoherentes.
+
+## Referencias
+
+```text
+rg -n "RUNTIME_EDGES|_on_activity" \
+  simulacion/simulacion_dron/src/visualizer/system_architecture_bridge.py
+rg -n "SYSTEM_ARCHITECTURE_METADATA" \
+  simulacion/simulacion_dron/web/system_architecture/
+rg -n "SYSTEM_ARCHITECTURE_LAYOUT|layout.positions" \
+  simulacion/simulacion_dron/web/system_architecture/
+```

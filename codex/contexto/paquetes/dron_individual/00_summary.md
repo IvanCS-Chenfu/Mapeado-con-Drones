@@ -15,8 +15,16 @@ Las calibraciones `config/orbslam/orbslam_mono.yaml` y
 tracking, `LocalMapping`, fusión local, BoW y covisibilidad, mientras el
 servidor mantiene la autoridad sobre loops y optimizaciones globales.
 
-Perfil multi-dron vigente desde 3G: camaras 480x360 a 20 Hz, calibracion
-coherente con baseline 0.057 m y 900 features. `generar_dron.launch.py` acepta
-`orb_vocabulary_path`; el launch individual conserva el vocabulario completo como referencia normal. El cierre de Fase 2 elimina sustituciones compactas silenciosas en Simulación y añade bootstrap/preflight reproducible. Los procesos ORB limitan arenas glibc con `MALLOC_ARENA_MAX=2`.
+Perfil multi-dron: camaras 480x360 a 20 Hz, calibracion coherente con baseline
+0.057 m y 900 features. `generar_dron.launch.py` acepta
+`orb_vocabulary_path`; standalone y Simulacion usan por defecto el
+`ORBvoc.txt` completo instalado desde el tarball versionado. L5 solo puede
+seleccionarse mediante override explicito.
+
+La configuracion vigente separa `physical.yaml`, `control.yaml`,
+`trajectory.yaml`, `actuators.yaml`, `vision.yaml` y `calibration.yaml`.
+`hardware.yaml`, `tray_dron.yaml` y `usar_veltrap` ya no forman parte del
+runtime. Standalone usa `use_sim_time=false`; Simulacion lo sobrescribe a
+`true`. Los procesos ORB limitan arenas glibc con `MALLOC_ARENA_MAX=2`.
 
 Detalles en `launches.md`, `control.md` y archivos de config del paquete.

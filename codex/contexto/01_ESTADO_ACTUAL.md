@@ -6,11 +6,15 @@ Leer primero `00_CONTEXTO_COMPACTACION.md` y
 ## Estado vivo
 
 ```text
-Fase actual: Fase 2 — separación servidor/dron/simulación, EN CIERRE
+Fase 2: CONSEGUIDA
+Fase actual: Fase 4, sin ejecutar
+Siguiente subfase: 4A, pendiente de preparación y autorización
 Fase 3: CONSEGUIDA
-Prueba 197: smoke debug-off conseguido
-Prueba 198: conseguida por validación funcional/visual del usuario
-Correcciones finales Fase 2: acordadas/documentadas, implementación pendiente de autorización
+3B-3Q: CONSEGUIDAS
+3R: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
+3S: CONSEGUIDA; PERFIL DEBUG Y MODO SILENCIOSO VALIDADOS
+3T: CONSEGUIDA; LIMPIEZA, CONFIGURACION Y HANDOFF VALIDADOS
+Ultima ejecucion: 196 valida el perfil 3S completamente false
 ```
 
 ## Arquitectura

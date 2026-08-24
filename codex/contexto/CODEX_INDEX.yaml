@@ -4,16 +4,16 @@ codex_index:
     - codex/contexto/CONTEXTO_MINIMO_ACTUAL.md
     - codex/contexto/08_POLITICA_TOKENS_DOCUMENTACION.md
     - codex/pipeline/PIPELINE_MAESTRO.md
-    - codex/pipeline/fase_3_sparse_global/pipeline_fase_3_RESUMEN.md
+    - codex/pipeline/fase_2_separacion_paquetes/pipeline_fase_2_RESUMEN.md
   package_map: codex/contexto/05_MAPA_PAQUETES.md
   packages_dir: codex/contexto/paquetes/
-  subfases_dir: codex/pipeline/fase_3_sparse_global/subfases/
-  historial_dir: codex/pipeline/fase_3_sparse_global/historial/por_subfase/
+  subfases_dir: codex/pipeline/fase_2_separacion_paquetes/subfases/
+  historial_dir: codex/pipeline/fase_2_separacion_paquetes/historial/por_subfase/
   history_summary_suffix: _RESUMEN.md
   tools_dir: codex/herramientas/
   short_summary_name: 00_summary.md
   long_doc_tag: "HISTORY: true"
 quick_commands:
   - rg -n "pattern" . --hidden --glob '!build'
-  - ./codex/herramientas/build_selected_packages.sh <paquetes>
+  - ./codex/herramientas/build_selected_packages.sh --group <grupo> <paquete>
   - ./codex/herramientas/run_simulation.sh --prueba X --launch "ros2 launch simulacion_dron multi_dron.launch.py"

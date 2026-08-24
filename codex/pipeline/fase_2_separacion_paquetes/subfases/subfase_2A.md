@@ -3,8 +3,10 @@
 ## Estado
 
 ```text
-CONSEGUIDA EN EL SNAPSHOT PROBADO
-Evidencia: grupos físicos creados y réplica orbslam3_msgs validada
+CONSEGUIDA
+Contrato documental: EJECUTADO
+Evidencia: tres grupos, nueve paquetes activos y réplica exacta de orbslam3_msgs
+Dudas abiertas: ninguna
 ```
 
 ## Objetivo técnico

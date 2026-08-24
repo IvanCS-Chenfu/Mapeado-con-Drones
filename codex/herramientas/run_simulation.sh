@@ -369,10 +369,10 @@ run_one_attempt() {
   # setsid crea un grupo de procesos propio. El cleanup puede enviar SIGINT
   # al grupo completo, que se parece mas a pulsar Ctrl+C en una terminal.
   if command -v setsid >/dev/null 2>&1; then
-    setsid bash -lc "$LAUNCH_CMD" >> "$LOG_FILE" 2>&1 &
+    setsid bash -c "$LAUNCH_CMD" >> "$LOG_FILE" 2>&1 &
     LAUNCH_USES_PROCESS_GROUP=true
   else
-    bash -lc "$LAUNCH_CMD" >> "$LOG_FILE" 2>&1 &
+    bash -c "$LAUNCH_CMD" >> "$LOG_FILE" 2>&1 &
     LAUNCH_USES_PROCESS_GROUP=false
   fi
   LAUNCH_PID=$!
@@ -402,6 +402,7 @@ run_one_attempt() {
     ros2 run "$SCENARIO_PACKAGE" "$SCENARIO_EXECUTABLE"
     --ros-args
     -p "${SCENARIO_PARAM_NAME}:=${YAML_FILE}"
+    -p "use_sim_time:=true"
   )
 
   log "[SIM-SCENARIO-START] ${SCENARIO_CMD[*]}"

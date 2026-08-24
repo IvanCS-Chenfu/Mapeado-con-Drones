@@ -1,42 +1,129 @@
 # 05 — Mapa de paquetes
 
-## Grupos actuales
+## Propósito
 
-### Dron
+Índice rápido de paquetes y responsabilidades. La documentación detallada vive en:
 
-| Paquete | Rol |
-|---|---|
-| `dron_individual` | Trayectoria, control y mezcla a motores. |
-| `lib_tray` | Generadores de trayectoria. |
-| `ORB_SLAM3` | Frontend visual local. |
-| `orbslam3` / fuente `orbslam3_ros2` | Wrapper ROS 2: cámaras, pose local, mapa delta y snapshot. |
-| `orbslam3_msgs` | Réplica del contrato ROS; Servidor es canónico. |
+```text
+codex/contexto/paquetes/<paquete>/00_summary.md
+```
 
-### Servidor
+Si se modifica un paquete, actualizar también su documentación.
 
-| Paquete | Rol |
-|---|---|
-| `orbslam3_msgs` | Copia canónica del contrato ROS 2. |
-| `orbslam3_multi` | Backend raw/global, loops, fusión, score y optimización. |
-| `orbslam3_server` | Adaptador/orquestador ROS 2, colas, publicación y replay. |
+Nota: para buscar un paquete concreto sin abrir muchos archivos, usar:
+
+```bash
+python3 codex/herramientas/find_context.py <query>
+```
+
+## Paquetes principales
+
+| Paquete | Grupo | Estado | Rol actual |
+|---|---|---|---|
+| `orbslam3_msgs` | Dron y Servidor | estable/replicado | Contrato ROS 2; Servidor es canónico y Dron réplica exacta. |
+| `orbslam3_ros2` | Dron | estable | Wrapper estéreo ORB-SLAM3. Publica pose local, `OrbMap` delta y `GetOrbMap`. |
+| `orbslam3_multi` | Servidor | activo | Backend raw/poses/score/fusión/optimización/builder. |
+| `orbslam3_server` | Servidor | activo | Workers, replay/backpressure y publicación global. |
+| `dron_individual` | Dron | activo | Control por dron y acción `AccionTrayectoria`. |
+| `simulacion_dron` | Simulación | activo | Gazebo, integración, escenarios, RViz2 y dos visualizadores web. |
+| `lib_tray` | Dron | activo | Generación de trayectorias. |
+| `ORB_SLAM3` | Dron | externo/modificación local justificada | Frontend visual local, tracking, KFs, MapPoints, BoW y covisibilidad. |
+
+## Rutas fisicas vigentes
+
+```text
+src/dron/ORB_SLAM3
+src/dron/dron_individual
+src/dron/lib_tray
+src/dron/orbslam3_ros2
+src/dron/orbslam3_msgs
+
+src/servidor/orbslam3_multi
+src/servidor/orbslam3_server
+src/servidor/orbslam3_msgs
+
+src/simulacion/simulacion_dron
+```
+
+Los comandos de build seleccionan un grupo con `--group` y no realizan un
+descubrimiento global de `src/`, porque existen dos paquetes llamados
+`orbslam3_msgs`.
+
+## Separación conceptual de Fase 3
+
+### Servidor ROS 2
+
+```text
+orbslam3_server
+```
+
+Debe tender a:
+
+- recibir y publicar ROS 2;
+- convertir mensajes;
+- leer GT solo para fiducial simulado/debug;
+- delegar lógica en `orbslam3_multi`.
+
+### Backend algorítmico
+
+```text
+orbslam3_multi
+```
+
+Debe tender a contener:
+
+- `RawMapDatabase`;
+- `SparseGlobalBackend`;
+- `GlobalPoseStore`;
+- `FiducialAnchorManager`;
+- `LoopDetector`;
+- `SubcloudLoopVerifier`;
+- `LoopDecisionManager`;
+- `FusionManager` / `FusedLandmarkManager`;
+- `LandmarkScoreManager`;
+- `PoseGraphBuilder`;
+- `OptimizationManager`;
+- `GlobalMapBuilder`.
+
+### Dron/wrapper
+
+```text
+orbslam3_ros2
+orbslam3_msgs
+dron_individual
+lib_tray
+```
+
+No rediseñar durante Fase 1 salvo necesidad justificada por una subfase.
 
 ### Simulación
 
-| Paquete | Rol |
+```text
+simulacion_dron
+```
+
+Proporciona Gazebo, GT permitido para fiduciales/debug y el launch oficial:
+
+```bash
+ros2 launch simulacion_dron multi_dron.launch.py
+```
+
+## Paquetes legacy o de bajo interés
+
+| Paquete | Regla |
 |---|---|
-| `simulacion_dron` | Gazebo, escenarios, plugins, launch de integración, RViz y visualizadores web. |
+| `mi_tfg` | No usar salvo petición explícita. |
 
-`mi_tfg` permanece legacy y fuera de los builds activos.
+`ORB_SLAM3_MULTI/` fue retirado completamente en la correccion final de 3T.
 
-## Relación con system_architecture
+Más detalles:
 
-`system_architecture` usa paquetes como nodos principales. Ejecutables, nodos ROS, librerías, YAML y responsabilidad aparecen como metadata/tooltip/panel.
+```text
+codex/contexto/paquetes/paquetes_legacy.md
+```
 
-La lista de paquetes no se valida con números mágicos. La policy, el descubrimiento real y el grafo deben coincidir. Si una fase futura añade/elimina/mueve un paquete, esa misma subfase actualiza mapa/policy, grafo, guardas/tests y documentación.
+## Separacion completada
 
-## Fronteras
-
-- Dron no depende de paquetes de Servidor/Simulación.
-- Servidor no depende de paquetes de Dron/Simulación.
-- Simulación integra explícitamente Dron y Servidor.
-- En Fase 5 la única frontera Servidor↔Dron permitida termina en `orbslam3`; no hay conexión directa a `dron_individual`.
+Fase 2 materializo la separacion. Las fases posteriores deben conservar estos
+grupos, actualizar `system_architecture` cuando cambien interfaces y ejecutar
+la guarda arquitectonica antes del cierre.

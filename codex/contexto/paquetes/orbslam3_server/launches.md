@@ -24,8 +24,9 @@ live. `config_dir` permite seleccionar el perfil del despliegue: el launch
 directo usa la copia de `orbslam3_server`, mientras la simulación pasa la copia
 equivalente de `simulacion_dron`.
 
-Los argumentos `use_sim_time`, `drone_count` y `drone_namespace_base` siguen
-siendo identidad dinámica del despliegue. Record/replay, inyección de fallo,
+Los argumentos `use_sim_time`, `drone_count` y `drone_namespace_base` son la
+autoridad dinámica del despliegue y no se duplican en `runtime.yaml`.
+Record/replay, inyección de fallo,
 anchor sintético y umbrales fiduciales admiten overrides opcionales con el
 sentinel `__from_yaml__`; si no se proporcionan prevalece el YAML.
 
@@ -53,9 +54,8 @@ un único YAML propietario, que todos los `declare_parameter` estén cubiertos y
 que las copias servidor/simulación sean idénticas mientras se trabaje solo con
 simulación.
 
-## Correcciones de cierre Fase 2
-
-- `use_sim_time` standalone debe quedar `false`; Simulación pasa `true` explícitamente.
-- Identidad/valores por ejecución deben tener una única autoridad visible en launch y no duplicarse silenciosamente en YAML operacionales.
-- La producción de `/global_mapping/flow_events` debe quedar gobernada por el debug de `pipeline_flow`; con la herramienta apagada no se crea/serializa/publica telemetría específica.
-- `system_architecture` usa telemetría propia e independiente.
+`debug_pipeline_flow_events=false` y `debug_architecture_telemetry=false` son
+defaults standalone. El primero evita crear el publisher o construir payloads
+de `pipeline_flow`; el segundo gobierna el canal ligero e independiente
+`/system_architecture/activity`. Simulacion activa cada productor solo cuando
+su visualizador master correspondiente esta habilitado.

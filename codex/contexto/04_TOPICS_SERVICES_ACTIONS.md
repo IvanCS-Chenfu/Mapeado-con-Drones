@@ -47,6 +47,16 @@ Los drones suelen usar namespaces tipo:
 ...
 ```
 
+## Telemetria de arquitectura
+
+| Topic | Tipo | Descripcion |
+|---|---|---|
+| `/system_architecture/activity` | `std_msgs/msg/String` | Eventos JSON ligeros y muestreados para aristas runtime conocidas. Solo existe con web y telemetria activas. |
+| `/global_mapping/flow_events` | `std_msgs/msg/String` | Eventos internos de `pipeline_flow`; su productor se desactiva si la web esta apagada. |
+
+Los eventos arquitectonicos incluyen `edge_id`, `interface`, `interface_kind`,
+`source`, `drone_id` y timestamp. No transportan imagenes, nubes ni mapas.
+
 La acción de trayectoria por dron sigue el patrón:
 
 ```text

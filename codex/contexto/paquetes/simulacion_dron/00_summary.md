@@ -1,13 +1,21 @@
 # 00_summary - simulacion_dron
 
 Paquete de launch, escenarios y observabilidad Gazebo. Integra servidor y, de
-forma configurable, RViz2 y grafo web; tambien ofrece replay sin Gazebo ni GT
-live.
+forma configurable, RViz2, `pipeline_flow` y `system_architecture`; tambien
+ofrece replay sin Gazebo ni GT live.
+
+El grafo `system_architecture` usa una topología, metadata y layout declarativos
+separados. Su composición sitúa Simulación/Servidor arriba y Dron abajo para
+facilitar la lectura de interfaces entre despliegues.
 
 Desde 3T contiene en `config/global_map/` el perfil de parámetros controlables
 por el despliegue simulado. Es una copia exacta del perfil del servidor durante
 la etapa de simulación y un test contractual impide divergencias o parámetros
 sin propietario.
+
+Fase 2 separa configuracion propia de modelo/sensores en `physical_dron.yaml`
+y `simulated_sensors.yaml`. `actuators_dron.yaml` es una replica parcial
+declarada de Dron. Simulacion no abre YAML operacionales de otro grupo.
 
 ## Launches
 
@@ -24,9 +32,9 @@ launch/pipeline_flow_only.launch.py -> diagnostico web aislado
 
 - `launch_gazebo_gui=false`: usa `gzserver` sin `gzclient`;
 - `launch_mission_gui=false`: omite la GUI de mision;
-- `debug.yaml`: flags independientes para observabilidad; todos `false` por defecto;
+- `fase3_debug.yaml`: RViz2, grafo, navegador y logs `[F3*]` independientes;
 - `drone_start_stagger_sec=8.0`: arranque 0/8/16... s por defecto;
-- `orb_vocabulary_path`: configurable; el cierre deja el vocabulario completo como runtime normal y compactos solo para pruebas explícitas.
+- `orb_vocabulary_path`: `ORBvoc.txt` completo por defecto; L5 solo por override.
 
 El perfil visual completo se usa con dos drones. Para tres o mas drones y para
 fases dense se usa headless y se habilitan solo las vistas necesarias.

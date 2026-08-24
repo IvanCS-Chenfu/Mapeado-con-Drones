@@ -1,42 +1,30 @@
 # Subfase 2G — Guardas automáticas, regresión final y cierre de Fase 2
 
-## Guardas y cierre revisados
+## Guardas y cierre definitivos
 
-Las guardas deben codificar la **semántica**, no solo el snapshot actual:
-- paquetes esperados desde policy, sin `len(packages)==9`;
-- categoría de réplica: full deployment profile / partial keys / forbidden duplicate;
-- igualdad exacta de `global_map` mientras sea el mismo perfil validado;
-- prohibición de carga YAML cross-group también en launch/código;
-- detección de duplicados semánticos;
-- `use_sim_time` standalone false y override sim true;
-- arquitectura declarativa consistente con paquetes/interfaces reales;
-- runtime edge con metadata suficiente;
-- eventos desconocidos no mapeados;
-- `codex/archivos_auxiliares` permitido como evidencia, prohibido como dependencia
-  funcional;
-- outputs colcon únicamente en `build/install/log/<grupo>`;
-- documentación vigente sin rutas/fases obsoletas.
+Las guardas codifican semántica, no solo el número actual de paquetes:
 
-### Guardas de debug
-Con todos los flags false:
-- no bridge web;
-- no navegador/RViz;
-- no observers de arquitectura;
-- no creación/serialización/publicación de eventos específicos de ambos grafos.
+- paquetes esperados desde la política declarativa;
+- réplica completa, réplica parcial y duplicado prohibido como categorías distintas;
+- igualdad exacta de `global_map` mientras represente un único perfil;
+- prohibición de carga YAML cross-group en launch y código;
+- `use_sim_time=false` standalone y override explícito en Simulación;
+- topología, metadata runtime y layout coherentes con paquetes reales;
+- eventos desconocidos descartados;
+- artefactos colcon solo en `build/install/log/<grupo>`;
+- documentación vigente sin rutas runtime obsoletas.
 
-Probar además cada visualizador de forma independiente para detectar dependencias
-cruzadas.
-
-### Secuencia final
-guardas -> builds aislados -> tests -> smoke debug-off -> pruebas independientes de
-visualizadores -> regresión equivalente a 198 -> guardas otra vez -> documentación.
-La prueba 198 previa se conserva como evidencia pasada, no se sustituye.
+Con debug desactivado no arrancan bridge, navegador, RViz ni productores de
+telemetría específica. Cada visualizador se prueba también por separado. La
+secuencia de cierre conserva la prueba 198 histórica y añade guardas, builds,
+tests, smoke 199 y regresión 200 sin sustituir intentos anteriores.
 
 ## Estado
 
 ```text
-PARCIAL — guardas existentes
-Pendiente: endurecimiento semántico, regresión final y cierre
+CONSEGUIDA
+Dependencias: 2A-2F conseguidas
+Resultado: guardas, builds, tests, smoke, regresión y cierre visual correctos
 ```
 
 ## Objetivo técnico

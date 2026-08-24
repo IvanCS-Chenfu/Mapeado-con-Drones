@@ -20,7 +20,8 @@ Usar este archivo como primera lectura antes de `pipeline_fase_4.md` y de los co
 ## Estado vigente
 
 ```text
-Fase 4: sin hacer
+Fase 4: actual, sin ejecutar
+Subfase siguiente: 4A, preparación no iniciada
 Subfases previstas: 4A ... 4L
 Historial: carpetas creadas y vacías; no existen ejecuciones registradas
 ```

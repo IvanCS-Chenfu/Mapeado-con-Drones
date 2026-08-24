@@ -166,6 +166,14 @@ Eigen::Matrix4d BuildBodyToCamera(
 
 }  // namespace
 
+// Fase 2: pipeline_flow no evalua payloads cuando esta desactivado.
+#define F2_PIPELINE_FLOW_EVENT(...) \
+  do {if (pipeline_flow_events_enabled_) {EmitFlowEvent(__VA_ARGS__);}} while (false)
+#define F2_SECONDARY_FLOW_EVENT(...) \
+  do {if (pipeline_flow_events_enabled_) {EmitSecondaryFlowEvent(__VA_ARGS__);}} while (false)
+#define F2_SECONDARY_LIFECYCLE_EVENT(...) \
+  do {if (pipeline_flow_events_enabled_) {EmitSecondaryLifecycleEvent(__VA_ARGS__);}} while (false)
+
 /// Adaptador ROS y único owner de workers, colas, publicación y backpressure.
 /// El principal publica; el secundario solo prepara/compromete cambios y marca dirty.
 class GlobalMapServer final : public rclcpp::Node
@@ -174,6 +182,10 @@ public:
   GlobalMapServer()
   : Node("global_map_server")
   {
+    pipeline_flow_events_enabled_ =
+      declare_parameter<bool>("debug_pipeline_flow_events", false);
+    architecture_telemetry_enabled_ =
+      declare_parameter<bool>("debug_architecture_telemetry", false);
     const int64_t drone_count = declare_parameter<int64_t>("drone_count", 2);
     const std::string namespace_base =
       declare_parameter<std::string>("drone_namespace_base", "dron");
@@ -386,10 +398,18 @@ public:
     }
     backpressure_ = std::make_unique<BackpressureHysteresis>(high_watermark_, low_watermark_);
 
-    rclcpp::QoS flow_qos(rclcpp::KeepLast(256));
-    flow_qos.best_effort();
-    flow_publisher_ = create_publisher<std_msgs::msg::String>(
-      "/global_mapping/flow_events", flow_qos);
+    if (pipeline_flow_events_enabled_) {
+      rclcpp::QoS flow_qos(rclcpp::KeepLast(256));
+      flow_qos.best_effort();
+      flow_publisher_ = create_publisher<std_msgs::msg::String>(
+        "/global_mapping/flow_events", flow_qos);
+    }
+    if (architecture_telemetry_enabled_) {
+      rclcpp::QoS architecture_qos(rclcpp::KeepLast(128));
+      architecture_qos.best_effort();
+      architecture_activity_publisher_ = create_publisher<std_msgs::msg::String>(
+        "/system_architecture/activity", architecture_qos);
+    }
 
     rclcpp::QoS backpressure_qos(rclcpp::KeepLast(1));
     backpressure_qos.reliable().transient_local();
@@ -680,6 +700,10 @@ private:
       "[F3G-SNAPSHOT-REQUEST] drone_id=%u service=%s reason=%s "
       "global_active=true waiting=%zu",
       drone_id, service.c_str(), reason.c_str(), waiting);
+    if (architecture_telemetry_enabled_) {
+      EmitArchitectureActivity(
+        "server_to_orbslam_snapshot_request", service, drone_id);
+    }
     auto request = std::make_shared<orbslam3_msgs::srv::GetOrbMap::Request>();
     try {
       client->async_send_request(
@@ -711,6 +735,10 @@ private:
               return;
             }
 
+            if (architecture_telemetry_enabled_) {
+              EmitArchitectureActivity(
+                "orbslam_to_server_snapshot_response", service, map->drone_id);
+            }
             const auto enqueued = primary_queue_.PushLive(
               map, PrimaryInputKind::FullSnapshot);
             {
@@ -718,10 +746,10 @@ private:
               last_map_sequence_[drone_id] = std::max(
                 last_map_sequence_[drone_id], map->map_sequence);
             }
-            EmitFlowEvent(
+            F2_PIPELINE_FLOW_EVENT(
               "wrapper_server_snapshot", "snapshot_received", enqueued.arrival_id,
               "live", map->drone_id, map->map_epoch, enqueued.pending);
-            EmitFlowEvent(
+            F2_PIPELINE_FLOW_EVENT(
               "server_primary_queue", "enqueue_snapshot", enqueued.arrival_id,
               "live", map->drone_id, map->map_epoch, enqueued.pending);
             RCLCPP_WARN(
@@ -787,6 +815,10 @@ private:
         expected_drone_id, map->drone_id, topic.c_str());
     }
 
+    if (architecture_telemetry_enabled_) {
+      EmitArchitectureActivity("orbslam_to_server_delta", topic, map->drone_id);
+    }
+
     bool sequence_gap = false;
     uint64_t previous_sequence = 0;
     {
@@ -815,10 +847,10 @@ private:
 
     try {
       const auto enqueued = primary_queue_.PushLive(map, PrimaryInputKind::Delta);
-      EmitFlowEvent(
+      F2_PIPELINE_FLOW_EVENT(
         "wrapper_server", "delta_received", enqueued.arrival_id, "live",
         map->drone_id, map->map_epoch, enqueued.pending);
-      EmitFlowEvent(
+      F2_PIPELINE_FLOW_EVENT(
         "server_primary_queue", "enqueue", enqueued.arrival_id, "live",
         map->drone_id, map->map_epoch, enqueued.pending);
       RCLCPP_INFO(
@@ -852,6 +884,11 @@ private:
         get_logger(), "[F3E-GT-BUFFER] drone_id=%u accepted=false reason=invalid_pose",
         drone_id);
       return;
+    }
+
+    if (architecture_telemetry_enabled_) {
+      EmitArchitectureActivity(
+        "sim_to_server_fiducial_gt", "sensor/GT/pose", drone_id);
     }
 
     GroundTruthSample sample;
@@ -970,7 +1007,7 @@ private:
         const auto enqueued = primary_queue_.PushReplay(arrival_id, std::move(entry.map));
         max_pending = std::max(max_pending, enqueued.pending);
         ++streamed_entries;
-        EmitFlowEvent(
+        F2_PIPELINE_FLOW_EVENT(
           "server_primary_queue", "enqueue", arrival_id, "replay",
           drone_id, map_epoch, enqueued.pending);
         RCLCPP_INFO(
@@ -1012,7 +1049,7 @@ private:
       while (active > observed_max &&
         !max_active_primary_tasks_.compare_exchange_weak(observed_max, active)) {}
 
-      EmitFlowEvent(
+      F2_PIPELINE_FLOW_EVENT(
         "primary_queue_worker", "dequeue_start", input.arrival_id,
         ToString(input.source), input.map->drone_id, input.map->map_epoch,
         primary_queue_.Pending());
@@ -1035,7 +1072,7 @@ private:
           backend_.InsertDelta(input.arrival_id, input.map);
         const auto & raw = result.raw_result;
         const auto journal_storage = backend_.GetRawJournalStorageStats();
-        EmitFlowEvent(
+        F2_PIPELINE_FLOW_EVENT(
           input.kind == PrimaryInputKind::FullSnapshot ?
           "primary_worker_raw_db_snapshot" : "primary_worker_raw_db",
           input.kind == PrimaryInputKind::FullSnapshot ? "full_commit" : "raw_commit",
@@ -1075,28 +1112,32 @@ private:
 
         const auto & scores = result.score_changes;
         if (scores.HasStoreChanges()) {
-          std::ostringstream score_detail;
-          score_detail << " created=" << scores.created_ids.size()
-                       << " updated=" << scores.updated_ids.size()
-                       << " invalidated=" << scores.invalidated_ids.size()
-                       << " input_updated=" << scores.input_updated_ids.size()
-                       << " score_revision=" << scores.score_revision_after;
-          EmitFlowEvent(
-            "raw_db_landmark_score_manager", "score_raw_commit", input.arrival_id,
-            ToString(input.source), raw.submap_id.drone_id, raw.submap_id.map_epoch,
-            primary_queue_.Pending(), score_detail.str());
+          if (pipeline_flow_events_enabled_) {
+            std::ostringstream score_detail;
+            score_detail << " created=" << scores.created_ids.size()
+                         << " updated=" << scores.updated_ids.size()
+                         << " invalidated=" << scores.invalidated_ids.size()
+                         << " input_updated=" << scores.input_updated_ids.size()
+                         << " score_revision=" << scores.score_revision_after;
+            F2_PIPELINE_FLOW_EVENT(
+              "raw_db_landmark_score_manager", "score_raw_commit", input.arrival_id,
+              ToString(input.source), raw.submap_id.drone_id, raw.submap_id.map_epoch,
+              primary_queue_.Pending(), score_detail.str());
+          }
         }
         if (scores.HasChanges()) {
-          std::ostringstream score_detail;
-          score_detail << " created=" << scores.created_ids.size()
-                       << " updated=" << scores.updated_ids.size()
-                       << " invalidated=" << scores.invalidated_ids.size()
-                       << " input_updated=" << scores.input_updated_ids.size()
-                       << " score_revision=" << scores.score_revision_after;
-          EmitFlowEvent(
-            "landmark_score_manager_global_map_builder", "score_dirty", input.arrival_id,
-            ToString(input.source), raw.submap_id.drone_id, raw.submap_id.map_epoch,
-            primary_queue_.Pending(), score_detail.str());
+          if (pipeline_flow_events_enabled_) {
+            std::ostringstream score_detail;
+            score_detail << " created=" << scores.created_ids.size()
+                         << " updated=" << scores.updated_ids.size()
+                         << " invalidated=" << scores.invalidated_ids.size()
+                         << " input_updated=" << scores.input_updated_ids.size()
+                         << " score_revision=" << scores.score_revision_after;
+            F2_PIPELINE_FLOW_EVENT(
+              "landmark_score_manager_global_map_builder", "score_dirty", input.arrival_id,
+              ToString(input.source), raw.submap_id.drone_id, raw.submap_id.map_epoch,
+              primary_queue_.Pending(), score_detail.str());
+          }
           RCLCPP_INFO(
             get_logger(),
             "[F3R-RAW-SCORE-COMMIT] arrival_id=%lu created=%zu updated=%zu "
@@ -1128,27 +1169,29 @@ private:
 
         if (result.pose_stage_executed) {
           const auto & poses = result.pose_changes;
-          std::ostringstream detail;
-          detail << " status=" << orbslam3_multi::ToString(poses.status)
-                 << " pose_inputs=" << raw.pose_changes.size()
-                 << " created=" << poses.created_ids.size()
-                 << " updated=" << poses.updated_ids.size()
-                 << " invalidated=" << poses.invalidated_ids.size()
-                 << " control_propagated=" << poses.control_propagated_ids.size()
-                 << " skipped=" << poses.skipped_unanchored_ids.size()
-                 << " pose_revision=" << poses.store_revision_after;
-          EmitFlowEvent(
-            input.kind == PrimaryInputKind::FullSnapshot ?
-            "raw_db_global_pose_store_snapshot" : "raw_db_global_pose_store",
-            input.kind == PrimaryInputKind::FullSnapshot ?
-            "snapshot_reconcile" : "pose_changes", input.arrival_id,
-            ToString(input.source), raw.submap_id.drone_id, raw.submap_id.map_epoch,
-            primary_queue_.Pending(), detail.str());
-          if (poses.status == orbslam3_multi::PoseCommitStatus::Applied) {
-            EmitFlowEvent(
-              "global_pose_store_global_map_builder", "pose_dirty", input.arrival_id,
+          if (pipeline_flow_events_enabled_) {
+            std::ostringstream detail;
+            detail << " status=" << orbslam3_multi::ToString(poses.status)
+                   << " pose_inputs=" << raw.pose_changes.size()
+                   << " created=" << poses.created_ids.size()
+                   << " updated=" << poses.updated_ids.size()
+                   << " invalidated=" << poses.invalidated_ids.size()
+                   << " control_propagated=" << poses.control_propagated_ids.size()
+                   << " skipped=" << poses.skipped_unanchored_ids.size()
+                   << " pose_revision=" << poses.store_revision_after;
+            F2_PIPELINE_FLOW_EVENT(
+              input.kind == PrimaryInputKind::FullSnapshot ?
+              "raw_db_global_pose_store_snapshot" : "raw_db_global_pose_store",
+              input.kind == PrimaryInputKind::FullSnapshot ?
+              "snapshot_reconcile" : "pose_changes", input.arrival_id,
               ToString(input.source), raw.submap_id.drone_id, raw.submap_id.map_epoch,
               primary_queue_.Pending(), detail.str());
+            if (poses.status == orbslam3_multi::PoseCommitStatus::Applied) {
+              F2_PIPELINE_FLOW_EVENT(
+                "global_pose_store_global_map_builder", "pose_dirty", input.arrival_id,
+                ToString(input.source), raw.submap_id.drone_id, raw.submap_id.map_epoch,
+                primary_queue_.Pending(), detail.str());
+            }
           }
           RCLCPP_INFO(
             get_logger(),
@@ -1302,9 +1345,9 @@ private:
       while (active > previous_max &&
         !max_active_secondary_tasks_.compare_exchange_weak(previous_max, active)) {}
 
-      EmitSecondaryLifecycleEvent(
+      F2_SECONDARY_LIFECYCLE_EVENT(
         "start", queued, secondary_queue_.Pending(), "");
-      EmitSecondaryFlowEvent(
+      F2_SECONDARY_FLOW_EVENT(
         "secondary_queue_secondary_worker", "dequeue_start", queued,
         secondary_queue_.Pending(), " priority=" + std::string(ToString(queued.priority)));
       RCLCPP_WARN(
@@ -1330,7 +1373,7 @@ private:
         if (queued.kind == SecondaryTaskKind::DatabaseUpdate &&
           queued.database_update.has_value())
         {
-          EmitSecondaryFlowEvent(
+          F2_SECONDARY_FLOW_EVENT(
             "secondary_worker_covisibility_database", "database_update", queued,
             secondary_queue_.Pending(), "");
           const auto update = backend_.ProcessDatabaseUpdate(*queued.database_update);
@@ -1354,12 +1397,12 @@ private:
               queued.database_update->loop_keyframe_ids);
             const size_t enqueued = EnqueueLoopTasks(
               &loops, "database_update_complete");
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "covisibility_database_secondary_queue", "loop_enqueue", queued,
               secondary_queue_.Pending(), " loops=" + std::to_string(enqueued));
           }
         } else if (queued.kind == SecondaryTaskKind::Loop && queued.loop.has_value()) {
-          EmitSecondaryFlowEvent(
+          F2_SECONDARY_FLOW_EVENT(
             "secondary_worker_loop_detector", "bow_search", queued,
             secondary_queue_.Pending(), "");
           auto loop = backend_.ProcessLoopTask(*queued.loop);
@@ -1368,7 +1411,7 @@ private:
           {
             optimization_active_.store(true);
             UpdateBackpressure();
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "loop_decision_pose_graph_builder", "opt_loop", queued,
               secondary_queue_.Pending(),
               " evidence=" + std::to_string(loop.geometry_results.size()));
@@ -1401,36 +1444,36 @@ private:
               (loop.fusion.rolled_back ?
               "fusion_rollback_retry" : "fusion_stale_retry");
           }
-          EmitSecondaryFlowEvent(
+          F2_SECONDARY_FLOW_EVENT(
             "loop_detector_loop_bow_index", "upsert_search", queued,
             secondary_queue_.Pending(),
             " candidates=" + std::to_string(loop.bow_candidates));
-          EmitSecondaryFlowEvent(
+          F2_SECONDARY_FLOW_EVENT(
             "loop_bow_index_subcloud_loop_verifier", "geometry", queued,
             secondary_queue_.Pending(),
             " regions=" + std::to_string(loop.regions.size()) +
             " results=" + std::to_string(loop.geometry_results.size()));
-          EmitSecondaryFlowEvent(
+          F2_SECONDARY_FLOW_EVENT(
             "subcloud_loop_verifier_loop_decision", "decision", queued,
             secondary_queue_.Pending(),
             " result=" + std::string(orbslam3_multi::ToString(loop.decision)));
           if (loop.optimization.attempted) {
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "pose_graph_builder_optimization_manager", "solve_loop", queued,
               secondary_queue_.Pending(),
               " controls=" + std::to_string(loop.optimization.controls) +
               " iterations=" + std::to_string(loop.optimization.iterations));
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "optimization_manager_validation", "validate_loop", queued,
               secondary_queue_.Pending(),
               " accepted=" + std::string(
                 loop.optimization.accepted ? "true" : "false"));
             if (loop.optimization.committed) {
-              EmitSecondaryFlowEvent(
+              F2_SECONDARY_FLOW_EVENT(
                 "validation_global_pose_store", "commit_loop", queued,
                 secondary_queue_.Pending(),
                 " moved=" + std::to_string(loop.optimization.moved_keyframes));
-              EmitSecondaryFlowEvent(
+              F2_SECONDARY_FLOW_EVENT(
                 "global_pose_store_global_map_builder", "pose_dirty", queued,
                 secondary_queue_.Pending(),
                 " kfs=" + std::to_string(loop.optimization.moved_keyframes));
@@ -1484,7 +1527,7 @@ private:
               loop.reason.c_str());
           }
           if (loop.fusion.attempted) {
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               loop.optimization.committed ?
               "validation_fused_landmark_manager" :
               "loop_decision_fused_landmark_manager",
@@ -1493,33 +1536,33 @@ private:
               " pairs=" + std::to_string(loop.fusion.pair_results));
           }
           if (loop.fusion.committed) {
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "fused_landmark_manager_covisibility_database", "server_covisibility", queued,
               secondary_queue_.Pending(),
               " added=" + std::to_string(loop.fusion.covisibility_added));
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "fused_landmark_manager_landmark_score_manager", "score_evidence", queued,
               secondary_queue_.Pending(),
               " positive=" + std::to_string(loop.fusion.score_positive_events) +
               " negative=" + std::to_string(loop.fusion.score_negative_events) +
               " visibility_diagnostics=" +
               std::to_string(loop.fusion.score_visibility_diagnostics));
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "fused_landmark_manager_global_map_builder", "fusion_dirty", queued,
               secondary_queue_.Pending(),
               " hidden=" + std::to_string(loop.fusion.hidden_raw_members));
           }
           if (loop.anchor_commit.status == orbslam3_multi::PoseCommitStatus::Applied) {
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "loop_decision_loop_anchor_store", "anchor_evidence", queued,
               secondary_queue_.Pending(),
               " submaps=" + std::to_string(loop.anchor_commit.anchored_submaps.size()));
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "loop_anchor_store_global_pose_store", "anchor_commit", queued,
               secondary_queue_.Pending(),
               " submaps=" + std::to_string(loop.anchor_commit.anchored_submaps.size()) +
               " kfs=" + std::to_string(loop.anchor_commit.dirty_keyframe_ids.size()));
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "global_pose_store_global_map_builder", "pose_dirty", queued,
               secondary_queue_.Pending(),
               " kfs=" + std::to_string(loop.anchor_commit.dirty_keyframe_ids.size()));
@@ -1628,7 +1671,7 @@ private:
           if (revalidation.decision == orbslam3_multi::FiducialTaskDecision::Stale) {
             stale = true;
             final_reason = revalidation.reason;
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "secondary_worker_validation", "stale", queued,
               secondary_queue_.Pending(), " reason=" + final_reason);
           } else if (revalidation.decision != orbslam3_multi::FiducialTaskDecision::Ready) {
@@ -1647,7 +1690,7 @@ private:
                 final_reason = graph.reason;
                 break;
               }
-              EmitSecondaryFlowEvent(
+              F2_SECONDARY_FLOW_EVENT(
                 "secondary_worker_pose_graph_builder", "graph_build", queued,
                 secondary_queue_.Pending(),
                 " pass=" + std::to_string(pass) +
@@ -1664,7 +1707,7 @@ private:
                 graph.problem.propagation_plan.size());
 
               const auto proposal = backend_.OptimizeFiducialPoseGraph(graph.problem);
-              EmitSecondaryFlowEvent(
+              F2_SECONDARY_FLOW_EVENT(
                 "pose_graph_builder_optimization_manager", "solve", queued,
                 secondary_queue_.Pending(),
                 " pass=" + std::to_string(pass) +
@@ -1681,7 +1724,7 @@ private:
 
               const auto validation = backend_.ValidateFiducialProposal(
                 graph.problem, proposal);
-              EmitSecondaryFlowEvent(
+              F2_SECONDARY_FLOW_EVENT(
                 "optimization_manager_validation", "validate", queued,
                 secondary_queue_.Pending(),
                 " pass=" + std::to_string(pass) +
@@ -1730,7 +1773,7 @@ private:
                 final_reason = commit.reason;
                 break;
               }
-              EmitSecondaryFlowEvent(
+              F2_SECONDARY_FLOW_EVENT(
                 "validation_global_pose_store",
                 commit.full_accept ? "commit_full" : "commit_partial", queued,
                 secondary_queue_.Pending(),
@@ -1738,7 +1781,7 @@ private:
                 " moved=" + std::to_string(commit.pose_changes.updated_ids.size()) +
                 " propagated=" +
                 std::to_string(commit.pose_changes.control_propagated_ids.size()));
-              EmitSecondaryFlowEvent(
+              F2_SECONDARY_FLOW_EVENT(
                 "global_pose_store_global_map_builder", "pose_dirty", queued,
                 secondary_queue_.Pending(),
                 " kfs=" + std::to_string(commit.pose_changes.updated_ids.size()) +
@@ -1823,7 +1866,7 @@ private:
         RCLCPP_ERROR(
           get_logger(), "[F3L-HARD-FAILURE] task=%lu reason=%s stop_drones=true",
           queued.task_id, final_reason.c_str());
-        EmitSecondaryFlowEvent(
+        F2_SECONDARY_FLOW_EVENT(
           "optimization_manager_validation", "hard_failure", queued,
           secondary_queue_.Pending(), " reason=" + final_reason);
       }
@@ -1846,7 +1889,7 @@ private:
             enqueue.duplicate ? "true" : "false",
             enqueue.enqueue_sequence, enqueue.pending);
           if (enqueue.enqueued) {
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "secondary_worker_secondary_queue_retry", "fiducial_retry_enqueue",
               queued, enqueue.pending,
               " retry_task=" + std::to_string(fiducial_retry_task->task_id));
@@ -1866,7 +1909,7 @@ private:
         queued.task_id, stale ? "true" : "false", full_success ? "true" : "false",
         hard_failure ? "true" : "false", final_reason.c_str(),
         secondary_queue_.Pending());
-      EmitSecondaryLifecycleEvent(
+      F2_SECONDARY_LIFECYCLE_EVENT(
         "done", queued, secondary_queue_.Pending(),
         " reason=" + final_reason +
         " stale=" + (stale ? std::string("true") : std::string("false")) +
@@ -1913,7 +1956,7 @@ private:
             fusion_retry_keyframe->map_epoch, fusion_retry_keyframe->local_kf_id,
             created, enqueued, fusion_retry_cause.c_str(), secondary_queue_.Pending());
           if (enqueued != 0U) {
-            EmitSecondaryFlowEvent(
+            F2_SECONDARY_FLOW_EVENT(
               "secondary_worker_secondary_queue_retry", "retry_enqueue", queued,
               secondary_queue_.Pending(),
               " retry_task=" + std::to_string(retry_task));
@@ -1974,15 +2017,17 @@ private:
     if (plan.database_update.has_value()) {
       plan.database_update->task_id = next_pipeline_task_id_.fetch_add(1);
       const auto enqueue = secondary_queue_.PushDatabaseUpdate(*plan.database_update);
-      std::ostringstream detail;
-      detail << " task=" << plan.database_update->task_id
-             << " priority=MEDIUM covis_kfs="
-             << plan.database_update->covisibility_keyframe_ids.size()
-             << " loop_kfs=" << plan.database_update->loop_keyframe_ids.size();
-      EmitFlowEvent(
-        "raw_db_secondary_queue_database", "database_update_enqueue",
-        raw.arrival_id, source, raw.submap_id.drone_id, raw.submap_id.map_epoch,
-        enqueue.pending, detail.str());
+      if (pipeline_flow_events_enabled_) {
+        std::ostringstream detail;
+        detail << " task=" << plan.database_update->task_id
+               << " priority=MEDIUM covis_kfs="
+               << plan.database_update->covisibility_keyframe_ids.size()
+               << " loop_kfs=" << plan.database_update->loop_keyframe_ids.size();
+        F2_PIPELINE_FLOW_EVENT(
+          "raw_db_secondary_queue_database", "database_update_enqueue",
+          raw.arrival_id, source, raw.submap_id.drone_id, raw.submap_id.map_epoch,
+          enqueue.pending, detail.str());
+      }
       RCLCPP_WARN(
         get_logger(),
         "[F3M-DATABASE-ENQUEUE] task=%lu arrival=%lu submap=(%u,%lu) "
@@ -2131,7 +2176,7 @@ private:
     bool append_to_journal,
     const std::string & execution_source)
   {
-    EmitFlowEvent(
+    F2_PIPELINE_FLOW_EVENT(
       "server_fiducial_anchor_manager", "fiducial_observation",
       observation.arrival_id, execution_source, observation.keyframe_id.drone_id,
       observation.keyframe_id.map_epoch, primary_queue_.Pending(),
@@ -2146,24 +2191,26 @@ private:
       if (!replaced_loop_anchor) {
         ++fiducial_anchors_created_;
       }
-      std::ostringstream detail;
-      detail << " status=" << orbslam3_multi::ToString(result.status)
-             << " fid=" << observation.fiducial_id
-             << " visit=" << observation.fiducial_visit_id
-             << " kf=" << observation.keyframe_id.local_kf_id
-             << " created=" << result.pose_changes.created_ids.size()
-             << " hard=" << result.pose_changes.hard_fiducial_ids.size()
-             << " pose_revision=" << result.pose_changes.store_revision_after;
-      EmitFlowEvent(
-        "fiducial_anchor_manager_global_pose_store",
-        replaced_loop_anchor ? "first_hard_reanchor" : "first_anchor_commit",
-        observation.arrival_id, execution_source, observation.keyframe_id.drone_id,
-        observation.keyframe_id.map_epoch, primary_queue_.Pending(), detail.str());
-      EmitFlowEvent(
-        "global_pose_store_global_map_builder",
-        replaced_loop_anchor ? "first_hard_reanchor_dirty" : "first_anchor_dirty",
-        observation.arrival_id, execution_source, observation.keyframe_id.drone_id,
-        observation.keyframe_id.map_epoch, primary_queue_.Pending(), detail.str());
+      if (pipeline_flow_events_enabled_) {
+        std::ostringstream detail;
+        detail << " status=" << orbslam3_multi::ToString(result.status)
+               << " fid=" << observation.fiducial_id
+               << " visit=" << observation.fiducial_visit_id
+               << " kf=" << observation.keyframe_id.local_kf_id
+               << " created=" << result.pose_changes.created_ids.size()
+               << " hard=" << result.pose_changes.hard_fiducial_ids.size()
+               << " pose_revision=" << result.pose_changes.store_revision_after;
+        F2_PIPELINE_FLOW_EVENT(
+          "fiducial_anchor_manager_global_pose_store",
+          replaced_loop_anchor ? "first_hard_reanchor" : "first_anchor_commit",
+          observation.arrival_id, execution_source, observation.keyframe_id.drone_id,
+          observation.keyframe_id.map_epoch, primary_queue_.Pending(), detail.str());
+        F2_PIPELINE_FLOW_EVENT(
+          "global_pose_store_global_map_builder",
+          replaced_loop_anchor ? "first_hard_reanchor_dirty" : "first_anchor_dirty",
+          observation.arrival_id, execution_source, observation.keyframe_id.drone_id,
+          observation.keyframe_id.map_epoch, primary_queue_.Pending(), detail.str());
+      }
       RCLCPP_WARN(
         get_logger(),
         "[F3E-FID-FIRST-ANCHOR] arrival_id=%lu source=%s submap=(%u,%lu) "
@@ -2225,17 +2272,19 @@ private:
         observation.fiducial_visit_id, result.error.translation_m,
         result.error.rotation_rad, result.error.yaw_rad);
       const auto enqueue = secondary_queue_.PushFiducial(*result.optimization_task);
-      std::ostringstream detail;
-      detail << " task=" << result.optimization_task->task_id
-             << " priority=MAX fid=" << observation.fiducial_id
-             << " visit=" << observation.fiducial_visit_id
-             << " kf=" << observation.keyframe_id.local_kf_id
-             << " enqueued=" << (enqueue.enqueued ? "true" : "false")
-             << " duplicate=" << (enqueue.duplicate ? "true" : "false");
-      EmitFlowEvent(
-        "fiducial_anchor_manager_secondary_queue", "opt_fid_enqueue",
-        observation.arrival_id, execution_source, observation.keyframe_id.drone_id,
-        observation.keyframe_id.map_epoch, enqueue.pending, detail.str());
+      if (pipeline_flow_events_enabled_) {
+        std::ostringstream detail;
+        detail << " task=" << result.optimization_task->task_id
+               << " priority=MAX fid=" << observation.fiducial_id
+               << " visit=" << observation.fiducial_visit_id
+               << " kf=" << observation.keyframe_id.local_kf_id
+               << " enqueued=" << (enqueue.enqueued ? "true" : "false")
+               << " duplicate=" << (enqueue.duplicate ? "true" : "false");
+        F2_PIPELINE_FLOW_EVENT(
+          "fiducial_anchor_manager_secondary_queue", "opt_fid_enqueue",
+          observation.arrival_id, execution_source, observation.keyframe_id.drone_id,
+          observation.keyframe_id.map_epoch, enqueue.pending, detail.str());
+      }
       RCLCPP_WARN(
         get_logger(),
         "[F3H-FID-TASK-ENQUEUE] task=%lu sequence=%lu priority=MAX "
@@ -2388,13 +2437,15 @@ private:
     const orbslam3_multi::RawInsertResult & raw)
   {
     if (raw.has_material_changes) {
-      std::ostringstream raw_detail;
-      raw_detail << " kfs=" << raw.new_keyframe_ids.size() + raw.updated_keyframe_ids.size()
-                 << " mps=" << raw.new_mappoint_ids.size() + raw.updated_mappoint_ids.size();
-      EmitFlowEvent(
-        "raw_db_global_map_builder", "raw_dirty", arrival_id, source,
-        raw.submap_id.drone_id, raw.submap_id.map_epoch, primary_queue_.Pending(),
-        raw_detail.str());
+      if (pipeline_flow_events_enabled_) {
+        std::ostringstream raw_detail;
+        raw_detail << " kfs=" << raw.new_keyframe_ids.size() + raw.updated_keyframe_ids.size()
+                   << " mps=" << raw.new_mappoint_ids.size() + raw.updated_mappoint_ids.size();
+        F2_PIPELINE_FLOW_EVENT(
+          "raw_db_global_map_builder", "raw_dirty", arrival_id, source,
+          raw.submap_id.drone_id, raw.submap_id.map_epoch, primary_queue_.Pending(),
+          raw_detail.str());
+      }
     }
 
     const auto build = backend_.BuildGlobalMap();
@@ -2413,32 +2464,40 @@ private:
       return;
     }
 
-    std::ostringstream detail;
-    detail << " revision=" << build.publication_revision
-           << " points=" << build.points.size()
-           << " kfs=" << build.keyframes.size()
-           << " recalculated_kfs=" << build.recalculated_keyframes
-           << " recalculated_mps=" << build.recalculated_mappoints
-           << " recalculated_tracks=" << build.recalculated_fused_tracks
-           << " fusion_revision=" << build.fusion_revision;
-    EmitFlowEvent(
-      "global_map_builder_server", "global_map_build", arrival_id, source,
-      raw.submap_id.drone_id, raw.submap_id.map_epoch, primary_queue_.Pending(),
-      detail.str());
+    if (pipeline_flow_events_enabled_) {
+      std::ostringstream detail;
+      detail << " revision=" << build.publication_revision
+             << " points=" << build.points.size()
+             << " kfs=" << build.keyframes.size()
+             << " recalculated_kfs=" << build.recalculated_keyframes
+             << " recalculated_mps=" << build.recalculated_mappoints
+             << " recalculated_tracks=" << build.recalculated_fused_tracks
+             << " fusion_revision=" << build.fusion_revision;
+      F2_PIPELINE_FLOW_EVENT(
+        "global_map_builder_server", "global_map_build", arrival_id, source,
+        raw.submap_id.drone_id, raw.submap_id.map_epoch, primary_queue_.Pending(),
+        detail.str());
+    }
 
     const auto stamp = get_clock()->now();
     const auto cloud = BuildPointCloud(build, stamp);
     const auto markers = BuildKeyFrameMarkers(build, stamp);
     sparse_cloud_publisher_->publish(cloud);
     keyframes_publisher_->publish(markers);
-    EmitFlowEvent(
+    if (architecture_telemetry_enabled_) {
+      EmitArchitectureActivity(
+        "server_to_sim_sparse_map",
+        "/global_sparse_cloud + /global_keyframes",
+        raw.submap_id.drone_id);
+    }
+    F2_PIPELINE_FLOW_EVENT(
       "server_rviz_cloud", "pointcloud2_publish", arrival_id, source,
       raw.submap_id.drone_id, raw.submap_id.map_epoch, primary_queue_.Pending(),
-      detail.str());
-    EmitFlowEvent(
+      "");
+    F2_PIPELINE_FLOW_EVENT(
       "server_rviz_keyframes", "marker_array_publish", arrival_id, source,
       raw.submap_id.drone_id, raw.submap_id.map_epoch, primary_queue_.Pending(),
-      detail.str());
+      "");
 
     RCLCPP_WARN(
       get_logger(),
@@ -2512,6 +2571,11 @@ private:
     std_msgs::msg::Bool message;
     message.data = active;
     backpressure_publisher_->publish(message);
+    if (architecture_telemetry_enabled_) {
+      EmitArchitectureActivity(
+        "server_to_sim_backpressure",
+        "/global_mapping/backpressure_active", 0);
+    }
     RCLCPP_WARN(
       get_logger(),
       "[F3C-BACKPRESSURE] active=%s primary_pending=%zu primary_high=%zu "
@@ -2525,7 +2589,7 @@ private:
       secondary_blocking_failure_.load() ? "true" : "false",
       initial ? "true" : "false");
     if (!initial) {
-      EmitFlowEvent(
+      F2_PIPELINE_FLOW_EVENT(
         "server_mission_gate", active ? "backpressure_on" : "backpressure_off",
         0, replay_path_.empty() ? "live" : "replay", 0, 0, pending);
     }
@@ -2554,16 +2618,18 @@ private:
       changes.status == orbslam3_multi::PoseCommitStatus::Applied ||
       changes.status == orbslam3_multi::PoseCommitStatus::AlreadyAnchored;
 
-    std::ostringstream detail;
-    detail << " status=" << orbslam3_multi::ToString(changes.status)
-           << " anchor=synthetic"
-           << " created=" << changes.created_ids.size()
-           << " invalidated=" << changes.invalidated_ids.size()
-           << " pose_revision=" << changes.store_revision_after;
-    EmitFlowEvent(
-      "raw_db_global_pose_store", "synthetic_anchor", arrival_id, source,
-      raw.submap_id.drone_id, raw.submap_id.map_epoch, primary_queue_.Pending(),
-      detail.str());
+    if (pipeline_flow_events_enabled_) {
+      std::ostringstream detail;
+      detail << " status=" << orbslam3_multi::ToString(changes.status)
+             << " anchor=synthetic"
+             << " created=" << changes.created_ids.size()
+             << " invalidated=" << changes.invalidated_ids.size()
+             << " pose_revision=" << changes.store_revision_after;
+      F2_PIPELINE_FLOW_EVENT(
+        "raw_db_global_pose_store", "synthetic_anchor", arrival_id, source,
+        raw.submap_id.drone_id, raw.submap_id.map_epoch, primary_queue_.Pending(),
+        detail.str());
+    }
     RCLCPP_WARN(
       get_logger(),
       "[F3D-SYNTHETIC-ANCHOR] arrival_id=%lu source=%s submap=(%u,%lu) "
@@ -2573,6 +2639,44 @@ private:
       orbslam3_multi::ToString(changes.status), changes.created_ids.size(),
       changes.invalidated_ids.size(), changes.commit_id, changes.store_revision_after,
       debug_anchor_x_, debug_anchor_y_, debug_anchor_z_);
+  }
+
+  void EmitArchitectureActivity(
+    const std::string & edge_id,
+    const std::string & interface_name,
+    uint32_t drone_id)
+  {
+    if (!architecture_telemetry_enabled_ || !architecture_activity_publisher_) {
+      return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    {
+      std::lock_guard<std::mutex> lock(architecture_telemetry_mutex_);
+      const auto found = architecture_last_emit_.find(edge_id);
+      if (found != architecture_last_emit_.end() &&
+        now - found->second < std::chrono::milliseconds(100))
+      {
+        return;
+      }
+      architecture_last_emit_[edge_id] = now;
+    }
+    std::ostringstream json;
+    std::string interface_kind = "topic";
+    if (edge_id == "server_to_orbslam_snapshot_request") {
+      interface_kind = "service_request";
+    } else if (edge_id == "orbslam_to_server_snapshot_response") {
+      interface_kind = "service_response";
+    } else if (edge_id == "server_to_sim_pipeline_flow") {
+      interface_kind = "debug_topic";
+    }
+    json << "{\"kind\":\"architecture_activity\",\"edge_id\":\"" << edge_id
+         << "\",\"interface\":\"" << interface_name
+         << "\",\"interface_kind\":\"" << interface_kind
+         << "\",\"source\":\"orbslam3_server\",\"drone_id\":" << drone_id
+         << ",\"timestamp\":" << get_clock()->now().seconds() << "}";
+    std_msgs::msg::String message;
+    message.data = json.str();
+    architecture_activity_publisher_->publish(message);
   }
 
   void EmitFlowEvent(
@@ -2585,6 +2689,9 @@ private:
     size_t pending,
     const std::string & extra_detail = "")
   {
+    if (!pipeline_flow_events_enabled_ || !flow_publisher_) {
+      return;
+    }
     std::ostringstream json;
     json << "{\"phase\":\"3G\",\"edge_id\":\"" << edge_id
          << "\",\"stage\":\"" << stage
@@ -2599,6 +2706,10 @@ private:
     std_msgs::msg::String message;
     message.data = json.str();
     flow_publisher_->publish(message);
+    if (architecture_telemetry_enabled_) {
+      EmitArchitectureActivity(
+        "server_to_sim_pipeline_flow", "/global_mapping/flow_events", drone_id);
+    }
   }
 
   void EmitSecondaryFlowEvent(
@@ -2608,6 +2719,9 @@ private:
     size_t pending,
     const std::string & extra_detail = "")
   {
+    if (!pipeline_flow_events_enabled_ || !flow_publisher_) {
+      return;
+    }
     uint32_t drone_id = 0;
     uint64_t map_epoch = 0;
     if (task.fiducial.has_value()) {
@@ -2634,6 +2748,10 @@ private:
     std_msgs::msg::String message;
     message.data = json.str();
     flow_publisher_->publish(message);
+    if (architecture_telemetry_enabled_) {
+      EmitArchitectureActivity(
+        "server_to_sim_pipeline_flow", "/global_mapping/flow_events", drone_id);
+    }
   }
 
   void EmitSecondaryLifecycleEvent(
@@ -2642,6 +2760,9 @@ private:
     size_t pending,
     const std::string & extra_detail)
   {
+    if (!pipeline_flow_events_enabled_ || !flow_publisher_) {
+      return;
+    }
     uint32_t drone_id = 0;
     uint64_t map_epoch = 0;
     if (task.fiducial.has_value()) {
@@ -2668,6 +2789,10 @@ private:
     std_msgs::msg::String message;
     message.data = json.str();
     flow_publisher_->publish(message);
+    if (architecture_telemetry_enabled_) {
+      EmitArchitectureActivity(
+        "server_to_sim_pipeline_flow", "/global_mapping/flow_events", drone_id);
+    }
   }
 
   PrimaryQueue primary_queue_;
@@ -2682,6 +2807,11 @@ private:
   gt_subscriptions_;
   rclcpp::CallbackGroup::SharedPtr gt_callback_group_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr flow_publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr architecture_activity_publisher_;
+  bool pipeline_flow_events_enabled_ = false;
+  bool architecture_telemetry_enabled_ = false;
+  std::mutex architecture_telemetry_mutex_;
+  std::map<std::string, std::chrono::steady_clock::time_point> architecture_last_emit_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr backpressure_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr sparse_cloud_publisher_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr keyframes_publisher_;
@@ -2756,6 +2886,10 @@ private:
   std::set<orbslam3_multi::RawKeyFrameId> published_keyframes_;
   int32_t next_keyframe_marker_id_ = 1;
 };
+
+#undef F2_PIPELINE_FLOW_EVENT
+#undef F2_SECONDARY_FLOW_EVENT
+#undef F2_SECONDARY_LIFECYCLE_EVENT
 
 }  // namespace orbslam3_server
 

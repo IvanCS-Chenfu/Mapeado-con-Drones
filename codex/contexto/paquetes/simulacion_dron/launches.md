@@ -1,29 +1,10 @@
 # Launches de `simulacion_dron`
 
-## Matriz de debug acordada
-
-Los flags de visualizadores son independientes y `false` por defecto.
-
-`pipeline_flow`:
-- `debug_pipeline_flow_web=false` implica ausencia total de trabajo específico de la
-  herramienta, incluida la instrumentación productora.
-- `debug_open_pipeline_flow_browser` solo abre navegador y nunca activa el pipeline.
-
-`system_architecture`:
-- web=false => herramienta completamente dormida;
-- web=true + telemetry=false => solo vista estática;
-- web=true + telemetry=true => vista live;
-- browser solo controla apertura automática;
-- telemetry=true no puede saltarse un web=false maestro.
-
-Simulación es la autoridad que activa estas capacidades de integración. Dron/Servidor
-standalone deben conservarlas apagadas por defecto.
-
 ## `multi_dron.launch.py`
 
 Arranca Gazebo, el numero de drones definido en `config/sim_dron.yaml`,
 wrappers y `global_map_server`. RViz2, bridge web, navegador y telemetria de
-terminal son opcionales mediante `config/fase3_debug.yaml`. Pasa
+terminal son opcionales mediante `config/debug.yaml`. Pasa
 `config/global_map/` al launch del servidor y solo sobrescribe identidad del
 despliegue y opciones explicitas de record/log.
 
@@ -46,7 +27,7 @@ despliegue: ejecutar simulación usa estos valores; ejecutar directamente el
 servidor usa su propia copia. En la etapa actual ambas copias deben ser
 idénticas y `test_global_map_config.py` lo comprueba automáticamente.
 
-Perfil `config/fase3_debug.yaml` y argumentos homonimos:
+Perfil `config/debug.yaml` y argumentos homonimos:
 
 ```text
 fase3_rviz2=false
@@ -65,14 +46,16 @@ Otros argumentos de rendimiento/operacion:
 launch_gazebo_gui=true
 launch_mission_gui=true
 drone_start_stagger_sec=8.0
-orb_vocabulary_path=<ORBvoc.txt>  # objetivo normal tras el cierre
+orb_vocabulary_path=<ORBvoc.txt completo>
 ```
 
 Con `launch_gazebo_gui=false`, el launch inicia `gzserver` directamente. Cada
 grupo de dron posterior al primero se envuelve en un `TimerAction` con retardo
 `(indice-1)*drone_start_stagger_sec`; esto evita materializar varios
-vocabularios y modelos en el mismo pico. El vocabulario L5 es el default de
-este launch, pero puede sustituirse por el L6 completo mediante el argumento.
+vocabularios y modelos en el mismo pico. El vocabulario completo es el default;
+L5 solo se usa mediante un override explicito. El launch carga
+`physical_dron.yaml`, `simulated_sensors.yaml` y la replica parcial
+`actuators_dron.yaml`, nunca `hardware.yaml` de Dron.
 
 Perfiles validados:
 

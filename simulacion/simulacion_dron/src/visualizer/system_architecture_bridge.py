@@ -10,11 +10,25 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import rclpy
-from geometry_msgs.msg import PoseStamped
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
-from std_msgs.msg import Bool, Float64, String
+from std_msgs.msg import String
+
+
+RUNTIME_EDGES = {
+    'sim_to_orbslam_stereo',
+    'sim_to_dron_gt',
+    'sim_to_server_fiducial_gt',
+    'sim_to_dron_action',
+    'dron_to_sim_motors',
+    'orbslam_to_server_delta',
+    'server_to_orbslam_snapshot_request',
+    'orbslam_to_server_snapshot_response',
+    'server_to_sim_backpressure',
+    'server_to_sim_sparse_map',
+    'server_to_sim_pipeline_flow',
+}
 
 
 class EventStore:
@@ -99,8 +113,7 @@ def make_handler(web_root, events, telemetry_enabled):
             return
 
         def _serve_health(self):
-            payload = json.dumps(
-                events.health(telemetry_enabled)).encode('utf-8')
+            payload = json.dumps(events.health(telemetry_enabled)).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Cache-Control', 'no-store')
@@ -109,6 +122,11 @@ def make_handler(web_root, events, telemetry_enabled):
             self.wfile.write(payload)
 
         def _serve_events(self):
+            if not telemetry_enabled:
+                self.send_response(204)
+                self.send_header('Cache-Control', 'no-store')
+                self.end_headers()
+                return
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')
@@ -150,28 +168,29 @@ class SystemArchitectureBridge(Node):
         self.declare_parameter('port', 8775)
         self.declare_parameter('web_root', '')
         self.declare_parameter('telemetry_enabled', False)
-        self.declare_parameter('drone_count', 2)
-        self.declare_parameter('drone_namespace_base', 'dron')
 
         port = int(self.get_parameter('port').value)
         web_root = Path(self.get_parameter('web_root').value).resolve()
         self._telemetry_enabled = bool(
             self.get_parameter('telemetry_enabled').value)
-        drone_count = int(self.get_parameter('drone_count').value)
-        namespace_base = str(
-            self.get_parameter('drone_namespace_base').value)
         if not web_root.is_dir():
             raise RuntimeError(f'web_root invalido: {web_root}')
 
         self._events = EventStore()
         self._counts = defaultdict(int)
-        self._last_emit_ns = {}
-        self._subscriptions = []
+        self._subscription = None
         if self._telemetry_enabled:
-            self._create_telemetry(drone_count, namespace_base)
+            qos = QoSProfile(
+                history=QoSHistoryPolicy.KEEP_LAST,
+                depth=128,
+                reliability=QoSReliabilityPolicy.BEST_EFFORT)
+            self._subscription = self.create_subscription(
+                String,
+                '/system_architecture/activity',
+                self._on_activity,
+                qos)
 
-        handler = make_handler(
-            web_root, self._events, self._telemetry_enabled)
+        handler = make_handler(web_root, self._events, self._telemetry_enabled)
         self._http = ThreadingHTTPServer(('127.0.0.1', port), handler)
         self._http.daemon_threads = True
         self._http_thread = threading.Thread(
@@ -181,82 +200,27 @@ class SystemArchitectureBridge(Node):
         self._http_thread.start()
         mode = 'live' if self._telemetry_enabled else 'static'
         self.get_logger().warning(
-            f'[SYSTEM-ARCH-READY] url=http://127.0.0.1:{port} '
-            f'mode={mode} groups=3 packages=9')
+            f'[SYSTEM-ARCH-READY] url=http://127.0.0.1:{port} mode={mode}')
 
-    def _create_telemetry(self, drone_count, namespace_base):
-        sensor_qos = QoSProfile(
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=5,
-            reliability=QoSReliabilityPolicy.BEST_EFFORT)
-        event_qos = QoSProfile(
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=64,
-            reliability=QoSReliabilityPolicy.BEST_EFFORT)
-        self._subscriptions.append(self.create_subscription(
-            String, '/global_mapping/flow_events',
-            self._on_flow_event, event_qos))
-        self._subscriptions.append(self.create_subscription(
-            Bool, '/global_mapping/backpressure_active',
-            lambda _message: self._emit(
-                'server_to_sim_backpressure',
-                '/global_mapping/backpressure_active', 'topic'),
-            event_qos))
-
-        for index in range(1, drone_count + 1):
-            namespace = f'/{namespace_base}_{index}'
-            self._subscriptions.append(self.create_subscription(
-                PoseStamped, f'{namespace}/sensor/GT/pose',
-                lambda _message, topic=f'{namespace}/sensor/GT/pose':
-                self._on_gt_pose(topic), sensor_qos))
-            self._subscriptions.append(self.create_subscription(
-                PoseStamped, f'{namespace}/orbslam/pose_local',
-                lambda _message, topic=f'{namespace}/orbslam/pose_local':
-                self._emit('orbslam3_to_dron', topic, 'topic'), sensor_qos))
-            self._subscriptions.append(self.create_subscription(
-                Float64, f'{namespace}/control/fuerza_total',
-                lambda _message, topic=f'{namespace}/control/fuerza_total':
-                self._emit('dron_to_sim_control', topic, 'topic'), sensor_qos))
-
-    def _on_gt_pose(self, topic):
-        self._emit('sim_to_dron_sensors', topic, 'topic')
-        self._emit('sim_to_server_fiducial', topic, 'topic')
-
-    def _on_flow_event(self, message):
+    def _on_activity(self, message):
         try:
             event = json.loads(message.data)
         except (TypeError, ValueError, json.JSONDecodeError):
             return
-        edge_id = str(event.get('edge_id', ''))
-        if edge_id in {
-                'wrapper_server', 'wrapper_server_snapshot',
-                'server_primary_queue'}:
-            architecture_edge = 'dron_to_server_map'
-        else:
-            architecture_edge = 'server_backend_internal'
-        self._emit(
-            architecture_edge, '/global_mapping/flow_events', 'topic')
-        self._emit(
-            'server_to_sim_observability',
-            '/global_mapping/flow_events', 'topic')
-
-    def _emit(self, edge_id, interface, kind, min_period_sec=0.1):
-        now_ns = self.get_clock().now().nanoseconds
-        last_ns = self._last_emit_ns.get(edge_id, 0)
-        if now_ns - last_ns < int(min_period_sec * 1e9):
+        if event.get('kind') != 'architecture_activity':
             return
-        self._last_emit_ns[edge_id] = now_ns
+        edge_id = str(event.get('edge_id', ''))
+        if edge_id not in RUNTIME_EDGES:
+            return
+        required = ('source', 'interface', 'interface_kind', 'timestamp')
+        if any(name not in event for name in required):
+            return
+        if not isinstance(event.get('drone_id', 0), int):
+            return
         self._counts[edge_id] += 1
-        payload = json.dumps({
-            'kind': 'architecture_activity',
-            'timestamp': now_ns / 1e9,
-            'edge_id': edge_id,
-            'interface': interface,
-            'interface_kind': kind,
-            'count': self._counts[edge_id],
-            'status': 'ok',
-        }, separators=(',', ':'))
-        self._events.append(payload)
+        event['count'] = self._counts[edge_id]
+        event['status'] = 'ok'
+        self._events.append(json.dumps(event, separators=(',', ':')))
 
     def destroy_node(self):
         self._http.shutdown()

@@ -35,21 +35,21 @@ def _optional_override(context, overrides, name, cast):
 def _launch_server(context):
     config_dir = LaunchConfiguration('config_dir').perform(context)
     parameters = [os.path.join(config_dir, name) for name in CONFIG_FILES]
-    parameters.append(LaunchConfiguration(
-        'calibration_config').perform(context))
-    replay_debug_config = LaunchConfiguration(
-        'replay_debug_config').perform(context)
+    parameters.append(LaunchConfiguration('calibration_config').perform(context))
+    replay_debug_config = LaunchConfiguration('replay_debug_config').perform(context)
     if replay_debug_config:
         parameters.append(replay_debug_config)
 
-    # Identidad y reloj dependen del despliegue que incluye este launch.
+    # Reloj, identidad y observabilidad son autoridad del deployment/launch.
     overrides = {
-        'use_sim_time': _as_bool(
-            LaunchConfiguration('use_sim_time').perform(context)),
-        'drone_count': int(
-            LaunchConfiguration('drone_count').perform(context)),
+        'use_sim_time': _as_bool(LaunchConfiguration('use_sim_time').perform(context)),
+        'drone_count': int(LaunchConfiguration('drone_count').perform(context)),
         'drone_namespace_base': LaunchConfiguration(
             'drone_namespace_base').perform(context),
+        'debug_pipeline_flow_events': _as_bool(
+            LaunchConfiguration('debug_pipeline_flow_events').perform(context)),
+        'debug_architecture_telemetry': _as_bool(
+            LaunchConfiguration('debug_architecture_telemetry').perform(context)),
     }
     optional = (
         ('rawdb_record_enabled', _as_bool),
@@ -74,6 +74,7 @@ def _launch_server(context):
     log_level = LaunchConfiguration('log_level').perform(context).lower()
     if log_level not in ('debug', 'info', 'warn', 'error', 'fatal'):
         raise ValueError(f'nivel de log ROS invalido: {log_level}')
+
     return [Node(
         package='orbslam3_server',
         executable='global_map_server',
@@ -86,24 +87,23 @@ def _launch_server(context):
 
 def generate_launch_description():
     default_config_dir = PathJoinSubstitution([
-        FindPackageShare('orbslam3_server'),
-        'config',
-        'global_map',
-    ])
+        FindPackageShare('orbslam3_server'), 'config', 'global_map'])
     default_calibration = PathJoinSubstitution([
-        FindPackageShare('orbslam3_server'),
-        'config',
-        'calibration_dron.yaml',
-    ])
+        FindPackageShare('orbslam3_server'), 'config', 'calibration_dron.yaml'])
+
     arguments = [
         DeclareLaunchArgument('config_dir', default_value=default_config_dir),
         DeclareLaunchArgument(
             'calibration_config', default_value=default_calibration),
         DeclareLaunchArgument('replay_debug_config', default_value=''),
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('drone_count', default_value='2'),
         DeclareLaunchArgument('drone_namespace_base', default_value='dron'),
         DeclareLaunchArgument('log_level', default_value='info'),
+        DeclareLaunchArgument(
+            'debug_pipeline_flow_events', default_value='false'),
+        DeclareLaunchArgument(
+            'debug_architecture_telemetry', default_value='false'),
     ]
     for name in (
         'rawdb_record_enabled',
@@ -121,8 +121,6 @@ def generate_launch_description():
         'fiducial_rotation_threshold_rad',
         'fiducial_yaw_threshold_rad',
     ):
-        arguments.append(DeclareLaunchArgument(
-            name, default_value=YAML_SENTINEL))
+        arguments.append(DeclareLaunchArgument(name, default_value=YAML_SENTINEL))
 
-    return LaunchDescription(
-        arguments + [OpaqueFunction(function=_launch_server)])
+    return LaunchDescription(arguments + [OpaqueFunction(function=_launch_server)])

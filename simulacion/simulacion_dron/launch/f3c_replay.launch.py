@@ -32,6 +32,7 @@ def generate_launch_description():
                 'config_dir': config_dir,
                 'replay_debug_config': replay_config,
                 'use_sim_time': 'false',
+                'debug_pipeline_flow_events': 'true',
                 'rawdb_record_enabled': 'false',
                 'rawdb_replay_path': LaunchConfiguration('rawdb_replay_path'),
             }.items(),

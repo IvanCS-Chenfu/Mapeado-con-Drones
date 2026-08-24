@@ -1,102 +1,53 @@
-# ADR 0010 — Observabilidad web opcional y coste específico nulo cuando está desactivada
+# ADR 0010 - Observabilidad web opcional y coste especifico nulo al desactivarla
 
 ## Estado
 
-Aceptada durante el cierre documental de Fase 2 (2026-08-24).
+Aceptada y aplicada durante Fase 2 (2026-08-24).
 
 ## Contexto
 
-El proyecto dispone de dos visualizadores web diagnósticos:
+El proyecto dispone de dos visualizadores web diagnosticos independientes:
 
-- `pipeline_flow`: detalle interno del pipeline sparse/global de Fase 3;
-- `system_architecture`: paquetes, grupos, interfaces y relaciones del sistema completo.
+- `pipeline_flow`: flujo interno del pipeline sparse/global;
+- `system_architecture`: grupos, paquetes, interfaces y despliegue completo.
 
-Su objetivo es ayudar a depurar. No forman parte del camino funcional de control, SLAM,
-mapa ni misión. Una implementación que únicamente oculte el navegador pero siga
-mirando tráfico, construyendo JSON o publicando telemetría consume recursos sin aportar
-valor cuando el debug está apagado.
+Ninguno forma parte del camino funcional de control, SLAM, mapa o mision.
 
-La auditoría de Fase 2 detectó además que `pipeline_flow_bridge` se apaga correctamente
-cuando su web está desactivada, pero `GlobalMapServer` continúa produciendo
-`/global_mapping/flow_events`. Esa deuda debe corregirse.
+## Decision
 
-## Decisión
+Cuando el debug maestro de una herramienta es `false`, no arranca su bridge,
+HTTP/SSE, navegador, publisher, subscription ni serializacion de eventos. Se
+admite solo la comprobacion trivial de un booleano.
 
-### 1. Independencia
-
-`pipeline_flow` y `system_architecture` son herramientas independientes. Activar una no
-activa ni requiere la instrumentación de la otra.
-
-### 2. Debug apagado
-
-Cuando el debug maestro de una herramienta está en `false`, no se realiza trabajo
-específico de esa herramienta:
+`debug_pipeline_flow_web=false` desactiva tambien la generacion de
+`/global_mapping/flow_events` antes de construir strings. Para
+`system_architecture` se aplica:
 
 ```text
-sin bridge
-sin servidor HTTP/SSE
-sin navegador
-sin subscriptions/observers de debug
-sin publishers de debug
-sin construcción/serialización de eventos
-sin inspección de tráfico
+web=false                         -> herramienta dormida
+web=true, telemetry=false         -> grafo estatico
+web=true, telemetry=true          -> grafo estatico y actividad live
+open_browser                      -> solo apertura automatica
 ```
 
-Se admite únicamente el coste trivial de comprobar un booleano cuando sea inevitable.
-
-### 3. Pipeline flow
-
-`debug_pipeline_flow_web=false` debe desactivar también la generación de
-`/global_mapping/flow_events`, no solo el bridge. Los productores deben cortar el
-trabajo antes de construir strings/JSON caros.
-
-### 4. System architecture
-
-Matriz:
-
-```text
-web=false                         -> completamente dormido
-web=true, telemetry=false         -> grafo estático
-web=true, telemetry=true          -> grafo estático + live
-open_browser                      -> solo apertura automática
-```
-
-`telemetry=true` no puede saltarse un `web=false` maestro.
-
-### 5. Semántica del grafo
-
-Los nodos principales son paquetes. Las aristas se clasifican en:
-
-- runtime;
-- build/API;
-- config/replica;
-- deployment.
-
-Solo runtime se ilumina. La actividad requiere evidencia directa o un evento semántico
-explícito. Un evento desconocido no se asigna por aproximación.
-
-### 6. Telemetría ligera
-
-No duplicar imágenes, nubes, mapas ni payloads pesados. Los eventos contienen metadata
-mínima como `edge_id`, `drone_id`, timestamp, interfaz, contador/estado. Se permite
-sampling/coalescing.
-
-### 7. Evolución futura
-
-Toda subfase que cambie arquitectura debe actualizar topología, metadata, actividad y
-tests/guardas de `system_architecture` en la misma subfase.
+Los nodos principales del grafo son paquetes. Las aristas se clasifican como
+`runtime`, `build`, `config` o `deployment`; solo `runtime` se ilumina. La
+actividad requiere evidencia directa mediante un evento conocido en
+`/system_architecture/activity`. Los eventos solo contienen metadata ligera:
+`edge_id`, `drone_id`, timestamp, interfaz, contador y estado.
 
 ## Consecuencias
 
-- los debugs apagados reducen realmente consumo;
-- las herramientas no gobiernan el pipeline;
-- no se confunde conexión declarada con tráfico observado;
-- el grafo permanece útil a medida que Fases 4–9 cambien interfaces y paquetes.
+- ambos visualizadores permanecen independientes;
+- debug apagado tiene coste especifico practicamente nulo;
+- una conexion declarada no se confunde con trafico observado;
+- cerrar o saturar la UI no gobierna el pipeline;
+- las fases futuras deben actualizar topologia, metadata, productores y tests
+  cuando cambien la arquitectura.
 
-## Pruebas mínimas
+## Validacion
 
-1. todos los debugs false: ausencia de procesos y de producción específica de eventos;
-2. cada visualizador activado por separado;
-3. `system_architecture` estático sin telemetría;
-4. live con varios namespaces;
-5. cerrar bridge/navegador sin afectar al sistema.
+La prueba 199 demostro ausencia de procesos y telemetria con defaults `false`.
+Las pruebas aisladas validaron `pipeline_flow`, el modo estatico y el modo live
+de `system_architecture`. La prueba 200 valido ambos visualizadores durante la
+vuelta oficial de dos drones.

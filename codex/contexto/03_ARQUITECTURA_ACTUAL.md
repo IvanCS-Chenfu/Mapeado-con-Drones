@@ -1,28 +1,23 @@
-# 03 — Arquitectura actual del proyecto
+# 03 — Arquitectura actual
 
-## Lectura correcta de la arquitectura actual y sus deudas programadas
+## Distribucion fisica vigente
 
-La arquitectura documentada debe separar **lo que existe hoy** de lo previsto en Fases
-4 y 5.
+Desde Fase 2, los paquetes activos se distribuyen asi:
 
-Estado funcional actual relevante:
-- Simulación produce cámaras estéreo para `orbslam3`.
-- `dron_individual` todavía consume `sensor/GT/pose` y `sensor/GT/vel` para trayectoria
-  y control. Es una dependencia provisional conocida, no la arquitectura final.
-- el wrapper `orbslam3` intercambia el mapa ORB con Servidor;
-- Servidor mantiene el fiducial simulado basado en GT como mecanismo provisional;
-- Dron publica comandos por motor hacia los plugins de Simulación;
-- `pipeline_flow` observa el pipeline interno de mapa;
-- `system_architecture` debe representar paquetes y comunicaciones reales vigentes.
+```text
+dron:       ORB_SLAM3, dron_individual, lib_tray, orbslam3, orbslam3_msgs
+servidor:   orbslam3_multi, orbslam3_server, orbslam3_msgs canonico
+simulacion: simulacion_dron
+```
 
-Fase 4 sustituirá la ruta funcional del fiducial GT por observaciones visuales asociadas
-al KF exacto. Fase 5 retirará GT del control y fijará que la comunicación cross-group
-Servidor↔Dron pase por `orbslam3`; `dron_individual` no abrirá una conexión directa con
-Servidor.
+Dron y Servidor compilan sin descubrir el otro grupo. Simulacion integra ambos
+prefijos. La comunicacion funcional sigue siendo ROS 2 directa; las dos
+instalaciones de `orbslam3_msgs` son replicas exactas.
 
-No representar como activa una arista futura solo porque esté planificada.
+La observabilidad se divide en `pipeline_flow`, para el pipeline interno, y
+`system_architecture`, para paquetes e interfaces. Ninguna gobierna el sistema.
 
-## Resumen
+## Resumen de Fase 3
 
 El objetivo es construir un mapa sparse global multi-dron a partir de mapas
 locales ORB-SLAM3 ejecutados en cada dron.

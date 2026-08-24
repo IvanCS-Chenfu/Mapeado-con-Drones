@@ -1,47 +1,46 @@
 # Subfase 2C — Reorganizar YAML, parámetros, launch y recursos de configuración
 
-## Acuerdo definitivo de configuración para ejecutar 2C
+## Acuerdo definitivo de configuración
 
-### Modelo de ownership
-No imponer la regla antigua “toda réplica debe ser parcial” como absoluta. La regla es:
+### Modelo de ownership y réplica
+
+La regla permanente distingue tres categorías:
+
 - duplicado accidental: prohibido;
-- réplica parcial declarada: permitida con lista de claves;
-- réplica completa de deployment profile: permitida solo si está declarada, justificada
-  y guardada. `global_map` Servidor↔Simulación permanece completo.
+- réplica parcial declarada: permitida con una lista explícita de claves;
+- réplica completa de `deployment profile`: permitida solo si está declarada,
+  justificada y protegida por una guarda.
+
+`global_map` Servidor-Simulación es la única réplica completa vigente porque
+ambas copias representan el mismo perfil de despliegue validado. ADR 0009 es la
+fuente normativa de esta excepción.
 
 ### Caja negra Dron
-Simulación no puede abrir `dron_individual/config/hardware.yaml`. Los datos necesarios
-para Gazebo se trasladan/replican en Simulación según su ownership real:
-- propiedades exclusivas de Gazebo/modelo: propiedad de Simulación;
-- intrínsecos Dron usados también por Simulación: réplica declarada;
-- parámetros de control/actuadores de Dron: propiedad de Dron; replica solo las claves
-  que Simulación consuma.
 
-`actuadores.conversor.fuerza2torque` es un ejemplo de dato Dron consumido también por
-el modelo simulado y debe tratarse como réplica declarada, no como dos propietarios.
+Simulación no abre configuración operacional de Dron. Los datos necesarios
+para Gazebo se distribuyen así:
 
-### Reloj e identidad
-Standalone Dron/Servidor: `use_sim_time=false`. Simulación pasa `true`.
-`drone_count`, namespace e identidad/selección por ejecución deben tener autoridad
-visible en launch y no competir silenciosamente con YAML operacionales.
+- propiedades exclusivas del modelo simulado: propiedad de Simulación;
+- intrínsecos de Dron usados también por Simulación: réplica declarada;
+- control y actuadores: propiedad de Dron, replicando solo las claves consumidas.
 
-### Deudas concretas que se corregirán al implementar
-- eliminar `control.tray.usar_veltrap` y su launch argument tras un `rg` completo local;
-- corregir `<mass value="1.0"/>` para usar `fisico_cuerpo_masa`;
-- definir bootstrap/preflight del `ORBvoc.txt` completo;
-- conservar `body_T_camera` como intrínseco Dron y documentar transporte futuro;
-- no mover/refactorizar el fiducial actual: Fase 4 es su propietaria;
-- no retirar GT de control: Fase 5 es su propietaria.
+`actuadores.conversor.fuerza2torque` es un dato de Dron consumido por el modelo
+simulado y se trata como réplica parcial, no como dos propietarios.
 
-### Artefactos
-La prohibición es que los paquetes funcionales escriban/lean runtime desde `src/`.
-`codex/archivos_auxiliares` queda permitido como evidencia diagnóstica de Codex.
+### Reloj, identidad y recursos
+
+- Dron y Servidor standalone usan `use_sim_time=false`;
+- Simulación pasa `use_sim_time=true` explícitamente;
+- `drone_count`, namespace e identidad se deciden en launch;
+- `ORBvoc.txt` completo se prepara fuera de `src/` mediante bootstrap/preflight;
+- `codex/archivos_auxiliares` puede guardar evidencia, pero nunca ser fuente runtime.
 
 ## Estado
 
 ```text
-PARCIAL — cierre pendiente
-Base implementada; faltan las correcciones de ownership/configuración acordadas
+CONSEGUIDA
+Dependencia: 2A y 2B conseguidas
+Resultado: ownership ADR 0009, réplicas verificadas y reloj explícito por despliegue
 ```
 
 ## Objetivo técnico
@@ -53,7 +52,8 @@ Reorganizar los archivos YAML y su carga desde launch para que:
 - los paquetes de un grupo puedan reutilizar YAML de otros paquetes del mismo
   grupo mediante recursos instalados;
 - ningún paquete cargue directamente YAML de otro grupo;
-- cuando un grupo necesite un dato de otro, exista una réplica local declarada y verificable: parcial por defecto o completa únicamente si es un deployment profile explícito;
+- cuando un grupo necesite un dato de otro, exista una réplica local declarada
+  y verificable: parcial por defecto o completa solo para un `deployment profile`;
 - los parámetros físicos completos del dron se consuman desde un único YAML;
 - los parámetros de control, trayectoria, cámara, ORB-SLAM3, servidor,
   simulación y debug queden separados por responsabilidad;
@@ -128,15 +128,37 @@ Dron/Servidor -> cargar YAML instalado por Simulación
 Simulación tampoco carga directamente un YAML de Dron o Servidor por ruta
 física. Si necesita el dato, crea una réplica parcial local.
 
-### 3. Réplica parcial local
+### 3. Réplica declarada local
 
-Las réplicas entre grupos deben estar declaradas.
+Formato de nombre:
 
-**Parcial**: opción normal. Contiene únicamente las claves consumidas por el grupo receptor y documenta origen conceptual, paquete/YAML origen, claves, consumidores, regla de igualdad y política de modificación.
+```text
+<nombre_yaml_origen>_<grupo_origen>.yaml
+```
 
-**Completa**: excepción reservada a un `deployment profile` deliberado, justificado y protegido por guarda. El caso vigente es `global_map` Servidor↔Simulación, que permanece completo mientras ambas copias representen el mismo perfil validado.
+Ejemplo:
 
-No copiar configuraciones completas “por si acaso”.
+```text
+Dron:       physical.yaml
+Simulación: physical_dron.yaml
+```
+
+Una réplica parcial contiene solo parámetros realmente usados por el grupo receptor.
+Cada archivo debe declarar en comentarios o metadatos:
+
+```text
+origen conceptual
+grupo de origen
+paquete y YAML de origen
+claves replicadas
+consumidores locales
+regla de igualdad
+política de modificación
+```
+
+Una réplica completa queda reservada a un `deployment profile` deliberado,
+justificado y protegido por igualdad exacta. Actualmente solo aplica a
+`global_map` Servidor-Simulación. No copiar configuraciones enteras “por si acaso”.
 
 ### 4. No duplicación semántica
 
@@ -349,7 +371,9 @@ camera_dron.yaml
 actuators_dron.yaml
 ```
 
-Estas réplicas de Dron en Simulación son parciales y solo existen si Simulación consume esas claves. La única réplica completa vigente es el deployment profile `global_map` Servidor↔Simulación, declarado aparte y protegido por igualdad.
+Las réplicas de Dron en Simulación son parciales y solo existen si Simulación
+consume esas claves. La réplica completa `global_map` se declara aparte como
+perfil de despliegue y queda protegida por igualdad exacta.
 
 #### `debug.yaml`
 
@@ -576,7 +600,8 @@ parameter|Parameter|yaml|YAML|No such file|Failed to parse|type mismatch|not dec
 3. control/trayectoria las reciben sin duplicarlas;
 4. los parámetros de URDF por pieza quedan diferenciados y documentados;
 5. ningún grupo carga YAML de otro grupo;
-6. las réplicas parciales contienen solo claves necesarias;
+6. las réplicas parciales contienen solo claves necesarias y cualquier réplica
+   completa corresponde a un `deployment profile` declarado y protegido;
 7. los launch usan recursos instalados;
 8. los escenarios runtime están en Simulación;
 9. los resultados no se escriben dentro de `src/`;

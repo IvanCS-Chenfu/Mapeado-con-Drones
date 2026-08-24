@@ -3,8 +3,10 @@
 ## Estado
 
 ```text
-CONSEGUIDA EN EL SNAPSHOT PROBADO
-Evidencia: 9/9 builds aislados, un paquete por invocación
+CONSEGUIDA
+Dependencia: 2A conseguida
+Build: nueve paquetes, uno por invocación, en bases separadas por grupo
+Tests: suites funcionales correctas; deuda legacy global de dron_individual documentada
 ```
 
 ## Objetivo técnico

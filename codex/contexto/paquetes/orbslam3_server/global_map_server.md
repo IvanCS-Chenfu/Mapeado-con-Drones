@@ -1,5 +1,14 @@
 # `global_map_server.cpp`
 
+## Observabilidad opcional de Fase 2
+
+`debug_pipeline_flow_events=false` evita crear el publisher de
+`/global_mapping/flow_events` y gatea los call sites antes de construir
+detalles o JSON. `debug_architecture_telemetry=false` gobierna de forma
+independiente el publisher ligero `/system_architecture/activity`. Simulacion
+solo activa productores cuando el visualizador master correspondiente esta
+habilitado.
+
 ## Rol
 
 Orquestador ROS 2 de los flujos principal y secundario. Las decisiones de mapa,

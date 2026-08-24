@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    # Control geométrico del dron. Las propiedades totales viven en physical.yaml.
+    fisico.constante.gravedad: -9.81
+    control.fuerza.kp: 2.0
+    control.fuerza.kv: 7.0
+    control.torque.kr: 0.1
+    control.torque.kw: 0.1

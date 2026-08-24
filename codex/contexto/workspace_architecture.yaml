@@ -1,4 +1,4 @@
-version: 1
+version: 2
 
 groups:
   dron:
@@ -17,24 +17,50 @@ groups:
     packages:
       simulacion_dron: simulacion_dron
 
+# Excepciones permitidas en la raiz. No se exige que existan siempre.
 root_exceptions:
   - mi_tfg
-  - fase45_sandbox
 
 canonical_interfaces: servidor/orbslam3_msgs
 interface_replicas:
   - dron/orbslam3_msgs
+
+# La igualdad de nombre de parámetro sólo se considera posible duplicación
+# semántica automática cuando cruza grupos. Dentro de un mismo grupo dos nodos
+# distintos pueden usar legítimamente la misma clave; esos casos requieren
+# guardas específicas del paquete, no una heurística textual global.
+semantic_duplicate_scope: cross_group_only
 
 yaml_replicas:
   - source: dron/dron_individual/config/calibration.yaml
     targets:
       - servidor/orbslam3_server/config/calibration_dron.yaml
       - simulacion/simulacion_dron/config/calibration_dron.yaml
-    mode: ros_parameters
+    mode: keys
+    kind: intrinsic_contract
+    keys:
+      - body_T_camera_x
+      - body_T_camera_y
+      - body_T_camera_z
+      - body_T_camera_roll_deg
+      - body_T_camera_pitch_deg
+      - body_T_camera_yaw_deg
+      - use_camera_optical_frame_convention
+  - source: dron/dron_individual/config/actuators.yaml
+    targets:
+      - simulacion/simulacion_dron/config/actuators_dron.yaml
+    mode: keys
+    kind: partial_replica
+    keys:
+      - fisico.brazos.longitud
+      - fisico.brazos.grados
+      - actuadores.conversor.fuerza2torque
   - source: servidor/orbslam3_server/config/global_map
     targets:
       - simulacion/simulacion_dron/config/global_map
     mode: tree
+    kind: deployment_profile
+    equality: exact
 
 official_scenario: simulacion/simulacion_dron/config/scenarios/prueba_tipica_rodeo_edificio_dos_fiduciales.yaml
 
@@ -47,3 +73,20 @@ debug_flags:
   - debug_system_architecture_web
   - debug_open_system_architecture_browser
   - debug_architecture_telemetry
+
+system_architecture:
+  graph: simulacion/simulacion_dron/web/system_architecture/graph_definition.js
+  metadata: simulacion/simulacion_dron/web/system_architecture/graph_metadata.js
+  activity_topic: /system_architecture/activity
+  runtime_edges:
+    - sim_to_orbslam_stereo
+    - sim_to_dron_gt
+    - sim_to_server_fiducial_gt
+    - sim_to_dron_action
+    - dron_to_sim_motors
+    - orbslam_to_server_delta
+    - server_to_orbslam_snapshot_request
+    - orbslam_to_server_snapshot_response
+    - server_to_sim_backpressure
+    - server_to_sim_sparse_map
+    - server_to_sim_pipeline_flow

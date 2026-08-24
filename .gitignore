@@ -36,6 +36,10 @@ Thumbs.db
 *.jpeg
 *.gif
 *.webp
+*.csv
+*.summary
+
+
 
 # Compiled libraries and binaries
 *.so
@@ -46,9 +50,6 @@ Thumbs.db
 
 # ROS/colcon generated files
 colcon.meta
-
-# Paquete experimental fuera del alcance del pipeline vigente
-fase45_sandbox/
 
 # Grabaciones / datos pesados de pruebas
 codex/archivos_auxiliares/repeticiones/*.record
@@ -70,4 +71,3 @@ __pycache__/
 
 # Logs
 log/
-

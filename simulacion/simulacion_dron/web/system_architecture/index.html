@@ -13,11 +13,10 @@
       <span id="connection-status" class="status">estatico</span>
     </div>
     <div class="layers" role="group" aria-label="Capas">
-      <label><input type="checkbox" data-layer="sensor" checked> Sensores</label>
-      <label><input type="checkbox" data-layer="control" checked> Control</label>
-      <label><input type="checkbox" data-layer="map" checked> Mapa</label>
-      <label><input type="checkbox" data-layer="observability" checked> Observabilidad</label>
-      <label><input type="checkbox" data-layer="dependency" checked> Dependencias</label>
+      <label><input type="checkbox" data-layer="runtime" checked> Runtime</label>
+      <label><input type="checkbox" data-layer="build" checked> Build/API</label>
+      <label><input type="checkbox" data-layer="config" checked> Config/replica</label>
+      <label><input type="checkbox" data-layer="deployment" checked> Deployment</label>
     </div>
     <button id="fit" type="button">Ajustar</button>
   </header>
@@ -27,6 +26,8 @@
   </main>
   <script src="vendor/cytoscape.min.js"></script>
   <script src="graph_definition.js"></script>
+  <script src="graph_layout.js"></script>
+  <script src="graph_metadata.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

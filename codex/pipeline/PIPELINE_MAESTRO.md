@@ -97,19 +97,18 @@ Solo con la puerta cerrada, usar el contrato `subfase_*.md` y seguir:
 | Fase | Estado | Nombre | Conclusión breve |
 |---|---|---|---|
 | 1 | `realizado` | Control del dron en simulación | Cadena Gazebo/Xacro/YAML/control/trayectorias/GUI de simulación documentada como base histórica. |
-| 2 | `actual` | Separación servidor/dron/simulación | Siguiente fase activa tras el cierre validado de Fase 3. |
+| 2 | `conseguida` | Separación servidor/dron/simulación | Separación, configuración, visualizadores, guardas y validación final completas. |
 | 3 | `conseguida` | Mapa sparse global multi-dron | 3B-3T conseguidas; 3R scoring, 3S debug y 3T limpieza forman la numeracion final. |
-| 4 | `sin hacer` | Fiducial real sin ground truth funcional | Sustituirá el fiducial simulado por detección visual de tags ligada a KFs exactos. |
+| 4 | `actual` | Fiducial real sin ground truth funcional | Siguiente fase; preparación de 4A aún no iniciada. |
 | 5 | `sin hacer` | Pose global de cada dron sin ground truth | Sustituirá `sensor/GT/pose` y `sensor/GT/vel` por estimación local-global. |
 | 6 | `sin hacer` | Tareas y trayectorias de mapeo | Generará misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |
 | 7 | `sin hacer` | GUI 3D propia de operación | GUI C++/Qt/OpenGL independiente de RViz2 y del visualizador web entregado en Fase 3. |
 | 8 | `sin hacer` | Nube densa global multi-dron | Reconstrucción dense en servidor a partir de estéreo, poses globales y sparse. |
 | 9 | `opcional` | Mejoras avanzadas y robustez | Placeholder futuro; sus subfases se definirán cuando toque avanzar ahí. |
 
-La numeracion refleja el pipeline nuevo completo. La Fase 3 esta concluida; 3Q
-conserva una mejora futura documentada que no bloquea el avance. La fase actual
-es Fase 2 `separacion_paquetes`; despues se continua por dependencias y
-contratos de las Fases 4-9.
+La numeracion refleja el pipeline nuevo completo. Las Fases 2 y 3 están
+conseguidas. Fase 4 es la fase actual, pero sigue sin ejecutar y requiere la
+preparación y autorización de 4A antes de cualquier cambio funcional.
 
 Los archivos específicos de pipeline de fases futuras son contratos
 preparatorios, no autorización de ejecución. Codex debe tratarlos como no
@@ -192,13 +191,10 @@ La Fase 3 termina cuando:
 
 ### Fase 2 — Separación servidor/dron/simulación
 
-Reorganizar `src/` en grupos físicos de servidor, dron y simulación, con builds
-aislados, YAML con ownership claro y guardas contra divergencias. Aunque sea la
-Fase 2 por numeración, se pospone hasta cerrar Fase 3 para no mover paquetes
-mientras el mapa sparse global sigue en estabilización activa.
-
-No ejecutar ni completar su pipeline específico mientras Fase 3 siga activa,
-salvo petición explícita del usuario.
+Completada el 2026-08-24: grupos físicos de Servidor, Dron y
+Simulación, builds aislados, YAML con ownership claro, dos visualizadores
+independientes y guardas contra divergencias. Consultar
+`fase_2_separacion_paquetes/RESULTADO_FINAL_FASE_2.md`.
 
 ### Fase 4 — Fiducial real
 

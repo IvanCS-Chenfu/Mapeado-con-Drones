@@ -1,30 +1,30 @@
 # Subfase 2E — Actualizar toda la documentación y el contexto de Codex
 
-## Documentación que debe quedar sincronizada en 2E
+## Documentación definitiva
 
-Además de las rutas y ownership ya exigidos, la documentación final debe explicar:
-- diferencia entre ownership, authority y deployment profile;
-- excepción declarada de réplica completa `global_map`;
-- caja negra Dron y contratos futuros Server→Dron config / Dron→Server calibration;
-- GT actual como deuda provisional de Fase 5;
-- fiducial GT actual como deuda provisional de Fase 4;
-- `use_sim_time` standalone vs Simulación;
-- ORBvoc completo y bootstrap/preflight;
-- layout exacto `build/install/log` por grupo;
-- permiso de `codex/archivos_auxiliares` como evidencia sin convertirlo en dependencia;
-- regla estricta de logs reducidos;
-- ejecución sin login shell;
-- semántica y coste de los dos grafos web.
+El cierre debe explicar de forma coherente:
 
-Debe existir documentación específica de `system_architecture` y actualizarse la de
-`pipeline_flow`. No describir como implementado un cambio que todavía esté pendiente:
-separar “estado actual” de “corrección acordada”.
+- ownership, authority y `deployment profile`;
+- la excepción declarada de réplica completa `global_map`;
+- Dron como caja negra y los contratos futuros de configuración/calibración;
+- GT y fiducial simulado como deudas provisionales de Fases 5 y 4;
+- `use_sim_time` standalone frente al override de Simulación;
+- bootstrap/preflight del `ORBvoc.txt` completo;
+- layout `build/install/log/<grupo>` y build de un paquete por invocación;
+- `codex/archivos_auxiliares` como evidencia, nunca dependencia funcional;
+- reducción obligatoria antes de leer logs completos;
+- semántica, independencia y coste desactivado de ambos grafos web.
+
+`system_architecture` y `pipeline_flow` tienen documentación propia y separada.
+Los contratos describen comportamiento vigente; los intentos y pruebas viven
+en los historiales.
 
 ## Estado
 
 ```text
-PARCIAL — documentación de cierre en curso
-Debe quedar sincronizada tras implementar y validar las correcciones finales
+CONSEGUIDA
+Dependencia: distribución y YAML estabilizados
+Resultado: contexto, índices, paquetes, herramientas, ADR e historiales sincronizados
 ```
 
 ## Objetivo técnico

@@ -9,7 +9,10 @@ codex/pipeline/fase_4_fiducial_real/pipeline_fase_4_RESUMEN.md
 ## Estado
 
 ```text
-sin hacer
+actual, sin ejecutar
+Siguiente subfase: 4A
+Preparación de 4A: NO_INICIADA
+Autorización funcional: PENDIENTE
 ```
 
 No existe evidencia de ejecución de esta fase en el historial. Las carpetas de historial se crean vacías de forma intencionada. Ninguna subfase puede pasar a `realizado` sin build, pruebas, logs y documentación posterior.

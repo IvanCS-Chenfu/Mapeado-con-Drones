@@ -23,6 +23,7 @@
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose.hpp"
+#include "std_msgs/msg/string.hpp"
 
 #include "MapPoint.h"
 #include "KeyFrame.h"
@@ -68,6 +69,13 @@ class StereoSlamNode : public rclcpp::Node
         /* AÑADIDO */
         rclcpp::Publisher<orbslam3_msgs::msg::OrbMap>::SharedPtr orb_map_delta_pub_;
         rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_local_pub_;
+        rclcpp::Publisher<std_msgs::msg::String>::SharedPtr architecture_activity_pub_;
+        bool debug_architecture_telemetry_ = false;
+        std::unordered_map<std::string, std::chrono::steady_clock::time_point>
+            architecture_last_emit_;
+        void EmitArchitectureActivity(
+            const std::string& edge_id,
+            const std::string& interface_name);
 
         rclcpp::Service<orbslam3_msgs::srv::GetOrbMap>::SharedPtr full_map_service_;
 

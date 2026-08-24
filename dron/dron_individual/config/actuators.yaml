@@ -1,0 +1,6 @@
+/**:
+  ros__parameters:
+    # Intrínsecos del dron usados por el mezclador de actuadores.
+    fisico.brazos.longitud: 0.25
+    fisico.brazos.grados: 45.0
+    actuadores.conversor.fuerza2torque: 0.02

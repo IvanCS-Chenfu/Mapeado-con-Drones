@@ -32,7 +32,8 @@ public:
 
     this->declare_parameter<int>("fisico.brazos.numero", 4);
     this->declare_parameter<double>("fisico.brazos.grados", 45.0);
-    this->declare_parameter<std::vector<double>>("fisico.brazos.dim", {0.2, 0.01});
+    this->declare_parameter<double>("fisico.brazos.longitud", 0.2);
+    this->declare_parameter<double>("fisico.brazos.radio", 0.01);
     this->declare_parameter<std::string>("fisico.brazos.color", "Gray");
     this->declare_parameter<double>("fisico.brazos.masa", 0.05);
     this->declare_parameter<std::vector<double>>(
@@ -74,7 +75,8 @@ public:
 
     fisico_brazos_numero = this->get_parameter("fisico.brazos.numero").as_int();
     fisico_brazos_grados = this->get_parameter("fisico.brazos.grados").as_double();
-    fisico_brazos_dim = this->get_parameter("fisico.brazos.dim").as_double_array();
+    fisico_brazos_longitud = this->get_parameter("fisico.brazos.longitud").as_double();
+    fisico_brazos_radio = this->get_parameter("fisico.brazos.radio").as_double();
     fisico_brazos_color = this->get_parameter("fisico.brazos.color").as_string();
     fisico_brazos_masa = this->get_parameter("fisico.brazos.masa").as_double();
     fisico_brazos_matriz_inercia =
@@ -190,7 +192,8 @@ private:
       fisico_cuerpo_matriz_inercia[5] << "\""
          << " fisico_brazos_numero:=" << fisico_brazos_numero
          << " fisico_brazos_grados:=" << fisico_brazos_grados
-         << " fisico_brazos_dim:=" << "\"" << fisico_brazos_dim[0] << " " << fisico_brazos_dim[1] <<
+         << " fisico_brazos_dim:=" << "\"" << fisico_brazos_longitud << " " <<
+      fisico_brazos_radio <<
       "\""
          << " fisico_brazos_color:=" << fisico_brazos_color
          << " fisico_brazos_masa:=" << fisico_brazos_masa
@@ -252,7 +255,8 @@ private:
 
   int fisico_brazos_numero;
   double fisico_brazos_grados;
-  std::vector<double> fisico_brazos_dim;
+  double fisico_brazos_longitud;
+  double fisico_brazos_radio;
   std::string fisico_brazos_color;
   double fisico_brazos_masa;
   std::vector<double> fisico_brazos_matriz_inercia;

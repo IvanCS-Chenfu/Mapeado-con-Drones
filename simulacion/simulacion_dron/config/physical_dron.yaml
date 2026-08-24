@@ -1,0 +1,23 @@
+/**:
+  ros__parameters:
+    # Propiedades exclusivas del modelo Gazebo/URDF por piezas.
+    fisico.cuerpo.dim: [0.2, 0.2, 0.05]
+    fisico.cuerpo.color: "White"
+    fisico.cuerpo.masa: 1.0
+    fisico.cuerpo.matriz_inercia: [1e-4, 1e-4, 1e-4, 0.0, 0.0, 0.0]
+
+    fisico.brazos.numero: 4
+    fisico.brazos.radio: 0.01
+    fisico.brazos.color: "Gray"
+    fisico.brazos.masa: 0.05
+    fisico.brazos.matriz_inercia: [1e-5, 1e-5, 1e-5, 0.0, 0.0, 0.0]
+
+    fisico.motores.dim: [0.01, 0.02]
+    fisico.motores.color: "Green"
+    fisico.motores.masa: 0.05
+    fisico.motores.matriz_inercia: [1e-5, 1e-5, 1e-5, 0.0, 0.0, 0.0]
+
+    fisico.camara.dim: [0.005, 0.01, 0.01]
+    fisico.camara.color: "Yellow"
+    fisico.camara.masa: 0.00
+    fisico.camara.matriz_inercia: [1e-6, 1e-6, 1e-6, 0.0, 0.0, 0.0]

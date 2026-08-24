@@ -1,0 +1,6 @@
+/**:
+  ros__parameters:
+    # TrayAction.tipo_trayectoria es la autoridad para seleccionar el generador.
+    crear.tray.v_max_lin: 0.8
+    crear.tray.v_max_ang: 0.5
+    crear.tray.t_a: 5.0

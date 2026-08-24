@@ -1,8 +1,5 @@
 /**:
   ros__parameters:
-    use_sim_time: true
-    drone_count: 2
-    drone_namespace_base: dron
     primary_queue_high_watermark: 8
     primary_queue_low_watermark: 2
     secondary_queue_high_watermark: 64

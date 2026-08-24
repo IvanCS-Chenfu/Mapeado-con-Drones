@@ -1,29 +1,28 @@
-# Última sesión
+# Ultima sesion
 
 ## Objetivo
 
-Cerrar documentalmente todos los acuerdos necesarios antes de implementar las correcciones finales de Fase 2.
+Completar el cierre visual y documental de Fase 2.
 
-## Resultado
+## Cambios
 
-Se revisó el snapshot probado de Fase 2 y se fijaron, entre otros:
+- `system_architecture` usa un layout declarativo separado;
+- Simulacion y Servidor quedan arriba y Dron ocupa la franja inferior;
+- el test contractual protege cobertura y relaciones espaciales;
+- contratos 2C-2G reconciliados con las decisiones publicadas;
+- documentación de fase, estado, paquete e historiales sincronizada.
 
-- Dron como caja negra;
-- separación entre ownership, autoridad y perfil de despliegue;
-- réplicas parciales declaradas y excepción completa `global_map` Servidor↔Simulación;
-- `use_sim_time=false` standalone y `true` bajo Simulación;
-- eliminación pendiente de `usar_veltrap` y corrección de masa Xacro;
-- ORBvoc completo con bootstrap/preflight;
-- GT de control provisional hasta Fase 5 y fiducial GT provisional hasta Fase 4;
-- semántica exacta y telemetría directa de `system_architecture`;
-- `pipeline_flow` totalmente dormido también en productores cuando debug=false;
-- logs completos solo para reductores;
-- artefactos `build/install/log` por grupo;
-- `bash -c` para evitar reinyectar perfiles personales;
-- regla permanente de actualizar `system_architecture` en cualquier subfase que cambie arquitectura.
+## Verificacion
 
-La prueba 198 fue reconocida como ejecutada y pasada por validación funcional/visual del usuario. Tras las correcciones se repetirá una regresión equivalente.
+- build aislado de `simulacion_dron`: 1/1, exit 0;
+- CTest: 9/9;
+- guarda final: 15/15 tras retirar `__pycache__` generados por CTest;
+- capturas 1440x900 y 820x1000 inspeccionadas sin solapes;
+- prueba 200 previa: 14/14 pasos, 20/20 goals y validación humana correcta.
 
-## Siguiente paso
+## Conclusion
 
-Releer GitHub, confirmar coherencia documental y, solo con autorización posterior del usuario, implementar las correcciones de Fase 2.
+Fase 2 queda `CONSEGUIDA`. No queda trabajo activo ni es necesario repetir la
+simulación larga, porque el último cambio solo afecta a posiciones declarativas
+del visualizador. Fase 4 pasa a ser la fase actual, sin ejecutar; 4A requiere
+preparación y autorización antes de cualquier cambio funcional.

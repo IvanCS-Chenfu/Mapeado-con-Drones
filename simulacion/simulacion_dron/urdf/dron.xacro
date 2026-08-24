@@ -65,7 +65,7 @@
             <geometry><box size="${fisico_cuerpo_dim}"/></geometry>
         </collision>
         <inertial>
-            <mass value="1.0"/>
+            <mass value="${fisico_cuerpo_masa}"/>
             <inertia ixx="${fisico_cuerpo_matriz_inercia.split()[0]}" iyy="${fisico_cuerpo_matriz_inercia.split()[1]}" izz="${fisico_cuerpo_matriz_inercia.split()[2]}" ixy="${fisico_cuerpo_matriz_inercia.split()[3]}" ixz="${fisico_cuerpo_matriz_inercia.split()[4]}" iyz="${fisico_cuerpo_matriz_inercia.split()[5]}"/>
         </inertial>
     </link>

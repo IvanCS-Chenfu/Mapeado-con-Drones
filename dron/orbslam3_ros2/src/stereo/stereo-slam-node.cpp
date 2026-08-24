@@ -2,6 +2,8 @@
 
 #include <opencv2/core/core.hpp>
 
+#include <sstream>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -31,6 +33,7 @@ StereoSlamNode::StereoSlamNode(
     this->declare_parameter<std::string>("drone_name", "drone_0");
     this->declare_parameter<std::string>("local_map_frame", "orb_map");
     this->declare_parameter<int>("delta_publish_period_frames", 30);
+    this->declare_parameter<bool>("debug_architecture_telemetry", false);
 
     drone_id_ =
         static_cast<uint32_t>(
@@ -44,6 +47,9 @@ StereoSlamNode::StereoSlamNode(
 
     delta_publish_period_frames_ =
         this->get_parameter("delta_publish_period_frames").as_int();
+
+    debug_architecture_telemetry_ =
+        this->get_parameter("debug_architecture_telemetry").as_bool();
 
     if (delta_publish_period_frames_ <= 0)
     {
@@ -72,6 +78,14 @@ StereoSlamNode::StereoSlamNode(
         this->create_publisher<geometry_msgs::msg::PoseStamped>(
             "orbslam/pose_local",
             rclcpp::QoS(20));
+
+    if (debug_architecture_telemetry_)
+    {
+        architecture_activity_pub_ =
+            this->create_publisher<std_msgs::msg::String>(
+                "/system_architecture/activity",
+                rclcpp::QoS(64).best_effort());
+    }
 
     // ============================================================
     // Servicio para snapshot completo del mapa local
@@ -211,6 +225,35 @@ StereoSlamNode::StereoSlamNode(
 }
 
 
+void StereoSlamNode::EmitArchitectureActivity(
+    const std::string& edge_id,
+    const std::string& interface_name)
+{
+    if (!debug_architecture_telemetry_ || !architecture_activity_pub_)
+    {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    const auto found = architecture_last_emit_.find(edge_id);
+    if (found != architecture_last_emit_.end() &&
+        now - found->second < std::chrono::milliseconds(100))
+    {
+        return;
+    }
+    architecture_last_emit_[edge_id] = now;
+    std_msgs::msg::String message;
+    std::ostringstream json;
+    json << "{\"kind\":\"architecture_activity\",\"edge_id\":\""
+         << edge_id << "\",\"interface\":\"" << interface_name
+         << "\",\"interface_kind\":\"topic\""
+         << "\",\"source\":\"orbslam3\",\"drone_id\":" << drone_id_
+         << ",\"namespace\":\"" << this->get_namespace()
+         << "\",\"timestamp\":" << this->get_clock()->now().seconds() << "}";
+    message.data = json.str();
+    architecture_activity_pub_->publish(message);
+}
+
+
 // ============================================================
 // Destructor
 // ============================================================
@@ -256,6 +299,13 @@ void StereoSlamNode::GrabStereo(
             e.what());
 
         return;
+    }
+
+    if (debug_architecture_telemetry_)
+    {
+        EmitArchitectureActivity(
+            "sim_to_orbslam_stereo",
+            "camera/left + camera/right");
     }
 
     // ============================================================

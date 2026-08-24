@@ -36,6 +36,7 @@ GROUP_SRC_DIR="$SRC_DIR/$GROUP"
 BUILD_BASE="$WS_DIR/build/$GROUP"
 INSTALL_BASE="$WS_DIR/install/$GROUP"
 COLCON_LOG_BASE="$WS_DIR/log/$GROUP"
+ORB_VOCABULARY_FILE="$BUILD_BASE/_phase2_resources/ORBvoc.txt"
 
 mkdir -p "$LOG_DIR"
 : > "$BUILD_LOG"
@@ -131,6 +132,14 @@ BUILD_CMD=(
   --symlink-install
   --cmake-target-skip-unavailable
 )
+
+if [ "$GROUP" = "dron" ] && [ "$PACKAGE" = "dron_individual" ]; then
+  "$SCRIPT_DIR/bootstrap_orbvoc.sh" --prepare "$ORB_VOCABULARY_FILE" || {
+    echo "[BUILD-ERROR] no se pudo preparar ORBvoc.txt completo" | tee -a "$BUILD_LOG"
+    exit 2
+  }
+  BUILD_CMD+=(--cmake-args "-DORB_VOCABULARY_FILE=$ORB_VOCABULARY_FILE")
+fi
 
 printf '[BUILD-CMD]'
 printf ' %q' "${BUILD_CMD[@]}"

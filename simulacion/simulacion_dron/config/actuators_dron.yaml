@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    # Réplica parcial declarada de dron/dron_individual/config/actuators.yaml.
+    # Estas son exactamente las claves de Dron que necesita el modelo simulado.
+    fisico.brazos.longitud: 0.25
+    fisico.brazos.grados: 45.0
+    actuadores.conversor.fuerza2torque: 0.02

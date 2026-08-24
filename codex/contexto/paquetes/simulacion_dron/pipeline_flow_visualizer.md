@@ -118,3 +118,10 @@ rg -n "F3P-FLOW-WEB-READY" simulacion_dron/src/visualizer/pipeline_flow_bridge.p
 
 El snapshot previo fue retirado en 3T después de validar que esta copia activa
 cubre topología, lifecycle, reconexión y apertura desde launch.
+
+## Gating de Fase 2
+
+`debug_pipeline_flow_web=false` deja dormidos bridge, HTTP/SSE, navegador y el
+productor del servidor. `GlobalMapServer` no crea
+`/global_mapping/flow_events` ni evalua detalles o serializacion especificos.
+`system_architecture` usa un canal propio y no depende de estos eventos.

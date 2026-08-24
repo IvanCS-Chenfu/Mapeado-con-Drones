@@ -1,32 +1,52 @@
 # Estado actual - resumen
 
-## Situación
+## Situacion
 
 ```text
-Fase 1: realizada
-Fase 2: ACTUAL — en cierre técnico
+Fase 2: CONSEGUIDA
 Fase 3: CONSEGUIDA
-Fases 4-5: sin hacer; contratos documentales refinados
-Prueba 197: smoke debug-off conseguido
-Prueba 198: conseguida por validación funcional/visual del usuario
+Fase actual: Fase 4, sin ejecutar
+Siguiente subfase: 4A, preparación no iniciada
+Trabajo funcional activo: ninguno
+Revision visual de prueba 200: confirmada correcta por el usuario
+Pendiente de Fase 2: ninguno
+Autorización funcional de Fase 4: pendiente
 ```
 
-## Fase 2
+## Entrega de Fase 2
 
-La separación física Dron/Servidor/Simulación y los builds aislados ya existen en el snapshot probado. El cierre pendiente corrige configuración cross-group, ownership/authority/deployment, `use_sim_time`, ORBvoc bootstrap, `usar_veltrap`, masa Xacro, observabilidad web y guardas/documentación.
+- grupos fisicos `dron`, `servidor` y `simulacion`;
+- builds y prefijos separados por grupo;
+- interfaces duplicadas de forma controlada;
+- configuracion por dominio y despliegue segun ADR 0009;
+- ORBvoc completo instalado desde un bootstrap fuera de `src`;
+- observabilidad lazy-gated segun ADR 0010;
+- `system_architecture` estatico/live separado de `pipeline_flow`;
+- guardas automaticas de arquitectura y documentacion.
 
-La prueba 198 se repetirá tras esas correcciones porque validó el snapshot anterior.
+## Validacion
 
-## Deudas deliberadamente aplazadas
+- build: 9/9 paquetes, un paquete por invocacion;
+- CTest: `lib_tray` 4/4, `orbslam3_multi` 9/9,
+  `orbslam3_server` 10/10 y `simulacion_dron` 9/9;
+- prueba 199: debug-off, 5/5 pasos y 4/4 goals;
+- prueba 200: debug completo, 14/14 pasos y 20/20 goals;
+- RViz2 y ambos web activos; guarda de recursos no disparada;
+- `system_architecture_bridge` cierra sin el `ValueError` de prueba 198.
+- layout final: CTest 9/9, guarda 15/15 y dos viewports inspeccionados.
 
-- Fiducial simulado GT: Fase 4.
-- Pose/velocidad GT funcional de `gen_tray` y `control_calcular_fuerzas`: Fase 5/5H.
-- Transporte futuro de calibración Dron→Servidor y configuración Server→Dron: documentado, no implementado en Fase 2.
+## Limitaciones
 
-## Observabilidad
+`dron_individual` conserva deuda legacy global de linters, aunque todos los
+archivos tocados pasan comprobaciones focales y rebuild. La prueba 200 presenta
+un traceback de cleanup de `gui_tray_multi` y el exit 255 conocido de Gazebo,
+ambos posteriores a `SIM-DONE`.
 
-`pipeline_flow` y `system_architecture` son independientes. Con debug false no debe existir trabajo específico ni en bridges ni en productores. `system_architecture` solo ilumina tráfico runtime con evidencia directa.
+## Referencias
 
-## Fuente de verdad
-
-Leer `00_CONTEXTO_COMPACTACION.md` y `pipeline_fase_2_RESUMEN.md` antes de ejecutar cambios.
+```text
+codex/pipeline/fase_2_separacion_paquetes/RESULTADO_FINAL_FASE_2.md
+codex/pipeline/fase_2_separacion_paquetes/historial/INDEX.md
+codex/contexto/decisiones/ADR_0009_configuracion_por_dominio_y_despliegue.md
+codex/contexto/decisiones/ADR_0010_observabilidad_web_debug_coste_cero.md
+```

@@ -209,3 +209,41 @@ def test_browser_opens_only_after_health_and_uses_a_fresh_url():
     assert "'-m',\n                'webbrowser'" not in multi_launch
     assert '[F3B-FLOW-BROWSER-OPEN]' in source
     assert '[F3B-FLOW-BROWSER-ERROR]' in source
+
+
+def test_pipeline_flow_producer_is_zero_work_gated_when_disabled():
+    server = (
+        SRC_ROOT / 'servidor/orbslam3_server/src/global_map_server.cpp'
+    ).read_text(encoding='utf-8')
+    multi_launch = (
+        PACKAGE_ROOT / 'launch/multi_dron.launch.py'
+    ).read_text(encoding='utf-8')
+    server_launch = (
+        SRC_ROOT / 'servidor/orbslam3_server/launch/global_orb_map_server.launch.py'
+    ).read_text(encoding='utf-8')
+
+    assert 'debug_pipeline_flow_events' in server
+    assert 'if (pipeline_flow_events_enabled_) {' in server
+    assert 'if (!pipeline_flow_events_enabled_ || !flow_publisher_)' in server
+    assert '#define F2_PIPELINE_FLOW_EVENT' in server
+    assert '#define F2_SECONDARY_FLOW_EVENT' in server
+    assert '#define F2_SECONDARY_LIFECYCLE_EVENT' in server
+    assert server.count('EmitFlowEvent(') == 2
+    assert server.count('EmitSecondaryFlowEvent(') == 2
+    assert server.count('EmitSecondaryLifecycleEvent(') == 2
+    assert 'if (pipeline_flow_events_enabled_) {' in server
+    assert (
+        "DeclareLaunchArgument(\n            'debug_pipeline_flow_events', "
+        "default_value='false')" in server_launch
+    )
+    assert (
+        "'debug_pipeline_flow_events': "
+        "LaunchConfiguration('debug_pipeline_flow_web')" in multi_launch
+    )
+
+
+def test_replay_launches_explicitly_enable_pipeline_flow_producer():
+    for path in (PACKAGE_ROOT / 'launch').glob('f3*_replay.launch.py'):
+        source = path.read_text(encoding='utf-8')
+        if "pipeline_flow_bridge.py" in source:
+            assert "'debug_pipeline_flow_events': 'true'" in source

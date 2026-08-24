@@ -1,32 +1,21 @@
 # Subfase 2D — Comprobar el funcionamiento completo tras la separación
 
-## Evidencia vigente y regresión que corresponde a 2D
-
-La **prueba 198 fue ejecutada y el usuario confirmó que funcionó correctamente**,
-incluida su valoración visual. Esta conclusión corrige cualquier auditoría externa que
-la marque como no ejecutada.
-
-El log 198 entregado es completo. Se conserva como evidencia pero no se lee
-directamente; cualquier comprobación técnica adicional debe obtenerse mediante un
-reducido específico.
-
-La prueba 198 valida el snapshot anterior a las correcciones de cierre. Después de
-modificar código/YAML/launch se ejecutará una regresión equivalente.
-
-El smoke con todos los debug en `false` debe endurecerse: además de comprobar que no
-arrancan RViz/web/navegadores, debe demostrar que los productores no generan ni
-serializan telemetría específica de `pipeline_flow`/`system_architecture`.
-
-La prueba visual con debug activo debe validar ambos grafos por separado y confirmar
-que cerrar cualquiera de ellos no afecta al pipeline.
-
 ## Estado
 
 ```text
-PARCIAL — evidencia pre-cambios conseguida
-Prueba 198 pasada por validación del usuario
-Pendiente: regresión equivalente después de las correcciones finales
+CONSEGUIDA
+Dependencias: 2A, 2B y 2C conseguidas
+Prueba 199: smoke debug-off conseguido
+Prueba 200: vuelta completa 14/14 pasos y 20/20 goals; revisión visual humana confirmada
 ```
+
+## Evidencia y alcance de la regresión
+
+La prueba 198 validó visualmente el snapshot previo al cierre. Las pruebas 199
+y 200 son la evidencia posterior a las correcciones: el smoke con debug
+desactivado confirma que no arrancan ni producen telemetría los visualizadores,
+y la vuelta oficial valida ambos grafos por separado y junto al pipeline. Los
+logs completos se conservan únicamente como entrada de los reductores.
 
 ## Objetivo técnico
 
@@ -199,7 +188,7 @@ número de drones: 2
 mundo: edificio/casa habitual
 comunicación: ROS 2 directa
 pipeline_flow: activado
-system_architecture: disponible en el snapshot actual; su semántica/coste se termina de corregir en 2F/2G
+system_architecture: no disponible todavía en 2D; se valida en 2F/2G
 navegador de pipeline_flow: activado
 RViz de debug: activado
 logs de Fase 3: activados

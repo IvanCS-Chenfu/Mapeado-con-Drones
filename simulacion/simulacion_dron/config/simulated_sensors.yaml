@@ -1,0 +1,9 @@
+/**:
+  ros__parameters:
+    # Parámetros exclusivos de sensores/plugins de Simulación.
+    sensores.ground_truth.publish_rate: 50.0
+    sensores.camara.porcentaje_estereo: 0.3
+    sensores.camara.publish_rate: 20.0
+    sensores.camara.width: 480
+    sensores.camara.height: 360
+    sensores.camara.mostrar_gazebo: "false"

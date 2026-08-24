@@ -1,70 +1,140 @@
-# 00 - Contexto de compactación
+# 00 - Contexto de compactacion
 
 ## Estado vivo
 
 ```text
-Fecha de checkpoint: 2026-08-24
-Fase activa: Fase 2 — separación Dron/Servidor/Simulación
-Fase 3: CONSEGUIDA
-Estado Fase 2: EN CIERRE TÉCNICO
-Acuerdo funcional de correcciones: CERRADO
-Autorización actual para código/YAML/launch: PENDIENTE
-Trabajo autorizado en este checkpoint: documentación y revisión de GitHub
-Dudas funcionales abiertas: ninguna
+Estado: Fase 2 CONSEGUIDA; Fase 3 CONSEGUIDA; Fase 4 ACTUAL SIN EJECUTAR
+Objetivo vigente: publicar el commit de cierre de Fase 2 y activar Fase 4
+Preparacion de Fase 4: NO_INICIADA
+Acuerdo de Fase 4 cerrado: no
+Autorizacion funcional de Fase 4: PENDIENTE
+Prueba acordada de Fase 4: ninguna todavia
+Dudas abiertas: ninguna
+Trabajo activo: si, commit y push documental
+Pendiente: publicar el cierre; preparar 4A solo tras nueva peticion
 ```
 
-## Evidencia ya disponible
+## Acuerdo ejecutado
 
-- 2A: estructura física Dron/Servidor/Simulación existente y dos copias de `orbslam3_msgs` validadas como idénticas en el snapshot probado.
-- 2B: 9/9 builds aislados terminaron correctamente, un paquete por invocación y bases `build/install/log` por grupo.
-- Tests relevantes: `lib_tray` 4/4, `orbslam3_multi` 9/9, `orbslam3_server` 10/10, `simulacion_dron` 9/9; `dron_individual` conserva deuda legacy de lint fuera del alcance funcional, con checks focales y rebuild correctos.
-- Prueba 197: smoke con defaults debug false, `success=true`, sin RViz/web y sin telemetría visual observada; cleanup Gazebo 255 posterior a `SIM-DONE` conocido.
-- Prueba 198: ejecutada; el usuario confirmó funcionamiento funcional y visual correcto. Su log completo se conserva pero no se lee directamente.
+```text
+mi_tfg se conserva como legacy fuera de los grupos
+ORB_SLAM3_MULTI y fase45_sandbox se retiraron
+orbslam3_msgs se duplica; Servidor es canonico y Dron replica exacta
+ADR 0009 gobierna ownership y replicas YAML
+cada build selecciona exactamente un paquete
+debug oficial: RViz2, pipeline_flow, system_architecture, navegadores,
+telemetria arquitectonica y logs F3 activos
+todos los flags conservan default false
+```
 
-La prueba 198 valida el snapshot **anterior** a las correcciones finales acordadas; después de implementarlas se repetirá una regresión equivalente.
+## Implementacion
 
-## Correcciones acordadas antes del cierre
+- grupos fisicos `dron`, `servidor` y `simulacion` con distribucion 5/3/1;
+- bases `build/install/log` independientes por grupo;
+- YAML por dominio, `use_sim_time` explicito y Xacro conectado a la masa configurada;
+- ORBvoc completo preparado en `build/dron/_phase2_resources` e instalado;
+- `pipeline_flow` lazy-gated antes de serializar;
+- `system_architecture` declarativo, estatico/live y con topic propio;
+- guarda de layout, interfaces, dependencias, config, paths, visualizers y docs.
 
-### Configuración y despliegue
+## VALIDACIÓN FINAL
 
-- Dron = caja negra.
-- Separar ownership semántico, autoridad/control y deployment source/profile.
-- Prohibir carga directa de YAML entre grupos.
-- Permitir réplicas parciales declaradas con claves exactas.
-- Permitir réplica completa únicamente como deployment profile declarado; `global_map` Servidor↔Simulación se conserva completo y con igualdad guardada.
-- `body_T_camera` es intrínseco Dron; transporte futuro Dron→Servidor mediante TF/calibración, no servicio nuevo en Fase 2.
-- Parámetro futuro controlado por Servidor y consumido por Dron: cliente Dron al arrancar → servicio Servidor → valor local.
-- Standalone Dron/Servidor: `use_sim_time=false`; Simulación: override `true`.
-- Eliminar `usar_veltrap` tras búsqueda global: `TrayAction.tipo_trayectoria` es la autoridad.
-- Corregir la masa Xacro para usar la masa configurada, no literal `1.0`.
-- Mantener el fiducial actual sin refactorizar; Fase 4 lo sustituirá.
-- Mantener GT de control por ahora; Fase 5/5H lo sustituirá.
-- ORBvoc normal = vocabulario completo; preparar bootstrap/preflight reproducible desde el recurso versionado. No sustituir silenciosamente por L5.
+```text
+build: 9/9 invocaciones correctas, un paquete por invocacion
+CTest: lib_tray 4/4, orbslam3_multi 9/9, orbslam3_server 10/10,
+       simulacion_dron 9/9
+rebuild de cierre: simulacion_dron 1/1; CTest 9/9
+dron_individual: deuda legacy global de linters; archivos tocados correctos
+guardas funcionales: todas correctas
+guarda final completa: 15 checks, 0 fallos
+layout: capturas 1440x900 y 820x1000 inspeccionadas sin solapes
+git diff --check: correcto
+```
 
-### Observabilidad
+Prueba 199:
 
-- `pipeline_flow` y `system_architecture` independientes.
-- Debug maestro false = sin bridge, navegador, HTTP/SSE, observers, publishers específicos, serialización ni generación de eventos.
-- La deuda actual de `pipeline_flow`: el bridge se apaga, pero `GlobalMapServer` todavía genera `/global_mapping/flow_events`; debe corregirse en productores.
-- `system_architecture`: paquetes como nodos; capas runtime/build/config/deployment; solo runtime ilumina; evidencia directa; evento desconocido no mapea a ninguna arista.
-- `system_architecture` tendrá telemetría ligera propia y no dependerá de `/global_mapping/flow_events`.
-- Con web=false queda totalmente dormido; web=true+telemetry=false permite solo grafo estático; web=true+telemetry=true permite live.
+```text
+smoke debug-off: 5/5 pasos, 4/4 goals, success=true, exit 0
+RViz/web 0 MiB, sin marcadores de debug especifico
+guard_triggered=false
+```
 
-### Herramientas
+Prueba 200, regresión equivalente a 198:
 
-- Logs completos solo para reductores; agentes nunca los abren.
-- Artefactos ROS en `build/install/log/<grupo>`.
-- `codex/archivos_auxiliares` permitido para evidencias, nunca dependencia runtime.
-- `run_simulation.sh`: conservar `setsid`, preparar entorno explícito y usar `bash -c` en vez de `bash -lc` salvo evidencia en contra.
+```text
+vuelta oficial: 14/14 pasos, 20/20 goals, success=true, exit 0
+RViz2, ambos bridges y navegadores activos
+system_architecture live abre con latest_sequence=1
+guard_triggered=false; minimo MemAvailable 3873.8 MiB
+bridges, RViz2, wrappers y servidor cierran limpiamente
+revision visual humana: confirmada correcta por el usuario el 2026-08-24
+```
 
-## system_architecture futuro
+Despues de `SIM-DONE`, `gui_tray_multi` emitio un traceback de shutdown de
+`rclpy` y Gazebo termino con el exit 255 conocido. No afectaron al escenario.
+El antiguo `ValueError` de cleanup de `system_architecture_bridge` no se
+reprodujo.
 
-Regla permanente: cualquier subfase que cambie paquetes, interfaces, relaciones cross-group, réplicas o deployment actualiza topología/metadata/tests y telemetría live si aplica. Referencias explícitas ya añadidas a 4E/4F/4H/4K y 5A/5B/5D/5E/5H/5I. En Fase 5, Servidor↔Dron cruza únicamente por `orbslam3`.
+## Fuente de verdad
 
-## Próximo paso
+```text
+codex/pipeline/fase_2_separacion_paquetes/RESULTADO_FINAL_FASE_2.md
+codex/pipeline/fase_2_separacion_paquetes/pipeline_fase_2_RESUMEN.md
+codex/pipeline/fase_2_separacion_paquetes/historial/INDEX.md
+codex/archivos_auxiliares/logs/prueba_199.reduced.log
+codex/archivos_auxiliares/logs/prueba_200.reduced.log
+```
 
-1. verificar que este cierre documental queda coherente en GitHub;
-2. recibir autorización del usuario;
-3. implementar las correcciones acordadas;
-4. guardas + builds aislados + tests + smoke debug-off + visualizadores separados + regresión equivalente a 198;
-5. actualizar historial/contexto y cerrar Fase 2.
+La auditoria contra `main` confirma que el commit publicado es `4424a586`.
+La implementacion sigue sus decisiones materiales, pero los contratos locales
+de 2C-2G deben reconciliar clausulas definitivas eliminadas durante el cierre.
+Plan autorizado: layout de referencia, guarda de posiciones, contratos 2C-2G,
+build/test/guardas y capturas desktop/viewport estrecho; sin simulacion larga.
+Layout implementado en `graph_layout.js`, cargado por `index.html` y aplicado
+por `app.js`. El test contractual comprueba cobertura de paquetes y relaciones
+espaciales sin fijar pixeles exactos.
+Contratos 2C-2G reconciliados con las decisiones definitivas publicadas; 2C
+vuelve a distinguir réplica parcial y `deployment profile` completo. Docs de
+`simulacion_dron` actualizados con el layout declarativo.
+Build siguiente: `./codex/herramientas/build_selected_packages.sh --group simulacion simulacion_dron`.
+Motivo: instalar el nuevo asset web y ejecutar la suite contractual del único
+paquete afectado, reutilizando los prefijos ya validados de Dron y Servidor.
+
+Build layout 2026-08-24: exit 0; `simulacion_dron` 1/1 correcto.
+Log: `codex/archivos_auxiliares/colcon_build.log`.
+Siguiente accion exacta: ejecutar CTest de `simulacion_dron` y las guardas.
+
+CTest intento 1: no ejecutado, exit 8 porque el sandbox impidio escribir
+`Testing/Temporary/LastTest.log` bajo `build/simulacion`; no es un fallo de test.
+CTest intento 2: 9/9 correctos, incluido `system_architecture_contract` con la
+nueva guarda de layout.
+Guarda completa intento 1: 14 checks correctos y 1 fallo de paths. CTest genero
+dos `__pycache__` dentro de `simulacion_dron`; no hay incumplimiento funcional.
+Artefactos retirados. Guarda completa intento 2: 15 checks, 0 fallos.
+Siguiente accion exacta: capturas web desktop y viewport estrecho, seguidas de
+inspeccion visual.
+
+Servidor estatico intento 1: no arranco; el sandbox bloqueo la apertura del
+socket local con `PermissionError`. Siguiente accion: repetir con permiso local.
+Servidor estatico intento 2: activo en `127.0.0.1:8765`.
+Chrome headless intento 1: exit 133 sin captura bajo sandbox.
+Chrome headless con permiso: capturas desktop 1440x900 y estrecha 820x1000
+generadas e inspeccionadas; contenedores completos, texto legible y sin solapes.
+Servidor temporal detenido limpiamente.
+Siguiente accion exacta: cierre documental y verificacion final de coherencia.
+
+Cierre documental aplicado. Guarda posterior a toda la documentacion: 15/15.
+Asset `graph_layout.js` instalado en el prefijo aislado de Simulacion. No quedan
+estados pendientes vigentes y `git diff --check` es correcto.
+Guarda tras el checkpoint final: 15/15, 0 fallos.
+Commit principal de cierre creado correctamente en `main`.
+Push intento 1: rechazado por `non-fast-forward`; `origin/main` contiene cambios
+nuevos y no se usara force push.
+Fetch correcto: remoto añade `63d677a` y `4424a58`, ambos documentales.
+Rebase completado sobre `origin/main`; 26 conflictos documentales resueltos con
+autorización explícita conservando las versiones finales ya reconciliadas.
+Guarda posterior al rebase: 15/15, 0 fallos.
+Siguiente accion exacta: comprobar diff/estado, enmendar checkpoint y hacer push.
+Fase 4 queda actual, pero ninguna subfase puede ejecutarse sin preparación y
+autorización explícitas.
+Guarda tras activar Fase 4: 15/15, 0 fallos.

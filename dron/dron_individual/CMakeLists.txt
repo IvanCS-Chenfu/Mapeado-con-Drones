@@ -39,6 +39,20 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
+set(ORB_VOCABULARY_FILE "" CACHE FILEPATH
+  "Ruta al ORBvoc.txt completo preparado fuera de src")
+if(NOT ORB_VOCABULARY_FILE OR NOT EXISTS "${ORB_VOCABULARY_FILE}")
+  message(FATAL_ERROR
+    "ORB_VOCABULARY_FILE debe apuntar al ORBvoc.txt completo; use build_selected_packages.sh")
+endif()
+file(SIZE "${ORB_VOCABULARY_FILE}" ORB_VOCABULARY_SIZE)
+if(ORB_VOCABULARY_SIZE LESS 100000000)
+  message(FATAL_ERROR "ORB_VOCABULARY_FILE no contiene el vocabulario completo")
+endif()
+install(FILES "${ORB_VOCABULARY_FILE}"
+  DESTINATION share/${PROJECT_NAME}/config/orbslam/vocabulary
+  RENAME ORBvoc.txt)
+
 rosidl_generate_interfaces(${PROJECT_NAME}
   "action/TrayAction.action"
 

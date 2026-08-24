@@ -1,60 +1,34 @@
 # Subfase 2F — Crear el diagrama arquitectónico estático y en vivo
 
-## Especificación definitiva de system_architecture
+## Especificación definitiva de `system_architecture`
 
-### Nivel del grafo
-Los nodos principales son **paquetes** agrupados en Dron/Servidor/Simulación.
-Ejecutables, nodos ROS, librerías, YAML y responsabilidades aparecen como metadata.
+- los nodos principales son paquetes agrupados en Dron, Servidor y Simulación;
+- ejecutables, librerías, YAML y responsabilidades viven como metadata;
+- las capas son `runtime`, `build/API`, `config/replica` y `deployment`;
+- solo una arista runtime con evidencia directa puede iluminarse;
+- un evento desconocido no se asigna a ninguna arista;
+- la telemetría usa eventos propios ligeros y muestreados, no imágenes, nubes o mapas;
+- `/global_mapping/flow_events` pertenece exclusivamente a `pipeline_flow`;
+- web, navegador y telemetría tienen gating independiente y default `false`;
+- el grafo estático funciona sin ROS 2 y el live recibe actividad mediante SSE.
 
-### Capas
-Distinguir `runtime`, `build/API`, `config/replica` y `deployment`.
-Solo `runtime` puede iluminarse por tráfico. Una dependencia estática no “late”.
+La topología vigente incluye cámaras Simulación a `orbslam3`, GT provisional a
+Dron y Servidor, control por `motor/*`, `AccionTrayectoria`, delta `OrbMap`,
+request/response de `GetOrbMap`, backpressure, nube/keyframes y observabilidad.
+No contiene el flujo futuro ficticio `orbslam3_to_dron`.
 
-### Regla de evidencia
-Una arista runtime se ilumina únicamente por evidencia directa o un evento semántico
-explícito del productor. No inferir actividad a partir de topics parecidos. Evento
-desconocido = ninguna arista.
-
-Corregir la topología actual, entre otros:
-- cámaras Simulación→`orbslam3`;
-- GT Simulación→`dron_individual` como provisional;
-- GT→Servidor como feed provisional del fiducial simulado;
-- eliminar `orbslam3_to_dron` como flujo funcional actual si solo representa una
-  arquitectura futura;
-- control cross-group por topics `motor/*`;
-- separar delta `OrbMap` del servicio `GetOrbMap` y reflejar dirección request/response;
-- añadir `AccionTrayectoria` Simulación→Dron;
-- conservar observabilidad/backpressure/cloud/keyframes donde sean interfaces reales.
-
-### Telemetría live
-No suscribirse a imágenes/nubes/mapas pesados para “mirar tráfico”. Los productores o
-consumidores emiten eventos ligeros y muestreados: `edge_id`, `drone_id`, timestamp,
-interfaz, contador/estado. El navegador recibe SSE ligero.
-
-No usar `/global_mapping/flow_events` como bus universal del grafo arquitectónico.
-`system_architecture` tendrá telemetría propia y no dependerá de `pipeline_flow`.
-
-### Debug y consumo
-- `debug_system_architecture_web=false`: nada específico del visualizador debe trabajar.
-- web=true + telemetry=false: se permite grafo estático, sin observación ROS.
-- web=true + telemetry=true: topología + actividad live.
-- browser solo controla apertura automática.
-Si web=false, telemetry=true accidental no debe activar productores.
-
-### UI
-Gris significa “declarado sin actividad reciente”, no error. Mostrar cuando sea útil
-última actividad, contador, dron y frecuencia reciente. Usar TTL corto para alta tasa y
-más largo para eventos esporádicos.
-
-### Futuro
-4E/4F/4H/4K y 5A/5B/5D/5E/5H/5I actualizarán explícitamente el grafo. La regla global
-del Pipeline Maestro cubre también Fases 6–9.
+La distribución visual coloca Simulación y Servidor en la franja superior y
+Dron en una franja inferior amplia. Las dependencias internas quedan debajo o
+encima de su consumidor para reducir cruces, manteniendo zoom, pan y tooltips.
 
 ## Estado
 
 ```text
-PARCIAL — herramienta existente
-Pendiente: corregir topología, metadata, evidencia live y gating de consumo
+CONSEGUIDA
+Dependencias: distribución, interfaces y launch estabilizados
+system_architecture: estático y live validados de forma aislada y en prueba 200
+pipeline_flow: independiente, lazy-gated y validado de forma aislada y en prueba 200
+layout final: composición superior/inferior validada en dos viewports
 ```
 
 ## Objetivo técnico

@@ -1,35 +1,8 @@
 # ADR 0009 - Configuracion por dominio y modo de despliegue
 
-## Decisión vigente: ownership, authority y deployment profile
-
-La decisión se amplía con tres conceptos independientes:
-1. **semantic ownership**: quién posee conceptualmente el dato;
-2. **authority/control**: quién decide su valor;
-3. **deployment source/profile**: desde qué copia local lo carga un despliegue.
-
-Dron es caja negra. Un YAML ROS no distribuye parámetros remotamente.
-
-Réplicas:
-- accidental/semánticamente duplicada: prohibida;
-- parcial declarada: permitida con claves y regla de igualdad;
-- completa declarada: permitida solo para un deployment profile justificado y guardado.
-`global_map` Servidor↔Simulación es una réplica completa deliberada y se mantiene.
-
-Contratos futuros:
-- valor controlado por Servidor y consumido en Dron: cliente Dron al arrancar → servicio
-  de configuración Servidor → valor local Dron;
-- intrínseco Dron requerido por Servidor (`body_T_camera`): TF o contrato de calibración
-  Dron→Servidor.
-No se implementan estos servicios en Fase 2 si no existe necesidad actual.
-
-Reloj:
-- standalone Dron/Servidor false;
-- Simulación hace override true.
-Defaults C++ son fallback/tipo, no perfiles operacionales ocultos.
-
 ## Estado
 
-Aceptada para preparar la separacion de Fase 2.
+Aceptada y aplicada en Fase 2 (2026-08-24).
 
 ## Contexto
 
@@ -74,15 +47,16 @@ perfil operacional oculto.
 - el servidor real y la simulacion son desplegables de forma independiente;
 - existe duplicacion de datos controlada por una prueba de sincronizacion;
 - CMake debe instalar los YAML de cada paquete;
-- Fase 2 podra mover fisicamente paquetes sin volver a decidir ownership;
+- Fase 2 movio fisicamente los paquetes sin volver a decidir ownership;
 - un parametro puede pertenecer al dron aunque hoy lo consuma el servidor.
 
-`body_T_camera` es el caso principal: representa calibracion del dron. El
-servidor lo consume temporalmente para el fiducial simulado, pero Su transporte futuro será mediante TF o un contrato de calibración Dron→Servidor; no se implementa ese transporte en Fase 2 si no es necesario para el comportamiento actual.
+`body_T_camera` representa calibracion del dron. Cada despliegue conserva una
+replica parcial local verificada; el transporte remoto por TF o por un contrato
+de calibracion permanece como evolucion futura.
 
 ## Fuera de alcance
 
 - distribuir parametros remotamente mediante services o actions;
 - cambiar algoritmos o valores validados;
-- mover ya los paquetes a los tres directorios definitivos;
+- redisenar de nuevo los tres directorios definitivos;
 - tratar los parametros exclusivos de Gazebo como configuracion de servidor.
