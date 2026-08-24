@@ -4,14 +4,14 @@
 
 ```text
 Estado: Fase 2 CONSEGUIDA; Fase 3 CONSEGUIDA; Fase 4 ACTUAL SIN EJECUTAR
-Objetivo vigente: publicar el commit de cierre de Fase 2 y activar Fase 4
+Objetivo vigente: ninguno; cierre publicado y Fase 4 activada
 Preparacion de Fase 4: NO_INICIADA
 Acuerdo de Fase 4 cerrado: no
 Autorizacion funcional de Fase 4: PENDIENTE
 Prueba acordada de Fase 4: ninguna todavia
 Dudas abiertas: ninguna
-Trabajo activo: si, commit y push documental
-Pendiente: publicar el cierre; preparar 4A solo tras nueva peticion
+Trabajo activo: no
+Pendiente: preparar 4A solo tras nueva peticion
 ```
 
 ## Acuerdo ejecutado
@@ -134,7 +134,8 @@ Fetch correcto: remoto añade `63d677a` y `4424a58`, ambos documentales.
 Rebase completado sobre `origin/main`; 26 conflictos documentales resueltos con
 autorización explícita conservando las versiones finales ya reconciliadas.
 Guarda posterior al rebase: 15/15, 0 fallos.
-Siguiente accion exacta: comprobar diff/estado, enmendar checkpoint y hacer push.
+Commit principal publicado: `d189b0e` en `origin/main`.
+Siguiente accion exacta: ninguna; esperar preparación solicitada de 4A.
 Fase 4 queda actual, pero ninguna subfase puede ejecutarse sin preparación y
 autorización explícitas.
 Guarda tras activar Fase 4: 15/15, 0 fallos.
