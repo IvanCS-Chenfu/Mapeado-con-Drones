@@ -8,11 +8,28 @@ terminal son opcionales mediante `config/debug.yaml`. Pasa
 `config/global_map/` al launch del servidor y solo sobrescribe identidad del
 despliegue y opciones explicitas de record/log.
 
+Desde 4B lanza tambien `fiducial_spawner.py` cuando
+`spawn_fiducials:=true` (default). El nodo carga
+`config/fiducial_objects.yaml` y `config/fiducial_rendering.yaml`, espera
+`/spawn_entity` y publica `/fiducial_spawn_ready` solo tras crear los tres
+objetos. El escenario puede esperar este topic antes de mover drones.
+
+Desde 4D pasa `config/fiducial_objects.yaml` al `fiducial_config_server` y
+propaga `debug_fiducial_visualization` y
+`debug_fiducial_display_seconds` a todos los wrappers. Sus defaults son
+`false` y `5.0`; el debug no altera la deteccion ni la publicacion del SLAM.
+
+Desde 4F, `config/global_map/runtime.yaml` incluye
+`fiducial_pending_capacity_per_drone=10`. Con
+`debug_system_architecture_web=true` y
+`debug_architecture_telemetry=true`, la arista de batches wrapper→Servidor se
+activa en live; si telemetry es false el grafo permanece estatico.
+
 Referencia:
 
 ```text
 simulacion_dron/launch/multi_dron.launch.py
-rg -n "global_map_config_dir|rawdb_|pipeline_flow|sparse_global_rviz" \
+rg -n "fiducial_spawner|spawn_fiducials|global_map_config_dir|pipeline_flow" \
   simulacion_dron/launch/multi_dron.launch.py
 ```
 
@@ -34,6 +51,8 @@ fase3_rviz2=false
 fase3_grafo_web=false
 fase3_abrir_navegador_web=false
 fase3_logs_terminal=false
+debug_fiducial_visualization=false
+debug_fiducial_display_seconds=5.0
 ```
 
 Con `fase3_logs_terminal=false`, el servidor usa nivel ROS `ERROR`: se
@@ -45,9 +64,27 @@ Otros argumentos de rendimiento/operacion:
 ```text
 launch_gazebo_gui=true
 launch_mission_gui=true
+spawn_fiducials=true
 drone_start_stagger_sec=8.0
 orb_vocabulary_path=<ORBvoc.txt completo>
 ```
+
+En la prueba 201 se mantuvieron Gazebo GUI y RViz2, mientras
+`pipeline_flow`, `system_architecture`, navegadores y telemetria arquitectonica
+quedaron desactivados mediante sus argumentos de launch.
+
+La prueba 210 completo la trayectoria tipica con ambos grafos y 68/68 matches.
+La prueba 211 repitio solo el primer tramo con telemetria arquitectonica activa:
+ambos grafos `mode=live` y 18/18 matches.
+
+El escenario tipico de Fase 4 recorre las aristas del cuadrado ±10 y contiene
+paradas en los cuatro puntos medios `(0,±10)` y `(±10,0)`. Su copia auxiliar
+de ejecucion debe permanecer identica al YAML instalado.
+
+Las seis transiciones que entran, permanecen o salen de `±180°` usan yaw
+relativo: dron 2 `+90/0/+90` y dron 1 `-90/0/-90`. Posicion y resto de yaw
+siguen absolutos. Esto evita que el controlador elija la vuelta equivalente de
+270/360 grados al cruzar la discontinuidad angular.
 
 Con `launch_gazebo_gui=false`, el launch inicia `gzserver` directamente. Cada
 grupo de dron posterior al primero se envuelve en un `TimerAction` con retardo

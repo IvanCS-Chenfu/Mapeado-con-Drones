@@ -23,7 +23,7 @@ orbslam3_multi::FiducialObservation MakeObservation()
   observation.fiducial_id = 2;
   observation.fiducial_visit_id = 11;
   observation.world_T_camera_target = MakePose(10.0);
-  observation.source = "simulated_gt";
+  observation.source = "visual_fiducial";
   return observation;
 }
 

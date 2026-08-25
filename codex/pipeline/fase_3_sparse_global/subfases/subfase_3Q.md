@@ -3,10 +3,14 @@
 ## Estado
 
 ```text
-CONSEGUIDA PARA EL CIERRE DE FASE 3; MEJORA FUTURA DOCUMENTADA
+ACTUAL; REABIERTA PARA DIAGNOSTICAR Y CORREGIR OPTIMIZACIONES
 ```
 
 ## Lectura obligatoria antes de retomar 3Q
+
+La reentrada ha sido solicitada tras cerrar Fase 4. Esto fija 3Q como subfase
+actual, pero no autoriza todavía cambios funcionales: primero se debe preparar
+el diagnostico, acordar alcance/prueba y recibir autorizacion explicita.
 
 Este contrato no contiene por si solo toda la evidencia necesaria para cambiar
 3Q. Antes de planificar o implementar cualquier correccion se debe leer:
@@ -26,6 +30,21 @@ si en pruebas futuras reaparecen loops repetitivos, dobles paredes,
 optimizaciones innecesarias o ventanas excesivamente costosas, se volvera a
 este contrato para revisar seleccion multi-region, umbrales y admision previa
 al solver.
+
+## Reentrada obligatoria desde la prueba 213
+
+La prueba 213 de Fase 4 debe revisarse de nuevo en 3Q. La mision y la cadena
+fiducial terminaron, pero quedaron derivas visibles que los loops no corrigieron.
+Hubo seis commits tempranos y nueve rechazos posteriores: siete por corredor
+hard y dos por degradar loops previos. Las propuestas tardias usaban ventanas
+de 288-313 KFs; varias reducian mucho el error loop, pero introducian hasta
+0.13 m de exceso de corredor y algunas eran ambiguas, con hasta 29 competidores.
+
+Posible causa a comprobar: seleccion loop ambigua y ventanas grandes combinadas
+con un validator de corredor demasiado estricto. Al retomar 3Q se debe reproducir
+213 y correlacionar cada deriva con su propuesta antes de ajustar seleccion,
+ventana o tolerancia, sin debilitar los fiduciales hard. El detalle numerico
+queda en `historial_3Q_RESUMEN.md`.
 
 3Q convierte `OptimizationEvidence` en una rama real de la misma `LoopTask`
 BAJA y generaliza la optimizacion fiducial para que ambas rutas consuman un
@@ -135,6 +154,10 @@ registrado sin ocultar los intentos anteriores.
 Conclusion agregada: `CONSEGUIDA PARA EL CIERRE DE FASE 3`. La prueba 194
 permanece como fallo historico y punto de aprendizaje; la prueba 195 no
 reproduce la mala optimizacion final y el usuario confirma RViz2 perfecto.
+
+La prueba 213 se incorpora como nueva reentrada obligatoria: completa la mision,
+pero la calidad loop no queda validada y las derivas observadas exigen revisar
+los rechazos posteriores a los corredores fiduciales.
 
 ## Posible mejora futura no implementada
 

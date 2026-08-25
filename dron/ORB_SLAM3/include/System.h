@@ -100,16 +100,29 @@ public:
         BINARY_FILE=1,
     };
 
-    // ============================================================
-    // FASE 4C - Snapshot mínimo del último KeyFrame de Tracking.
-    // Cambio aditivo: no modifica la política de creación de KFs.
-    // ============================================================
-    struct LastKeyFrameInfo
+    struct KeyFrameCreationEvent
     {
-        bool valid = false;
+        bool created = false;
         uint64_t keyframe_id = 0;
         uint64_t source_frame_id = 0;
         double timestamp = 0.0;
+    };
+
+    struct EffectiveCameraModel
+    {
+        bool valid = false;
+        bool is_rectified = false;
+        uint32_t image_width = 0;
+        uint32_t image_height = 0;
+        cv::Mat camera_matrix;
+        cv::Mat distortion_coefficients;
+    };
+
+    struct StereoTrackingReceipt
+    {
+        KeyFrameCreationEvent keyframe_event;
+        cv::Mat image_left_effective;
+        EffectiveCameraModel camera;
     };
 
 public:
@@ -120,13 +133,14 @@ public:
     // Proccess the given stereo frame. Images must be synchronized and rectified.
     // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
     // Returns the camera pose (empty if tracking fails).
-    Sophus::SE3f TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp, const vector<IMU::Point>& vImuMeas = vector<IMU::Point>(), string filename="");
+    Sophus::SE3f TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight,
+                            const double &timestamp,
+                            const vector<IMU::Point>& vImuMeas = vector<IMU::Point>(),
+                            string filename="",
+                            StereoTrackingReceipt* receipt=nullptr);
 
-    // FASE 4C: copia por valor de la identidad del último KF mantenido por
-    // Tracking. El wrapper la consulta inmediatamente antes y después de
-    // TrackStereo para saber de forma determinista si ESA llamada creó un KF.
-    // No se expone el puntero interno al wrapper.
-    LastKeyFrameInfo GetLastKeyFrameInfo();
+    bool UsesInternalStereoRectification() const;
+    bool UsesInternalStereoResize() const;
 
     // Process the given rgbd frame. Depthmap must be registered to the RGB frame.
     // Input image: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.

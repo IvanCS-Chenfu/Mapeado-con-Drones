@@ -7,15 +7,29 @@ Leer primero `00_CONTEXTO_COMPACTACION.md` y
 
 ```text
 Fase 2: CONSEGUIDA
-Fase actual: Fase 4, sin ejecutar
-Siguiente subfase: 4A, pendiente de preparación y autorización
-Fase 3: CONSEGUIDA
-3B-3Q: CONSEGUIDAS
+Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
+4A: CONSEGUIDA
+4B: CONSEGUIDA
+4C: CONSEGUIDA
+4D: CONSEGUIDA
+4E: CONSEGUIDA
+4F: CONSEGUIDA
+4G+4H: CONSEGUIDAS
+4I: APLAZADA como regresion opcional futura
+Subfase actual: 3Q, reabierta por errores de optimizacion
+Preparacion 3Q: NO_INICIADA; autorizacion funcional PENDIENTE
+Fase 3: cierre previo conseguido; reentrada correctiva activa en 3Q
+3B-3P: CONSEGUIDAS; 3Q: A REVISAR
 3R: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
 3S: CONSEGUIDA; PERFIL DEBUG Y MODO SILENCIOSO VALIDADOS
 3T: CONSEGUIDA; LIMPIEZA, CONFIGURACION Y HANDOFF VALIDADOS
-Ultima ejecucion: 196 valida el perfil 3S completamente false
+Ultima ejecucion: 211 correcta, grafos live y 18/18 batches sincronizados
 ```
+
+4C+4D entregan el recibo exacto, servicio, worker, detector y visualizador
+aislado validados hasta la prueba 208. 4E+4F añaden el batch ROS y su
+sincronizacion exacta en `RawMapDatabase`: la prueba tipica 210 completo 68/68
+matches y la 211 confirmo ambos grafos live con 18/18 matches adicionales.
 
 ## Arquitectura
 

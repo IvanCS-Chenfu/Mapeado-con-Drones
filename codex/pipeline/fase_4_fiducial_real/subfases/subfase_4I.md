@@ -1,195 +1,202 @@
-# Subfase 4I — Revisitas visuales y optimización fiducial
+# Subfase 4I — Regresión con perfil de cámara simulada equivalente a ESP32-CAM
 
 ## Estado
 
 ```text
-sin hacer
+APLAZADA — regresión opcional futura, fuera del cierre actual de Fase 4
 ```
 
 ## Dependencia
 
-`4H`.
+`4H` conseguida con la cámara baseline de simulación.
 
-## Objetivo técnico
+## Objetivo
 
-Conectar las observaciones visuales posteriores al primer anchor con la lógica de revisita ya existente. Un residual pequeño debe validarse sin crear una optimización innecesaria; un residual alto y coherente debe crear una tarea de optimización fiducial prioritaria, manteniendo los mecanismos de validación, commit y rollback de la Fase 3.
+Comprobar que la solución visual no depende de una cámara simulada demasiado favorable. Se sustituirá/configurará la cámara de Gazebo con un perfil cuyas especificaciones correspondan a la **ESP32-CAM barata que se elija como hardware objetivo** y se repetirá la cadena completa de Fase 4.
 
-Los fiduciales siguen siendo restricciones absolutas y no loops.
+Esta subfase sustituye la antigua validación física 4L. No requiere aún comprar/imprimir/montar hardware real.
 
-## Comportamiento esperado
+El módulo y el modo exactos de ESP32-CAM se decidirán al preparar 4I; no se
+anticipan ni se inventan durante los bloques anteriores.
 
-```text
-revisit visual
-  -> calcular target world_T_camera desde tag/cubo
-  -> comparar con pose global estimada del mismo KF
-  -> residual bajo  -> revisit OK, sin task
-  -> residual alto  -> FiducialOptimizationTask
-```
+## Regla fundamental
 
-Varias caras del mismo cubo en un único KF constituyen una sola visita lógica a ese cubo. Varias observaciones de cubos diferentes pueden producir restricciones independientes, pero nunca deben duplicar una misma task por reentrega del batch.
+4I **no es una subfase para parchear el sistema hasta que pase**.
 
-## Contexto obligatorio a leer
-
+Si al cambiar la cámara aparece un problema:
 
 ```text
-AGENTS.md
-codex/contexto/00_CONTEXTO_COMPACTACION.md
-codex/contexto/CONTEXTO_MINIMO_ACTUAL.md
-codex/contexto/08_POLITICA_TOKENS_DOCUMENTACION.md
-codex/pipeline/PIPELINE_MAESTRO.md
-codex/pipeline/fase_4_fiducial_real/pipeline_fase_4_RESUMEN.md
-codex/pipeline/fase_4_fiducial_real/pipeline_fase_4.md
+identificar subfase propietaria
+        ↓
+volver a 4A/4B/4C/4D/4E/4F/4G/4H
+        ↓
+corregir con causa y prueba
+        ↓
+repetir regresiones
+        ↓
+volver a 4I
 ```
 
+El historial debe registrar dónde estaba la limitación real.
 
-Además:
+## Especificaciones de cámara
+
+No inventar valores genéricos “ESP32-CAM”. Antes de implementar se debe fijar el módulo/cámara objetivo real y obtener de datasheet/medición, como mínimo:
 
 ```text
-subfases/subfase_4H.md
-src/orbslam3_multi/include/orbslam3_multi/fiducial_anchor_manager.hpp
-src/orbslam3_multi/include/orbslam3_multi/fiducial_optimization_task.hpp
-src/orbslam3_multi/src/fiducial_anchor_manager.cpp
-src/orbslam3_multi/include/orbslam3_multi/optimization_manager.hpp
-src/orbslam3_server/src/global_map_server.cpp
+resolución utilizada
+aspect ratio
+FOV horizontal/vertical o focal equivalente
+fx, fy, cx, cy derivados/calibrados
+frame rate objetivo
+modelo de distorsión si se simula
+exposición/ruido/blur si Gazebo permite modelarlo de forma razonable
 ```
 
-Leer los resúmenes/historial reales de las subfases de Fase 3 que implementaron revisitas y worker secundario antes de tocar su lógica.
+Si el hardware objetivo concreto usa más de un modo de resolución, elegir el modo que se pretenda usar en el futuro y documentarlo.
 
-## Diagnóstico de partida
+## Perfil de simulación
 
-El backend actual ya dispone de:
-
-- umbrales de traslación/rotación/yaw;
-- detección de revisit;
-- `FiducialOptimizationTask`;
-- deduplicación por submapa/fiducial;
-- hard fiducial keyframes;
-- cola/worker secundario y validación posterior.
-
-El problema de Fase 4 no es reescribir esa arquitectura, sino sustituir su observación GT por la observación visual normalizada de 4H y definir correctamente la semántica multi-tag del mismo KF.
-
-## Archivos permitidos a modificar
+Crear un perfil claro y seleccionable, por ejemplo conceptualmente:
 
 ```text
-src/orbslam3_multi/include/orbslam3_multi/fiducial_anchor_manager.hpp
-src/orbslam3_multi/src/fiducial_anchor_manager.cpp
-src/orbslam3_multi/include/orbslam3_multi/fiducial_optimization_task.hpp
-src/orbslam3_multi/src/optimization_manager.cpp            # solo si la nueva observación lo exige
-src/orbslam3_server/src/global_map_server.cpp
-src/orbslam3_server/launch/global_orb_map_server.launch.py
-codex/contexto/paquetes/orbslam3_multi/
-codex/contexto/paquetes/orbslam3_server/
+camera_profile = baseline
+camera_profile = esp32cam_target
 ```
 
-## Archivos prohibidos
+No duplicar parámetros semánticos sin guardas. Respetar ownership de Fase 2: la cámara física/calibración pertenece al Dron; la forma de simularla pertenece al deployment de Simulación. Si se requieren réplicas parciales, declararlas según ADR 0009.
+
+## Qué se repite “subfase a subfase”
+
+### Regresión 4A/4B
+
+La geometría de tags/objetos no cambia. Verificar que con la nueva FOV/resolución los objetos siguen apareciendo donde corresponde y que la prueba no depende de haber movido artificialmente fiduciales.
+
+### Regresión 4C
+
+Confirmar que cambiar resolución/FPS no rompe:
+
+- rectificación/resize;
+- imagen exacta de KF;
+- evento one-shot;
+- timestamps/frame IDs.
+
+### Regresión 4D
+
+Es el punto más sensible:
+
+- tasa de detección;
+- tamaño aparente de tag;
+- reprojection error;
+- ambigüedad IPPE;
+- tiempo por KF;
+- backlog/drop de cola;
+- intrínsecos correctos para la imagen efectiva.
+
+### Regresión 4E
+
+Confirmar que el cambio de cámara no altera identidad ni contrato; puede cambiar tag_count/quality, no la semántica del mensaje.
+
+### Regresión 4F
+
+Confirmar sincronización bajo posibles latencias diferentes de worker.
+
+### Regresión 4G
+
+Reevaluar distribución de `quality_score`, coherencia multicara y la zona segura. El perfil inicial 1–5 m se mantiene, pero si la cámara objetivo demuestra que a cierta distancia la pose deja de ser fiable, cualquier ajuste debe justificarse con datos y quedar en 4D/4G, no como excepción escondida en 4I.
+
+### Regresión 4H
+
+Repetir prueba integral multi-dron sin GT funcional.
+
+## Zona configurada inicialmente a 1–5 m con ESP32-CAM
+
+No se amplía el rango solo porque se detecte un tag a más de 5 m. Detectar ID y estimar una pose suficientemente fiable para un anchor son problemas distintos.
+
+Tampoco se cambia `size_m` para corregir escala. `size_m` sigue siendo el lado físico real/configurado del tag.
+
+Si la cámara no permite pose suficientemente estable en parte de 1–5 m, se documenta y se decide de forma explícita si:
+
+- ajustar detector;
+- ajustar tamaño físico futuro de tags;
+- reducir la zona válida;
+- cambiar modo de cámara;
+
+pero siempre mediante la subfase propietaria y repitiendo 4H.
+
+## Matriz de pruebas recomendada
+
+Para al menos un tag y después escenario completo:
 
 ```text
-ORB_SLAM3/
-ORB_SLAM3_ROS2/
-src/simulacion_dron/
-legacy optimizers no usados
+distancias aproximadas: cerca / media / límite superior
+vistas: frontal / oblicua
+movimiento: estacionario / movimiento normal
+casos: 1 tag / multicara / múltiples objetos
 ```
 
-## Funciones, clases o nodos que hay que localizar
+No es necesario fijar todas las distancias exactas antes de conocer FOV/resolución reales.
+
+## Métricas comparativas baseline vs ESP32
+
+Registrar:
 
 ```text
-FiducialAnchorManager::RegisterFiducialObservation
-FiducialOptimizationTask
-GetPendingFiducialOptimizationTasks
-CompleteFiducialOptimizationTask
-AcceptOptimizedFiducialTask
-secondary task ordering/worker en orbslam3_server
-pose graph builder fiducial constraints
+KF totales
+KF con detección
+ratio detección
+reprojection_error p50/p95
+quality_score p50/p95
+detect_ms p50/p95
+worker queue max/drop
+batches y bytes
+anchors correctos
+revisitas/tasks
+tracking stability
 ```
 
-## Cambios requeridos
+El objetivo es saber **qué empeora y por qué**, no solo obtener un PASS/FAIL.
 
-1. Alimentar la lógica de residual con `world_T_camera_target` visual de 4H.
-2. Mantener los umbrales existentes como baseline; no retocarlos hasta medir la nueva fuente visual.
-3. Definir `visit_id` funcionalmente mediante el KF exacto: dos caras del mismo cubo en el mismo KF no son dos revisitas.
-4. Deduplicar por `(submap, object_id, local_keyframe_id)` o semántica equivalente antes de crear tasks repetidas por múltiples tags del mismo cubo.
-5. Si el mismo KF ve varios cubos, calcular residual por objeto. No fusionar a ciegas restricciones incompatibles.
-6. Mantener la política: residual bajo no crea task; residual alto crea/actualiza una `FiducialOptimizationTask` según las reglas ya existentes.
-7. Conservar prioridad de tareas fiduciales sobre loops sin interrumpir una tarea ya activa.
-8. Mantener hard fiducials y restricciones del pose graph, adaptando solo los campos que antes procedían de GT.
-9. Mantener commit seguro, validación post-apply y rollback existentes.
-10. Registrar `object_id`, `tag_id` representativo, KF, residual y origen `visual_fiducial` en logs de revisit/task.
-11. No usar GT para clasificar residual; GT puede calcularse después como métrica externa.
-12. Añadir test donde un residual alto simulado se obtenga modificando la observación/configuración controladamente, no alterando GT funcional.
+## Fallos y retorno a subfases
 
-## Cambios prohibidos
-
-- No convertir fiducial en loop candidate.
-- No aumentar thresholds para hacer pasar las pruebas.
-- No desactivar post-apply/rollback.
-- No generar una task por cada cara del mismo cubo en el mismo KF.
-- No interrumpir una tarea activa para ejecutar otra fiducial.
-- No reescribir el worker secundario si la interfaz existente basta.
-- No leer GT dentro del manager.
-
-## Paquetes a compilar
-
-```bash
-./codex/herramientas/build_selected_packages.sh orbslam3_multi orbslam3_server
-```
-
-Ejecutar también los tests unitarios existentes del backend relacionados con pose store, task ordering y optimizer cuando estén disponibles.
-
-## Pruebas Gazebo requeridas
-
-### Prueba 1 — Revisit con residual pequeño
-
-Primero anclar visualmente un submapa. Volver a observar el mismo cubo desde otro KF con geometría coherente. Debe aparecer revisit OK y no crear una task.
-
-### Prueba 2 — Revisit con error real controlado
-
-Introducir una discrepancia reproducible en la pose configurada/observación de prueba suficientemente grande para superar el umbral, sin usar GT como fuente. Debe crearse una task fiducial prioritaria.
-
-### Prueba 3 — Dos caras del mismo cubo en revisit
-
-El mismo KF ve dos tags del mismo objeto. Debe existir una sola visita lógica y no duplicarse la task.
-
-### Prueba 4 — Commit/rollback
-
-Ejecutar la ruta de optimización y comprobar que se conservan validaciones y rollback de Fase 3. Una solución inválida no puede quedar aplicada.
-
-## Patrones de reducción de logs
+Ejemplos:
 
 ```text
-FID-REVISIT|FID-TASK|FID-POSE-ERROR|visual_fiducial|secondary_queue|OPT|POST-APPLY|ROLLBACK|object_id|keyframe_id|ERROR|FATAL|Segmentation fault|Killed
+no detecta tag pequeño       -> 4D / quizá 4A tamaño futuro
+K incorrecta tras resize     -> 4C/4D
+worker se acumula            -> 4D
+poses multicara divergen     -> 4D/4G
+muchos candidatos fuera rango-> 4G / diseño de misión futuro
+anchor incorrecto            -> 4G/4H
 ```
 
-Incluir también los marcadores legacy vigentes de Fase 3 si siguen siendo los únicos emitidos; renombrarlos solo con justificación y actualizando documentación.
+Cada corrección exige volver a ejecutar los tests afectados de cámara baseline para no romper lo que ya funcionaba.
+
+## No incluido
+
+- cámara física real;
+- impresión de AprilTags;
+- ESP32 transmitiendo vídeo por Wi‑Fi/Bluetooth;
+- dron físico;
+- diseño de tareas Fase 6;
+- pose global del cuerpo Fase 5.
+
+Estos puntos pueden abordarse más adelante sin falsificar que Fase 4 ya realizó validación física.
 
 ## Criterio de éxito
 
-1. Build y tests backend pasan.
-2. Residual pequeño no crea optimización.
-3. Residual alto crea task fiducial.
-4. Dos caras del mismo cubo/KF no duplican revisit/task.
-5. Prioridad, worker, hard-fiducial, validación y rollback se conservan.
-6. Ninguna decisión funcional usa GT.
-7. Los logs identifican el objeto y KF visual de origen.
+1. perfil ESP32-CAM objetivo reproducible y documentado;
+2. intrínsecos/configuración coherentes con la imagen entregada al detector;
+3. cadena 4C–4H sigue funcionando;
+4. prueba integral multi-dron sin GT funcional vuelve a pasar, o cualquier limitación se corrige en su subfase y después pasa;
+5. rendimiento/fiabilidad quedan medidos;
+6. no se maquilla el resultado cambiando `size_m`, GT o thresholds sin evidencia;
+7. documentación final indica claramente que la validación es **simulada con especificaciones ESP32-CAM**, no hardware físico.
 
-## Criterio de fallo o parcial
+## Relación con el cierre de Fase 4
 
-- `NO CONSEGUIDA`: revisitas visuales no llegan al optimizer, tasks duplicadas por cara o GT sigue decidiendo residual.
-- `PARCIAL`: clasificación residual funciona pero falla commit/rollback o deduplicación multi-tag.
-- `BLOQUEADA`: una invariancia de Fase 3 impide aceptar `world_T_camera_target` sin rediseño mayor no aprobado.
-
-## Riesgos
-
-- cambiar thresholds antes de caracterizar ruido visual;
-- confundir varias caras con varias visitas;
-- crear varias tasks simultáneas redundantes por un mismo KF;
-- degradar la política del worker secundario.
-
-## Documentación a actualizar
-
-```text
-codex/contexto/paquetes/orbslam3_multi/
-codex/contexto/paquetes/orbslam3_server/
-codex/contexto/01_ESTADO_ACTUAL.md si cambia el estado real
-codex/pipeline/fase_4_fiducial_real/historial/por_subfase/historial_4I.md
-codex/pipeline/fase_4_fiducial_real/historial/por_subfase/historial_4I_RESUMEN.md
-```
+La Fase 4 quedó cerrada por decisión del usuario tras conseguir 4A-4H y validar
+la sustitución funcional del fiducial GT por visión en simulación. 4I se
+conserva para otro momento como regresión adicional con una cámara objetivo
+simulada; no es una deuda ni condiciona el cierre ya aceptado. Una futura
+validación física seguirá siendo un trabajo separado.

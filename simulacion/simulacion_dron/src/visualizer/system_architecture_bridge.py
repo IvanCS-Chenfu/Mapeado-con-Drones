@@ -19,7 +19,6 @@ from std_msgs.msg import String
 RUNTIME_EDGES = {
     'sim_to_orbslam_stereo',
     'sim_to_dron_gt',
-    'sim_to_server_fiducial_gt',
     'sim_to_dron_action',
     'dron_to_sim_motors',
     'orbslam_to_server_delta',

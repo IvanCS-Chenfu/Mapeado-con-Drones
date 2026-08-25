@@ -28,6 +28,23 @@ Usa parámetros procedentes de:
 
 ## Generación/spawn
 
+### `src/fiducials/fiducial_spawner.py`
+
+Genera en runtime 15 texturas AprilTag, verifica cada una mediante OpenCV,
+construye un SDF por objeto y usa `/spawn_entity`. Los tres modelos baseline
+son cajas estaticas y colisionables de 0.40 m, con tags de 0.30 m en cinco
+caras y poses `(0,+8.5,1)`, `(0,-8.5,1)` y `(+8.5,0,1)`.
+
+Referencia:
+
+```text
+simulacion/simulacion_dron/src/fiducials/fiducial_spawner.py
+rg -n "validate_contract|generate_assets|build_model_sdf|spawn_main" simulacion/simulacion_dron/src/fiducials/fiducial_spawner.py
+```
+
+`spawn_main` conserva vivo el publicador transient-local tras readiness y
+trata `KeyboardInterrupt`/`ExternalShutdownException` como cierre normal.
+
 ### `src/generar_URDF/generador_URDF.cpp`
 
 Nodo:

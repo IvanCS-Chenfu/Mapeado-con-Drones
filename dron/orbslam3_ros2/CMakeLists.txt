@@ -19,7 +19,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
-find_package(OpenCV 4 REQUIRED COMPONENTS core imgproc features2d calib3d highgui)
+find_package(OpenCV 4 REQUIRED COMPONENTS core imgproc features2d calib3d highgui aruco)
 find_package(message_filters REQUIRED)
 find_package(Sophus REQUIRED)
 find_package(Pangolin REQUIRED)
@@ -66,12 +66,19 @@ target_link_libraries(rgbd ${OpenCV_LIBS})
 add_executable(stereo
   src/stereo/stereo.cpp
   src/stereo/stereo-slam-node.cpp
+  src/stereo/fiducial-detector.cpp
 )
 # AÑADIDO #
 # ament_target_dependencies(stereo rclcpp sensor_msgs cv_bridge message_filters ORB_SLAM3 Pangolin)
 ament_target_dependencies(stereo rclcpp sensor_msgs cv_bridge message_filters ORB_SLAM3 Pangolin orbslam3_msgs geometry_msgs std_msgs tf2_ros tf2_geometry_msgs)
 # AÑADIDO #
 target_link_libraries(stereo ${OpenCV_LIBS})
+
+add_executable(fiducial_visualizer
+  src/stereo/fiducial-visualizer-node.cpp
+)
+ament_target_dependencies(fiducial_visualizer rclcpp sensor_msgs cv_bridge)
+target_link_libraries(fiducial_visualizer ${OpenCV_LIBS})
 
 add_executable(stereo-inertial
   src/stereo-inertial/stereo-inertial.cpp
@@ -80,12 +87,21 @@ add_executable(stereo-inertial
 ament_target_dependencies(stereo-inertial rclcpp sensor_msgs cv_bridge ORB_SLAM3 Pangolin)
 target_link_libraries(stereo-inertial ${OpenCV_LIBS})
 
-install(TARGETS mono rgbd stereo stereo-inertial
+install(TARGETS mono rgbd stereo stereo-inertial fiducial_visualizer
   DESTINATION lib/${PROJECT_NAME})
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_fiducial_detector
+    test/test_fiducial_detector.cpp
+    src/stereo/fiducial-detector.cpp
+  )
+  target_include_directories(test_fiducial_detector PRIVATE src/stereo)
+  target_link_libraries(test_fiducial_detector ${OpenCV_LIBS})
+endif()
 
 # Install launch files.
 #install(DIRECTORY launch config vocabulary
 #  DESTINATION share/${PROJECT_NAME}/)
 
 ament_package()
-

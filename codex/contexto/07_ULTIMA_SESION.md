@@ -2,27 +2,36 @@
 
 ## Objetivo
 
-Completar el cierre visual y documental de Fase 2.
+Implementar y validar 4G+4H: interpretar objetos fiduciales visuales, entregar
+el primary al manager existente y eliminar por completo la ruta GT fiducial.
 
-## Cambios
+## Resultado
 
-- `system_architecture` usa un layout declarativo separado;
-- Simulacion y Servidor quedan arriba y Dron ocupa la franja inferior;
-- el test contractual protege cobertura y relaciones espaciales;
-- contratos 2C-2G reconciliados con las decisiones publicadas;
-- documentación de fase, estado, paquete e historiales sincronizada.
+Se incorpora `FiducialObjectInterpreter` con carga `yaml-cpp`, rango por tag,
+fusion robusta, primary determinista, visitas por intervalos y FIFO 50. El
+handoff conserva KF/arrival exactos y usa `source=visual_fiducial`.
 
-## Verificacion
+Se eliminaron subscription, buffer, conversion body-camera, parametros, replay
+y arista GT fiducial. El GT de control/Fase 5 no se modifico.
 
-- build aislado de `simulacion_dron`: 1/1, exit 0;
-- CTest: 9/9;
-- guarda final: 15/15 tras retirar `__pycache__` generados por CTest;
-- capturas 1440x900 y 820x1000 inspeccionadas sin solapes;
-- prueba 200 previa: 14/14 pasos, 20/20 goals y validación humana correcta.
+Builds de `orbslam3_multi`, `orbslam3_server` y `simulacion_dron` correctos.
+CTest final: 150 tests de Servidor y 85 de Simulacion sin fallos. La prueba 216
+completa la trayectoria sin GT con 52/52 primary y los tres objetos. El smoke
+217 valida ambos grafos live. Guardas 15/15.
 
-## Conclusion
+## Cierre de Fase 4
 
-Fase 2 queda `CONSEGUIDA`. No queda trabajo activo ni es necesario repetir la
-simulación larga, porque el último cambio solo afecta a posiciones declarativas
-del visualizador. Fase 4 pasa a ser la fase actual, sin ejecutar; 4A requiere
-preparación y autorización antes de cualquier cambio funcional.
+El usuario da por concluida la Fase 4 completa con alcance 4A-4H. 4I queda
+aplazada como regresion opcional futura con perfil ESP32-CAM y no condiciona
+el cierre.
+
+`loop_submap_window_too_small` observado ante algunas derivas pertenece al
+backend existente y debe revisarse en su fase, sin reabrir la interpretacion
+fiducial.
+
+## Punto de entrada actual
+
+El usuario fija 3Q como subfase actual antes de continuar a Fase 5. Deben
+diagnosticarse las derivas visibles y los nueve rechazos loop tardios de la
+prueba 213. La preparacion 3Q no se ha iniciado y no existe autorizacion
+funcional para modificar el backend ni ejecutar una nueva prueba.

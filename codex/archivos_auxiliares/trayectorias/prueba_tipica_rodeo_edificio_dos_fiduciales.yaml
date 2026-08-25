@@ -5,6 +5,12 @@ action_name: AccionTrayectoria
 defaults:
   timeout_sec: 300.0
 steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
   - name: espera_arranque_tracking
     type: wait
     seconds: 16.0
@@ -15,7 +21,7 @@ steps:
     goals:
       - drone_id: 1
         tipo_trayectoria: 0
-        target: [0.0, -9.0, 1.0]
+        target: [0.0, -10.0, 1.0]
         yaw_deg: 90.0
         tx: 40.0
         ty: 40.0
@@ -28,7 +34,7 @@ steps:
         timeout_sec: 300.0
       - drone_id: 2
         tipo_trayectoria: 0
-        target: [0.0, -9.0, 1.3]
+        target: [0.0, -10.0, 1.3]
         yaw_deg: 90.0
         tx: 40.0
         ty: 40.0
@@ -75,6 +81,37 @@ steps:
         absoluto_yaw: true
         timeout_sec: 300.0
 
+  - name: ambos_a_puntos_medios_laterales_subida
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-10.0, 0.0, 1.0]
+        yaw_deg: 0.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [10.0, 0.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: false
+        timeout_sec: 300.0
+
   - name: ambos_a_esquinas_norte_opuestas
     type: move
     mode: simultaneous
@@ -95,7 +132,7 @@ steps:
       - drone_id: 2
         tipo_trayectoria: 0
         target: [10.0, 10.0, 1.3]
-        yaw_deg: 180.0
+        yaw_deg: 0.0
         tx: 40.0
         ty: 40.0
         tz: 40.0
@@ -103,7 +140,7 @@ steps:
         absoluto_x: true
         absoluto_y: true
         absoluto_z: true
-        absoluto_yaw: true
+        absoluto_yaw: false
         timeout_sec: 300.0
 
   - name: ambos_al_fiducial_1
@@ -112,7 +149,7 @@ steps:
     goals:
       - drone_id: 1
         tipo_trayectoria: 0
-        target: [0.0, 9.0, 1.0]
+        target: [0.0, 10.0, 1.0]
         yaw_deg: -90.0
         tx: 40.0
         ty: 40.0
@@ -125,8 +162,8 @@ steps:
         timeout_sec: 300.0
       - drone_id: 2
         tipo_trayectoria: 0
-        target: [0.0, 9.0, 1.3]
-        yaw_deg: -90.0
+        target: [0.0, 10.0, 1.3]
+        yaw_deg: 90.0
         tx: 40.0
         ty: 40.0
         tz: 40.0
@@ -134,7 +171,7 @@ steps:
         absoluto_x: true
         absoluto_y: true
         absoluto_z: true
-        absoluto_yaw: true
+        absoluto_yaw: false
         timeout_sec: 300.0
 
   - name: espera_anclaje_fiducial_1
@@ -147,7 +184,7 @@ steps:
     goals:
       - drone_id: 1
         tipo_trayectoria: 0
-        target: [-1.0, 9.0, 1.0]
+        target: [-1.0, 10.0, 1.0]
         yaw_deg: -90.0
         tx: 8.0
         ty: 8.0
@@ -160,7 +197,7 @@ steps:
         timeout_sec: 120.0
       - drone_id: 2
         tipo_trayectoria: 0
-        target: [1.0, 9.0, 1.3]
+        target: [1.0, 10.0, 1.3]
         yaw_deg: -90.0
         tx: 8.0
         ty: 8.0
@@ -178,7 +215,7 @@ steps:
     goals:
       - drone_id: 1
         tipo_trayectoria: 0
-        target: [1.0, 9.0, 1.0]
+        target: [1.0, 10.0, 1.0]
         yaw_deg: -90.0
         tx: 8.0
         ty: 8.0
@@ -191,7 +228,7 @@ steps:
         timeout_sec: 120.0
       - drone_id: 2
         tipo_trayectoria: 0
-        target: [-1.0, 9.0, 1.3]
+        target: [-1.0, 10.0, 1.3]
         yaw_deg: -90.0
         tx: 8.0
         ty: 8.0
@@ -238,14 +275,27 @@ steps:
         absoluto_yaw: true
         timeout_sec: 300.0
 
-  - name: ambos_cruzan_lados_sur
+  - name: ambos_a_puntos_medios_laterales_bajada
     type: move
     mode: simultaneous
     goals:
       - drone_id: 1
         tipo_trayectoria: 0
-        target: [10.0, -10.0, 1.0]
-        yaw_deg: -180.0
+        target: [10.0, 0.0, 1.0]
+        yaw_deg: -90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: false
+        timeout_sec: 300.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [-10.0, 0.0, 1.3]
+        yaw_deg: 0.0
         tx: 40.0
         ty: 40.0
         tz: 40.0
@@ -254,6 +304,24 @@ steps:
         absoluto_y: true
         absoluto_z: true
         absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: ambos_cruzan_lados_sur
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [10.0, -10.0, 1.0]
+        yaw_deg: 0.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: false
         timeout_sec: 300.0
       - drone_id: 2
         tipo_trayectoria: 0
@@ -275,8 +343,8 @@ steps:
     goals:
       - drone_id: 1
         tipo_trayectoria: 0
-        target: [0.0, -9.0, 1.0]
-        yaw_deg: 90.0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: -90.0
         tx: 40.0
         ty: 40.0
         tz: 40.0
@@ -284,11 +352,11 @@ steps:
         absoluto_x: true
         absoluto_y: true
         absoluto_z: true
-        absoluto_yaw: true
+        absoluto_yaw: false
         timeout_sec: 300.0
       - drone_id: 2
         tipo_trayectoria: 0
-        target: [0.0, -9.0, 1.3]
+        target: [0.0, -10.0, 1.3]
         yaw_deg: 90.0
         tx: 40.0
         ty: 40.0

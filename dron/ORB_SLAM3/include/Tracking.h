@@ -57,6 +57,14 @@ class Tracking
 {  
 
 public:
+    struct KeyFrameCreationEvent
+    {
+        bool created = false;
+        uint64_t keyframe_id = 0;
+        uint64_t source_frame_id = 0;
+        double timestamp = 0.0;
+    };
+
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     Tracking(System* pSys, ORBVocabulary* pVoc, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Atlas* pAtlas,
              KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor, Settings* settings, const string &_nameSeq=std::string());
@@ -89,6 +97,9 @@ public:
     void InformOnlyTracking(const bool &flag);
 
     void UpdateFrameIMU(const float s, const IMU::Bias &b, KeyFrame* pCurrentKeyFrame);
+    KeyFrameCreationEvent ConsumeLastCreatedKeyFrameEvent();
+    void GetEffectiveCameraCalibration(cv::Mat& cameraMatrix,
+                                       cv::Mat& distortionCoefficients) const;
     KeyFrame* GetLastKeyFrame()
     {
         return mpLastKeyFrame;
@@ -193,6 +204,12 @@ public:
 #endif
 
 protected:
+
+    void ClearLastCreatedKeyFrameEvent();
+    void RecordKeyFrameCreation(KeyFrame* keyFrame);
+
+    KeyFrameCreationEvent mLastCreatedKeyFrameEvent;
+    mutable std::mutex mMutexKeyFrameCreationEvent;
 
     // Main tracking function. It is independent of the input sensor.
     void Track();

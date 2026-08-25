@@ -29,7 +29,8 @@ ORB se leen desde `config/vision.yaml` como booleanos YAML reales.
 
 ## `launch/orbslam_use.launch.py`
 
-Lanza ORB-SLAM3 mono o estéreo.
+Lanza ORB-SLAM3 mono o estéreo y, con debug fiducial activo, un visualizador
+ROS independiente.
 
 Argumentos:
 
@@ -42,8 +43,13 @@ Argumentos:
 - `drone_id`;
 - `drone_name`;
 - `local_map_frame`.
+- `debug_fiducial_visualization`;
+- `debug_fiducial_display_seconds`.
 
-Los nodos mono y estereo reciben `MALLOC_ARENA_MAX=2`. El argumento `vocab`
+Los nodos mono, estereo y visualizador reciben el entorno saneado. Los nodos
+ORB reciben `MALLOC_ARENA_MAX=2`. El entorno elimina
+entradas `/snap/` y `/snapd/` de las rutas de bibliotecas/plugins y limpia las
+variables Snap/VS Code que pueden contaminar HighGUI. El argumento `vocab`
 es obligatorio en este launch y normalmente llega desde
 `generar_dron.launch.py`.
 
@@ -54,6 +60,19 @@ package='orbslam3'
 executable='stereo'
 name='orbslam3_stereo'
 ```
+
+Con `debug_fiducial_visualization=true` tambien se lanza:
+
+```text
+package='orbslam3'
+executable='fiducial_visualizer'
+name='fiducial_visualizer'
+```
+
+El wrapper publica `orbslam/fiducial_debug/image` dentro del namespace del
+dron y el visualizador lo consume con cola latest-only. El parametro
+`debug_fiducial_display_seconds` se entrega solo al visualizador. Por tanto,
+cerrar o matar su ventana no termina `orbslam3_stereo` ni detiene sus deltas.
 
 Las configuraciones mono y estéreo fijan:
 

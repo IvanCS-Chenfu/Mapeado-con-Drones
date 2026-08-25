@@ -14,6 +14,7 @@ loop: ProcessLoopTask -> LoopPipeline -> CommitLoopAnchorBatch si procede
 fusion: LoopPipeline -> prepare privado -> commit tracks/covis/score -> dirty
 opt loop: OptimizationEvidence -> graph/solve/validate -> commit -> fusion
 publicacion: BuildGlobalMap, solo desde PrimaryWorker
+sync 4F: Configure/Submit fiducial batch -> match raw exacto
 ```
 
 ## Operaciones 3H-3L
@@ -74,6 +75,11 @@ src/sparse_global_backend.cpp
 El backend no crea threads, no conoce GT y no publica ROS. La seccion de estado
 serializa la decision de visita y el commit breve, pero grafo/solver/validacion
 siguen fuera de locks live.
+
+En 4F, `SetFiducialPendingCapacityPerDrone()`, `SubmitFiducialBatch()` y
+`GetFiducialSyncStats()` delegan el sidecar raw sin semantica `tag→object`.
+`PrimaryBackendResult` propaga los matches resueltos al insertar deltas; el
+servidor realiza logs, telemetria y futuro handoff 4G fuera del lock.
 
 ## Operaciones 3P
 

@@ -10,12 +10,28 @@ History de los nueve archivos personalizados del workspace. El paquete ROS
 declarado sigue llamandose `orbslam3`.
 
 Interfaces:
-- Publishes: `orbslam/pose_local`, `orbslam/orb_map_delta`.
+- Publishes: `orbslam/pose_local`, `orbslam/orb_map_delta` y, solo con debug,
+  `orbslam/fiducial_debug/image`; desde 4E publica tambien
+  `orbslam/fiducial_keyframe_observations`.
 - Services: `orbslam/get_full_map`.
+- Clients: `/global_mapping/get_fiducial_config`.
 
-Ejecutables/nodos: `StereoSlamNode`.
+Ejecutables/nodos: `StereoSlamNode` y `fiducial_visualizer`.
 
 Parámetros relevantes: `drone_id`, `local_map_frame`, `delta_publish_period_frames`, `use_sim_time`.
+
+Fase 4D consume el recibo exacto de 4C y procesa cada KF en una cola de cuatro
+elementos con worker unico. `FiducialDetector` usa AprilTag 36h11, SUBPIX e
+IPPE_SQUARE y conserva pose, reproyeccion, area, ambiguedad y calidad. Las
+observaciones validas se publican en un unico batch no vacio por KF, ordenadas
+por `tag_id`, con QoS reliable/volatile KeepLast(32).
+
+Con `debug_fiducial_visualization=true`, el wrapper anota todos los tags
+decodificados y publica la ultima imagen con QoS best-effort/KeepLast(1). El
+ejecutable ROS independiente `fiducial_visualizer` es el unico propietario de
+HighGUI y mantiene la ventana durante `debug_fiducial_display_seconds=5.0`.
+Cerrar o matar ese proceso no termina `stereo`; el entorno launch elimina
+rutas Snap de ambos procesos.
 
 Fase 2 añade `debug_architecture_telemetry=false`. Cuando Simulacion activa el
 master de `system_architecture`, el wrapper emite eventos ligeros y muestreados

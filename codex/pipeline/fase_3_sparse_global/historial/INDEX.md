@@ -28,7 +28,7 @@ fragmentos solo si falta evidencia concreta.
 | `3N` | `por_subfase/historial_3N_RESUMEN.md` | `CONSEGUIDA`: indice BoW, regiones y ledger causal con cola drenada. |
 | `3O` | `por_subfase/historial_3O_RESUMEN.md` | `CONSEGUIDA`: reanchor, propagacion, carga y validacion RViz2/web completados. |
 | `3P` | `por_subfase/historial_3P_RESUMEN.md` | `CONSEGUIDA`: prueba 161 y cierre del usuario; queda pulido de layout web. |
-| `3Q` | `por_subfase/historial_3Q_RESUMEN.md` | `CONSEGUIDA`: 195 no reproduce el fallo final de 194; mejora de apoyo adaptativo documentada, no implementada. |
+| `3Q` | `por_subfase/historial_3Q_RESUMEN.md` | `ACTUAL; REABIERTA`: revisar derivas y rechazos de optimizacion de la prueba 213 antes de Fase 5. |
 | `3R` | `por_subfase/historial_3R_RESUMEN.md` | `CONSEGUIDA`: scoring 1-5 m y scores visuales confirmados; antes denominada 3S. |
 | `3S` | `por_subfase/historial_3S_RESUMEN.md` | `CONSEGUIDA`: perfil silencioso validado por prueba 196, sin RViz2/web ni marcadores F3. |
 | `3T` | `por_subfase/historial_3T_RESUMEN.md` | `CONSEGUIDA`: limpieza, renumeracion y handoff final; antes denominada 3X. |

@@ -1,4 +1,8 @@
-# Subfase 4K — Integración multi-dron y validación completa en simulación
+# LEGACY — Antigua Subfase 4K — Integración multi-dron y validación completa en simulación
+
+Este contrato ya no pertenece al flujo activo de Fase 4. La revision importada
+desde `Fase_4_completa_4A_4I_muy_detallada.zip` absorbe la integracion
+multi-dron en 4H. Se conserva solo como referencia historica.
 
 ## Puerta arquitectónica de cierre de Fase 4
 
@@ -10,7 +14,7 @@ confirmar que cerrar bridge/navegador no altera la misión.
 ## Estado
 
 ```text
-sin hacer
+legacy
 ```
 
 ## Dependencia

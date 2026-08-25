@@ -18,6 +18,11 @@ world.activar: "house_1"
 
 `models/house_1/` contiene materiales y texturas del entorno.
 
+Los objetos fiduciales de Fase 4 no estan incrustados en `house_1.world`:
+`fiducial_spawner.py` los crea dinamicamente desde los YAML instalados. Esto
+mantiene el mundo reutilizable y permite cambiar poses/dimensiones sin duplicar
+SDF. `/fiducial_spawn_ready` indica que los tres objetos ya existen.
+
 ## Relación con el pipeline maestro
 
 ### Fase 1

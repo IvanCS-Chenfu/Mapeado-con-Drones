@@ -26,9 +26,10 @@ en low y sin optimizacion. Los `FusionRefresh` son mantenimiento observable y
 no cierran por si solos el gate. Un goal activo no se cancela; el siguiente
 espera.
 
-Live asigna `fiducial_visit_id` al entrar en el radio. Replay v3 usa el valor
-persistido; v1/v2 lo infiere por submapa, fiducial y timestamp ordenado. El
-record incremental activo es v3 y sigue siendo delta-only.
+La fuente fiducial live es exclusivamente visual. `FiducialObjectInterpreter`
+asigna visitas por intervalos temporales de `(drone_id,map_epoch,object_id)`;
+admite batches fuera de orden dentro del gap configurable. Replay solo reinyecta
+observaciones `source=visual_fiducial`; las grabaciones GT legacy se rechazan.
 
 El primer KF observado reserva la candidatura de control de la visita. Los
 eventos `secondary_task_lifecycle` delimitan visualmente cada tarea desde
@@ -77,19 +78,39 @@ loop_fusion,scoring,replay_debug}.yaml`. El launch directo usa esta copia;
 `replay_debug.yaml` solo se añade explícitamente y `CMakeLists.txt` instala
 configuración y launches.
 
+4A añade `config/fiducial_objects.yaml` como contrato semantico canonico de
+los objetos visuales. Simulacion instala una replica exacta para deployment;
+Servidor conserva `object_id`, poses, caras, `object_T_tag` y el rango inicial
+configurable `[1,5] m`. Desde 4D, `fiducial_config_server.py` valida este perfil
+y sirve a los wrappers familia, refinamiento, solver, umbral y `tag_id/size_m`.
+
+Desde 4F, el servidor se suscribe por dron a
+`orbslam/fiducial_keyframe_observations` con reliable/volatile KeepLast(32).
+Entrega cada batch al sidecar de `RawMapDatabase`, procesa matches fuera del
+mutex y expone pending/evicted/duplicate/conflict/rejected. El parametro
+`fiducial_pending_capacity_per_drone=10` vive en `runtime.yaml`.
+
+Desde 4G+4H, cada match se interpreta en Servidor: rango inclusivo por tag,
+fusion robusta multicara, primary determinista, FIFO reciente 50 y visita con
+gap 2 s. Cada primary se entrega al `FiducialAnchorManager` existente mediante
+`world_T_camera_target` y `source=visual_fiducial`. Se eliminaron por completo
+la subscription, buffer, conversion body-camera, parametros y grafo GT
+fiducial; el GT de control/Fase 5 permanece independiente.
+
 3S añade el argumento launch `log_level`. `multi_dron.launch.py` pasa `error`
 cuando `fase3_logs_terminal=false` e `info` cuando esta activo. Asi se ocultan
 los diagnosticos `[F3*]` sin silenciar errores o fallos reales del nodo.
 
-Componentes: `global_map_server.md`, `primary_queue.md`,
-`secondary_queue.md`, `ground_truth_buffer.md` y `launches.md`.
+Componentes: `global_map_server.md`, `fiducial_object_interpreter.md`,
+`primary_queue.md`, `secondary_queue.md` y `launches.md`.
 
 ## Interfaces
 
 ```text
 subscriptions: /dron_X/orbslam/orb_map_delta
-               /dron_X/sensor/GT/pose   solo fiducial simulado live
+               /dron_X/orbslam/fiducial_keyframe_observations
 clients:       /dron_X/orbslam/get_full_map
+services:      /global_mapping/get_fiducial_config
 publishers:    /global_mapping/backpressure_active
                /global_mapping/flow_events
                /global_sparse_cloud
@@ -124,6 +145,10 @@ publishers:    /global_mapping/backpressure_active
 - prueba 188: scenario/tool correctos, nueve commits loop `Full`, ocho
   fiduciales, dos anchors loop y cero hard failures. Tras el drenaje quedan
   refresh/fusiones descendiendo 323 -> 310, sin `blocking_failure`;
+- politica vigente posterior a prueba 212: los fallos secundarios conservan
+  log y contador, pero no existe `secondary_blocking_failure_`; el backpressure
+  se libera al terminar la optimizacion y depende solo de colas e
+  `optimization_active`. El contrato dedicado y la suite del servidor pasan;
 - recursos 188: servidor RSS maximo 423.4 MiB, grupo 2014.6 MiB, PSI memoria
   cero y guarda inactiva.
 - cierre 3T: CTest 10/10; prueba 195 procesa 741 entradas principales y 1262

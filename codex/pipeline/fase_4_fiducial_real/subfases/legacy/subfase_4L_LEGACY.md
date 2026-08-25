@@ -1,9 +1,14 @@
-# Subfase 4L — Validación con cámara real y cierre de Fase 4
+# LEGACY — Antigua Subfase 4L — Validación con cámara real y cierre de Fase 4
+
+Este contrato ya no pertenece al flujo activo de Fase 4. La revision importada
+desde `Fase_4_completa_4A_4I_muy_detallada.zip` aplaza la validacion fisica y
+usa 4I como regresion final con perfil ESP32-CAM simulado. Se conserva solo
+como referencia historica.
 
 ## Estado
 
 ```text
-sin hacer
+legacy
 ```
 
 ## Dependencia

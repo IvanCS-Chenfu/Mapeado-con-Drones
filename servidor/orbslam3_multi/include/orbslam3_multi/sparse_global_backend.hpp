@@ -51,6 +51,10 @@ public:
   PrimaryBackendResult InsertFullSnapshot(
     uint64_t arrival_id,
     std::shared_ptr<const orbslam3_msgs::msg::OrbMap> snapshot);
+  void SetFiducialPendingCapacityPerDrone(size_t capacity);
+  FiducialBatchSubmitResult SubmitFiducialBatch(
+    const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch);
+  FiducialSyncStats GetFiducialSyncStats() const;
 
   PoseChangeSet CommitAnchor(
     const RawSubmapId & submap_id,

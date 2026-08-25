@@ -466,6 +466,22 @@ PrimaryBackendResult SparseGlobalBackend::InsertFullSnapshot(
   return result;
 }
 
+void SparseGlobalBackend::SetFiducialPendingCapacityPerDrone(size_t capacity)
+{
+  raw_database_.SetFiducialPendingCapacityPerDrone(capacity);
+}
+
+FiducialBatchSubmitResult SparseGlobalBackend::SubmitFiducialBatch(
+  const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch)
+{
+  return raw_database_.SubmitFiducialBatch(batch);
+}
+
+FiducialSyncStats SparseGlobalBackend::GetFiducialSyncStats() const
+{
+  return raw_database_.GetFiducialSyncStats();
+}
+
 PoseChangeSet SparseGlobalBackend::CommitAnchor(
   const RawSubmapId & submap_id,
   const geometry_msgs::msg::Pose & world_T_local,

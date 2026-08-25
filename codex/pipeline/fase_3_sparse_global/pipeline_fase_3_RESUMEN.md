@@ -6,11 +6,11 @@ Usar este archivo antes de abrir el pipeline o historiales largos.
 
 ```text
 Fase actual: Fase 2 - separacion servidor/dron/simulacion
-Fase 3: CONSEGUIDA
+Fase 3: REABIERTA EN 3Q PARA CORRECCION
 3B-3L: CONSEGUIDAS tecnica y visualmente
 3M-3O: CONSEGUIDAS tecnica y visualmente
 3P: CONSEGUIDA; CIERRE FUNCIONAL Y VISUAL CONFIRMADO
-3Q: CONSEGUIDA PARA EL CIERRE; MEJORA FUTURA DOCUMENTADA
+3Q: ACTUAL; A REVISAR POR ERRORES DE OPTIMIZACION EN PRUEBA 213
 3R: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
 3S: CONSEGUIDA; PERFIL DEBUG Y MODO SILENCIOSO VALIDADOS
 3T: CONSEGUIDA; LIMPIEZA, CONFIGURACION Y HANDOFF VALIDADOS
@@ -55,7 +55,7 @@ tarea secundaria activa se completa sin preemption.
 | 3N | LoopTask BAJA, indice BoW y regiones | `CONSEGUIDA` |
 | 3O | subnubes, RANSAC y anchor por loop | `CONSEGUIDA` |
 | 3P | fusion transitiva, score geometrico/visibilidad y commit incremental | `CONSEGUIDA` |
-| 3Q | optimizacion covisible comun loop/fiducial | `CONSEGUIDA; MEJORA FUTURA DOCUMENTADA` |
+| 3Q | optimizacion covisible comun loop/fiducial | `ACTUAL; A REVISAR DESDE PRUEBA 213` |
 | 3R | scoring raw/fused incremental | `CONSEGUIDA` |
 | 3S | perfil YAML de observabilidad y debug | `CONSEGUIDA` |
 | 3T | limpieza, configuracion y handoff | `CONSEGUIDA` |

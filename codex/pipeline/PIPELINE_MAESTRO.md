@@ -98,17 +98,18 @@ Solo con la puerta cerrada, usar el contrato `subfase_*.md` y seguir:
 |---|---|---|---|
 | 1 | `realizado` | Control del dron en simulación | Cadena Gazebo/Xacro/YAML/control/trayectorias/GUI de simulación documentada como base histórica. |
 | 2 | `conseguida` | Separación servidor/dron/simulación | Separación, configuración, visualizadores, guardas y validación final completas. |
-| 3 | `conseguida` | Mapa sparse global multi-dron | 3B-3T conseguidas; 3R scoring, 3S debug y 3T limpieza forman la numeracion final. |
-| 4 | `actual` | Fiducial real sin ground truth funcional | Siguiente fase; preparación de 4A aún no iniciada. |
-| 5 | `sin hacer` | Pose global de cada dron sin ground truth | Sustituirá `sensor/GT/pose` y `sensor/GT/vel` por estimación local-global. |
+| 3 | `actual` | Mapa sparse global multi-dron | Reabierta solo en 3Q para corregir optimizaciones observadas en la prueba 213. |
+| 4 | `realizado` | Fiducial real sin ground truth funcional | Cerrada con 4A-4H; 4I queda aplazada como regresión opcional. |
+| 5 | `sin hacer` | Pose global de cada dron sin ground truth | Se preparará después de cerrar la reentrada 3Q. |
 | 6 | `sin hacer` | Tareas y trayectorias de mapeo | Generará misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |
 | 7 | `sin hacer` | GUI 3D propia de operación | GUI C++/Qt/OpenGL independiente de RViz2 y del visualizador web entregado en Fase 3. |
 | 8 | `sin hacer` | Nube densa global multi-dron | Reconstrucción dense en servidor a partir de estéreo, poses globales y sparse. |
 | 9 | `opcional` | Mejoras avanzadas y robustez | Placeholder futuro; sus subfases se definirán cuando toque avanzar ahí. |
 
-La numeracion refleja el pipeline nuevo completo. Las Fases 2 y 3 están
-conseguidas. Fase 4 es la fase actual, pero sigue sin ejecutar y requiere la
-preparación y autorización de 4A antes de cualquier cambio funcional.
+La numeracion refleja el pipeline nuevo completo. Las Fases 2 y 4 están
+conseguidas. El cierre previo de Fase 3 se reabre únicamente en 3Q para resolver
+los errores de optimización observados en la prueba 213. Fase 4 permanece
+cerrada con 4A-4H; 4I queda aplazada y Fase 5 espera al nuevo cierre de 3Q.
 
 Los archivos específicos de pipeline de fases futuras son contratos
 preparatorios, no autorización de ejecución. Codex debe tratarlos como no
@@ -202,8 +203,8 @@ Reemplazar el fiducial simulado basado en GT por observaciones visuales de tags
 ligadas al KeyFrame exacto. ORB-SLAM3 no detecta fiduciales; el wrapper detecta
 tags en la imagen izquierda exacta y el servidor interpreta cubos/tags.
 
-No ejecutar ni completar su pipeline específico mientras Fase 3 siga activa,
-salvo petición explícita del usuario.
+Completada con alcance 4A-4H. La regresión 4I con perfil ESP32-CAM queda
+aplazada y requerirá preparación propia si se retoma.
 
 ### Fase 5 — Pose global sin GT
 

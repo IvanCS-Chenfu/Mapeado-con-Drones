@@ -10,13 +10,13 @@ esta base.
 
 ```text
 orbslam3_multi/include/orbslam3_multi/raw_map_types.hpp
-  -> RawInsertResult / RecordedFiducialObservation
+  -> RawInsertResult / FiducialObservationBatch / SynchronizedFiducialBatch
   -> RawCameraCalibration / RawFusionMapPointInput
-  -> rg -n "RawInsertResult|RawCameraCalibration|RawFusionMapPointInput"
+  -> rg -n "RawInsertResult|FiducialObservationBatch|SynchronizedFiducialBatch"
 
 orbslam3_multi/include/orbslam3_multi/raw_map_database.hpp
   -> RawMapDatabase
-  -> rg -n "class RawMapDatabase|GetFusionMapPointInputs|GetCameraCalibration|GetActiveSubmapEntityIds|ReadRecordMetadata"
+  -> rg -n "SubmitFiducialBatch|SetFiducialPendingCapacityPerDrone|GetFiducialSyncStats"
 
 orbslam3_multi/src/raw_map_database.cpp
   -> InsertMap compartido / delta / full snapshot / record v3
@@ -27,6 +27,20 @@ orbslam3_multi/src/raw_map_database.cpp
 
 - `InsertDelta()` exige `arrival_id` creciente y devuelve cambios precisos,
   incluidos `new_keyframe_ids` y cambios de pose.
+- 4F sincroniza batches por `(drone_id,map_epoch,local_keyframe_id)`. Si el KF
+  existe devuelve match inmediato; si el batch llega primero lo guarda en un
+  `unordered_map` y FIFO por dron hasta que un `new_keyframe_id` lo resuelve.
+- `fiducial_pending_capacity_per_drone` vale 10 por defecto, es configurable,
+  no usa TTL y expulsa el pending mas antiguo solo dentro de su dron. Un batch
+  consumido desaparece del pending y su digest permite clasificar futuras
+  reentregas como duplicate o conflict sin un flag separado.
+- La validacion exige batch no vacio, tags ordenados/unicos, valores finitos,
+  quality `[0,1]`, quaternion normalizado, identidad coherente y timestamp raw
+  exacto. Updates y full snapshots solo resuelven KFs realmente nuevos y no
+  reactivan batches consumidos.
+- `RawInsertResult` devuelve los matches nacidos durante el commit; el servidor
+  procesa el handoff fuera del mutex. Estadisticas separan current/peak,
+  evicted, immediate, from_pending, duplicate, conflict y rejected.
 - `InsertFullSnapshot()` compara el estado completo del submapa y separa KFs
   con cambios de pose, asociaciones o covisibilidad, y MPs con cambios de
   geometria, score, asociaciones o validez.
@@ -94,7 +108,9 @@ orbslam3_multi/src/raw_map_database.cpp
 - Sin grabacion, el servidor usa modo deshabilitado: conserva contadores
   lógicos para telemetría pero no retiene `shared_ptr<OrbMap>` históricos.
 
-`test/test_raw_map_database.cpp` cubre diez casos, incluidos diff selectivo de
+`test/test_raw_map_database.cpp` cubre tambien ambos ordenes de llegada, primer
+`arrival_id`, FIFO y aislamiento por dron, duplicate/conflict y no reactivacion
+por update/snapshot. Mantiene los casos previos de diff selectivo de
 full snapshot, invalidacion por ausencia, preservacion de todos los metadatos y
 equivalencia del delta normalizado al reproducirlo, ademas de orden determinista
 del diff de asociaciones con entradas no ordenadas, stream v3 sin retencion,

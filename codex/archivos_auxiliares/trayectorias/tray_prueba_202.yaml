@@ -1,0 +1,16 @@
+name: fase4_ab_smoke_cierre_spawner
+description: "Confirma spawn y cierre limpio del spawner sin mover los drones."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 90.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: estabilizacion_corta
+    type: wait
+    seconds: 2.0

@@ -11,7 +11,11 @@ camera/left + camera/right
   ↓ sincronización ApproximateTime
 GrabStereo
   ↓ cv_bridge + rectificación opcional
-ORB_SLAM3::System::TrackStereo
+ORB_SLAM3::System::TrackStereo + StereoTrackingReceipt
+  ├─ callback: pose local + mapa ORB
+  └─ solo KF y config READY: cola acotada -> FiducialWorker
+       ├─ tags validos -> FiducialKeyFrameObservations -> Servidor
+       └─ debug opcional -> Image ROS -> fiducial_visualizer separado
   ↓
 pose local Twc + mapa ORB interno
   ↓
@@ -26,16 +30,25 @@ Responsabilidades:
    - `drone_id`;
    - `drone_name`;
    - `local_map_frame`;
-   - `delta_publish_period_frames`.
+   - `delta_publish_period_frames`;
+   - `fiducial_queue_capacity=4`;
+   - `debug_fiducial_visualization=false`.
 
 2. Carga parámetros de cámara desde el YAML ORB-SLAM3:
    - `Camera.fx`, `Camera.fy`, `Camera.cx`, `Camera.cy`, `Camera.bf`;
    - `Camera.width`, `Camera.height`;
    - fallback a `LEFT.K`, `LEFT.width`, `LEFT.height` si hace falta.
 
+   Estos campos siguen alimentando `OrbMap`; para PnP el wrapper usa
+   exclusivamente el modelo efectivo del recibo de `TrackStereo()`.
+
 3. Crea publishers:
    - `orbslam/orb_map_delta`;
-   - `orbslam/pose_local`.
+   - `orbslam/pose_local`;
+   - `orbslam/fiducial_keyframe_observations`, reliable/volatile
+     KeepLast(32);
+   - `orbslam/fiducial_debug/image`, solo con debug activo, con
+     best-effort/KeepLast(1).
 
 4. Crea servicio:
    - `orbslam/get_full_map`.
@@ -45,6 +58,10 @@ Responsabilidades:
 6. Crea subscribers sincronizados:
    - `camera/left`;
    - `camera/right`.
+
+7. Crea cliente absoluto `/global_mapping/get_fiducial_config`, timer de
+   retry/timeout y un worker fiducial. El wrapper no crea ventanas ni ejecuta
+   HighGUI.
 
 ## `GrabStereo(msgLeft, msgRight)`
 
@@ -65,6 +82,53 @@ m_SLAM->TrackStereo(...)
 6. Incrementa `frame_counter_`.
 7. Publica delta cada `delta_publish_period_frames_`.
 8. Si detecta nuevo epoch, fuerza publicación inmediata.
+
+### Recibo 4C y trabajo fiducial 4D
+
+`GrabStereo()` pasa un `StereoTrackingReceipt` a la misma llamada de
+`TrackStereo()`. Si `keyframe_event.created=true`, verifica timestamp y
+geometria; solo con configuracion `READY` mueve la copia efectiva a una cola de
+capacidad cuatro. Si se llena elimina el trabajo mas antiguo. No hay sondeo de
+`GetLastKeyFrameInfo`, buffer pre-READY ni deteccion en el callback.
+
+`ManageFiducialConfig()` reintenta cada segundo y declara timeout a los dos
+segundos. Config vacia deja el componente `DISABLED`. `FiducialWorkerLoop()`
+ejecuta `FiducialDetector` con APRILTAG_36H11, SUBPIX e IPPE_SQUARE; conserva
+todos los tags decodificados, rechaza unknown/geometria/reproyeccion y calcula
+el score lineal acordado. `PublishFiducialObservations()` publica exactamente
+una vez cada resultado no vacio, solo con observaciones validas y ordenadas.
+Reutiliza `TimestampToRosTime()` para que batch y `OrbKeyFrame` tengan el mismo
+timestamp, convierte Rodrigues a quaternion normalizado y conserva el frame
+optico efectivo. No repite PnP ni consulta un epoch mutable al publicar.
+
+Con debug activo, `PublishFiducialDebugImage()` dibuja aceptados en verde y
+rechazados en rojo, y publica la imagen anotada. El ejecutable separado
+`fiducial_visualizer` recibe solo la imagen mas reciente, reinicia un timeout
+de cinco segundos por defecto y es el unico propietario de `namedWindow`,
+`imshow`, `waitKey` y `destroyWindow`. Sin `DISPLAY` ni `WAYLAND_DISPLAY` se
+desactiva a si mismo. Un cierre normal o un `SIGKILL` del visualizador no puede
+terminar el proceso `stereo`; este sigue procesando y publicando deltas.
+Para evitar carreras de creacion de HighGUI, solo clasifica `user_close`
+despues de haber observado la ventana visible al menos una vez; antes de eso
+un valor transitorio cero de `WND_PROP_VISIBLE` no la destruye.
+
+El launch de Dron elimina rutas `/snap/` del entorno de ambos ejecutables para
+evitar cargar bibliotecas glibc incompatibles al abrir HighGUI.
+
+Referencias:
+
+```text
+dron/orbslam3_ros2/src/stereo/stereo-slam-node.cpp
+  -> StereoSlamNode::GrabStereo
+  -> rg "StereoTrackingReceipt|FiducialWorkerLoop|PublishFiducialObservations|TimestampToRosTime"
+  -> aproximadamente lineas 250-720
+dron/orbslam3_ros2/src/stereo/fiducial-detector.cpp
+  -> FiducialDetector::Configure / FiducialDetector::Detect
+  -> rg "solvePnPGeneric|SOLVEPNP_IPPE_SQUARE|reprojection_error"
+dron/orbslam3_ros2/src/stereo/fiducial-visualizer-node.cpp
+  -> FiducialVisualizerNode
+  -> rg "FID-VISUALIZER|namedWindow|display_seconds"
+```
 
 ## `PublishLocalPose(stamp, Tcw)`
 

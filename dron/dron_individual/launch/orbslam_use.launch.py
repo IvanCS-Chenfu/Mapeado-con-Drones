@@ -24,6 +24,17 @@ def _yaml_bool(value, name):
 
 
 def generate_launch_description():
+    orbslam_environment = {'MALLOC_ARENA_MAX': '2'}
+    for key, value in os.environ.items():
+        if key.startswith('SNAP') or key.startswith('VSCODE_'):
+            orbslam_environment[key] = ''
+            continue
+        cleaned_parts = [
+            part for part in value.split(':')
+            if '/snap/' not in part and '/snapd/' not in part]
+        if len(cleaned_parts) != len(value.split(':')):
+            orbslam_environment[key] = ':'.join(cleaned_parts)
+
     params_vision_path = os.path.join(
         get_package_share_directory('dron_individual'),
         'config',
@@ -58,6 +69,10 @@ def generate_launch_description():
         DeclareLaunchArgument('local_map_frame', default_value='drone_1_orb_map'),
         DeclareLaunchArgument(
             'debug_architecture_telemetry', default_value='false'),
+        DeclareLaunchArgument(
+            'debug_fiducial_visualization', default_value='false'),
+        DeclareLaunchArgument(
+            'debug_fiducial_display_seconds', default_value='5.0'),
     ]
 
     vocab = LaunchConfiguration('vocab')
@@ -71,6 +86,10 @@ def generate_launch_description():
     local_map_frame = LaunchConfiguration('local_map_frame')
     debug_architecture_telemetry = LaunchConfiguration(
         'debug_architecture_telemetry')
+    debug_fiducial_visualization = LaunchConfiguration(
+        'debug_fiducial_visualization')
+    debug_fiducial_display_seconds = LaunchConfiguration(
+        'debug_fiducial_display_seconds')
 
     common_params = {
         'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
@@ -83,22 +102,38 @@ def generate_launch_description():
     stereo_params = dict(common_params)
     stereo_params['debug_architecture_telemetry'] = ParameterValue(
         debug_architecture_telemetry, value_type=bool)
+    stereo_params['debug_fiducial_visualization'] = ParameterValue(
+        debug_fiducial_visualization, value_type=bool)
 
     mono_node = Node(
         condition=UnlessCondition(usar_estereo),
         package='orbslam3', executable='mono', name='orbslam3_mono',
-        output='screen', additional_env={'MALLOC_ARENA_MAX': '2'},
+        output='screen', additional_env=orbslam_environment,
         arguments=[vocab, yaml_mono], parameters=[common_params],
         remappings=[('camera', 'sensor/camara_mono/image_raw')])
 
     stereo_node = Node(
         condition=IfCondition(usar_estereo),
         package='orbslam3', executable='stereo', name='orbslam3_stereo',
-        output='screen', additional_env={'MALLOC_ARENA_MAX': '2'},
+        output='screen', additional_env=orbslam_environment,
         arguments=[vocab, yaml_stereo, rectify], parameters=[stereo_params],
         remappings=[
             ('camera/left', 'sensor/camara_izq/image_raw'),
             ('camera/right', 'sensor/camara_der/image_raw'),
         ])
 
-    return LaunchDescription(args + [mono_node, stereo_node])
+    fiducial_visualizer_node = Node(
+        condition=IfCondition(debug_fiducial_visualization),
+        package='orbslam3', executable='fiducial_visualizer',
+        name='fiducial_visualizer', output='screen',
+        additional_env=orbslam_environment,
+        parameters=[{
+            'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+            'drone_id': ParameterValue(drone_id, value_type=int),
+            'drone_name': ParameterValue(drone_name, value_type=str),
+            'display_seconds': ParameterValue(
+                debug_fiducial_display_seconds, value_type=float),
+        }])
+
+    return LaunchDescription(
+        args + [mono_node, stereo_node, fiducial_visualizer_node])

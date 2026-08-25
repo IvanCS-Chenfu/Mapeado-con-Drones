@@ -1,6 +1,11 @@
 #include "stereo-slam-node.hpp"
 
 #include <opencv2/core/core.hpp>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/imgproc.hpp>
+
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
 
 #include <sstream>
 
@@ -12,6 +17,47 @@
 
 using std::placeholders::_1;
 using std::placeholders::_2;
+
+namespace
+{
+
+builtin_interfaces::msg::Time TimestampToRosTime(double timestamp)
+{
+    const int64_t timestamp_ns = static_cast<int64_t>(std::llround(
+        timestamp * 1e9));
+    builtin_interfaces::msg::Time stamp;
+    stamp.sec = static_cast<int32_t>(timestamp_ns / 1000000000LL);
+    stamp.nanosec = static_cast<uint32_t>(timestamp_ns % 1000000000LL);
+    return stamp;
+}
+
+geometry_msgs::msg::Quaternion RotationVectorToQuaternion(
+    const cv::Vec3d& rotation_vector)
+{
+    cv::Mat rotation_matrix;
+    cv::Rodrigues(rotation_vector, rotation_matrix);
+    tf2::Matrix3x3 rotation(
+        rotation_matrix.at<double>(0, 0),
+        rotation_matrix.at<double>(0, 1),
+        rotation_matrix.at<double>(0, 2),
+        rotation_matrix.at<double>(1, 0),
+        rotation_matrix.at<double>(1, 1),
+        rotation_matrix.at<double>(1, 2),
+        rotation_matrix.at<double>(2, 0),
+        rotation_matrix.at<double>(2, 1),
+        rotation_matrix.at<double>(2, 2));
+    tf2::Quaternion quaternion;
+    rotation.getRotation(quaternion);
+    quaternion.normalize();
+    geometry_msgs::msg::Quaternion message;
+    message.x = quaternion.x();
+    message.y = quaternion.y();
+    message.z = quaternion.z();
+    message.w = quaternion.w();
+    return message;
+}
+
+}  // namespace
 
 
 // ============================================================
@@ -34,6 +80,8 @@ StereoSlamNode::StereoSlamNode(
     this->declare_parameter<std::string>("local_map_frame", "orb_map");
     this->declare_parameter<int>("delta_publish_period_frames", 30);
     this->declare_parameter<bool>("debug_architecture_telemetry", false);
+    this->declare_parameter<int>("fiducial_queue_capacity", 4);
+    this->declare_parameter<bool>("debug_fiducial_visualization", false);
 
     drone_id_ =
         static_cast<uint32_t>(
@@ -51,11 +99,19 @@ StereoSlamNode::StereoSlamNode(
     debug_architecture_telemetry_ =
         this->get_parameter("debug_architecture_telemetry").as_bool();
 
+    fiducial_queue_capacity_ =
+        this->get_parameter("fiducial_queue_capacity").as_int();
+    debug_fiducial_visualization_ =
+        this->get_parameter("debug_fiducial_visualization").as_bool();
+
     if (delta_publish_period_frames_ <= 0)
     {
         delta_publish_period_frames_ = 30;
     }
-
+    if (fiducial_queue_capacity_ <= 0)
+    {
+        fiducial_queue_capacity_ = 4;
+    }
     LoadCameraInfoFromSettings(strSettingsFile);
 
     map_sequence_ = 0;
@@ -69,6 +125,12 @@ StereoSlamNode::StereoSlamNode(
         this->create_publisher<orbslam3_msgs::msg::OrbMap>(
             "orbslam/orb_map_delta",
             rclcpp::QoS(10).reliable());
+
+    fiducial_observations_pub_ =
+        this->create_publisher<
+            orbslam3_msgs::msg::FiducialKeyFrameObservations>(
+            "orbslam/fiducial_keyframe_observations",
+            rclcpp::QoS(rclcpp::KeepLast(32)).reliable().durability_volatile());
 
     // ============================================================
     // Publicador de pose local actual de cámara
@@ -106,6 +168,12 @@ StereoSlamNode::StereoSlamNode(
 
     stringstream ss(strDoRectify);
     ss >> boolalpha >> doRectify;
+
+    if (doRectify && m_SLAM->UsesInternalStereoRectification())
+    {
+        throw std::runtime_error(
+            "doble rectificacion: wrapper y ORB_SLAM3 estan activos");
+    }
 
     if (doRectify)
     {
@@ -166,6 +234,27 @@ StereoSlamNode::StereoSlamNode(
             CV_32F,
             M1r,
             M2r);
+
+        P_l.rowRange(0, 3).colRange(0, 3).convertTo(
+            external_rectified_camera_matrix_, CV_64F);
+        external_rectified_distortion_ = cv::Mat::zeros(1, 5, CV_64F);
+    }
+
+    fiducial_config_client_ =
+        this->create_client<orbslam3_msgs::srv::GetFiducialConfig>(
+            kFiducialConfigService);
+    fiducial_next_retry_ = std::chrono::steady_clock::now();
+    fiducial_config_timer_ = this->create_wall_timer(
+        std::chrono::milliseconds(100),
+        std::bind(&StereoSlamNode::ManageFiducialConfig, this));
+    fiducial_worker_thread_ =
+        std::thread(&StereoSlamNode::FiducialWorkerLoop, this);
+    if (debug_fiducial_visualization_)
+    {
+        fiducial_debug_image_pub_ =
+            this->create_publisher<sensor_msgs::msg::Image>(
+                "orbslam/fiducial_debug/image",
+                rclcpp::QoS(rclcpp::KeepLast(1)).best_effort());
     }
 
     // ============================================================
@@ -222,12 +311,23 @@ StereoSlamNode::StereoSlamNode(
         image_width_,
         image_height_,
         baseline_est_m);
+
+    RCLCPP_INFO(
+        this->get_logger(),
+        "[FID-WRAPPER-INIT] service=%s queue_capacity=%d debug_visual=%s "
+        "debug_topic=%s",
+        kFiducialConfigService,
+        fiducial_queue_capacity_,
+        debug_fiducial_visualization_ ? "true" : "false",
+        fiducial_debug_image_pub_
+            ? "orbslam/fiducial_debug/image" : "disabled");
 }
 
 
 void StereoSlamNode::EmitArchitectureActivity(
     const std::string& edge_id,
-    const std::string& interface_name)
+    const std::string& interface_name,
+    const std::string& interface_kind)
 {
     if (!debug_architecture_telemetry_ || !architecture_activity_pub_)
     {
@@ -245,12 +345,380 @@ void StereoSlamNode::EmitArchitectureActivity(
     std::ostringstream json;
     json << "{\"kind\":\"architecture_activity\",\"edge_id\":\""
          << edge_id << "\",\"interface\":\"" << interface_name
-         << "\",\"interface_kind\":\"topic\""
+         << "\",\"interface_kind\":\"" << interface_kind << "\""
          << "\",\"source\":\"orbslam3\",\"drone_id\":" << drone_id_
          << ",\"namespace\":\"" << this->get_namespace()
          << "\",\"timestamp\":" << this->get_clock()->now().seconds() << "}";
     message.data = json.str();
     architecture_activity_pub_->publish(message);
+}
+
+
+void StereoSlamNode::ManageFiducialConfig()
+{
+    const auto state = fiducial_config_state_.load();
+    if (state == FiducialConfigState::READY ||
+        state == FiducialConfigState::DISABLED)
+    {
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (state == FiducialConfigState::REQUEST_CONFIG)
+    {
+        if (now >= fiducial_request_deadline_)
+        {
+            ++fiducial_request_generation_;
+            fiducial_config_state_.store(FiducialConfigState::WAIT_SERVICE);
+            fiducial_next_retry_ = now + std::chrono::seconds(1);
+            RCLCPP_WARN(
+                this->get_logger(),
+                "[FID-CONFIG-TIMEOUT] drone_id=%u timeout_sec=2 retry_sec=1",
+                drone_id_);
+        }
+        return;
+    }
+    if (now < fiducial_next_retry_)
+    {
+        return;
+    }
+    if (!fiducial_config_client_->service_is_ready())
+    {
+        fiducial_next_retry_ = now + std::chrono::seconds(1);
+        RCLCPP_INFO(
+            this->get_logger(),
+            "[FID-CONFIG-WAIT] drone_id=%u service=%s retry_sec=1",
+            drone_id_, kFiducialConfigService);
+        return;
+    }
+
+    auto request =
+        std::make_shared<orbslam3_msgs::srv::GetFiducialConfig::Request>();
+    request->drone_id = drone_id_;
+    request->drone_name = drone_name_;
+    const uint64_t generation = ++fiducial_request_generation_;
+    fiducial_request_deadline_ = now + std::chrono::seconds(2);
+    fiducial_config_state_.store(FiducialConfigState::REQUEST_CONFIG);
+    fiducial_config_client_->async_send_request(
+        request,
+        [this, generation](
+            rclcpp::Client<orbslam3_msgs::srv::GetFiducialConfig>::SharedFuture
+                future)
+        {
+            HandleFiducialConfigResponse(generation, future);
+        });
+    EmitArchitectureActivity(
+        "fiducial_config_server_to_wrapper",
+        kFiducialConfigService,
+        "service");
+    RCLCPP_INFO(
+        this->get_logger(),
+        "[FID-CONFIG-REQUEST] drone_id=%u generation=%lu",
+        drone_id_, static_cast<unsigned long>(generation));
+}
+
+
+void StereoSlamNode::HandleFiducialConfigResponse(
+    uint64_t generation,
+    rclcpp::Client<orbslam3_msgs::srv::GetFiducialConfig>::SharedFuture future)
+{
+    if (generation != fiducial_request_generation_ ||
+        fiducial_config_state_.load() != FiducialConfigState::REQUEST_CONFIG)
+    {
+        return;
+    }
+    try
+    {
+        const auto response = future.get();
+        if (!response->success)
+        {
+            throw std::runtime_error(response->message);
+        }
+        orbslam3_ros2::FiducialDetectorConfig config;
+        config.family = response->family;
+        config.corner_refinement = response->corner_refinement;
+        config.pose_solver = response->pose_solver;
+        config.max_reprojection_error_px =
+            response->max_reprojection_error_px;
+        for (const auto& tag : response->tags)
+        {
+            const auto inserted = config.tag_sizes_m.emplace(
+                static_cast<int>(tag.tag_id), tag.size_m);
+            if (!inserted.second)
+            {
+                throw std::runtime_error("tag_id duplicado en respuesta");
+            }
+        }
+        fiducial_detector_.Configure(config);
+        if (config.tag_sizes_m.empty())
+        {
+            fiducial_config_state_.store(FiducialConfigState::DISABLED);
+            RCLCPP_WARN(
+                this->get_logger(),
+                "[FID-CONFIG-DISABLED] drone_id=%u reason=empty_config",
+                drone_id_);
+            return;
+        }
+        fiducial_config_state_.store(FiducialConfigState::READY);
+        RCLCPP_INFO(
+            this->get_logger(),
+            "[FID-CONFIG-READY] drone_id=%u schema=%u family=%s tags=%zu "
+            "max_reprojection_error_px=%.3f",
+            drone_id_, response->schema_version, response->family.c_str(),
+            config.tag_sizes_m.size(), response->max_reprojection_error_px);
+    }
+    catch (const std::exception& error)
+    {
+        fiducial_config_state_.store(FiducialConfigState::WAIT_SERVICE);
+        fiducial_next_retry_ =
+            std::chrono::steady_clock::now() + std::chrono::seconds(1);
+        RCLCPP_ERROR(
+            this->get_logger(),
+            "[FID-CONFIG-INVALID] drone_id=%u error=%s retry_sec=1",
+            drone_id_, error.what());
+    }
+}
+
+
+void StereoSlamNode::EnqueueFiducialJob(
+    const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
+    const std::string& camera_optical_frame)
+{
+    if (fiducial_config_state_.load() != FiducialConfigState::READY)
+    {
+        RCLCPP_INFO(
+            this->get_logger(),
+            "[FID-KF-SKIP] drone_id=%u keyframe_id=%lu reason=config_not_ready",
+            drone_id_,
+            static_cast<unsigned long>(receipt.keyframe_event.keyframe_id));
+        return;
+    }
+    if (!receipt.camera.valid || receipt.image_left_effective.empty())
+    {
+        RCLCPP_ERROR(
+            this->get_logger(),
+            "[FID-KF-SKIP] drone_id=%u keyframe_id=%lu "
+            "reason=invalid_effective_camera_or_image",
+            drone_id_,
+            static_cast<unsigned long>(receipt.keyframe_event.keyframe_id));
+        return;
+    }
+
+    FiducialJob job;
+    job.drone_id = drone_id_;
+    job.map_epoch = map_epoch_;
+    job.event = receipt.keyframe_event;
+    job.image = receipt.image_left_effective;
+    job.camera_optical_frame = camera_optical_frame.empty()
+        ? drone_name_ + "/camera_left_optical_frame"
+        : camera_optical_frame;
+    receipt.camera.camera_matrix.convertTo(job.camera.camera_matrix, CV_64F);
+    receipt.camera.distortion_coefficients.convertTo(
+        job.camera.distortion, CV_64F);
+    job.camera.width = static_cast<int>(receipt.camera.image_width);
+    job.camera.height = static_cast<int>(receipt.camera.image_height);
+    job.camera.rectified = receipt.camera.is_rectified;
+    if (doRectify)
+    {
+        external_rectified_camera_matrix_.copyTo(job.camera.camera_matrix);
+        external_rectified_distortion_.copyTo(job.camera.distortion);
+        job.camera.width = job.image.cols;
+        job.camera.height = job.image.rows;
+        job.camera.rectified = true;
+    }
+
+    std::lock_guard<std::mutex> lock(fiducial_jobs_mutex_);
+    if (fiducial_jobs_.size() >=
+        static_cast<std::size_t>(fiducial_queue_capacity_))
+    {
+        const auto dropped_id = fiducial_jobs_.front().event.keyframe_id;
+        fiducial_jobs_.pop_front();
+        RCLCPP_WARN(
+            this->get_logger(),
+            "[FID-QUEUE-DROP-OLDEST] drone_id=%u dropped_keyframe_id=%lu "
+            "capacity=%d",
+            drone_id_, static_cast<unsigned long>(dropped_id),
+            fiducial_queue_capacity_);
+    }
+    fiducial_jobs_.push_back(std::move(job));
+    fiducial_jobs_cv_.notify_one();
+}
+
+
+void StereoSlamNode::FiducialWorkerLoop()
+{
+    while (true)
+    {
+        FiducialJob job;
+        {
+            std::unique_lock<std::mutex> lock(fiducial_jobs_mutex_);
+            fiducial_jobs_cv_.wait(lock, [this]() {
+                return fiducial_worker_stop_ || !fiducial_jobs_.empty();
+            });
+            if (fiducial_worker_stop_)
+            {
+                return;
+            }
+            job = std::move(fiducial_jobs_.front());
+            fiducial_jobs_.pop_front();
+        }
+        try
+        {
+            const auto result = fiducial_detector_.Detect(job.image, job.camera);
+            std::size_t valid_count = 0;
+            for (const auto& detection : result.decoded_tags)
+            {
+                valid_count += detection.valid ? 1U : 0U;
+                RCLCPP_INFO(
+                    this->get_logger(),
+                    "[FID-TAG] drone_id=%u epoch=%lu keyframe_id=%lu tag_id=%d "
+                    "valid=%s reason=%s reprojection_error_px=%.6f "
+                    "quality=%.6f z_m=%.6f area_px2=%.3f ambiguity_px=%.6f",
+                    job.drone_id, static_cast<unsigned long>(job.map_epoch),
+                    static_cast<unsigned long>(job.event.keyframe_id),
+                    detection.tag_id, detection.valid ? "true" : "false",
+                    detection.valid ? "accepted" :
+                        detection.rejection_reason.c_str(),
+                    detection.reprojection_error_px, detection.quality,
+                    detection.translation_vector[2],
+                    detection.marker_area_px2, detection.pose_ambiguity_px);
+            }
+            RCLCPP_INFO(
+                this->get_logger(),
+                "[FID-KF-DONE] drone_id=%u epoch=%lu keyframe_id=%lu "
+                "decoded=%zu valid=%zu undecoded=%zu detect_ms=%.3f "
+                "pose_ms=%.3f total_ms=%.3f",
+                job.drone_id, static_cast<unsigned long>(job.map_epoch),
+                static_cast<unsigned long>(job.event.keyframe_id),
+                result.decoded_tags.size(), valid_count,
+                result.undecoded_candidates, result.detection_ms,
+                result.pose_ms, result.total_ms);
+            PublishFiducialObservations(job, result);
+            if (fiducial_debug_image_pub_ &&
+                !result.decoded_tags.empty())
+            {
+                PublishFiducialDebugImage(job, result);
+            }
+        }
+        catch (const std::exception& error)
+        {
+            RCLCPP_ERROR(
+                this->get_logger(),
+                "[FID-WORKER-ERROR] drone_id=%u keyframe_id=%lu error=%s",
+                job.drone_id,
+                static_cast<unsigned long>(job.event.keyframe_id),
+                error.what());
+        }
+    }
+}
+
+
+void StereoSlamNode::PublishFiducialObservations(
+    const FiducialJob& job,
+    const orbslam3_ros2::FiducialDetectionResult& result)
+{
+    std::vector<const orbslam3_ros2::FiducialDetection*> valid;
+    valid.reserve(result.decoded_tags.size());
+    for (const auto& detection : result.decoded_tags)
+    {
+        if (detection.valid)
+        {
+            valid.push_back(&detection);
+        }
+    }
+    if (valid.empty())
+    {
+        return;
+    }
+    std::sort(valid.begin(), valid.end(), [](const auto* left, const auto* right) {
+        return left->tag_id < right->tag_id;
+    });
+
+    orbslam3_msgs::msg::FiducialKeyFrameObservations message;
+    message.header.stamp = TimestampToRosTime(job.event.timestamp);
+    message.header.frame_id = job.camera_optical_frame;
+    message.drone_id = job.drone_id;
+    message.drone_name = drone_name_;
+    message.map_epoch = job.map_epoch;
+    message.local_keyframe_id = job.event.keyframe_id;
+    message.source_frame_id = job.event.source_frame_id;
+    message.observations.reserve(valid.size());
+    for (const auto* detection : valid)
+    {
+        orbslam3_msgs::msg::FiducialTagObservation observation;
+        observation.tag_id = static_cast<uint32_t>(detection->tag_id);
+        observation.camera_t_tag.translation.x = detection->translation_vector[0];
+        observation.camera_t_tag.translation.y = detection->translation_vector[1];
+        observation.camera_t_tag.translation.z = detection->translation_vector[2];
+        observation.camera_t_tag.rotation =
+            RotationVectorToQuaternion(detection->rotation_vector);
+        observation.quality_score = detection->quality;
+        observation.reprojection_error_px = detection->reprojection_error_px;
+        observation.tag_area_px2 = detection->marker_area_px2;
+        observation.pose_ambiguity = detection->pose_ambiguity_px;
+        message.observations.push_back(std::move(observation));
+    }
+    fiducial_observations_pub_->publish(message);
+    EmitArchitectureActivity(
+        "wrapper_to_server_fiducial_observations",
+        "orbslam/fiducial_keyframe_observations",
+        "topic");
+    RCLCPP_INFO(
+        this->get_logger(),
+        "[FID-BATCH-PUB] drone=%u epoch=%lu kf=%lu tags=%zu",
+        job.drone_id, static_cast<unsigned long>(job.map_epoch),
+        static_cast<unsigned long>(job.event.keyframe_id), valid.size());
+}
+
+
+void StereoSlamNode::PublishFiducialDebugImage(
+    const FiducialJob& job,
+    const orbslam3_ros2::FiducialDetectionResult& result)
+{
+    cv::Mat annotated;
+    if (job.image.channels() == 1)
+    {
+        cv::cvtColor(job.image, annotated, cv::COLOR_GRAY2BGR);
+    }
+    else
+    {
+        annotated = job.image.clone();
+    }
+    for (const auto& detection : result.decoded_tags)
+    {
+        const cv::Scalar color = detection.valid
+            ? cv::Scalar(0, 220, 0)
+            : cv::Scalar(0, 0, 255);
+        std::vector<std::vector<cv::Point>> contours(1);
+        for (const auto& corner : detection.corners)
+        {
+            contours[0].emplace_back(cvRound(corner.x), cvRound(corner.y));
+        }
+        cv::polylines(annotated, contours, true, color, 2, cv::LINE_AA);
+        const std::string label = detection.valid
+            ? "tag_id=" + std::to_string(detection.tag_id) + " accepted"
+            : "tag_id=" + std::to_string(detection.tag_id) + " " +
+                detection.rejection_reason;
+        const cv::Point origin = contours[0].empty()
+            ? cv::Point(8, 24)
+            : contours[0].front() + cv::Point(0, -8);
+        cv::putText(
+            annotated, label, origin, cv::FONT_HERSHEY_SIMPLEX,
+            0.55, color, 2, cv::LINE_AA);
+    }
+    std_msgs::msg::Header header;
+    header.stamp = TimestampToRosTime(job.event.timestamp);
+    header.frame_id = drone_name_ + "/epoch_" +
+        std::to_string(job.map_epoch) + "/kf_" +
+        std::to_string(job.event.keyframe_id);
+    auto message = cv_bridge::CvImage(header, "bgr8", annotated).toImageMsg();
+    fiducial_debug_image_pub_->publish(*message);
+    RCLCPP_INFO(
+        this->get_logger(),
+        "[FID-VISUAL-PUB] drone_id=%u epoch=%lu keyframe_id=%lu decoded=%zu",
+        job.drone_id, static_cast<unsigned long>(job.map_epoch),
+        static_cast<unsigned long>(job.event.keyframe_id),
+        result.decoded_tags.size());
 }
 
 
@@ -260,6 +728,17 @@ void StereoSlamNode::EmitArchitectureActivity(
 
 StereoSlamNode::~StereoSlamNode()
 {
+    fiducial_config_timer_.reset();
+    {
+        std::lock_guard<std::mutex> lock(fiducial_jobs_mutex_);
+        fiducial_worker_stop_ = true;
+        fiducial_jobs_.clear();
+    }
+    fiducial_jobs_cv_.notify_all();
+    if (fiducial_worker_thread_.joinable())
+    {
+        fiducial_worker_thread_.join();
+    }
     m_SLAM->Shutdown();
     m_SLAM->SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
 }
@@ -308,13 +787,6 @@ void StereoSlamNode::GrabStereo(
             "camera/left + camera/right");
     }
 
-    // ============================================================
-    // FASE 4C - Asociación exacta frame -> KeyFrame.
-    //
-    // Guardamos en variables locales exactamente las imágenes que este
-    // callback entrega a System::TrackStereo(). La futura 4D usará
-    // imLeftForTracking únicamente si esta llamada crea un KeyFrame.
-    // ============================================================
     cv::Mat imLeftForTracking;
     cv::Mat imRightForTracking;
 
@@ -343,14 +815,15 @@ void StereoSlamNode::GrabStereo(
     const double input_timestamp =
         Utility::StampToSec(msgLeft->header.stamp);
 
-    const ORB_SLAM3::System::LastKeyFrameInfo kf_before =
-        m_SLAM->GetLastKeyFrameInfo();
-
+    ORB_SLAM3::System::StereoTrackingReceipt tracking_receipt;
     Sophus::SE3f Tcw =
         m_SLAM->TrackStereo(
             imLeftForTracking,
             imRightForTracking,
-            input_timestamp);
+            input_timestamp,
+            {},
+            "",
+            &tracking_receipt);
 
     // Detectar cambio de mapa una sola vez. Antes se llamaba aquí y de
     // nuevo más abajo, de forma que la primera llamada podía consumir el
@@ -358,20 +831,11 @@ void StereoSlamNode::GrabStereo(
     const bool epoch_changed =
         UpdateMapEpochFromCurrentMap();
 
-    const ORB_SLAM3::System::LastKeyFrameInfo kf_after =
-        m_SLAM->GetLastKeyFrameInfo();
-
-    const bool keyframe_created =
-        kf_after.valid &&
-        (!kf_before.valid ||
-         kf_after.keyframe_id != kf_before.keyframe_id ||
-         kf_after.source_frame_id != kf_before.source_frame_id ||
-         std::abs(kf_after.timestamp - kf_before.timestamp) > 1.0e-9);
-
-    if (keyframe_created)
+    if (tracking_receipt.keyframe_event.created)
     {
         const double timestamp_delta_sec =
-            std::abs(kf_after.timestamp - input_timestamp);
+            std::abs(
+                tracking_receipt.keyframe_event.timestamp - input_timestamp);
 
         RCLCPP_WARN(
             this->get_logger(),
@@ -380,25 +844,37 @@ void StereoSlamNode::GrabStereo(
             "timestamp_delta_sec=%.9f image_width=%d image_height=%d",
             drone_id_,
             static_cast<unsigned long>(map_epoch_),
-            static_cast<unsigned long>(kf_after.keyframe_id),
-            static_cast<unsigned long>(kf_after.source_frame_id),
-            kf_after.timestamp,
+            static_cast<unsigned long>(
+                tracking_receipt.keyframe_event.keyframe_id),
+            static_cast<unsigned long>(
+                tracking_receipt.keyframe_event.source_frame_id),
+            tracking_receipt.keyframe_event.timestamp,
             input_timestamp,
             timestamp_delta_sec,
-            imLeftForTracking.cols,
-            imLeftForTracking.rows);
+            tracking_receipt.image_left_effective.cols,
+            tracking_receipt.image_left_effective.rows);
 
-        if (timestamp_delta_sec > 1.0e-6)
+        const bool geometry_matches =
+            tracking_receipt.camera.valid &&
+            tracking_receipt.image_left_effective.cols ==
+                static_cast<int>(tracking_receipt.camera.image_width) &&
+            tracking_receipt.image_left_effective.rows ==
+                static_cast<int>(tracking_receipt.camera.image_height);
+        if (timestamp_delta_sec > 1.0e-6 || !geometry_matches)
         {
             RCLCPP_ERROR(
                 this->get_logger(),
                 "[KF-EVENT-TIMESTAMP-MISMATCH] drone_id=%u keyframe_id=%lu "
-                "source_frame_id=%lu delta_sec=%.9f",
+                "source_frame_id=%lu delta_sec=%.9f geometry_matches=%s",
                 drone_id_,
-                static_cast<unsigned long>(kf_after.keyframe_id),
-                static_cast<unsigned long>(kf_after.source_frame_id),
-                timestamp_delta_sec);
+                static_cast<unsigned long>(
+                    tracking_receipt.keyframe_event.keyframe_id),
+                static_cast<unsigned long>(
+                    tracking_receipt.keyframe_event.source_frame_id),
+                timestamp_delta_sec,
+                geometry_matches ? "true" : "false");
         }
+        EnqueueFiducialJob(tracking_receipt, msgLeft->header.frame_id);
     }
     else
     {
@@ -902,17 +1378,7 @@ void StereoSlamNode::FillKeyFrameMsg(
     kf_msg.pose =
         SophusToPoseMsg(Twc);
 
-    double t =
-        pKF->mTimeStamp;
-
-    int32_t sec =
-        static_cast<int32_t>(std::floor(t));
-
-    uint32_t nanosec =
-        static_cast<uint32_t>((t - sec) * 1e9);
-
-    kf_msg.stamp.sec = sec;
-    kf_msg.stamp.nanosec = nanosec;
+    kf_msg.stamp = TimestampToRosTime(pKF->mTimeStamp);
 
     const std::vector<cv::KeyPoint>& keypoints =
         pKF->mvKeysUn;

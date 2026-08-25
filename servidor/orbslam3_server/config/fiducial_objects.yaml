@@ -1,0 +1,49 @@
+schema_version: 1
+family: APRILTAG_36H11
+detector:
+  corner_refinement: SUBPIX
+  pose_solver: IPPE_SQUARE
+  max_reprojection_error_px: 3.0
+anchor_eligibility:
+  min_distance_m: 1.0
+  max_distance_m: 5.0
+objects:
+  - object_id: 1
+    shape: box
+    size_m: {x: 0.40, y: 0.40, z: 0.40}
+    world_T_object:
+      translation_m: [0.0, 8.5, 1.0]
+      rotation_rpy_deg: [0.0, 0.0, 0.0]
+    faces:
+      pos_x: {enabled: true, tag_id: 101, size_m: 0.30}
+      neg_x: {enabled: true, tag_id: 102, size_m: 0.30}
+      pos_y: {enabled: true, tag_id: 103, size_m: 0.30}
+      neg_y: {enabled: true, tag_id: 104, size_m: 0.30}
+      pos_z: {enabled: true, tag_id: 105, size_m: 0.30}
+      neg_z: {enabled: false}
+  - object_id: 2
+    shape: box
+    size_m: {x: 0.40, y: 0.40, z: 0.40}
+    world_T_object:
+      translation_m: [0.0, -8.5, 1.0]
+      rotation_rpy_deg: [0.0, 0.0, 0.0]
+    faces:
+      pos_x: {enabled: true, tag_id: 201, size_m: 0.30}
+      neg_x: {enabled: true, tag_id: 202, size_m: 0.30}
+      pos_y: {enabled: true, tag_id: 203, size_m: 0.30}
+      neg_y: {enabled: true, tag_id: 204, size_m: 0.30}
+      pos_z: {enabled: true, tag_id: 205, size_m: 0.30}
+      neg_z: {enabled: false}
+  - object_id: 3
+    shape: box
+    size_m: {x: 0.40, y: 0.40, z: 0.40}
+    world_T_object:
+      translation_m: [8.5, 0.0, 1.0]
+      rotation_rpy_deg: [0.0, 0.0, 0.0]
+    faces:
+      pos_x: {enabled: true, tag_id: 301, size_m: 0.30}
+      neg_x: {enabled: true, tag_id: 302, size_m: 0.30}
+      pos_y: {enabled: true, tag_id: 303, size_m: 0.30}
+      neg_y: {enabled: true, tag_id: 304, size_m: 0.30}
+      pos_z: {enabled: true, tag_id: 305, size_m: 0.30}
+      neg_z: {enabled: false}

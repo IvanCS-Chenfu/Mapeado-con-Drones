@@ -2,7 +2,11 @@
 
 ## Estado vigente
 
-`CONSEGUIDA PARA EL CIERRE DE FASE 3; MEJORA FUTURA DOCUMENTADA`.
+`REABIERTA; SUBFASE ACTUAL A REVISAR DESDE LA PRUEBA 213`.
+
+El cierre anterior permitio avanzar, pero el usuario ha fijado 3Q como punto
+actual antes de continuar a Fase 5. La preparacion correctiva aun no se ha
+iniciado y no hay autorizacion funcional para modificar el backend.
 
 3Q ejecuta `OptimizationEvidence` dentro de la misma `LoopTask` BAJA y reutiliza
 builder, solver, validator, store y fusion para fiducial absoluto y loop
@@ -88,6 +92,21 @@ relativo. No crea cola, worker ni solver duplicados.
   (`query` no protegida, candidato protegido), ambiguos y con diez competidores.
   El fiducial posterior queda dentro de umbral y no reoptimiza el interior.
 
+## Reentrada desde Fase 4 - prueba 213
+
+La prueba 213 completa 17/17 pasos, pero el usuario observa que varias derivas
+no fueron corregidas por loop. El reducido 3Q contiene 15 intentos: seis commits
+tempranos y nueve rechazos posteriores. Siete rechazos son
+`hard_corridor_displacement_exceeded` y dos `prior_loop_structure_degraded`;
+las ventanas rechazadas alcanzan 288-313 KFs. Varias propuestas reducen mucho el
+error loop, pero crean hasta 0.130115 m de exceso de corredor desde una referencia
+previa sin exceso; tambien aparecen hipotesis ambiguas con 29 competidores.
+
+Esta evidencia no reabre Fase 4 ni invalida su cadena fiducial, pero obliga a
+revisar 3Q antes de considerar robusta la correccion de deriva: reproducir 213,
+correlacionar deriva/propuesta y distinguir sobrerigidez del validator frente a
+falsos loops o mala seleccion de ventana.
+
 ## Cierre
 
 La prueba 191 termina con cola vacia y corrige el bloqueo operativo de 189. La
@@ -96,6 +115,9 @@ directa protegida es coherente; queda como perfeccionamiento futuro acordado.
 La prueba 195 no reproduce la mala optimizacion final y el usuario confirma que
 RViz2 se vio perfecto; las correcciones observadas ocurrieron al alcanzar el
 fiducial. 3Q queda conseguida para cerrar Fase 3, sin ocultar 194.
+
+La prueba 213 queda marcada expresamente como `A REVISAR DE NUEVO EN 3Q` por
+derivas no corregidas y predominio de rechazos loop tras los fiduciales hard.
 
 Como mejora futura, un candidato cercano podria requerir dos apoyos
 independientes y uno lejano/ambiguo un umbral creciente de hasta 8-10 antes de

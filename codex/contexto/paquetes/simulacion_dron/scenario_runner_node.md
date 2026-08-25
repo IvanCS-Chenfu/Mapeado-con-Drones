@@ -3,11 +3,23 @@
 ## Rol
 
 Ejecuta escenarios YAML y envía lotes de goals a
-`/dron_X/AccionTrayectoria`. Desde 3C su gate de backpressure está activo.
+`/dron_X/AccionTrayectoria`. Desde 3C su gate de backpressure está activo. En
+4B incorpora el paso generico `wait_for_bool` para esperar readiness externo
+sin acoplar el runner al spawner.
 
 ```text
 simulacion_dron/src/control_tray/scenario_runner_node.cpp
-rg -n "mapping_backpressure|MOVE-GATE-WAIT|MOVE-GATE-CLEAR" simulacion_dron/src/control_tray
+rg -n "wait_for_bool|READY-WAIT|mapping_backpressure|MOVE-GATE-WAIT" simulacion/simulacion_dron/src/control_tray/scenario_runner_node.cpp
+```
+
+`wait_for_bool` recibe `topic`, `expected` y `timeout_sec`. Crea una
+suscripcion reliable + transient-local, por lo que recibe el ultimo estado
+aunque el publicador lo haya emitido antes de arrancar el escenario. Marcadores:
+
+```text
+[SCENARIO-RUNNER-READY-WAIT]
+[SCENARIO-RUNNER-READY]
+[SCENARIO-RUNNER-READY-TIMEOUT]
 ```
 
 Topic:
@@ -33,6 +45,13 @@ Marcadores:
 
 En prueba 85 el gate esperó 67.956 s y se liberó al bajar la cola a 2; después
 los tres lotes de dos drones finalizaron con seis resultados correctos.
+
+## Yaw relativo en escenarios
+
+`yaw_deg` se convierte a radianes y `absoluto_yaw` decide si representa una
+orientacion objetivo o un incremento desde la orientacion actual. La
+trayectoria tipica de Fase 4 usa seis incrementos relativos alrededor de
+`±180°` para forzar giros cortos; los targets XYZ permanecen absolutos.
 
 `codex/archivos_auxiliares/trayectorias/tray_prueba_155.yaml` construye el caso
 dirigido A fiducial 2 -> B anchor por loop en fachada norte -> A fiducial 1.

@@ -49,6 +49,31 @@ Aunque ORB-SLAM3 se use como frontend del servidor, deben mantenerse:
 Eliminar estas operaciones no solo ahorra optimización global: degrada o rompe
 el tracking.
 
+## Evento one-shot de KeyFrame de 4C
+
+En stereo los dos puntos de creación registran el mismo evento escalar:
+
+- `Tracking::StereoInitialization()` crea el KF inicial;
+- `Tracking::CreateNewKeyFrame()` crea los KFs durante tracking normal.
+
+`GrabImageStereo()` limpia el evento antes de cada frame; ambas rutas llaman a
+`RecordKeyFrameCreation()` y `System` usa
+`ConsumeLastCreatedKeyFrameEvent()` una sola vez. `Reset()` y
+`ResetActiveMap()` tambien limpian el estado. El getter `GetLastKeyFrame()` se
+mantiene solo para dependencias internas de `LoopClosing`, no para el wrapper.
+`GetEffectiveCameraCalibration()` copia `mK` y `mDistCoef` por valor.
+
+Referencias:
+
+```text
+ORB_SLAM3/include/Tracking.h -> KeyFrameCreationEvent,
+  ConsumeLastCreatedKeyFrameEvent
+ORB_SLAM3/src/Tracking.cc -> Tracking::StereoInitialization,
+  Tracking::CreateNewKeyFrame, Tracking::RecordKeyFrameCreation
+rg "RecordKeyFrameCreation|ConsumeLastCreatedKeyFrameEvent|ClearLastCreated"
+aproximadamente lineas 520-570, 2335-2430 y 3216-3345
+```
+
 ## Qué no controla
 
 `Tracking` no es la ruta principal que reescribe todos los KeyFrames tras un

@@ -37,9 +37,17 @@ El helper espera `/health=ready` y abre una sola pestaña con cursor fresco. El
 transporte conserva un buffer de 512 eventos, reconexion por `Last-Event-ID`,
 `state_reset` para cursores expirados y ningun canal web->ROS.
 
-## Topologia 3P
+## Topologia vigente
 
-23 nodos y 39 aristas. Mantiene el flujo principal/fiducial/loop y añade:
+23 nodos y 41 aristas. Mantiene el flujo principal/fiducial/loop y añade en
+4E+4F el transporte real:
+
+```text
+orbslam3 wrapper --fiducial batch--> orbslam3_server
+orbslam3_server --exact sync--> RawMapDatabase
+```
+
+El resto del flujo incluye:
 
 ```text
 FiducialAnchorManager --opt_fid / MAX--> SecondaryTaskQueue
@@ -102,7 +110,7 @@ rg -n "secondaryTasks|secondary_task_lifecycle" \
 rg -n "F3P-FLOW-WEB-READY" simulacion_dron/src/visualizer/pipeline_flow_bridge.py
 ```
 
-- marcador: `[F3P-FLOW-WEB-READY] ... topology=23_nodes_39_edges`;
+- marcador vigente: `[F3Q-FLOW-WEB-READY] ... topology=23_nodes_41_edges`;
 - contrato Python: 9/9, incluido lifecycle y camino secundario latched;
 - live 154: bridge listo, tarea de anchor loop completa y cola secundaria
   drenada. El usuario observa el camino loop permanentemente iluminado. No hay

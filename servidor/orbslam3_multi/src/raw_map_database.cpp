@@ -48,6 +48,43 @@ void HashQuantized(uint64_t * hash, double value, double resolution)
   HashValue(hash, quantized);
 }
 
+void HashString(uint64_t * hash, const std::string & value)
+{
+  HashValue(hash, static_cast<uint64_t>(value.size()));
+  HashBytes(hash, value.data(), value.size());
+}
+
+uint64_t HashFiducialBatch(
+  const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch)
+{
+  uint64_t hash = kHashOffset;
+  HashValue(&hash, batch.header.stamp.sec);
+  HashValue(&hash, batch.header.stamp.nanosec);
+  HashString(&hash, batch.header.frame_id);
+  HashValue(&hash, batch.drone_id);
+  HashString(&hash, batch.drone_name);
+  HashValue(&hash, batch.map_epoch);
+  HashValue(&hash, batch.local_keyframe_id);
+  HashValue(&hash, batch.source_frame_id);
+  HashValue(&hash, static_cast<uint64_t>(batch.observations.size()));
+  for (const auto & observation : batch.observations) {
+    HashValue(&hash, observation.tag_id);
+    const auto & transform = observation.camera_t_tag;
+    HashValue(&hash, transform.translation.x);
+    HashValue(&hash, transform.translation.y);
+    HashValue(&hash, transform.translation.z);
+    HashValue(&hash, transform.rotation.x);
+    HashValue(&hash, transform.rotation.y);
+    HashValue(&hash, transform.rotation.z);
+    HashValue(&hash, transform.rotation.w);
+    HashValue(&hash, observation.quality_score);
+    HashValue(&hash, observation.reprojection_error_px);
+    HashValue(&hash, observation.tag_area_px2);
+    HashValue(&hash, observation.pose_ambiguity);
+  }
+  return hash;
+}
+
 template<typename T>
 bool WritePod(std::ostream & out, const T & value)
 {
@@ -280,6 +317,32 @@ const char * ToString(RawKeyFramePoseChangeKind kind)
   return "unknown";
 }
 
+const char * ToString(FiducialBatchSubmitStatus status)
+{
+  switch (status) {
+    case FiducialBatchSubmitStatus::Pending:
+      return "pending";
+    case FiducialBatchSubmitStatus::MatchedImmediate:
+      return "matched_immediate";
+    case FiducialBatchSubmitStatus::Duplicate:
+      return "duplicate";
+    case FiducialBatchSubmitStatus::Conflict:
+      return "conflict";
+    case FiducialBatchSubmitStatus::Rejected:
+      return "rejected";
+  }
+  return "unknown";
+}
+
+size_t RawMapDatabase::RawKeyFrameIdHash::operator()(const RawKeyFrameId & id) const
+{
+  uint64_t hash = kHashOffset;
+  HashValue(&hash, id.drone_id);
+  HashValue(&hash, id.map_epoch);
+  HashValue(&hash, id.local_kf_id);
+  return static_cast<size_t>(hash);
+}
+
 RawInsertResult RawMapDatabase::InsertDelta(
   uint64_t arrival_id,
   std::shared_ptr<const orbslam3_msgs::msg::OrbMap> delta)
@@ -341,6 +404,7 @@ RawInsertResult RawMapDatabase::InsertMap(
     if (existing == submap.keyframes.end()) {
       submap.keyframes.emplace(keyframe.id, keyframe);
       submap.keyframe_revisions[keyframe.id] = 1;
+      keyframe_first_arrival_ids_.emplace(id, arrival_id);
       result.new_keyframe_ids.push_back(id);
       result.pose_changed_keyframe_ids.push_back(id);
       result.pose_changes.push_back(
@@ -541,8 +605,228 @@ RawInsertResult RawMapDatabase::InsertMap(
     result.normalized_delta_appended = true;
   }
   last_arrival_id_ = arrival_id;
+  ResolvePendingFiducialBatchesLocked(&result);
   result.stats = GetStatsLocked();
   return result;
+}
+
+void RawMapDatabase::SetFiducialPendingCapacityPerDrone(size_t capacity)
+{
+  if (capacity == 0U) {
+    throw std::invalid_argument("fiducial pending capacity debe ser positiva");
+  }
+  std::lock_guard<std::mutex> lock(mutex_);
+  fiducial_pending_capacity_per_drone_ = capacity;
+  for (auto & [drone_id, order] : pending_fiducial_order_by_drone_) {
+    (void)drone_id;
+    while (order.size() > capacity) {
+      pending_fiducial_batches_.erase(order.front());
+      order.pop_front();
+      ++fiducial_sync_stats_.evicted;
+    }
+  }
+  fiducial_sync_stats_.pending_current = pending_fiducial_batches_.size();
+}
+
+FiducialBatchSubmitResult RawMapDatabase::SubmitFiducialBatch(
+  const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  FiducialBatchSubmitResult result;
+  const auto validation = ValidateFiducialBatchLocked(batch, nullptr);
+  if (validation.has_value()) {
+    result.reason = *validation;
+    ++fiducial_sync_stats_.rejected;
+    result.stats = fiducial_sync_stats_;
+    return result;
+  }
+
+  const RawKeyFrameId id{batch.drone_id, batch.map_epoch, batch.local_keyframe_id};
+  const uint64_t digest = HashFiducialBatch(batch);
+  const auto consumed = consumed_fiducial_digests_.find(id);
+  if (consumed != consumed_fiducial_digests_.end()) {
+    if (consumed->second == digest) {
+      result.status = FiducialBatchSubmitStatus::Duplicate;
+      result.reason = "batch exacto ya consumido";
+      ++fiducial_sync_stats_.duplicate;
+    } else {
+      result.status = FiducialBatchSubmitStatus::Conflict;
+      result.reason = "contenido distinto para KF ya consumido";
+      ++fiducial_sync_stats_.conflict;
+    }
+    result.stats = fiducial_sync_stats_;
+    return result;
+  }
+
+  const auto pending = pending_fiducial_batches_.find(id);
+  if (pending != pending_fiducial_batches_.end()) {
+    if (pending->second.digest == digest) {
+      result.status = FiducialBatchSubmitStatus::Duplicate;
+      result.reason = "batch exacto ya pendiente";
+      ++fiducial_sync_stats_.duplicate;
+    } else {
+      result.status = FiducialBatchSubmitStatus::Conflict;
+      result.reason = "contenido distinto para KF pendiente";
+      ++fiducial_sync_stats_.conflict;
+    }
+    result.stats = fiducial_sync_stats_;
+    return result;
+  }
+
+  const auto submap = submaps_.find({id.drone_id, id.map_epoch});
+  if (submap != submaps_.end()) {
+    const auto raw_keyframe = submap->second.keyframes.find(id.local_kf_id);
+    if (raw_keyframe != submap->second.keyframes.end()) {
+      const auto exact_validation = ValidateFiducialBatchLocked(batch, &raw_keyframe->second);
+      if (exact_validation.has_value()) {
+        result.reason = *exact_validation;
+        ++fiducial_sync_stats_.rejected;
+        result.stats = fiducial_sync_stats_;
+        return result;
+      }
+      consumed_fiducial_digests_[id] = digest;
+      result.status = FiducialBatchSubmitStatus::MatchedImmediate;
+      result.match = MakeSynchronizedFiducialBatchLocked(
+        id, raw_keyframe->second, batch, false);
+      ++fiducial_sync_stats_.matched_immediate;
+      result.stats = fiducial_sync_stats_;
+      return result;
+    }
+  }
+
+  auto & order = pending_fiducial_order_by_drone_[id.drone_id];
+  if (order.size() >= fiducial_pending_capacity_per_drone_) {
+    result.evicted_keyframe_id = order.front();
+    pending_fiducial_batches_.erase(order.front());
+    order.pop_front();
+    ++fiducial_sync_stats_.evicted;
+  }
+  pending_fiducial_batches_.emplace(
+    id, PendingFiducialBatch{batch, digest});
+  order.push_back(id);
+  result.status = FiducialBatchSubmitStatus::Pending;
+  result.reason = "KF raw aun no disponible";
+  fiducial_sync_stats_.pending_current = pending_fiducial_batches_.size();
+  fiducial_sync_stats_.pending_peak = std::max(
+    fiducial_sync_stats_.pending_peak, fiducial_sync_stats_.pending_current);
+  result.stats = fiducial_sync_stats_;
+  return result;
+}
+
+FiducialSyncStats RawMapDatabase::GetFiducialSyncStats() const
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  return fiducial_sync_stats_;
+}
+
+std::optional<std::string> RawMapDatabase::ValidateFiducialBatchLocked(
+  const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch,
+  const orbslam3_msgs::msg::OrbKeyFrame * raw_keyframe) const
+{
+  if (batch.drone_id == 0U) {
+    return "drone_id invalido";
+  }
+  if (batch.header.frame_id.empty()) {
+    return "frame optico vacio";
+  }
+  if (batch.observations.empty()) {
+    return "batch vacio";
+  }
+  uint32_t previous_tag_id = 0;
+  bool first = true;
+  for (const auto & observation : batch.observations) {
+    if (!first && observation.tag_id <= previous_tag_id) {
+      return "tag_id no unico u orden no ascendente";
+    }
+    first = false;
+    previous_tag_id = observation.tag_id;
+    const auto & transform = observation.camera_t_tag;
+    const double values[] = {
+      transform.translation.x, transform.translation.y, transform.translation.z,
+      transform.rotation.x, transform.rotation.y, transform.rotation.z,
+      transform.rotation.w, observation.quality_score,
+      observation.reprojection_error_px, observation.tag_area_px2,
+      observation.pose_ambiguity};
+    if (!std::all_of(std::begin(values), std::end(values), [](double value) {
+        return std::isfinite(value);
+      }))
+    {
+      return "transform o metricas no finitas";
+    }
+    if (observation.quality_score < 0.0 || observation.quality_score > 1.0) {
+      return "quality_score fuera de [0,1]";
+    }
+    const double quaternion_norm = std::sqrt(
+      transform.rotation.x * transform.rotation.x +
+      transform.rotation.y * transform.rotation.y +
+      transform.rotation.z * transform.rotation.z +
+      transform.rotation.w * transform.rotation.w);
+    if (std::abs(quaternion_norm - 1.0) > 1.0e-6) {
+      return "quaternion no normalizado";
+    }
+  }
+  if (raw_keyframe != nullptr &&
+    (raw_keyframe->stamp.sec != batch.header.stamp.sec ||
+    raw_keyframe->stamp.nanosec != batch.header.stamp.nanosec))
+  {
+    return "timestamp no coincide exactamente con KF raw";
+  }
+  return std::nullopt;
+}
+
+void RawMapDatabase::ResolvePendingFiducialBatchesLocked(RawInsertResult * result)
+{
+  for (const auto & id : result->new_keyframe_ids) {
+    const auto pending = pending_fiducial_batches_.find(id);
+    if (pending == pending_fiducial_batches_.end()) {
+      continue;
+    }
+    const auto submap = submaps_.find({id.drone_id, id.map_epoch});
+    const auto raw_keyframe = submap->second.keyframes.find(id.local_kf_id);
+    const auto validation = ValidateFiducialBatchLocked(
+      pending->second.batch, &raw_keyframe->second);
+    const uint64_t digest = pending->second.digest;
+    const auto batch = pending->second.batch;
+    pending_fiducial_batches_.erase(pending);
+    RemovePendingOrderLocked(id);
+    fiducial_sync_stats_.pending_current = pending_fiducial_batches_.size();
+    consumed_fiducial_digests_[id] = digest;
+    if (validation.has_value()) {
+      ++fiducial_sync_stats_.rejected;
+      continue;
+    }
+    result->synchronized_fiducial_batches.push_back(
+      MakeSynchronizedFiducialBatchLocked(id, raw_keyframe->second, batch, true));
+    ++fiducial_sync_stats_.matched_from_pending;
+  }
+}
+
+SynchronizedFiducialBatch RawMapDatabase::MakeSynchronizedFiducialBatchLocked(
+  const RawKeyFrameId & id,
+  const orbslam3_msgs::msg::OrbKeyFrame & raw_keyframe,
+  const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch,
+  bool matched_from_pending) const
+{
+  const auto arrival = keyframe_first_arrival_ids_.find(id);
+  if (arrival == keyframe_first_arrival_ids_.end()) {
+    throw std::logic_error("KF raw sin first_arrival_id");
+  }
+  return {id, raw_keyframe, batch, arrival->second, matched_from_pending};
+}
+
+void RawMapDatabase::RemovePendingOrderLocked(const RawKeyFrameId & id)
+{
+  auto order = pending_fiducial_order_by_drone_.find(id.drone_id);
+  if (order == pending_fiducial_order_by_drone_.end()) {
+    return;
+  }
+  const auto found = std::find(order->second.begin(), order->second.end(), id);
+  if (found != order->second.end()) {
+    order->second.erase(found);
+  }
+  if (order->second.empty()) {
+    pending_fiducial_order_by_drone_.erase(order);
+  }
 }
 
 void RawMapDatabase::SetIncrementalRecordErrorLocked(const std::string & error)

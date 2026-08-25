@@ -1,9 +1,14 @@
-# Subfase 4J — Rechazos, inconsistencias y funcionamiento degradado seguro
+# LEGACY — Antigua Subfase 4J — Rechazos, inconsistencias y funcionamiento degradado seguro
+
+Este contrato ya no pertenece al flujo activo de Fase 4. La revision importada
+desde `Fase_4_completa_4A_4I_muy_detallada.zip` distribuye la robustez en las
+subfases propietarias 4A-4H y deja 4I como regresion final con perfil
+ESP32-CAM simulado. Se conserva solo como referencia historica.
 
 ## Estado
 
 ```text
-sin hacer
+legacy
 ```
 
 ## Dependencia

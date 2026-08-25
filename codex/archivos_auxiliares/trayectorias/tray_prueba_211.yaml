@@ -1,0 +1,51 @@
+name: fase4_ef_smoke_arista_live
+description: "Verifica en live la arista wrapper-servidor con el primer tramo de la trayectoria tipica."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: ambos_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: espera_telemetria_live
+    type: wait
+    seconds: 8.0

@@ -73,6 +73,9 @@ debug_flags:
   - debug_system_architecture_web
   - debug_open_system_architecture_browser
   - debug_architecture_telemetry
+  - debug_fiducial_visualization
+debug_numeric_parameters:
+  debug_fiducial_display_seconds: 5.0
 
 system_architecture:
   graph: simulacion/simulacion_dron/web/system_architecture/graph_definition.js
@@ -81,10 +84,11 @@ system_architecture:
   runtime_edges:
     - sim_to_orbslam_stereo
     - sim_to_dron_gt
-    - sim_to_server_fiducial_gt
     - sim_to_dron_action
     - dron_to_sim_motors
     - orbslam_to_server_delta
+    - wrapper_to_server_fiducial_observations
+    - fiducial_config_server_to_wrapper
     - server_to_orbslam_snapshot_request
     - orbslam_to_server_snapshot_response
     - server_to_sim_backpressure

@@ -1,5 +1,5 @@
 window.FLOW_GRAPH = {
-  "phase": "3Q",
+  "phase": "4F",
   "categories": {
     "source": {"label": "Origen local", "color": "#28688f", "active": "#0088c7"},
     "server": {"label": "Orquestacion ROS", "color": "#3e7654", "active": "#008f5b"},
@@ -40,6 +40,7 @@ window.FLOW_GRAPH = {
   "edges": [
     {"id": "wrapper_server", "source": "wrappers", "target": "server", "label": "OrbMap delta", "description": "Recepcion live.", "category": "source", "desktopRoute": {"curve-style": "unbundled-bezier", "control-point-distances": [-18], "control-point-weights": [0.5]}},
     {"id": "wrapper_server_snapshot", "source": "wrappers", "target": "server", "label": "snapshot", "description": "Respuesta completa recibida; la solicitud no se representa.", "category": "source", "desktopRoute": {"curve-style": "unbundled-bezier", "control-point-distances": [18], "control-point-weights": [0.5]}},
+    {"id": "wrapper_server_fiducial", "source": "wrappers", "target": "server", "label": "fiducial batch", "description": "Observaciones visuales sincronizadas con su KF raw exacto.", "category": "source", "desktopRoute": {"curve-style": "unbundled-bezier", "control-point-distances": [42], "control-point-weights": [0.5]}},
     {"id": "server_primary_queue", "source": "server", "target": "primary_queue", "label": "enqueue", "description": "Entrada FIFO.", "category": "queue"},
     {"id": "primary_queue_worker", "source": "primary_queue", "target": "primary_worker", "label": "dequeue/start", "description": "Inicio de PrimaryTask.", "category": "worker"},
     {"id": "primary_worker_raw_db", "source": "primary_worker", "target": "raw_db", "label": "raw commit", "description": "Commit delta y RawInsertResult.", "category": "storage", "desktopRoute": {"curve-style": "unbundled-bezier", "control-point-distances": [-18], "control-point-weights": [0.5]}},

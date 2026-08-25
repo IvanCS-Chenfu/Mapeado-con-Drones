@@ -577,3 +577,27 @@
   lejanos/ambiguos, seguido de una unica optimizacion.
 - Conclusion agregada revisada: `CONSEGUIDA PARA EL CIERRE DE FASE 3`, con
   mejora futura y punto de reentrada conservados.
+
+## 2026-08-25 - Reentrada futura desde prueba 213 de Fase 4
+
+- No se reejecuta 3Q ni se modifica su runtime. Se incorpora la observacion
+  visual del usuario sobre la prueba 213 ya realizada.
+- La mision completa 17/17 pasos y 22/22 goals, pero permanecen derivas que el
+  usuario esperaba corregir mediante loops.
+- El reducido contiene 15 intentos 3Q: seis commits tempranos sobre ventanas de
+  30-69 KFs, con 28-155 KFs movidos, y nueve rechazos posteriores sobre
+  ventanas de 288-313 KFs.
+- Siete propuestas posteriores son rechazadas por
+  `hard_corridor_displacement_exceeded`. Reducen claramente el error loop, pero
+  crean entre 0.000416 y 0.130115 m de exceso nuevo sobre corredores cuyo exceso
+  previo era cero. Dos mas terminan `prior_loop_structure_degraded`.
+- Varias hipotesis muestran `ambiguity=true`, hasta 29 competidores y apoyo no
+  independiente. Esto impide asumir que todos los rechazos fueran correcciones
+  buenas, aunque el resultado visual indica que la politica tampoco corrigio
+  suficiente deriva.
+- Hipotesis inicial a contrastar: admision ambigua y ventanas grandes combinadas
+  con una proteccion de corredor posiblemente sobrerrestrictiva. No se propone
+  relajar hard fiducials sin correlacionar antes cada deriva con su loop.
+- Conclusion: prueba 213 `A REVISAR DE NUEVO EN 3Q`. Reproducirla, correlacionar
+  propuestas con la nube visible y distinguir falsos loops, mala ventana y
+  rechazo excesivamente conservador antes de elegir una correccion.

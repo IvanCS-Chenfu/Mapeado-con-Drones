@@ -79,6 +79,32 @@ System::GetAllMapPoints()
 
 Son consultas; no aplican correcciones.
 
+Fase 4C añade el recibo opcional exacto de tracking:
+
+```cpp
+System::KeyFrameCreationEvent
+System::EffectiveCameraModel
+System::StereoTrackingReceipt
+System::TrackStereo(..., StereoTrackingReceipt* receipt)
+System::UsesInternalStereoRectification()
+System::UsesInternalStereoResize()
+```
+
+Tras `GrabImageStereo()`, `TrackStereo()` consume una sola vez el evento de
+`Tracking`. Solo cuando esa llamada crea KF, el recibo contiene ID de KF/frame,
+timestamp, copia de `imLeftToFeed`, `K`, distorsion y dimensiones efectivas.
+El wrapper ya no sondea estado persistente ni asocia por proximidad temporal.
+Las dos consultas de preprocessing permiten rechazar doble rectificacion.
+
+Referencias:
+
+```text
+ORB_SLAM3/include/System.h -> StereoTrackingReceipt, TrackStereo
+ORB_SLAM3/src/System.cc -> System::TrackStereo
+rg "StereoTrackingReceipt|ConsumeLastCreatedKeyFrameEvent|imLeftToFeed"
+aproximadamente lineas 100-150 y 249-355
+```
+
 ## Restricción de autoridad
 
 En la arquitectura multi-dron, `System` no debe convertir una detección local

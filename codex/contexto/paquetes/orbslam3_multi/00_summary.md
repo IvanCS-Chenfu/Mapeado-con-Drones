@@ -25,6 +25,13 @@ secundario 3H-3L captura snapshots acotados, calcula fuera de locks y termina
 con un commit breve en `GlobalPoseStore`. `RawMapDatabase` nunca se modifica por
 la optimizacion.
 
+Desde 4F, `RawMapDatabase` posee un sidecar de batches fiduciales pendientes:
+lookup exacto O(1), FIFO configurable por dron con capacidad inicial 10, sin
+TTL y bajo el mutex raw existente. Resuelve tanto batch→KF como KF→batch,
+conserva el primer `arrival_id`, elimina al consumir y distingue
+duplicate/conflict mediante digest. El backend solo expone configuracion,
+submission, matches y estadisticas; todavia no interpreta objetos.
+
 ## Covisibilidad y loops
 
 - `CovisibilityDatabase` prepara patches ORB fuera de lock y los compromete de

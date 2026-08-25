@@ -5,10 +5,12 @@
 #include "orbslam3_msgs/msg/orb_key_frame.hpp"
 #include "orbslam3_msgs/msg/orb_map.hpp"
 #include "orbslam3_msgs/msg/orb_map_point.hpp"
+#include "orbslam3_msgs/msg/fiducial_key_frame_observations.hpp"
 
 #include <cstdint>
 #include <fstream>
 #include <functional>
+#include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -16,6 +18,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 namespace orbslam3_multi
 {
@@ -54,6 +57,10 @@ public:
   RawInsertResult InsertFullSnapshot(
     uint64_t arrival_id,
     std::shared_ptr<const orbslam3_msgs::msg::OrbMap> snapshot);
+  void SetFiducialPendingCapacityPerDrone(size_t capacity);
+  FiducialBatchSubmitResult SubmitFiducialBatch(
+    const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch);
+  FiducialSyncStats GetFiducialSyncStats() const;
 
   // Lecturas copiadas para que consumidores costosos trabajen fuera del lock interno.
   RawDatabaseStats GetStats() const;
@@ -127,6 +134,17 @@ private:
     std::map<uint64_t, uint64_t> mappoint_revisions;
   };
 
+  struct RawKeyFrameIdHash
+  {
+    size_t operator()(const RawKeyFrameId & id) const;
+  };
+
+  struct PendingFiducialBatch
+  {
+    orbslam3_msgs::msg::FiducialKeyFrameObservations batch;
+    uint64_t digest = 0;
+  };
+
   RawDatabaseStats GetStatsLocked() const;
   void AppendJournalEntryLocked(
     uint64_t arrival_id,
@@ -136,9 +154,28 @@ private:
     uint64_t arrival_id,
     std::shared_ptr<const orbslam3_msgs::msg::OrbMap> map,
     bool full_snapshot);
+  std::optional<std::string> ValidateFiducialBatchLocked(
+    const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch,
+    const orbslam3_msgs::msg::OrbKeyFrame * raw_keyframe) const;
+  void ResolvePendingFiducialBatchesLocked(RawInsertResult * result);
+  SynchronizedFiducialBatch MakeSynchronizedFiducialBatchLocked(
+    const RawKeyFrameId & id,
+    const orbslam3_msgs::msg::OrbKeyFrame & raw_keyframe,
+    const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch,
+    bool matched_from_pending) const;
+  void RemovePendingOrderLocked(const RawKeyFrameId & id);
 
   mutable std::mutex mutex_;
   std::map<RawSubmapId, RawSubmap> submaps_;
+  size_t fiducial_pending_capacity_per_drone_ = 10;
+  std::unordered_map<RawKeyFrameId, PendingFiducialBatch, RawKeyFrameIdHash>
+    pending_fiducial_batches_;
+  std::map<uint32_t, std::deque<RawKeyFrameId>> pending_fiducial_order_by_drone_;
+  std::unordered_map<RawKeyFrameId, uint64_t, RawKeyFrameIdHash>
+    consumed_fiducial_digests_;
+  std::unordered_map<RawKeyFrameId, uint64_t, RawKeyFrameIdHash>
+    keyframe_first_arrival_ids_;
+  FiducialSyncStats fiducial_sync_stats_;
   std::vector<RawJournalEntry> journal_;
   std::vector<RecordedFiducialObservation> fiducial_observation_journal_;
   JournalMode journal_mode_ = JournalMode::InMemory;

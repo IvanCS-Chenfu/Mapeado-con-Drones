@@ -23,6 +23,7 @@ LAUNCH_OWNED_SERVER_PARAMETERS = {
     'drone_namespace_base',
     'debug_pipeline_flow_events',
     'debug_architecture_telemetry',
+    'fiducial_objects_config',
 }
 
 
@@ -62,9 +63,6 @@ def test_each_server_parameter_has_one_yaml_owner():
             assert parameter not in owners, (
                 f'{parameter} is defined by {owners.get(parameter)} and {filename}')
             owners[parameter] = filename
-    for parameter in parameter_map(SERVER_PACKAGE / 'config/calibration_dron.yaml'):
-        assert parameter not in owners
-        owners[parameter] = 'calibration_dron.yaml'
 
 
 def test_yaml_profiles_plus_launch_cover_server_parameter_contract():
@@ -74,7 +72,6 @@ def test_yaml_profiles_plus_launch_cover_server_parameter_contract():
     configured = set()
     for filename in CONFIG_FILES:
         configured.update(parameter_map(SERVER_CONFIG / filename))
-    configured.update(parameter_map(SERVER_PACKAGE / 'config/calibration_dron.yaml'))
     assert configured == declared - LAUNCH_OWNED_SERVER_PARAMETERS
 
 
@@ -175,9 +172,17 @@ def test_debug_profile_controls_simulation_and_server_producers():
         'debug_system_architecture_web',
         'debug_open_system_architecture_browser',
         'debug_architecture_telemetry',
+        'debug_fiducial_visualization',
+        'debug_fiducial_display_seconds',
     }
     assert set(profile) == expected
-    assert all(value is False for value in profile.values())
+    assert profile['debug_fiducial_visualization'] is False
+    assert profile['debug_fiducial_display_seconds'] == 5.0
+    boolean_flags = {
+        key: value for key, value in profile.items()
+        if key != 'debug_fiducial_display_seconds'
+    }
+    assert all(value is False for value in boolean_flags.values())
 
     simulation_launch = (
         SIMULATION_PACKAGE / 'launch/multi_dron.launch.py'

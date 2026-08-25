@@ -159,6 +159,8 @@ public:
 
       if (step_type == "wait") {
         ok = ExecuteWaitStep(step);
+      } else if (step_type == "wait_for_bool") {
+        ok = ExecuteWaitForBoolStep(step);
       } else if (step_type == "move") {
         ok = ExecuteMoveStep(step);
       } else {
@@ -358,6 +360,52 @@ private:
       std::this_thread::sleep_for(100ms);
     }
 
+    return rclcpp::ok();
+  }
+
+  bool ExecuteWaitForBoolStep(const YAML::Node & step)
+  {
+    const std::string topic = YamlGet<std::string>(step, "topic", "");
+    const bool expected = YamlGet<bool>(step, "expected", true);
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 60.0);
+    if (topic.empty() || timeout_sec <= 0.0) {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[SCENARIO-RUNNER-ERROR] wait_for_bool requires topic and timeout_sec > 0");
+      return false;
+    }
+
+    auto matched = std::make_shared<std::atomic<bool>>(false);
+    auto subscription = this->create_subscription<std_msgs::msg::Bool>(
+      topic,
+      rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local(),
+      [matched, expected](const std_msgs::msg::Bool::SharedPtr msg)
+      {
+        if (msg->data == expected) {
+          matched->store(true);
+        }
+      });
+    RCLCPP_WARN(
+      this->get_logger(),
+      "[SCENARIO-RUNNER-READY-WAIT] topic='%s' expected=%s timeout_sec=%.3f",
+      topic.c_str(), expected ? "true" : "false", timeout_sec);
+    const auto start = std::chrono::steady_clock::now();
+    while (rclcpp::ok() && !matched->load()) {
+      const double elapsed = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - start).count();
+      if (elapsed >= timeout_sec) {
+        RCLCPP_ERROR(
+          this->get_logger(),
+          "[SCENARIO-RUNNER-READY-TIMEOUT] topic='%s' timeout_sec=%.3f",
+          topic.c_str(), timeout_sec);
+        return false;
+      }
+      std::this_thread::sleep_for(100ms);
+    }
+    RCLCPP_WARN(
+      this->get_logger(),
+      "[SCENARIO-RUNNER-READY] topic='%s' expected=%s",
+      topic.c_str(), expected ? "true" : "false");
     return rclcpp::ok();
   }
 

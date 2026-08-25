@@ -1,231 +1,245 @@
-# Subfase 4E — Contrato ROS 2 de observaciones fiduciales por KeyFrame
-
-## Impacto obligatorio en system_architecture
-
-Cuando 4E cree/active el batch fiducial, actualizar metadata de `orbslam3_msgs` y
-`orbslam3` en `system_architecture`: topic, tipo, patrón de namespace, dirección,
-datos transportados y QoS. No iluminar todavía una recepción de Servidor que no exista
-hasta 4F. La telemetría de debug del publisher debe ser ligera y quedar completamente
-inactiva cuando `system_architecture` esté apagado.
+# Subfase 4E — Contrato ROS 2 y publicación de observaciones visuales por KeyFrame
 
 ## Estado
 
 ```text
-sin hacer
+CONSEGUIDA — implementada, compilada y validada el 2026-08-25
 ```
 
-## Dependencia
+## Condición previa
 
-`4C` y `4D`.
+Cumplida: 4C aporta la identidad exacta del KF y 4D las observaciones internas
+del worker. La preparación y autorización de 4E+4F quedaron cerradas antes de
+la implementación.
 
-## Objetivo técnico
+## Objetivo
 
-Definir una interfaz ROS 2 compacta y explícita para transportar, en una única publicación por KF con detecciones, la identidad exacta del KeyFrame y un array de observaciones planas `tag_id + camera_T_tag` calculadas por el wrapper.
+Crear el contrato ROS 2 definitivo para enviar desde cada wrapper al Servidor, por un **topic independiente de `orb_map_delta`**, todas las marcas visuales detectadas en un KF exacto.
 
-El mensaje no debe contener imágenes, Ground Truth, `world_T_fiducial`, agrupación por cubo ni una pose global calculada en el dron.
-
-## Comportamiento esperado
-
-Un KF que ve tres tags produce un mensaje conceptualmente equivalente a:
+Regla principal:
 
 ```text
-KF 37
-observations[0] = tag 101 + camera_T_tag101
-observations[1] = tag 102 + camera_T_tag102
-observations[2] = tag 405 + camera_T_tag405
+KF sin tags válidos -> NO publicar mensaje fiducial
+KF con 1 tag       -> 1 batch con 1 observation
+KF con N tags      -> 1 batch con N observations
 ```
 
-Los tags 101/102 pueden pertenecer al mismo cubo; el wrapper no lo indica ni lo resuelve.
+No se enviará un mensaje por tag ni un batch vacío por KF. El objetivo es mantener tráfico pequeño y semántica clara.
 
-## Contexto obligatorio a leer
+## Separación de responsabilidades
 
+El mensaje representa percepción geométrica, no semántica de objetos.
+
+El wrapper puede enviar:
 
 ```text
-AGENTS.md
-codex/contexto/00_CONTEXTO_COMPACTACION.md
-codex/contexto/CONTEXTO_MINIMO_ACTUAL.md
-codex/contexto/08_POLITICA_TOKENS_DOCUMENTACION.md
-codex/pipeline/PIPELINE_MAESTRO.md
-codex/pipeline/fase_4_fiducial_real/pipeline_fase_4_RESUMEN.md
-codex/pipeline/fase_4_fiducial_real/pipeline_fase_4.md
+tag_id
+camera_T_tag
+quality_score
+métricas originales de calidad
+identidad exacta del KF
 ```
 
-
-Además:
+El wrapper NO puede enviar ni decidir:
 
 ```text
-subfases/subfase_4C.md
-subfases/subfase_4D.md
-src/orbslam3_msgs/CMakeLists.txt
-src/orbslam3_msgs/msg/FiducialObservation.msg
-src/orbslam3_msgs/msg/OrbKeyFrame.msg
-src/orbslam3_msgs/msg/OrbMap.msg
-wrapper vigente
+object_id / fiducial_id lógico
+cara del cubo
+object_T_tag
+world_T_object
+world_T_camera
+fiducial seleccionado
+anchor/revisit/optimization
+GT
 ```
 
-## Diagnóstico de partida
-
-Existe `orbslam3_msgs/msg/FiducialObservation.msg`, pero el CMake actual no lo incluye en `rosidl_generate_interfaces` y su contenido está orientado a otro contrato: incluye `world_T_fiducial`, `local_camera_pose`, `confidence` y una sola observación. No es adecuado como contrato final para un KF con `0..N` tags y no debe activarse silenciosamente sin revisar usos.
-
-## Contrato propuesto
-
-Crear, salvo que la búsqueda estática encuentre nombres equivalentes ya aprobados:
+## Topic y QoS
 
 ```text
-msg/FiducialTagObservation.msg
-msg/FiducialKeyFrameObservations.msg
+/dron_X/orbslam/fiducial_keyframe_observations
+reliable + volatile + KeepLast(32)
 ```
 
-Contenido mínimo recomendado:
+Cada wrapper publica en el namespace de su dron. El batch tiene valor funcional:
+el QoS no sustituye la sincronización fuera de orden de 4F.
+
+## Interfaces propuestas
+
+Salvo que la búsqueda estática encuentre nombres equivalentes ya aceptados:
 
 ```text
-# FiducialTagObservation.msg
+orbslam3_msgs/msg/FiducialTagObservation.msg
+orbslam3_msgs/msg/FiducialKeyFrameObservations.msg
+```
+
+### FiducialTagObservation
+
+Contenido conceptual recomendado:
+
+```text
 uint32 tag_id
 geometry_msgs/Transform camera_T_tag
+float64 quality_score
 float64 reprojection_error_px
 float64 tag_area_px2
+float64 pose_ambiguity
 ```
 
+Las métricas y `quality_score` calculadas por 4D se serializan sin reinterpretarlas
+ni recalcular PnP en el callback ROS.
+
+### Semántica de `quality_score`
+
+- escala recomendada `[0,1]` con `1=mejor`, salvo razón técnica documentada;
+- determinista para una misma detección/configuración;
+- derivada de métricas explicables, no de un valor mágico;
+- puede considerar error de reproyección, área aparente, oblicuidad/normal del tag, separación entre soluciones IPPE y otros datos disponibles;
+- conserva exactamente la fórmula vigente y explicable de 4D.
+
+La distancia no necesita duplicarse como campo si puede calcularse de `camera_T_tag`. El servidor podrá calcular `norm(translation)`.
+
+### FiducialKeyFrameObservations
+
+Contenido conceptual recomendado:
+
 ```text
-# FiducialKeyFrameObservations.msg
-std_msgs/Header header          # stamp = KF stamp; frame_id = camera optical frame
+std_msgs/Header header
 uint32 drone_id
 string drone_name
 uint64 map_epoch
 uint64 local_keyframe_id
 uint64 source_frame_id
-builtin_interfaces/Time keyframe_stamp
 orbslam3_msgs/FiducialTagObservation[] observations
 ```
 
-`tag_area_px2` es una métrica geométrica simple y reproducible; si no se usa finalmente, no sustituirla por un `confidence` ambiguo sin definir su semántica.
+`header.stamp` es el único timestamp canónico y representa exactamente el del
+KF tras usar el mismo helper de conversión temporal que `OrbKeyFrame`.
+`header.frame_id` identifica el frame óptico efectivo usado para PnP y
+`source_frame_id` conserva la identidad numérica del frame fuente.
 
-## Archivos permitidos a modificar
+## Dos copias de orbslam3_msgs
 
-```text
-src/orbslam3_msgs/msg/FiducialTagObservation.msg
-src/orbslam3_msgs/msg/FiducialKeyFrameObservations.msg
-src/orbslam3_msgs/CMakeLists.txt
-src/orbslam3_msgs/package.xml
-wrapper stereo-slam-node.hpp/.cpp
-CMakeLists.txt/package.xml del wrapper
-codex/contexto/paquetes/orbslam3_msgs/
-codex/contexto/paquetes/<paquete_wrapper_real>/
-```
+Fase 2 permite exactamente las copias Dron y Servidor y establece Servidor como canónico para la guarda. 4E debe añadir las mismas interfaces en ambas copias y ampliar/usar las guardas para comparar `.msg`, `.srv`, CMake, `package.xml` y cualquier auxiliar relevante.
 
-El archivo legacy `FiducialObservation.msg` solo puede borrarse/renombrarse tras búsqueda estática de consumidores y decisión documentada. No es necesario eliminarlo para cerrar esta subfase si queda claramente sin generar/legacy.
+No crear una tercera copia.
 
-## Archivos prohibidos
+## Integración con el worker 4D
+
+El worker produce un resultado inmutable asociado a:
 
 ```text
-ORB_SLAM3/
-src/orbslam3_server/src/global_map_server.cpp    # suscripción se hace en 4F
-src/orbslam3_multi/
-src/simulacion_dron/
+{drone_id, map_epoch, local_keyframe_id, source_frame_id, keyframe_stamp}
 ```
 
-## Funciones, clases o nodos que hay que localizar
+más el vector de tags.
+
+4E transforma ese resultado en mensaje ROS. No vuelve a abrir la imagen, no repite PnP y no consulta mutablemente `map_epoch_` después de terminar el job.
+
+## Publicación y tráfico
+
+Se publica una única vez por resultado no vacío. Solo entran observaciones
+`valid=true` y se ordenan de forma determinista por `tag_id`. Tres caras válidas
+visibles del mismo cubo producen tres elementos dentro del mismo batch. Las
+detecciones rechazadas pueden seguir apareciendo en el debug visual de 4D, pero
+no cruzan este contrato funcional.
+
+No se fusiona en Dron para ahorrar bytes, porque ello obligaría a distribuir semántica `tag→fiducial` al Dron y reduciría capacidad de diagnóstico.
+
+## Grafos web
+
+4E crea el extremo de publicación de la arista Dron→Servidor; 4F completa su
+recepción funcional.
+
+Actualizar metadata de `orbslam3_msgs`/wrapper con:
+
+- topic;
+- tipo;
+- dirección;
+- namespace;
+- QoS;
+- datos transportados;
+- evidencia live de publicación.
+
+El bloque conjunto 4E+4F actualiza también `pipeline_flow`. La arista completa
+wrapper→Servidor solo se considera funcional cuando 4F implementa la recepción;
+4E puede mostrar su extremo de publicación sin iluminar un consumo inexistente.
+Con ambos debug apagados no debe construirse ni serializarse telemetría
+específica de los visualizadores.
+
+## Archivos probables
+
+Rutas a revalidar antes de editar:
 
 ```text
-rosidl_generate_interfaces
-StereoSlamNode publisher creation
-StereoSlamNode::GrabStereo
-cualquier uso actual de FiducialObservation.msg
+dron/orbslam3_msgs/msg/FiducialTagObservation.msg
+dron/orbslam3_msgs/msg/FiducialKeyFrameObservations.msg
+dron/orbslam3_msgs/CMakeLists.txt
+dron/orbslam3_msgs/package.xml
+servidor/orbslam3_msgs/msg/FiducialTagObservation.msg
+servidor/orbslam3_msgs/msg/FiducialKeyFrameObservations.msg
+servidor/orbslam3_msgs/CMakeLists.txt
+servidor/orbslam3_msgs/package.xml
+dron/orbslam3_ros2/.../stereo-slam-node.*
+metadata/documentación system_architecture
 ```
-
-No inventar un topic si el namespace del wrapper tiene una convención ya documentada. Si no existe, nombre recomendado:
-
-```text
-orbslam/fiducial_keyframe_observations
-```
-
-## Cambios requeridos
-
-1. Crear mensajes de tag individual y batch por KF.
-2. Registrar ambos en `rosidl_generate_interfaces` con dependencias `std_msgs`, `geometry_msgs` y `builtin_interfaces` si se necesita explícitamente.
-3. Establecer que `camera_T_tag` está expresado en `header.frame_id` y que ese frame debe ser la cámara izquierda óptica usada por PnP.
-4. Usar `keyframe_stamp` idéntico al evento de 4C; `header.stamp` debe copiar el mismo valor para evitar dos tiempos semánticamente distintos.
-5. Transportar `map_epoch` y `local_keyframe_id` como identidad funcional; `source_frame_id` queda para auditoría de la asociación exacta.
-6. Publicar un único batch cuando `observations` no esté vacío. No es obligatorio publicar batches vacíos en todos los KFs.
-7. Copiar todas las detecciones válidas de 4D sin agrupar por `object_id`.
-8. Añadir publisher con QoS fiable razonable y coherente con `orb_map_delta`; justificar cualquier QoS distinto.
-9. Añadir log `FID-BATCH-PUB` con epoch/KF/tag_count y sin imprimir matrices completas por defecto.
-10. Crear test de serialización/compilación que construya un batch con varios tags.
 
 ## Cambios prohibidos
 
-- No incluir `sensor_msgs/Image` ni bytes de imagen.
-- No incluir `world_T_object`, `world_T_tag`, GT o pose global del dron.
-- No reutilizar `fiducial_id` para representar simultáneamente tag y cubo.
-- No enviar un mensaje ROS separado por tag como contrato principal.
-- No introducir lógica de anchor en el wrapper.
-- No cambiar `OrbMap.msg` para transportar fiduciales.
+- no modificar `OrbMap`/`OrbKeyFrame` para meter fiduciales;
+- no enviar imágenes;
+- no enviar GT;
+- no enviar `object_id`/pose global;
+- no publicar un mensaje por tag como contrato principal;
+- no publicar batch vacío;
+- no publicar observaciones `valid=false`;
+- no hacer anchor en Dron;
+- no ejecutar detección de nuevo en el callback de publicación.
 
-## Paquetes a compilar
+## Pruebas
 
-```bash
-./codex/herramientas/build_selected_packages.sh orbslam3_msgs <paquete_wrapper_real>
-```
+### 1. Un tag
+Un KF con un tag válido produce exactamente un batch y un elemento.
 
-Si otros paquetes compilan contra `orbslam3_msgs` y el cambio de interfaces exige reconstrucción transitiva, añadirlos solo si es una dependencia real y registrarlo en historial.
+### 2. Multi-tag
+Un KF que ve 2–3 caras/tags produce un solo batch con todos los IDs/poses/calidades.
 
-## Pruebas Gazebo requeridas
+### 3. Cero tags
+Se registrará internamente el KF procesado en debug si procede, pero no aparecerá mensaje en el topic fiducial.
 
-### Prueba 1 — Publicación multi-tag
+### 4. Identidad
+Comparar evento 4C, job 4D y mensaje 4E: mismo epoch/KF/frame/timestamp, sin
+timestamp duplicado y con conversión temporal exacta compartida.
 
-Usar el escenario de 4D donde un KF observa varias marcas. Verificar con `ros2 topic echo --once` o herramienta equivalente reducida que:
+### 5. Interface duplicada
+Guardas Dron/Servidor verdes y ninguna tercera copia.
+
+### 6. Tráfico
+Contar batches, tags y bytes aproximados para disponer de baseline; todavía no optimizar prematuramente.
+
+### 7. Orden y validación
+Comprobar orden ascendente por `tag_id`, batch no vacío, IDs únicos, valores
+finitos, `quality_score` en `[0,1]` y quaternion normalizado.
+
+### 8. Integración conjunta 4E+4F
+Ejecutar la trayectoria típica completa con Gazebo y RViz2, ambos grafos web
+activos y ventanas de debug fiducial desactivadas.
+
+## Logs recomendados
 
 ```text
-map_epoch correcto
-local_keyframe_id correcto
-source_frame_id correcto
-header/keyframe_stamp iguales al KF
-observations.size() >= 2
-cada elemento tiene tag_id distinto según detección
+FID-BATCH-PUB drone=<id> epoch=<e> kf=<id> tags=<N> bytes=<aprox>
 ```
 
-### Prueba 2 — KF sin tags
-
-Confirmar que no se publica un batch falso y que el resto de topics ORB continúa.
-
-### Prueba 3 — Compatibilidad de interface
-
-Ejecutar un pequeño test o nodo que cree/deserialice un batch con varios elementos; no depender exclusivamente de `ros2 interface show`.
-
-## Patrones de reducción de logs
-
-```text
-FID-BATCH-PUB|fiducial_keyframe_observations|tag_count|map_epoch|keyframe_id|rosidl|ERROR|FATAL|Segmentation fault|Killed
-```
+No imprimir matrices completas por defecto.
 
 ## Criterio de éxito
 
-1. `orbslam3_msgs` y wrapper compilan.
-2. La nueva interface se genera y puede inspeccionarse con ROS 2.
-3. Un KF puede transportar N tags en un único batch.
-4. El mensaje contiene pose relativa cámara-tag y no contiene GT/global/cubo.
-5. La identidad `(drone_id,map_epoch,local_keyframe_id)` es inequívoca.
-6. El timestamp coincide con el KF exacto.
-7. El wrapper publica el batch sin bloquear el transporte ORB.
-
-## Criterio de fallo o parcial
-
-- `NO CONSEGUIDA`: interface no generada, batch no soporta N tags, mezcla tag/cubo o pierde identidad de KF.
-- `PARCIAL`: mensajes compilan pero la publicación no está integrada o falta validación de timestamp/frame.
-- `BLOQUEADA`: incompatibilidad real de versión ROS 2/IDL que requiera rediseño no acordado.
-
-## Riesgos
-
-- mantener dos `FiducialObservation` con semánticas incompatibles;
-- usar `Header.frame_id` distinto al frame de PnP;
-- QoS que pierda observaciones mientras el delta sí llega;
-- `confidence` sin definición reproducible.
-
-## Documentación a actualizar
-
-```text
-codex/contexto/paquetes/orbslam3_msgs/
-codex/contexto/paquetes/<paquete_wrapper_real>/
-codex/pipeline/fase_4_fiducial_real/historial/por_subfase/historial_4E.md
-codex/pipeline/fase_4_fiducial_real/historial/por_subfase/historial_4E_RESUMEN.md
-```
+- interface generada en ambas copias;
+- publicación no bloqueante;
+- un batch por KF solo si hay detecciones;
+- solo observaciones válidas, únicas y ordenadas;
+- todas las observaciones de ese KF preservadas;
+- calidad explicable;
+- identidad exacta;
+- cero semántica de fiducial lógico/global en Dron;
+- `system_architecture`, `pipeline_flow` y guardas actualizados.

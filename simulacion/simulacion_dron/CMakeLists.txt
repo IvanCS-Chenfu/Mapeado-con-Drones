@@ -47,6 +47,11 @@ if(BUILD_TESTING)
     test/test_system_architecture_contract.py
     TIMEOUT 30
   )
+  ament_add_pytest_test(
+    fiducial_contract
+    test/test_fiducial_contract.py
+    TIMEOUT 60
+  )
 endif()
 
 install(DIRECTORY
@@ -127,6 +132,7 @@ install(PROGRAMS
   src/visualizer/pipeline_flow_browser.py
   src/visualizer/system_architecture_bridge.py
   src/visualizer/system_architecture_browser.py
+  src/fiducials/fiducial_spawner.py
 
   DESTINATION lib/${PROJECT_NAME}
 )

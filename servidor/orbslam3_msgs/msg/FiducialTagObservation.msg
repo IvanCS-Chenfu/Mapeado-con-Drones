@@ -1,0 +1,6 @@
+uint32 tag_id
+geometry_msgs/Transform camera_t_tag
+float64 quality_score
+float64 reprojection_error_px
+float64 tag_area_px2
+float64 pose_ambiguity

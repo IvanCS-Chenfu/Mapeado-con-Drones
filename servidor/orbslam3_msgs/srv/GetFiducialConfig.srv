@@ -1,0 +1,11 @@
+uint32 drone_id
+string drone_name
+---
+bool success
+string message
+uint32 schema_version
+string family
+string corner_refinement
+string pose_solver
+float64 max_reprojection_error_px
+orbslam3_msgs/FiducialTagConfig[] tags

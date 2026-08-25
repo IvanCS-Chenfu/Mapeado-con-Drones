@@ -14,6 +14,7 @@ namespace
 using orbslam3_msgs::msg::OrbKeyFrame;
 using orbslam3_msgs::msg::OrbMap;
 using orbslam3_msgs::msg::OrbMapPoint;
+using orbslam3_msgs::msg::FiducialKeyFrameObservations;
 using orbslam3_multi::RawKeyFrameId;
 using orbslam3_multi::RawMapDatabase;
 using orbslam3_multi::RawMapPointId;
@@ -23,6 +24,43 @@ std::shared_ptr<OrbMap> MakeMap(uint32_t drone_id, uint64_t epoch)
   auto map = std::make_shared<OrbMap>();
   map->drone_id = drone_id;
   map->map_epoch = epoch;
+  return map;
+}
+
+FiducialKeyFrameObservations MakeFiducialBatch(
+  uint32_t drone_id, uint64_t epoch, uint64_t keyframe_id,
+  int32_t sec = 1, uint32_t nanosec = 2)
+{
+  FiducialKeyFrameObservations batch;
+  batch.header.stamp.sec = sec;
+  batch.header.stamp.nanosec = nanosec;
+  batch.header.frame_id = "camera_left_optical_frame";
+  batch.drone_id = drone_id;
+  batch.drone_name = "dron_" + std::to_string(drone_id);
+  batch.map_epoch = epoch;
+  batch.local_keyframe_id = keyframe_id;
+  batch.source_frame_id = 99;
+  auto & observation = batch.observations.emplace_back();
+  observation.tag_id = 202;
+  observation.camera_t_tag.translation.z = 2.0;
+  observation.camera_t_tag.rotation.w = 1.0;
+  observation.quality_score = 0.8;
+  observation.reprojection_error_px = 0.2;
+  observation.tag_area_px2 = 100.0;
+  observation.pose_ambiguity = 0.1;
+  return batch;
+}
+
+std::shared_ptr<OrbMap> MakeMapWithKeyFrame(
+  uint32_t drone_id, uint64_t epoch, uint64_t keyframe_id,
+  int32_t sec = 1, uint32_t nanosec = 2)
+{
+  auto map = MakeMap(drone_id, epoch);
+  auto & keyframe = map->keyframes.emplace_back();
+  keyframe.id = keyframe_id;
+  keyframe.stamp.sec = sec;
+  keyframe.stamp.nanosec = nanosec;
+  keyframe.pose.orientation.w = 1.0;
   return map;
 }
 
@@ -208,7 +246,7 @@ TEST(RawMapDatabase, PersistsNormalizedFiducialObservationJournal)
   observation.keyframe_stamp_sec = 10.0;
   observation.observation_stamp_sec = 10.1;
   observation.association_dt_sec = 0.1;
-  observation.source = "simulated_gt";
+  observation.source = "visual_fiducial";
   observation.quality = "ok";
   database.AddFiducialObservation(observation);
 
@@ -226,7 +264,7 @@ TEST(RawMapDatabase, PersistsNormalizedFiducialObservationJournal)
   ASSERT_EQ(observations.size(), 1U);
   EXPECT_EQ(observations.front().keyframe_id, observation.keyframe_id);
   EXPECT_EQ(observations.front().fiducial_id, 2);
-  EXPECT_EQ(observations.front().source, "simulated_gt");
+  EXPECT_EQ(observations.front().source, "visual_fiducial");
   EXPECT_NEAR(observations.front().association_dt_sec, 0.1, 1e-12);
   std::filesystem::remove(path);
 }
@@ -261,7 +299,7 @@ TEST(RawMapDatabase, StreamsVersionTwoRecordWithoutResidentDeltaJournal)
   observation.fiducial_id = 2;
   observation.fiducial_visit_id = 23;
   observation.world_T_camera_target.orientation.w = 1.0;
-  observation.source = "simulated_gt";
+  observation.source = "visual_fiducial";
   observation.quality = "ok";
   database.AddFiducialObservation(observation);
 
@@ -436,6 +474,69 @@ TEST(RawMapDatabase, FullSnapshotIsSelectiveInvalidatesAbsentAndRecordsNormalize
   EXPECT_EQ(replayed.GetMapPoint({1, 4, 10}), database.GetMapPoint({1, 4, 10}));
   EXPECT_EQ(replayed.GetMapPoint({1, 4, 11}), database.GetMapPoint({1, 4, 11}));
   EXPECT_EQ(replayed.GetMapPoint({1, 4, 12}), database.GetMapPoint({1, 4, 12}));
+}
+
+TEST(RawMapDatabase, SynchronizesFiducialBatchInBothArrivalOrders)
+{
+  RawMapDatabase database;
+  const auto pending = database.SubmitFiducialBatch(MakeFiducialBatch(1, 3, 7));
+  EXPECT_EQ(pending.status, orbslam3_multi::FiducialBatchSubmitStatus::Pending);
+  const auto commit = database.InsertDelta(10, MakeMapWithKeyFrame(1, 3, 7));
+  ASSERT_EQ(commit.synchronized_fiducial_batches.size(), 1U);
+  EXPECT_TRUE(commit.synchronized_fiducial_batches[0].matched_from_pending);
+  EXPECT_EQ(commit.synchronized_fiducial_batches[0].raw_first_arrival_id, 10U);
+
+  database.InsertDelta(11, MakeMapWithKeyFrame(2, 4, 8));
+  const auto immediate = database.SubmitFiducialBatch(MakeFiducialBatch(2, 4, 8));
+  ASSERT_EQ(
+    immediate.status,
+    orbslam3_multi::FiducialBatchSubmitStatus::MatchedImmediate);
+  ASSERT_TRUE(immediate.match.has_value());
+  EXPECT_FALSE(immediate.match->matched_from_pending);
+  EXPECT_EQ(immediate.match->raw_first_arrival_id, 11U);
+}
+
+TEST(RawMapDatabase, DetectsDuplicateConflictAndDoesNotReactivateOnUpdate)
+{
+  RawMapDatabase database;
+  database.InsertDelta(1, MakeMapWithKeyFrame(1, 0, 5));
+  const auto batch = MakeFiducialBatch(1, 0, 5);
+  EXPECT_EQ(
+    database.SubmitFiducialBatch(batch).status,
+    orbslam3_multi::FiducialBatchSubmitStatus::MatchedImmediate);
+  EXPECT_EQ(
+    database.SubmitFiducialBatch(batch).status,
+    orbslam3_multi::FiducialBatchSubmitStatus::Duplicate);
+  auto conflict = batch;
+  conflict.observations[0].quality_score = 0.7;
+  EXPECT_EQ(
+    database.SubmitFiducialBatch(conflict).status,
+    orbslam3_multi::FiducialBatchSubmitStatus::Conflict);
+
+  auto update = MakeMapWithKeyFrame(1, 0, 5);
+  update->keyframes[0].pose.position.x = 1.0;
+  const auto result = database.InsertDelta(2, update);
+  EXPECT_TRUE(result.synchronized_fiducial_batches.empty());
+}
+
+TEST(RawMapDatabase, EvictsPendingFifoIndependentlyPerDrone)
+{
+  RawMapDatabase database;
+  database.SetFiducialPendingCapacityPerDrone(2);
+  database.SubmitFiducialBatch(MakeFiducialBatch(1, 0, 1));
+  database.SubmitFiducialBatch(MakeFiducialBatch(1, 0, 2));
+  database.SubmitFiducialBatch(MakeFiducialBatch(2, 0, 1));
+  const auto third = database.SubmitFiducialBatch(MakeFiducialBatch(1, 0, 3));
+  ASSERT_TRUE(third.evicted_keyframe_id.has_value());
+  EXPECT_EQ(*third.evicted_keyframe_id, RawKeyFrameId({1, 0, 1}));
+  EXPECT_EQ(third.stats.pending_current, 3U);
+  EXPECT_EQ(third.stats.pending_peak, 3U);
+  EXPECT_EQ(third.stats.evicted, 1U);
+
+  const auto evicted_commit = database.InsertDelta(1, MakeMapWithKeyFrame(1, 0, 1));
+  EXPECT_TRUE(evicted_commit.synchronized_fiducial_batches.empty());
+  const auto kept_commit = database.InsertDelta(2, MakeMapWithKeyFrame(2, 0, 1));
+  ASSERT_EQ(kept_commit.synchronized_fiducial_batches.size(), 1U);
 }
 
 }  // namespace

@@ -284,7 +284,7 @@ TEST(SparseGlobalBackend, FirstFiducialAnchorsAndHighErrorRevisitCreatesTask)
   observation.fiducial_id = 2;
   observation.fiducial_visit_id = 1;
   observation.world_T_camera_target = MakePose(10.0);
-  observation.source = "simulated_gt";
+  observation.source = "visual_fiducial";
   observation.quality = "ok";
   const auto anchored = backend.ProcessFiducialObservation(observation, true);
 

@@ -22,6 +22,24 @@ delta -> backend -> fiduciales -> builder -> PointCloud2 + MarkerArray
 snapshot -> backend reconcile -> dirty diferido, sin publish
 ```
 
+## Sincronizacion visual 4F
+
+El constructor crea una subscription reliable/volatile KeepLast(32) por dron
+en `/dron_X/orbslam/fiducial_keyframe_observations` y configura
+`fiducial_pending_capacity_per_drone` (default 10). El callback valida que la
+identidad del payload coincide con el topic y delega el batch al backend.
+
+Los matches inmediatos se manejan al volver del callback; los matches pending
+aparecen en `PrimaryBackendResult` al comprometer KFs nuevos. En ambos casos
+`HandleSynchronizedFiducialBatch()` se ejecuta fuera del mutex raw y conserva
+KF, observaciones y primer `arrival_id`. Desde 4G interpreta todos los tags,
+conserva objetos secundarios/no aptos en la FIFO diagnostica y entrega el
+primary visual al `FiducialAnchorManager` existente.
+
+La ruta live GT fiducial ya no existe: no hay subscription `/sensor/GT/pose`,
+buffer, conversion body-camera ni parametros de radios simulados. Los replays
+aceptan solo observaciones persistidas con `source=visual_fiducial`.
+
 Conserva FIFO por `arrival_id`, backpressure 8/2, snapshots globalmente
 serializados, record incremental y replay streaming. Cloud y frustums se
 publican juntos solo al final de un delta con cambio publico.
@@ -44,7 +62,8 @@ dequeue -> revalidate -> graph -> solve -> validate -> atomic commit/refine
 - un conflicto de revision descarta la propuesta y revalida/reconstruye hasta
   el limite de pasadas;
 - un commit full mueve el control al target; un parcial conserva el anterior;
-- un fallo duro no compromete y mantiene `blocking_failure`.
+- un fallo duro no compromete, incrementa `secondary_hard_failed_`, emite
+  `[F3L-HARD-FAILURE ... action=continue]` y no enclava el mission gate.
 
 `optimization_active` activa el mission gate durante solve/commit. El flujo
 principal sigue admitiendo, construyendo y publicando mientras el calculo
@@ -114,7 +133,9 @@ El backpressure secundario se calcula con pendientes `critical`: fiduciales,
 MEDIA y loops `Full`. Los `FusionRefresh` pendientes se cuentan como
 `maintenance` y no mantienen por si solos el mission gate, aunque siguen
 ejecutandose en el unico worker. Una optimizacion real, incluida la rama 3Q de
-una BAJA, mantiene `optimization_active=true` hasta su final.
+una BAJA, mantiene `optimization_active=true` hasta su final. No existe un flag
+persistente de fallo: al terminar una tarea, el backpressure solo depende de la
+cola principal, la histeresis secundaria y una optimizacion activa.
 
 Antes del builder, el backend puede finalizar una tarea como
 `protected_region_far_repeated_loop` o `regional_rejection_ledger_hit`.
@@ -130,6 +151,10 @@ Todo el despacho de una tarea esta protegido por `try/catch`. Una excepcion
 restaura `optimization_active`, se convierte en fallo duro observable y pasa
 por el cierre comun (`Complete`, contadores, backpressure y lifecycle `done`),
 evitando un aborto sin diagnostico del nodo.
+
+`test_backpressure_contract.py` protege este contrato: exige que los fallos
+sigan siendo observables, que indiquen `action=continue` y que no exista un
+latch adicional en `UpdateBackpressure()`.
 
 ## Configuración y scoring 3R
 
@@ -169,8 +194,13 @@ temporales invertidos.
 
 ```text
 orbslam3_server/src/global_map_server.cpp
-  -> GlobalMapServer::{WorkerLoop,SecondaryWorkerLoop,ProcessFiducialObservation}
-  -> rg -n "SecondaryWorkerLoop|EnqueueSecondaryWork|EnqueueLoopTasks|ProcessFiducialObservation"
+  -> GlobalMapServer::{WorkerLoop,SecondaryWorkerLoop,UpdateBackpressure,
+     ProcessFiducialObservation,SubmitFiducialBatch,
+     HandleSynchronizedFiducialBatch}
+  -> rg -n "F3L-HARD-FAILURE|UpdateBackpressure|FID-SERVER-SUBSCRIBED|FID-SYNC"
+orbslam3_server/test/test_backpressure_contract.py
+  -> contrato de fallo observable sin backpressure persistente
+  -> rg -n "action=continue|optimization_active"
 orbslam3_server/launch/global_orb_map_server.launch.py
   -> _launch_setup / CONFIG_FILES
   -> rg -n "config_dir|replay_debug_config|parameter_overrides"

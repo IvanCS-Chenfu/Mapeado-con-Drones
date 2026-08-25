@@ -11,10 +11,10 @@
 ## Estado
 
 ```text
-Fase activa: Fase 2 — separación Dron/Servidor/Simulación, en cierre
-Fase 3: CONSEGUIDA
-Prueba 198: PASADA por validación funcional/visual del usuario
-Correcciones finales de Fase 2: documentadas, implementación pendiente de autorización
+Fase activa: Fase 3, reentrada correctiva en 3Q
+Fase 2: CONSEGUIDA
+Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
+3Q: A REVISAR desde la prueba 213; preparación no iniciada
 ```
 
 ## Invariantes

@@ -1,177 +1,314 @@
-# Pipeline Fase 4 — Fiducial Real
+# Pipeline Fase 4 — Sustitución del fiducial GT por fiducial visual
 
-Resumen de entrada:
+## 0. Naturaleza de este documento
 
-```text
-codex/pipeline/fase_4_fiducial_real/pipeline_fase_4_RESUMEN.md
-```
+Este documento consolida el diseño acordado durante la conversación y sustituye conceptualmente el plan antiguo 4A–4L. **No autoriza por si solo nuevas implementaciones**. Los bloques 4A+4B, 4C+4D, 4E+4F y 4G+4H fueron preparados, autorizados y ejecutados. La Fase 4 queda cerrada con ese alcance; 4I se aplaza como regresión opcional futura y conservará su propia puerta de autorización. El snapshot `main@4424a586330ca0e54814824fae26bad9daed8232` queda solo como referencia histórica de la conversación que generó este diseño.
 
-## Estado
+Antes de ejecutar cualquier subfase será obligatorio:
 
-```text
-actual, sin ejecutar
-Siguiente subfase: 4A
-Preparación de 4A: NO_INICIADA
-Autorización funcional: PENDIENTE
-```
+1. comprobar el SHA actual de `main`;
+2. releer `AGENTS.md`, contexto compacto/mínimo y cierre real de Fase 2;
+3. releer ADR 0009 y ADR posteriores;
+4. reconciliar rutas y símbolos con el código que realmente se compila;
+5. revisar `system_architecture`, guardas de duplicación/configuración y herramientas de build por grupo;
+6. explicar cambios, riesgos y pruebas;
+7. recibir autorización explícita posterior.
 
-No existe evidencia de ejecución de esta fase en el historial. Las carpetas de historial se crean vacías de forma intencionada. Ninguna subfase puede pasar a `realizado` sin build, pruebas, logs y documentación posterior.
+No copiar los ZIP de sandbox completos sobre el repositorio. Solo pueden servir como referencia de diseño/código puntual después de comparar con `main`.
 
-## Objetivo general
+## 1. Objetivo general
 
-Sustituir el mecanismo fiducial simulado basado en Ground Truth por fiduciales visuales observables desde la cámara del dron. Cada observación visual debe quedar asociada de forma inequívoca al KeyFrame exacto que utilizó esa imagen, transportar al servidor las marcas vistas y sus poses relativas respecto a la cámara, y permitir que el servidor ancle o corrija submapas en `world` sin aceptar GT como entrada funcional.
+La Fase 3 demostró el comportamiento del backend fiducial usando información GT. Fase 4 no pretende reescribir ese backend, sino sustituir la **fuente de observación** por una fuente visual ligada al KF exacto.
 
-La fase debe conservar la arquitectura sparse-global ya existente: los fiduciales son observaciones absolutas, no loops; `RawMapDatabase` mantiene el estado ORB crudo; `GlobalPoseStore` mantiene la autoridad de poses globales/optimizadas; las revisitas fiduciales pueden crear tareas de optimización; una pérdida del detector nunca debe bloquear el tracking ni la publicación del mapa.
-
-## Decisiones ya cerradas para esta fase
-
-1. El fiducial físico será un cubo estático con una marca planar en la cara superior y en las caras laterales habilitadas.
-2. Cada cara tendrá un `tag_id` diferente. Varios tags pueden pertenecer al mismo cubo lógico.
-3. La primera familia a implementar será `AprilTag 36h11`, usando el diccionario equivalente de OpenCV si la versión disponible lo soporta.
-4. ORB-SLAM3 no detectará fiduciales. Solo expondrá al wrapper un evento inequívoco cuando la imagen actual haya originado un nuevo KeyFrame.
-5. El wrapper conservará la imagen izquierda exacta usada por ORB-SLAM3 y solo ejecutará el detector cuando esa imagen haya creado un KF.
-6. El wrapper no agrupará tags por cubo ni fusionará poses. Para cada tag válido enviará `tag_id + camera_T_tag` y métricas mínimas de calidad.
-7. Un mismo KF puede transportar cero, una o muchas observaciones de tag. Si ve varias marcas, todas quedan ligadas al mismo `(drone_id, map_epoch, local_keyframe_id)`.
-8. El servidor será responsable de conocer qué tags pertenecen al mismo cubo, calcular la geometría tag-cubo, resolver observaciones redundantes/incoherentes y producir restricciones absolutas de cámara.
-9. La asociación funcional nunca se hará por proximidad temporal a otro KF. El timestamp solo se usa como comprobación de coherencia.
-10. GT queda prohibido como entrada de anchor o corrección. Solo puede emplearse como métrica externa de simulación/debug.
-
-## Arquitectura objetivo
+Objetivo funcional final:
 
 ```text
-camera/left + camera/right
-        |
-        v
-ORB_SLAM3_ROS2 wrapper
-        |
-        +--> ORB-SLAM3::TrackStereo(...)
-        |        |
-        |        +--> Tracking crea un KF o no
-        |                 |
-        |                 +--> evento exacto {kf_id, frame_id, timestamp}
-        |
-        +--> si NO hay KF: no ejecutar detector
-        |
-        +--> si hay KF:
-                imagen izquierda exacta del KF
-                        |
-                        v
-                OpenCV AprilTag detector
-                        |
-                        +--> tag 101 -> camera_T_tag101
-                        +--> tag 102 -> camera_T_tag102
-                        +--> tag 405 -> camera_T_tag405
-                                |
-                                v
-                FiducialKeyFrameObservations
-                                |
-                                v
-                         orbslam3_server
-                                |
-                 asociar al KF exacto en RawMapDatabase
-                                |
-                 tag_id -> cubo lógico + object_T_tag
-                                |
-                 world_T_camera objetivo
-                                |
-                      anchor / revisit
-                                |
-                   optimización fiducial
+GT fiducial funcional = OFF
+
+cámara simulada
+    ↓
+ORB-SLAM3 crea KF
+    ↓
+evento exacto 4C
+    ↓
+worker AprilTag 4D
+    ↓
+batch ROS 4E
+    ↓
+sincronización exacta 4F
+    ↓
+semántica/fusión 4G
+    ↓
+world_T_camera_target
+    ↓
+FiducialAnchorManager existente
+    ↓
+anchor/revisit/optimization de Fase 3
 ```
 
-## Convención de transformaciones
+## 2. Invariantes arquitectónicos
 
-En toda la fase, `A_T_B` significa la transformación que expresa coordenadas del frame `B` en el frame `A`.
+- `submap = (drone_id, map_epoch)`.
+- identidad de KF = `(drone_id, map_epoch, local_keyframe_id)`.
+- `RawMapDatabase` sigue crudo; Fase 4 no escribe pose optimizada allí.
+- `GlobalPoseStore` conserva autoridad global.
+- fiduciales son observaciones absolutas, nunca loops.
+- GT no decide anchor, residual ni optimización.
+- Dron no carga YAML de Servidor/Simulación.
+- `orbslam3_msgs` mantiene dos copias controladas Dron/Servidor según las guardas de Fase 2.
+- la réplica completa `global_map` Servidor↔Simulación se conserva conforme ADR 0009.
+- `system_architecture` debe actualizarse cuando una subfase cambie interfaces, relaciones cross-group, réplicas o deployment.
+- instrumentación web/debug queda completamente dormida cuando está desactivada.
 
-Transformaciones principales:
+## 3. Configuración y ownership
+
+ADR 0009 separa:
 
 ```text
-camera_T_tag     medida por visión
-object_T_tag     conocida por geometría del cubo
-world_T_object   conocida por configuración del mapa fiducial
-local_T_camera   pose local del KF publicada por ORB-SLAM3
+semantic ownership
+control/authority
+deployment source/profile
 ```
 
-Relaciones esperadas:
+Aplicación a Fase 4:
+
+### Dron/wrapper
+Conoce únicamente lo necesario para percepción:
 
 ```text
-camera_T_object = camera_T_tag * inverse(object_T_tag)
-world_T_tag     = world_T_object * object_T_tag
-world_T_camera  = world_T_tag * inverse(camera_T_tag)
-world_T_local   = world_T_camera * inverse(local_T_camera)
+family
+parámetros de detector
+lista tag_id -> size_m
+intrínsecos/distorsión efectivos
 ```
 
-Antes de implementar estas ecuaciones se debe verificar la convención real `Tcw/Twc`, `camera` frente a `camera_optical_frame` y la orientación de cada tag.
-
-## Configuración distribuida por paquetes
-
-La política de configuración de paquetes se mantiene: un paquete no debe leer directamente YAML de otro grupo solo para reutilizar parámetros.
-
-- Simulación: `simulacion_dron` mantiene su configuración de cubos, poses y texturas necesarias para Gazebo.
-- Wrapper/dron: mantiene una configuración reducida con familia, tamaño físico de tag, IDs admitidos y parámetros del detector que realmente necesite.
-- Servidor: mantiene una configuración reducida con `object_id`, `tag_id`, `world_T_object` y `object_T_tag` para interpretar las observaciones.
-
-Los valores repetidos críticos, especialmente `tag_id` y tamaño físico, deben validarse mediante tests o scripts de consistencia y no copiarse silenciosamente.
-
-## Subfases
-
-| Subfase | Nombre | Responsabilidad principal | Puerta de salida |
-|---|---|---|---|
-| `4A` | Configuración de fiduciales multicara | Definir cubos, tags, tamaños, frames y convenciones. | YAML válido, IDs únicos y geometría inequívoca. |
-| `4B` | Generación y spawn en Gazebo | Crear cubos estáticos con tags visibles en sus caras. | Los objetos aparecen en las poses configuradas y las texturas son correctas. |
-| `4C` | Asociación exacta imagen–KeyFrame | Exponer desde ORB-SLAM3 qué imagen creó cada KF y conservarla en wrapper. | Cada evento identifica de forma determinista el KF de esa llamada a `TrackStereo`. |
-| `4D` | Detección y pose de tags en wrapper | Detectar `0..N` tags solo en imágenes de KF y calcular `camera_T_tag`. | IDs y poses válidas con métricas de coste/error. |
-| `4E` | Contrato ROS 2 de observaciones | Definir mensaje de un KF con un array de tags observados. | Interface generada, publicable y sin campos GT. |
-| `4F` | Sincronización exacta en servidor | Asociar observaciones solo con el KF exacto, incluso si llegan fuera de orden. | No hay asociación por proximidad temporal. |
-| `4G` | Interpretación tag–cubo | Resolver qué tags pertenecen al mismo/diferente cubo y producir candidatos absolutos. | Un KF con varias caras/cubos se interpreta coherentemente. |
-| `4H` | Primer anchor visual | Reemplazar el anchor GT por `world_T_camera` derivado visualmente. | Primer anchor sin GT y `world_T_local` correcto. |
-| `4I` | Revisitas y optimización fiducial | Reutilizar la lógica de residual pequeño/alto y tareas fiduciales. | Revisitas visuales activan la política existente sin tratar fiduciales como loops. |
-| `4J` | Rechazos y degradación segura | Cubrir falsos positivos, poses incoherentes, timestamps/epochs y pérdida de detector. | Fallos de visión no rompen SLAM ni mapa. |
-| `4K` | Integración multi-dron | Validar varios drones, varios tags y varios cubos en una prueba integral. | Submapas se anclan/corrigen de forma consistente sin GT funcional. |
-| `4L` | Cámara real y cierre | Validar la detección con marcas físicas y cámara calibrada; cerrar documentación/regresión. | Evidencia física mínima o bloqueo externo explícito; regresiones verdes. |
-
-## Dependencias
+No conoce:
 
 ```text
-4A -> 4B
-4A + 4B + 4C -> 4D
-4C + 4D -> 4E
-4E -> 4F
-4A + 4F -> 4G
-4G -> 4H -> 4I -> 4J -> 4K -> 4L
+object_id
+face
+object_T_tag
+world_T_object
+world_T_tag
+world_T_camera
+política de anchor
 ```
 
-`4C` puede prepararse en paralelo con `4A/4B`, pero `4D` necesita tanto una imagen de KF inequívoca como tags físicos/simulados definidos.
+### Servidor
+Es autoridad funcional sobre:
 
-## Reglas transversales de implementación
+```text
+política detector entregada al dron
+semántica tag -> fiducial lógico
+geometría del fiducial
+pose global conocida del objeto
+zona segura
+fusión/selección de candidatos
+anchor/revisit/optimization backend
+```
 
-- No introducir detección AprilTag dentro de ORB-SLAM3.
-- No enviar imágenes en `OrbMap` ni en `OrbKeyFrame` como solución principal.
-- No ejecutar el detector en todos los frames funcionalmente; solo en frames confirmados como KF.
-- Usar inicialmente una sola imagen, la izquierda, para pose planar. La derecha queda fuera del baseline obligatorio.
-- No agrupar tags por cubo en el wrapper.
-- No usar GT para construir `world_T_camera`, `world_T_local`, residual o decisión de optimización.
-- No modificar `RawMapDatabase` para guardar estado global corregido.
-- No convertir observaciones fiduciales en candidatos de loop.
-- No aumentar tolerancias o desactivar validaciones como solución principal a errores de frames o transformaciones.
-- Mantener build/test/simulación limitados a los paquetes afectados de cada subfase.
+### Simulación
+Posee únicamente lo que es específico de Gazebo/render:
 
-## Regla de ejecución
+```text
+spawn
+SDF/material
+surface offset para z-fighting
+texturas
+propiedades visuales/colisión de simulación
+```
 
-Estos MD son contratos preparatorios. La primera orden futura para ejecutar una subfase no autoriza cambios funcionales de forma automática. Se debe aplicar el protocolo de preparación y confirmación definido en `AGENTS.md`: leer contexto, explicar alcance, cerrar dudas/prueba y esperar autorización explícita antes de modificar `src/`, compilar o simular.
+## 4. Contrato geométrico baseline
 
-## Criterio de cierre de Fase 4
+Objeto físico: `box` rectangular con dimensiones directas `x/y/z`, sin capa reusable de `models`.
 
-La fase se puede marcar como `realizado` solo cuando exista evidencia de que:
+Escenario baseline:
 
-1. los cubos y tags aparecen correctamente en Gazebo;
-2. ORB-SLAM3 identifica de manera exacta la creación de cada KF sin realizar detección fiducial;
-3. el wrapper analiza solo la imagen exacta de ese KF y puede producir `0..N` observaciones;
-4. cada observación contiene un `tag_id` y una transformación `camera_T_tag` coherente;
-5. el servidor asocia las observaciones únicamente a su KF exacto;
-6. el servidor interpreta tags de una o varias caras/cubos sin trasladar esa lógica al wrapper;
-7. el primer anchor y las revisitas funcionan sin GT funcional;
-8. los fallos del detector no bloquean ORB-SLAM3 ni el transporte de mapas;
-9. la prueba multi-dron completa pasa;
-10. la validación con cámara real se completa o, si existe una dependencia física externa no disponible, queda explícitamente `BLOQUEADA` sin falsificar evidencia;
-11. toda la documentación e historial real quedan actualizados.
+```text
+object 1: center=(0,+8.5,1), size=(0.40,0.40,0.40), RPY=(0,0,0)
+object 2: center=(0,-8.5,1), size=(0.40,0.40,0.40), RPY=(0,0,0)
+object 3: center=(+8.5,0,1), size=(0.40,0.40,0.40), RPY=(0,0,0)
+```
+
+Caras soportadas:
+
+```text
+pos_x neg_x pos_y neg_y pos_z neg_z
+```
+
+Baseline: `pos_x`, `neg_x`, `pos_y`, `neg_y`, `pos_z` habilitadas; `neg_z` deshabilitada.
+
+IDs baseline:
+
+```text
+object 1: 101..105
+object 2: 201..205
+object 3: 301..305
+```
+
+`size_m=0.30 m` baseline. `size_m` significa **longitud física del lado del cuadrado AprilTag**. Puede ser mayor que la cara del `box`; no se rechaza ni se avisa por ello. ID 0 es válido para AprilTag si pertenece al diccionario usado.
+
+Cada tag está centrado y tiene orientación interna fija de 0°. `object_T_tag` se deriva determinísticamente en Servidor/Simulación a partir de dimensiones+cara+convención, no se envía al dron.
+
+## 5. Flujo completo de datos
+
+### 5.1 Creación de KF
+
+ORB-SLAM3 crea el KF en `Tracking`. Un evento one-shot de valor permite al wrapper saber que **esa llamada a `TrackStereo`** creó el KF X. No se usa delta temporal ni búsqueda del KF más cercano.
+
+### 5.2 Detección
+
+El wrapper clona la imagen izquierda exacta del frame KF y la encola sin bloquear. Un único worker por dron detecta todos los tags válidos y produce por tag:
+
+```text
+tag_id
+camera_T_tag
+quality_score
+reprojection_error_px
+tag_area_px2
+métrica de ambigüedad si aplica
+tiempos de detección/PnP para debug
+```
+
+### 5.3 Publicación
+
+Solo cuando existe `N>0` se publica un batch fiducial. No se envía un mensaje vacío por cada KF.
+
+### 5.4 Sincronización
+
+Servidor casa el batch exclusivamente con la clave exacta del KF. Si batch llega antes del delta, queda pendiente. Nunca se reasocia por timestamp.
+
+### 5.5 Interpretación por fiducial
+
+Servidor agrupa tags por `object_id`/fiducial lógico. Para cada grupo:
+
+1. valida tags conocidos;
+2. calcula distancia individual `||translation(camera_T_tag)||`;
+3. si cualquier tag del grupo está fuera del rango configurado, todo ese fiducial queda no apto para anchor en ese KF;
+4. conserva las detecciones aunque no sean aptas;
+5. transforma cada tag a una estimación común del objeto/cámara usando geometría del servidor;
+6. comprueba consistencia entre caras;
+7. descarta outliers según política documentada;
+8. fusiona poses coherentes mediante media ponderada apropiada en SE(3)/quaternions, no promediando ángulos Euler de forma directa;
+9. obtiene una calidad global del fiducial.
+
+### 5.6 Varios fiduciales en un mismo KF
+
+Servidor puede obtener múltiples candidatos lógicos. Sin embargo, el tratamiento validado en Fase 3 conserva **un fiducial funcional por KF**.
+
+Selección:
+
+```text
+candidatos aptos para anchor
+        ↓
+mayor calidad global
+        ↓
+desempates deterministas
+        ↓
+1 candidato funcional
+```
+
+Los demás quedan como `detected_secondary`. No se usan para crear múltiples controles/anchors del mismo KF. Su utilidad futura para Fase 6 queda preservada, pero Fase 4 no diseña la tarea “buscar fiducial”.
+
+### 5.7 Backend
+
+El candidato seleccionado genera `world_T_camera_target` y alimenta la API existente de `FiducialAnchorManager` junto con `local_T_camera` del KF exacto.
+
+El backend ya calcula conceptualmente:
+
+```text
+world_T_local = world_T_camera_target * inverse(local_T_camera)
+```
+
+Si el submapa no está anclado crea anchor; si ya lo está, aplica la lógica de revisit/residual/task ya validada en Fase 3. No se vuelve a aplicar `body_T_camera` a una pose ya expresada en cámara.
+
+## 6. Zona fiducial configurable y uso futuro
+
+El perfil inicial usa 1–5 m, pero ambos límites son parámetros explícitos del
+usuario. No se derivan del baseline ni cambian el rango de scoring 3R.
+
+Regla acordada:
+
+```text
+para un mismo fiducial lógico:
+si TODOS los tags observados están entre min_distance_m y max_distance_m -> candidato potencial
+si ALGUNO está fuera -> todo el fiducial NO apto para anchor/optimization en ese KF
+```
+
+El perfil inicial declara `min_distance_m=1.0` y `max_distance_m=5.0`. Ambos
+valores son configurables por el usuario, con Servidor como autoridad semántica
+y Simulación como perfil de deployment guardado. No se derivan del baseline ni
+alteran el scoring 3R; revisar una posible unificación queda para el futuro.
+
+Esto **no** implica descartar la detección. Una observación lejana puede ser valiosa más adelante para Fase 6, por ejemplo para decidir que el dron debe acercarse a un fiducial. Fase 4 solo debe conservar la información y no darle autoridad de anchor.
+
+Si un KF ve dos fiduciales diferentes, la regla se aplica por fiducial lógico. Un fiducial lejano no invalida automáticamente otro fiducial independiente que sí sea apto.
+
+## 7. Tráfico de red
+
+Se ha considerado fusionar en el dron para reducir mensajes. Se rechaza como baseline porque:
+
+- normalmente hablamos de 1–3 poses por KF con fiducial, no de todos los frames;
+- el coste es pequeño comparado con mapas/deltas;
+- enviar geometría tag→fiducial al dron rompería la separación semántica;
+- Servidor perdería capacidad para detectar una cara incoherente;
+- la optimización prematura no está justificada sin métricas.
+
+4H medirá bytes/mensajes reales. Solo si aparece un problema objetivo de tráfico se reabrirá esta decisión.
+
+## 8. Subfases
+
+La ejecución cerrada comprende los bloques `4A+4B`, `4C+4D`, `4E+4F` y
+`4G+4H`. La regresión `4I` queda aplazada y requerirá autorización funcional
+propia si se retoma.
+
+### 4A — Contrato geométrico
+Ver `subfases/subfase_4A.md`.
+
+### 4B — Spawn visual
+Ver `subfases/subfase_4B.md`.
+
+### 4C — Evento exacto KF
+Ver `subfases/subfase_4C.md`.
+
+### 4D — Config remota + worker + PnP
+Ver `subfases/subfase_4D.md`.
+
+### 4E — Contrato ROS
+Ver `subfases/subfase_4E.md`.
+
+### 4F — Sincronización exacta
+Ver `subfases/subfase_4F.md`.
+
+### 4G — Interpretación/fusión/selección
+Ver `subfases/subfase_4G.md`.
+
+### 4H — Reemplazo GT y prueba integral
+Ver `subfases/subfase_4H.md`.
+
+### 4I — Regresión ESP32-CAM
+Ver `subfases/subfase_4I.md`.
+
+## 9. Reorganización del plan antiguo
+
+Se eliminan como subfases independientes las antiguas 4J, 4K y 4L y cambia el significado de la antigua 4I. Sus pruebas útiles no se pierden: se redistribuyen. El detalle está en el resumen y en 4H/4I.
+
+## 10. Criterios de cierre de fase
+
+Se exige, como mínimo:
+
+1. tres objetos baseline reproducibles en Gazebo;
+2. evento KF exacto sin heurística temporal;
+3. worker no bloqueante con configuración Server→Dron;
+4. detección multi-tag y PnP por `size_m` individual;
+5. batch no vacío por KF y topic separado de deltas;
+6. asociación exacta a `RawMapDatabase`;
+7. fusión multicara y zona segura en Servidor;
+8. un único fiducial funcional seleccionado por KF;
+9. anchor/revisitas/optimizer existentes funcionando sin GT funcional;
+10. prueba multi-dron completa en 4H;
+11. medición de tráfico y backlog;
+12. `system_architecture`, guardas, docs e historial real actualizados.
+
+La regresión de cámara ESP32-CAM de 4I es una ampliación futura y no forma
+parte del criterio de cierre decidido para esta ejecución de Fase 4.

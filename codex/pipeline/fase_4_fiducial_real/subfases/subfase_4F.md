@@ -1,205 +1,235 @@
-# Subfase 4F — Recepción y sincronización exacta de observaciones en el servidor
-
-## Impacto obligatorio en system_architecture
-
-4F crea la comunicación runtime real `orbslam3 -> orbslam3_server` para el batch
-fiducial. Añadir/actualizar esa arista y su evidencia live directa. No reutilizar GT ni
-`flow_events` para fingir actividad. La arista debe poder indicar `drone_id` y KF sin
-transportar payload pesado al visualizador.
+# Subfase 4F — Recepción en Servidor y sincronización exacta batch ↔ KeyFrame
 
 ## Estado
 
 ```text
-sin hacer
+CONSEGUIDA — implementada, compilada y validada el 2026-08-25
 ```
 
 ## Dependencia
 
-`4E`.
+`4E` completada. 4F no necesita todavía implementar semántica `tag→fiducial`; eso pertenece a 4G.
 
-## Objetivo técnico
+## Objetivo
 
-Hacer que `orbslam3_server` reciba los batches de tags y los asocie exclusivamente al KeyFrame identificado por `(drone_id, map_epoch, local_keyframe_id)`. El orden de llegada entre `orb_map_delta` y el batch fiducial no debe afectar al resultado.
-
-Esta subfase no interpreta todavía qué tag pertenece a qué cubo ni calcula anchor. Su salida es una observación visual sincronizada con un KF crudo real de `RawMapDatabase`.
-
-## Comportamiento esperado
+Recibir el topic fiducial y asociar cada batch **solo** con el KF identificado por:
 
 ```text
-Caso A: delta con KF -> batch -> procesar inmediatamente
-Caso B: batch -> todavía no hay KF -> guardar pendiente -> delta con KF -> procesar
-Caso C: batch -> KF nunca aparece/epoch inválido -> expirar/rechazar explícitamente
+(drone_id, map_epoch, local_keyframe_id)
 ```
 
-Nunca se reasigna una observación al KF anterior/posterior.
+El orden de llegada entre `orb_map_delta` y el batch visual no puede cambiar el resultado.
 
-## Contexto obligatorio a leer
-
+## Casos obligatorios
 
 ```text
-AGENTS.md
-codex/contexto/00_CONTEXTO_COMPACTACION.md
-codex/contexto/CONTEXTO_MINIMO_ACTUAL.md
-codex/contexto/08_POLITICA_TOKENS_DOCUMENTACION.md
-codex/pipeline/PIPELINE_MAESTRO.md
-codex/pipeline/fase_4_fiducial_real/pipeline_fase_4_RESUMEN.md
-codex/pipeline/fase_4_fiducial_real/pipeline_fase_4.md
+A) delta/KF llega primero
+   batch después -> match inmediato
+
+B) batch llega primero
+   KF ausente -> pending
+   delta llega -> resolver exactamente ese pending
+
+C) batch llega y KF nunca aparece
+   -> permanece pending hasta ser emparejado o expulsado por el FIFO del dron
+
+D) reentrega idéntica
+   -> duplicate, no procesar dos veces
+
+E) misma identidad con contenido diferente
+   -> conflict, no tratarlo como duplicado benigno
 ```
 
+Nunca buscar el KF anterior/posterior ni “más cercano” por timestamp.
 
-Además:
+## Identidad y timestamp
+
+La clave funcional es la identidad exacta. `header.stamp` actúa solo como
+verificación de integridad:
+
+- debe concordar exactamente con el KF crudo tras una conversión temporal común;
+- un mismatch no autoriza reasignación;
+- un epoch incoherente se rechaza.
+
+## Estructura pending
+
+Se implementa como un sidecar interno de `RawMapDatabase`: acompaña a la base
+raw, pero no modifica `OrbMap`, `OrbKeyFrame` ni sus semánticas. La base no llama
+a `FiducialManager`.
+
+Conceptualmente:
 
 ```text
-subfases/subfase_4E.md
-codex/contexto/paquetes/orbslam3_server/00_summary.md
-codex/contexto/paquetes/orbslam3_multi/00_summary.md
-src/orbslam3_server/src/global_map_server.cpp
-src/orbslam3_multi/include/orbslam3_multi/raw_map_database.hpp
-src/orbslam3_multi/include/orbslam3_multi/raw_map_types.hpp
+PendingKey = {drone_id, map_epoch, local_keyframe_id}
+PendingValue = {batch}
+pending_by_key = unordered_map<PendingKey, PendingValue>
+pending_fifo_per_drone = deque<PendingKey>
 ```
 
-## Diagnóstico de partida
+Debe ser:
 
-El servidor actual genera observaciones fiduciales dentro de `ProcessFiducialsForDelta()` a partir de la asociación temporal entre KeyFrames y un buffer GT. Esa ruta ya conoce el KF porque recorre el delta, pero no existe una suscripción visual independiente ni una cola para batches que puedan llegar antes que el KF.
+- protegida reutilizando el mutex interno ya existente en `RawMapDatabase`;
+- lookup O(1) por clave exacta;
+- acotada y configurable por dron mediante
+  `fiducial_pending_capacity_per_drone`, default `10`;
+- sin TTL;
+- FIFO por dron: al insertar el undécimo pending se expulsa el más antiguo;
+- liberada inmediatamente al emparejar el batch;
+- observable mediante contadores;
+- sin imágenes.
 
-La identidad canónica del submapa sigue siendo:
+Una capacidad pequeña es deliberada. Se medirá cuántos batches se expulsan y
+se ampliará el parámetro si la simulación demuestra pérdidas frecuentes.
+
+## Concurrencia
+
+El callback de deltas y el callback fiducial pueden ejecutarse concurrentemente.
+La comprobación, inserción y extracción se realizan bajo el mutex existente para
+evitar carreras donde:
+
+1. callback A comprueba “KF no existe”;
+2. callback B inserta el KF;
+3. callback A mete pending y nadie vuelve a resolverlo.
+
+No se introduce un sistema adicional de locks. La construcción del resultado,
+telemetría y handoff en `GlobalMapServer` se realizan fuera del mutex. Bajo el
+lock no se ejecutan PnP, matrices ni semántica fiducial.
+
+## Integración con commits raw
+
+- si el batch llega después, `RawMapDatabase` consulta el KF ya comprometido y
+  devuelve un match inmediato;
+- si llega antes, se guarda pending y se resuelve al comprometer el KF;
+- delta y full snapshot consultan únicamente `RawInsertResult.new_keyframe_ids`;
+- un KF actualizado o repetido no reactiva un batch ya consumido;
+- `RawMapDatabase` conserva internamente `keyframe_first_arrival_id` para cada
+  KF, sin añadir campos a `OrbKeyFrame`;
+- el match sincronizado conserva ese `arrival_id` exacto del primer commit raw.
+
+## Duplicados y conflictos
+
+### Duplicado idéntico
+
+Misma clave e igual contenido semántico -> ignorar segundo procesamiento y aumentar contador.
+
+### Conflicto
+
+Misma clave, pero cambia algún tag/pose/calidad de forma no explicable por serialización -> `FID-SYNC-CONFLICT`.
+
+Esto es anómalo porque 4D/4E deben producir un resultado único por KF. No elegir
+uno silenciosamente. Un digest por clave exacta ya consumida basta para
+distinguir ambos casos: su presencia sustituye cualquier flag separado
+`fiducial_batch_consumed`. Otro KF que observe el mismo tag es una clave distinta
+y sigue el flujo normal.
+
+## Salida de 4F
+
+4F produce algo conceptualmente como:
 
 ```text
-submap = (drone_id, map_epoch)
+SynchronizedFiducialBatch {
+  exact_raw_keyframe
+ batch_metadata
+  observations[]
+  raw_first_arrival_id
+}
 ```
 
-La identidad del KF debe añadir `local_keyframe_id`.
+El resultado se devuelve mediante `RawInsertResult` o el resultado de envío del
+batch. `GlobalMapServer` hace el handoff fuera del lock. En 4F ese handoff solo
+alimenta logs, contadores y telemetría; 4G añadirá `FiducialManager` y la
+interpretación semántica.
 
-## Archivos permitidos a modificar
+No calcula todavía:
 
 ```text
-src/orbslam3_server/include/orbslam3_server/global_map_server.hpp
-src/orbslam3_server/src/global_map_server.cpp
-src/orbslam3_server/launch/global_orb_map_server.launch.py
-src/orbslam3_server/CMakeLists.txt
-src/orbslam3_server/package.xml
-src/orbslam3_multi/include/orbslam3_multi/raw_map_types.hpp      # solo si hace falta un tipo de clave ya inexistente
-codex/contexto/paquetes/orbslam3_server/
-codex/contexto/paquetes/orbslam3_multi/
+object_id
+object_T_tag
+world_T_camera
+zona segura
+fusión
+anchor
 ```
 
-Preferir mantener la cola pendiente en el adaptador ROS/server y no contaminar el backend puro si no aporta valor.
+## GT legacy
 
-## Archivos prohibidos
+La ruta GT de Fase 3 puede seguir físicamente presente durante transición/regresión, pero en pruebas visuales debe estar separada y no mezclarse con el batch nuevo.
+
+No borrar legacy antes de que 4H pruebe sustitución completa.
+
+## Grafos web
+
+Aquí nace la arista runtime real:
 
 ```text
-ORB_SLAM3/
-ORB_SLAM3_ROS2/
-src/simulacion_dron/
-src/dron_individual/
-src/orbslam3_multi/src/fiducial_anchor_manager.cpp   # integración de anchor en 4H
+wrapper/orbslam3  --fiducial_keyframe_observations-->  orbslam3_server
 ```
 
-## Funciones, clases o nodos que hay que localizar
+Debe tener evidencia live directa y metadatos ligeros `{drone_id, epoch, kf, tag_count}`. No usar `flow_events`/GT para fingir actividad.
+
+El bloque 4E+4F debe representar esta arista tanto en `system_architecture`
+como en `pipeline_flow`, respetando el gating independiente de ambos debug.
+
+## Archivos probables
 
 ```text
-global_map_server
-callback de orbslam/orb_map_delta
-RawMapDatabase inserción/consulta de KeyFrames
-ProcessFiducialsForDelta
-HandleFiducialObservation
-RawSubmapId
-RawKeyFrameId
+servidor/orbslam3_server/include/.../global_map_server.hpp
+servidor/orbslam3_server/src/global_map_server.cpp
+servidor/orbslam3_server/launch/...
+servidor/orbslam3_multi/include/.../raw_map_database.hpp
+servidor/orbslam3_multi/src/.../raw_map_database.cpp
+metadata system_architecture
 ```
 
-Crear el callback visual y la estructura de pendientes solo tras localizar el orden real de ingestión del delta.
+## Pruebas obligatorias
 
-## Cambios requeridos
+1. delta antes que batch;
+2. batch antes que delta;
+3. KF inexistente y expulsión FIFO al superar capacidad 10 en su dron;
+4. batch duplicado idéntico;
+5. batch conflictivo con misma identidad;
+6. epoch viejo/futuro incoherente;
+7. dos drones con mismo `local_keyframe_id` pero claves completas distintas;
+8. carrera artificial callback delta/batch;
+9. pending acotado bajo inyección de IDs inexistentes.
+10. full snapshot y update no reactivan un KF consumido;
+11. asociación exacta de `keyframe_first_arrival_id` en ambos órdenes;
+12. trayectoria típica completa con Gazebo, RViz2, `system_architecture` y
+    `pipeline_flow` activos, con ventanas fiduciales desactivadas.
 
-1. Añadir suscripción al topic de 4E.
-2. Validar que `drone_id`, `map_epoch`, `local_keyframe_id` son sintácticamente aceptables y que `observations` no está vacío.
-3. Construir la clave exacta del KF usando los tipos de `raw_map_types` existentes.
-4. Si el KF ya está en `RawMapDatabase`, pasar el batch a una función interna de “observación sincronizada” sin reinterpretarlo todavía.
-5. Si el KF no existe, guardar el batch en una cola/mapa pendiente acotado por clave y tiempo/numero de elementos.
-6. Tras aplicar cada delta a `RawMapDatabase`, intentar resolver únicamente los pendientes cuyas claves hayan aparecido.
-7. Verificar `keyframe_stamp` contra `OrbKeyFrame.stamp` con una tolerancia muy pequeña para detectar corrupción; un mismatch no autoriza asociar a otro KF.
-8. Rechazar batches de epochs antiguos/futuros incoherentes según el estado conocido del dron.
-9. Definir política de duplicados: el mismo batch/KF no debe procesarse dos veces por reentrega QoS.
-10. Definir expiración de pendientes y log explícito `FID-SYNC-EXPIRED`; no mantener memoria sin límite.
-11. Añadir marcadores `FID-SYNC-PENDING`, `FID-SYNC-MATCHED`, `FID-SYNC-REJECT` con clave exacta y tag_count.
-12. Mantener `ProcessFiducialsForDelta()` GT activo solo mientras sea necesario para transición/pruebas antiguas, pero no mezclar sus observaciones con la ruta visual en pruebas de Fase 4.
-
-## Cambios prohibidos
-
-- No buscar el KF “más cercano” por timestamp.
-- No cambiar `map_epoch` recibido para hacer que encaje.
-- No crear un KF sintético si no ha llegado el delta.
-- No calcular `world_T_camera` aún.
-- No anclar el submapa aún.
-- No borrar la ruta GT legacy hasta que 4H/4K demuestren reemplazo completo y se acuerde su limpieza.
-- No guardar imágenes en pendientes.
-
-## Paquetes a compilar
-
-```bash
-./codex/herramientas/build_selected_packages.sh orbslam3_msgs orbslam3_multi orbslam3_server
-```
-
-`orbslam3_multi` solo necesita rebuild si se toca un header compartido.
-
-## Pruebas Gazebo requeridas
-
-### Prueba 1 — Delta antes que observación
-
-Forzar/observar un KF cuyo delta llegue antes del batch. Debe aparecer:
+## Logs
 
 ```text
-FID-SYNC-MATCHED mode=immediate
+FID-SYNC-MATCHED
+FID-SYNC-PENDING
+FID-SYNC-EVICTED
+FID-SYNC-DUPLICATE
+FID-SYNC-CONFLICT
+FID-SYNC-REJECT
 ```
 
-con la misma clave que `OrbKeyFrame`.
-
-### Prueba 2 — Observación antes que delta
-
-Usar temporización/QoS de prueba o un test controlado que entregue primero el batch. Debe aparecer `PENDING` y, al llegar el KF exacto, `MATCHED` sin cambiar ID.
-
-### Prueba 3 — KF inexistente
-
-Inyectar un mensaje de prueba con ID no existente. Debe expirar/rechazarse y nunca asociarse a un KF distinto.
-
-### Prueba 4 — Duplicado
-
-Reenviar el mismo batch; la segunda entrega debe clasificarse como duplicado sin duplicar la futura restricción.
-
-## Patrones de reducción de logs
+Siempre incluir clave completa; no matrices. Exponer además:
 
 ```text
-FID-SYNC|orb_map_delta|RawMapDatabase|drone_id|map_epoch|keyframe_id|pending|matched|duplicate|expired|ERROR|FATAL|Segmentation fault|Killed
+pending_current
+pending_peak
+evicted
+matched_immediate
+matched_from_pending
+duplicate
+conflict
+rejected
 ```
 
 ## Criterio de éxito
 
-1. Los paquetes afectados compilan.
-2. Ambos órdenes de llegada se resuelven al mismo KF exacto.
-3. Nunca se reasigna por proximidad temporal.
-4. Duplicados no se procesan dos veces.
-5. Pendientes son acotados y expiran con diagnóstico.
-6. Timestamp/epoch inconsistentes se rechazan.
-7. No se ha calculado anchor ni lógica tag-cubo todavía.
-
-## Criterio de fallo o parcial
-
-- `NO CONSEGUIDA`: asociación con KF incorrecto, pérdida silenciosa de batch o cola no acotada.
-- `PARCIAL`: orden normal funciona pero fuera de orden/duplicados no están resueltos.
-- `BLOQUEADA`: `RawMapDatabase` no ofrece una consulta segura del KF exacto y requeriría un rediseño mayor no acordado.
-
-## Riesgos
-
-- carrera entre callback de delta y callback fiducial;
-- keyframes modificados que reaparecen en deltas;
-- epoch cambiado mientras hay pendientes;
-- deduplicación solo por `keyframe_id` ignorando dron/epoch.
-
-## Documentación a actualizar
-
-```text
-codex/contexto/paquetes/orbslam3_server/
-codex/contexto/paquetes/orbslam3_multi/
-codex/pipeline/fase_4_fiducial_real/historial/por_subfase/historial_4F.md
-codex/pipeline/fase_4_fiducial_real/historial/por_subfase/historial_4F_RESUMEN.md
-```
+- ambos órdenes de llegada llevan al mismo KF exacto;
+- ninguna asociación temporal aproximada;
+- pending acotado por dron, configurable, FIFO y sin carreras conocidas;
+- duplicados no duplican restricciones;
+- conflictos son visibles;
+- updates y snapshots no reactivan batches consumidos;
+- el handoff ocurre fuera del mutex y conserva el primer `arrival_id` raw;
+- 4F todavía no interpreta objetos;
+- la arista runtime queda correctamente reflejada en `system_architecture` y
+  `pipeline_flow`.

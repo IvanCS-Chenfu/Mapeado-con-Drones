@@ -45,6 +45,12 @@ def generate_launch_description():
             raise RuntimeError(f'debug.{name} debe existir y ser booleano')
         return str(value).lower()
 
+    def numeric_debug_default(name):
+        value = debug_values.get(name)
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            raise RuntimeError(f'debug.{name} debe ser numerico')
+        return str(value)
+
     default_n = int(params_sim_read.get('dron.numero', 1))
     default_namespace_base = str(params_sim_read.get('dron.namespace_base', 'dron'))
     default_world = str(params_sim_read.get('world.activar', 'empty'))
@@ -65,9 +71,10 @@ def generate_launch_description():
         FindPackageShare('simulacion_dron'), 'config', 'sim_dron.yaml'])
     global_map_config_dir = PathJoinSubstitution([
         FindPackageShare('simulacion_dron'), 'config', 'global_map'])
-    calibration_dron = PathJoinSubstitution([
-        FindPackageShare('simulacion_dron'), 'config', 'calibration_dron.yaml'])
-
+    fiducial_objects_config = PathJoinSubstitution([
+        FindPackageShare('simulacion_dron'), 'config', 'fiducial_objects.yaml'])
+    fiducial_rendering_config = PathJoinSubstitution([
+        FindPackageShare('simulacion_dron'), 'config', 'fiducial_rendering.yaml'])
     sparse_global_rviz_config = PathJoinSubstitution([
         FindPackageShare('simulacion_dron'), 'rviz', 'sparse_global_debug.rviz'])
     pipeline_flow_web_root = PathJoinSubstitution([
@@ -95,6 +102,7 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(DeclareLaunchArgument('launch_gazebo_gui', default_value='true'))
     ld.add_action(DeclareLaunchArgument('launch_mission_gui', default_value='true'))
+    ld.add_action(DeclareLaunchArgument('spawn_fiducials', default_value='true'))
     ld.add_action(DeclareLaunchArgument('drone_start_stagger_sec', default_value='8.0'))
     ld.add_action(DeclareLaunchArgument(
         'orb_vocabulary_path', default_value=full_orb_vocabulary))
@@ -106,10 +114,27 @@ def generate_launch_description():
         'debug_system_architecture_web',
         'debug_open_system_architecture_browser',
         'debug_architecture_telemetry',
+        'debug_fiducial_visualization',
     ):
         ld.add_action(DeclareLaunchArgument(flag, default_value=debug_default(flag)))
+    ld.add_action(DeclareLaunchArgument(
+        'debug_fiducial_display_seconds',
+        default_value=numeric_debug_default(
+            'debug_fiducial_display_seconds')))
     ld.add_action(DeclareLaunchArgument('pipeline_flow_port', default_value='8765'))
     ld.add_action(DeclareLaunchArgument('system_architecture_port', default_value='8775'))
+    ld.add_action(DeclareLaunchArgument(
+        'fiducial_visual_min_distance_m', default_value='1.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'fiducial_visual_max_distance_m', default_value='5.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'fiducial_visual_consistency_translation_m', default_value='0.15'))
+    ld.add_action(DeclareLaunchArgument(
+        'fiducial_visual_consistency_rotation_rad', default_value='0.2617993877991494'))
+    ld.add_action(DeclareLaunchArgument(
+        'fiducial_visual_visit_gap_sec', default_value='2.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'fiducial_visual_recent_capacity_per_drone', default_value='50'))
     ld.add_action(DeclareLaunchArgument('rawdb_record_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
         'rawdb_record_path', default_value='/tmp/f3c_raw.record'))
@@ -135,6 +160,18 @@ def generate_launch_description():
     ld.add_action(Node(
         package='simulacion_dron', executable='clock', name='clock',
         output='screen'))
+
+    ld.add_action(Node(
+        package='simulacion_dron',
+        executable='fiducial_spawner.py',
+        name='fiducial_spawner',
+        parameters=[{
+            'use_sim_time': True,
+            'config_file': fiducial_objects_config,
+            'render_config_file': fiducial_rendering_config,
+        }],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('spawn_fiducials'))))
 
     ld.add_action(Node(
         package='simulacion_dron',
@@ -226,6 +263,10 @@ def generate_launch_description():
                     'use_sim_time': 'true',
                     'orb_vocabulary_path': LaunchConfiguration('orb_vocabulary_path'),
                     'debug_architecture_telemetry': architecture_telemetry_enabled,
+                    'debug_fiducial_visualization': LaunchConfiguration(
+                        'debug_fiducial_visualization'),
+                    'debug_fiducial_display_seconds': LaunchConfiguration(
+                        'debug_fiducial_display_seconds'),
                 }.items()),
         ])
         if i == 1:
@@ -240,7 +281,19 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(global_server_launch_path),
         launch_arguments={
             'config_dir': global_map_config_dir,
-            'calibration_config': calibration_dron,
+            'fiducial_objects_config': fiducial_objects_config,
+            'fiducial_visual_min_distance_m': LaunchConfiguration(
+                'fiducial_visual_min_distance_m'),
+            'fiducial_visual_max_distance_m': LaunchConfiguration(
+                'fiducial_visual_max_distance_m'),
+            'fiducial_visual_consistency_translation_m': LaunchConfiguration(
+                'fiducial_visual_consistency_translation_m'),
+            'fiducial_visual_consistency_rotation_rad': LaunchConfiguration(
+                'fiducial_visual_consistency_rotation_rad'),
+            'fiducial_visual_visit_gap_sec': LaunchConfiguration(
+                'fiducial_visual_visit_gap_sec'),
+            'fiducial_visual_recent_capacity_per_drone': LaunchConfiguration(
+                'fiducial_visual_recent_capacity_per_drone'),
             'use_sim_time': 'true',
             'drone_count': str(default_n),
             'drone_namespace_base': default_namespace_base,

@@ -2,10 +2,13 @@
 
 #include "geometry_msgs/msg/pose.hpp"
 #include "geometry_msgs/msg/point.hpp"
+#include "orbslam3_msgs/msg/fiducial_key_frame_observations.hpp"
+#include "orbslam3_msgs/msg/orb_key_frame.hpp"
 
 #include <cstdint>
 #include <array>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -213,6 +216,45 @@ struct RawBuilderSnapshot
   std::set<RawMapPointId> requested_mappoint_ids;
 };
 
+struct SynchronizedFiducialBatch
+{
+  RawKeyFrameId keyframe_id;
+  orbslam3_msgs::msg::OrbKeyFrame raw_keyframe;
+  orbslam3_msgs::msg::FiducialKeyFrameObservations batch;
+  uint64_t raw_first_arrival_id = 0;
+  bool matched_from_pending = false;
+};
+
+enum class FiducialBatchSubmitStatus
+{
+  Pending,
+  MatchedImmediate,
+  Duplicate,
+  Conflict,
+  Rejected
+};
+
+struct FiducialSyncStats
+{
+  uint64_t pending_current = 0;
+  uint64_t pending_peak = 0;
+  uint64_t evicted = 0;
+  uint64_t matched_immediate = 0;
+  uint64_t matched_from_pending = 0;
+  uint64_t duplicate = 0;
+  uint64_t conflict = 0;
+  uint64_t rejected = 0;
+};
+
+struct FiducialBatchSubmitResult
+{
+  FiducialBatchSubmitStatus status = FiducialBatchSubmitStatus::Rejected;
+  std::string reason;
+  std::optional<SynchronizedFiducialBatch> match;
+  std::optional<RawKeyFrameId> evicted_keyframe_id;
+  FiducialSyncStats stats;
+};
+
 struct RawInsertResult
 {
   uint64_t arrival_id = 0;
@@ -244,10 +286,12 @@ struct RawInsertResult
 
   std::vector<RawAssociationChange> association_changes;
   std::vector<RawKeyFramePoseChange> pose_changes;
+  std::vector<SynchronizedFiducialBatch> synchronized_fiducial_batches;
   RawDatabaseStats stats;
 };
 
 std::string ToString(const RawSubmapId & id);
 const char * ToString(RawKeyFramePoseChangeKind kind);
+const char * ToString(FiducialBatchSubmitStatus status);
 
 }  // namespace orbslam3_multi

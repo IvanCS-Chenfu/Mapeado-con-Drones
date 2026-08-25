@@ -246,8 +246,15 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
 }
 
-Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timestamp, const vector<IMU::Point>& vImuMeas, string filename)
+Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight,
+                                const double &timestamp,
+                                const vector<IMU::Point>& vImuMeas,
+                                string filename,
+                                StereoTrackingReceipt* receipt)
 {
+    if(receipt)
+        *receipt = StereoTrackingReceipt();
+
     if(mSensor!=STEREO && mSensor!=IMU_STEREO)
     {
         cerr << "ERROR: you called TrackStereo but input sensor was not set to Stereo nor Stereo-Inertial." << endl;
@@ -320,6 +327,32 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
     // std::cout << "start GrabImageStereo" << std::endl;
     Sophus::SE3f Tcw = mpTracker->GrabImageStereo(imLeftToFeed,imRightToFeed,timestamp,filename);
 
+    Tracking::KeyFrameCreationEvent trackingEvent =
+        mpTracker->ConsumeLastCreatedKeyFrameEvent();
+    if(receipt && trackingEvent.created)
+    {
+        receipt->keyframe_event.created = true;
+        receipt->keyframe_event.keyframe_id = trackingEvent.keyframe_id;
+        receipt->keyframe_event.source_frame_id = trackingEvent.source_frame_id;
+        receipt->keyframe_event.timestamp = trackingEvent.timestamp;
+        imLeftToFeed.copyTo(receipt->image_left_effective);
+        mpTracker->GetEffectiveCameraCalibration(
+            receipt->camera.camera_matrix,
+            receipt->camera.distortion_coefficients);
+        receipt->camera.image_width =
+            static_cast<uint32_t>(imLeftToFeed.cols);
+        receipt->camera.image_height =
+            static_cast<uint32_t>(imLeftToFeed.rows);
+        receipt->camera.is_rectified =
+            settings_ && settings_->needToRectify();
+        receipt->camera.valid =
+            !receipt->camera.camera_matrix.empty() &&
+            receipt->camera.camera_matrix.rows == 3 &&
+            receipt->camera.camera_matrix.cols == 3 &&
+            receipt->camera.image_width > 0 &&
+            receipt->camera.image_height > 0;
+    }
+
     // std::cout << "out grabber" << std::endl;
 
     unique_lock<mutex> lock2(mMutexState);
@@ -330,28 +363,14 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight, 
     return Tcw;
 }
 
-// ============================================================
-// FASE 4C - Snapshot por valor del último KeyFrame de Tracking.
-// No modifica la política de creación de KFs ni expone el puntero al wrapper.
-// ============================================================
-System::LastKeyFrameInfo System::GetLastKeyFrameInfo()
+bool System::UsesInternalStereoRectification() const
 {
-    LastKeyFrameInfo info;
+    return settings_ && settings_->needToRectify();
+}
 
-    if (!mpTracker)
-        return info;
-
-    KeyFrame* pKF = mpTracker->GetLastKeyFrame();
-
-    if (!pKF)
-        return info;
-
-    info.valid = true;
-    info.keyframe_id = static_cast<uint64_t>(pKF->mnId);
-    info.source_frame_id = static_cast<uint64_t>(pKF->mnFrameId);
-    info.timestamp = pKF->mTimeStamp;
-
-    return info;
+bool System::UsesInternalStereoResize() const
+{
+    return settings_ && settings_->needToResize();
 }
 
 Sophus::SE3f System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double &timestamp, const vector<IMU::Point>& vImuMeas, string filename)

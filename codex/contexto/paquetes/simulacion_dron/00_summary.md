@@ -13,6 +13,28 @@ por el despliegue simulado. Es una copia exacta del perfil del servidor durante
 la etapa de simulación y un test contractual impide divergencias o parámetros
 sin propietario.
 
+Desde 4A+4B contiene el despliegue visual fiducial de Gazebo:
+
+```text
+config/fiducial_objects.yaml -> replica exacta del contrato canonico
+config/fiducial_rendering.yaml -> parametros exclusivos de render/spawn
+src/fiducials/fiducial_spawner.py -> assets AprilTag, SDF y readiness
+```
+
+El spawner redetecta las 15 texturas `DICT_APRILTAG_36h11`, crea tres objetos
+estaticos/colisionables y publica `/fiducial_spawn_ready` con QoS reliable y
+transient-local. `scenario_runner_node` puede bloquear un escenario mediante
+`wait_for_bool` hasta recibir ese estado.
+
+Desde 4D, `multi_dron.launch.py` pasa el perfil fiducial al servicio del
+Servidor y propaga a cada wrapper el debug visual y su duracion. El grafo
+`system_architecture` incluye la arista runtime servicio Server->wrapper.
+Desde 4E+4F ambos grafos incluyen tambien el topic
+wrapper→`orbslam3_server`; `runtime.yaml` replica la capacidad pending 10.
+Desde 4G+4H, `fiducials.yaml` expone rango, consistencia, gap y FIFO visuales;
+`system_architecture` ya no contiene la ruta GT fiducial. Conserva
+`sim_to_dron_gt` porque pertenece al control y a la futura Fase 5.
+
 Fase 2 separa configuracion propia de modelo/sensores en `physical_dron.yaml`
 y `simulated_sensors.yaml`. `actuators_dron.yaml` es una replica parcial
 declarada de Dron. Simulacion no abre YAML operacionales de otro grupo.
@@ -27,6 +49,9 @@ launch/f3e_replay.launch.py -> replay raw + observaciones fiduciales
 launch/f3f_replay.launch.py -> replay 3F + RViz2 + web + apertura de pestaña
 launch/pipeline_flow_only.launch.py -> diagnostico web aislado
 ```
+
+`multi_dron.launch.py` activa `spawn_fiducials=true` por defecto. Los objetos
+se colocan a ±8.5 m; los escenarios de Fase 4 conservan la ruta a ±10 m.
 
 `multi_dron.launch.py` dispone de perfiles sin duplicar launches:
 
@@ -43,7 +68,7 @@ fases dense se usa headless y se habilitan solo las vistas necesarias.
 
 - RViz2 muestra `/global_sparse_cloud` con `RGB8` y
   `/global_keyframes` como frustums.
-- El grafo web tiene 23 nodos y 39 aristas. Ademas del flujo fiducial incluye
+- El grafo web tiene 23 nodos y 41 aristas. Ademas del flujo fiducial incluye
   `CovisibilityDatabase`, `LoopDetector`, `LoopBoWIndex`,
   `SubcloudLoopVerifier`, `LoopDecision`, `LoopAnchorConstraintStore` y
   `FusedLandmarkManager` con salidas a covisibilidad, score y builder.

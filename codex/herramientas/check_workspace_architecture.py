@@ -356,12 +356,23 @@ class ArchitectureCheck:
 
         profile_path = SRC_ROOT / self.policy['debug_profile']
         profile = yaml.safe_load(profile_path.read_text(encoding='utf-8')).get('debug', {})
-        expected = set(self.policy['debug_flags'])
+        debug_flags = set(self.policy['debug_flags'])
+        debug_numeric = self.policy.get('debug_numeric_parameters', {})
+        expected = debug_flags | set(debug_numeric)
         if set(profile) != expected:
             self.fail('config', f'flags debug esperados={sorted(expected)} reales={sorted(profile)}')
-        for name, value in profile.items():
+        for name in debug_flags:
+            value = profile.get(name)
             if not isinstance(value, bool) or value is not False:
                 self.fail('config', f'{name} debe ser booleano false por defecto')
+        for name, expected_value in debug_numeric.items():
+            value = profile.get(name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                self.fail('config', f'{name} debe ser numerico')
+            elif value != expected_value:
+                self.fail(
+                    'config',
+                    f'{name} debe valer {expected_value} por defecto, recibido {value}')
 
         required = (
             'dron/dron_individual/config/physical.yaml',

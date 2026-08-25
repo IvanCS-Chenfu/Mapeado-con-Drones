@@ -59,10 +59,10 @@ def test_reconnect_recovers_available_events_and_resets_expired_cursor():
     assert reset_required is True
 
 
-def test_phase_3q_graph_matches_primary_fiducial_loop_and_fusion_flow():
+def test_phase_4f_graph_matches_primary_fiducial_loop_and_fusion_flow():
     graph = load_graph_definition()
 
-    assert graph['phase'] == '3Q'
+    assert graph['phase'] == '4F'
     assert [node['id'] for node in graph['nodes']] == [
         'wrappers',
         'server',
@@ -91,6 +91,7 @@ def test_phase_3q_graph_matches_primary_fiducial_loop_and_fusion_flow():
     assert [edge['id'] for edge in graph['edges']] == [
         'wrapper_server',
         'wrapper_server_snapshot',
+        'wrapper_server_fiducial',
         'server_primary_queue',
         'primary_queue_worker',
         'primary_worker_raw_db',

@@ -8,7 +8,8 @@ sin hacer
 
 ## Dependencia
 
-6D–6O y 6P–6R; contratos de anclaje/pose de Fases 3–5.
+6D–6O y 6P–6R; contratos de anclaje/pose de Fases 3–5 y journal reciente de
+observaciones fiduciales interpretadas creado en Fase 4G.
 
 ## Objetivo técnico
 
@@ -55,9 +56,21 @@ Antes de modificar código, Codex debe leer también el MD vigente de cada paque
 
 El proyecto necesita recuperar un dron cuyo mapa local todavía no está unido al global y también dejar preparado el contrato de comando manual de Fase 7. Si ambos se resuelven saltándose el planificador/reservas se crearían rutas inseguras y semánticas paralelas.
 
+Fase 4G deja en el Servidor una FIFO acotada con los últimos 50 KFs
+fiduciales interpretados por dron. Conserva primary, secundarios y detecciones
+no aptas para anchor —por ejemplo, fuera del rango seguro— junto con su
+identidad, pose, calidad y motivo de clasificación. Esta información reciente
+se reserva como posible ayuda para orientar una búsqueda futura, no como prueba
+de que un fiducial siga visible ni como autorización de anchor.
+
 ## Invariantes y decisiones cerradas
 
 - `ANCHOR_SUBMAP` nunca usa GT para localizar fiducial, loop o pose.
+- Reutiliza el journal reciente de Fase 4G en vez de crear otra copia de
+  observaciones; debe comprobar antigüedad y `(drone_id,map_epoch)` antes de
+  usar una entrada como hint.
+- Una observación secundaria, antigua o no apta de ese journal nunca crea por
+  sí sola un anchor ni permite saltarse una detección visual vigente.
 - La búsqueda de anchor prioriza conservar el tracking local existente.
 - Si durante una tarea aparece un nuevo `map_epoch` no anclado, el movimiento global normal se suspende de forma segura y la tarea conserva su progreso hasta recuperar anchor o fallar; esto es una precondición de seguridad, no una preempción manual `GO_TO`.
 - `GO_TO` no preempciona una tarea `RUNNING`; solo domina la cola pendiente.
@@ -95,6 +108,7 @@ Además, no tocar legacy o paquetes ajenos a la subfase como limpieza colateral.
 ```text
 estado `anchored/unanchored` y `(drone_id,map_epoch)` tras Fase 5
 eventos de fiducial/loop/anchor del servidor
+journal FIFO de Fase 4G y clasificación primary/secondary/no apta
 TaskManager 6E y prioridades
 TaskExecutor 6G
 LocalPlanner/ViewPlanner/Replan 6M–6O
@@ -106,13 +120,16 @@ Los nombres nuevos que aparezcan en este documento son nombres de contrato/propu
 ## Cambios requeridos
 
 1. Implementar detector de precondición `submap anchored?` usando exclusivamente estado del pipeline real y activar `ANCHOR_SUBMAP` cuando corresponda.
-2. Crear patrón de búsqueda local conservador: pequeños giros/traslaciones, preferencia por vistas con soporte visual, depth para obstáculos y límites configurables de búsqueda.
-3. Detener/revertir un giro de búsqueda si 6L indica pérdida de soporte; no interpretar esa caída como “zona vacía”.
-4. Terminar `ANCHOR_SUBMAP` al recibir confirmación de anchor válido para el epoch actual; rechazar anchors obsoletos de otro epoch según Fase 5.
-5. Definir timeout/distancia/intentos y resultado `FAILED/BLOCKED` seguro si no se encuentra fiducial/loop; no explorar indefinidamente.
-6. Implementar API servidor para encolar `GO_TO` con prioridad máxima pendiente y validar frame/`flight_bounds`/datos.
-7. Garantizar que `GO_TO` recibido durante otra tarea queda primero pendiente sin cancelar la tarea actual; después se entrega como siguiente tarea.
-8. Ejecutar `GO_TO` usando los mismos módulos de planificación/reserva/replanning, con logs `ANCHOR-TASK` y `GO-TO-TASK`.
+2. Evaluar entradas recientes y compatibles del journal de Fase 4G para
+   priorizar una dirección/objeto de búsqueda, sin convertirlas en mediciones
+   actuales ni en anchors.
+3. Crear patrón de búsqueda local conservador: pequeños giros/traslaciones, preferencia por vistas con soporte visual, depth para obstáculos y límites configurables de búsqueda.
+4. Detener/revertir un giro de búsqueda si 6L indica pérdida de soporte; no interpretar esa caída como “zona vacía”.
+5. Terminar `ANCHOR_SUBMAP` al recibir confirmación de anchor válido para el epoch actual; rechazar anchors obsoletos de otro epoch según Fase 5.
+6. Definir timeout/distancia/intentos y resultado `FAILED/BLOCKED` seguro si no se encuentra fiducial/loop; no explorar indefinidamente.
+7. Implementar API servidor para encolar `GO_TO` con prioridad máxima pendiente y validar frame/`flight_bounds`/datos.
+8. Garantizar que `GO_TO` recibido durante otra tarea queda primero pendiente sin cancelar la tarea actual; después se entrega como siguiente tarea.
+9. Ejecutar `GO_TO` usando los mismos módulos de planificación/reserva/replanning, con logs `ANCHOR-TASK` y `GO-TO-TASK`.
 
 ## Cambios prohibidos
 

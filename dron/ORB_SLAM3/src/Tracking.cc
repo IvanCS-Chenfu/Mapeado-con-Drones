@@ -532,6 +532,42 @@ Tracking::~Tracking()
 
 }
 
+Tracking::KeyFrameCreationEvent Tracking::ConsumeLastCreatedKeyFrameEvent()
+{
+    unique_lock<mutex> lock(mMutexKeyFrameCreationEvent);
+    KeyFrameCreationEvent event = mLastCreatedKeyFrameEvent;
+    mLastCreatedKeyFrameEvent = KeyFrameCreationEvent();
+    return event;
+}
+
+void Tracking::GetEffectiveCameraCalibration(
+    cv::Mat& cameraMatrix,
+    cv::Mat& distortionCoefficients) const
+{
+    mK.copyTo(cameraMatrix);
+    mDistCoef.copyTo(distortionCoefficients);
+}
+
+void Tracking::ClearLastCreatedKeyFrameEvent()
+{
+    unique_lock<mutex> lock(mMutexKeyFrameCreationEvent);
+    mLastCreatedKeyFrameEvent = KeyFrameCreationEvent();
+}
+
+void Tracking::RecordKeyFrameCreation(KeyFrame* keyFrame)
+{
+    if(!keyFrame)
+        return;
+
+    unique_lock<mutex> lock(mMutexKeyFrameCreationEvent);
+    mLastCreatedKeyFrameEvent.created = true;
+    mLastCreatedKeyFrameEvent.keyframe_id =
+        static_cast<uint64_t>(keyFrame->mnId);
+    mLastCreatedKeyFrameEvent.source_frame_id =
+        static_cast<uint64_t>(mCurrentFrame.mnId);
+    mLastCreatedKeyFrameEvent.timestamp = mCurrentFrame.mTimeStamp;
+}
+
 void Tracking::newParameterLoader(Settings *settings) {
     mpCamera = settings->camera1();
     mpCamera = mpAtlas->AddCamera(mpCamera);
@@ -1453,6 +1489,8 @@ bool Tracking::GetStepByStep()
 
 Sophus::SE3f Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRectRight, const double &timestamp, string filename)
 {
+    ClearLastCreatedKeyFrameEvent();
+
     //cout << "GrabImageStereo" << endl;
 
     mImGray = imRectLeft;
@@ -2440,6 +2478,8 @@ void Tracking::StereoInitialization()
 
         mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.GetPose());
 
+        RecordKeyFrameCreation(pKFini);
+
         mState=OK;
     }
 }
@@ -3338,6 +3378,7 @@ void Tracking::CreateNewKeyFrame()
 
     mnLastKeyFrameId = mCurrentFrame.mnId;
     mpLastKeyFrame = pKF;
+    RecordKeyFrameCreation(pKF);
 }
 
 void Tracking::SearchLocalPoints()
@@ -3778,6 +3819,7 @@ bool Tracking::Relocalization()
 
 void Tracking::Reset(bool bLocMap)
 {
+    ClearLastCreatedKeyFrameEvent();
     Verbose::PrintMess("System Reseting", Verbose::VERBOSITY_NORMAL);
 
     if(mpViewer)
@@ -3839,6 +3881,7 @@ void Tracking::Reset(bool bLocMap)
 
 void Tracking::ResetActiveMap(bool bLocMap)
 {
+    ClearLastCreatedKeyFrameEvent();
     Verbose::PrintMess("Active map Reseting", Verbose::VERBOSITY_NORMAL);
     if(mpViewer)
     {

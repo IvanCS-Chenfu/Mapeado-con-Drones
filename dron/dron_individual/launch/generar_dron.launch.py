@@ -62,6 +62,10 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'debug_architecture_telemetry', default_value='false'),
         DeclareLaunchArgument(
+            'debug_fiducial_visualization', default_value='false'),
+        DeclareLaunchArgument(
+            'debug_fiducial_display_seconds', default_value='5.0'),
+        DeclareLaunchArgument(
             'orb_vocabulary_path',
             default_value=PathJoinSubstitution([
                 FindPackageShare('dron_individual'),
@@ -75,6 +79,10 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     debug_architecture_telemetry = LaunchConfiguration(
         'debug_architecture_telemetry')
+    debug_fiducial_visualization = LaunchConfiguration(
+        'debug_fiducial_visualization')
+    debug_fiducial_display_seconds = LaunchConfiguration(
+        'debug_fiducial_display_seconds')
     orb_vocabulary_path = LaunchConfiguration('orb_vocabulary_path')
 
     common_debug = {
@@ -116,6 +124,10 @@ def generate_launch_description():
                 'local_map_frame': local_map_frame,
                 'use_sim_time': use_sim_time,
                 'debug_architecture_telemetry': debug_architecture_telemetry,
+                'debug_fiducial_visualization':
+                    debug_fiducial_visualization,
+                'debug_fiducial_display_seconds':
+                    debug_fiducial_display_seconds,
                 'vocab': orb_vocabulary_path,
             }.items(),
         ),

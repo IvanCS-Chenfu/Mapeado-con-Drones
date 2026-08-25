@@ -101,11 +101,17 @@ def test_correct_current_runtime_topology_is_explicit():
     edges = {edge['data']['id']: edge['data'] for edge in graph['edges']}
     assert edges['sim_to_orbslam_stereo']['target'] == 'orbslam3'
     assert edges['sim_to_dron_gt']['status'] == 'provisional_phase5'
-    assert edges['sim_to_server_fiducial_gt']['status'] == 'provisional_phase4'
     assert edges['dron_to_sim_motors']['interface'].endswith('motor/{arr_iz,ab_iz,ab_der,arr_der}')
     assert edges['server_to_orbslam_snapshot_request']['source'] == 'orbslam3_server'
     assert edges['orbslam_to_server_snapshot_response']['source'] == 'orbslam3'
+    assert edges['fiducial_config_server_to_wrapper']['source'] == (
+        'orbslam3_server')
+    assert edges['fiducial_config_server_to_wrapper']['target'] == 'orbslam3'
+    assert edges['wrapper_to_server_fiducial_observations']['source'] == 'orbslam3'
+    assert edges['wrapper_to_server_fiducial_observations']['target'] == (
+        'orbslam3_server')
     assert edges['sim_to_dron_action']['interface'].endswith('AccionTrayectoria')
+    assert 'fiducial_objects.yaml' in edges['globalmap_profile_to_sim']['interface']
 
 
 def test_packages_and_runtime_edges_have_operational_metadata():
@@ -124,6 +130,8 @@ def test_packages_and_runtime_edges_have_operational_metadata():
                 'cross_group', 'status', 'docs'} <= set(values)
     for values in metadata['edges'].values():
         assert {'message_type', 'namespace', 'qos', 'data_transferred'} <= set(values)
+    assert 'fiducial_spawner.py' in metadata['nodes']['simulacion_dron']['executables']
+    assert 'config/fiducial_objects.yaml' in metadata['nodes']['orbslam3_server']['owned_yaml']
 
 
 def test_frontend_checks_health_and_pulses_only_runtime_direct_edges():
@@ -179,12 +187,20 @@ def test_runtime_evidence_is_emitted_by_real_producers_or_consumers():
         'orbslam_to_server_delta',
         'server_to_orbslam_snapshot_request',
         'orbslam_to_server_snapshot_response',
-        'sim_to_server_fiducial_gt',
         'server_to_sim_backpressure',
         'server_to_sim_sparse_map',
+        'wrapper_to_server_fiducial_observations',
     ):
         assert edge_id in server
     assert 'sim_to_orbslam_stereo' in wrapper
+    config_server = (
+        SRC_ROOT /
+        'servidor/orbslam3_server/scripts/fiducial_config_server.py'
+    ).read_text(encoding='utf-8')
+    assert 'fiducial_config_server_to_wrapper' in wrapper
+    assert 'fiducial_config_server_to_wrapper' in config_server
+    assert 'wrapper_to_server_fiducial_observations' in wrapper
+    assert 'wrapper_to_server_fiducial_observations' in server
     assert 'sim_to_dron_gt' in gen_tray
     assert 'sim_to_dron_action' in gen_tray
     assert 'dron_to_sim_motors' in motors

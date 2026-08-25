@@ -1,0 +1,7 @@
+schema_version: 1
+texture_size_px: 800
+surface_offset_m: 0.001
+runtime_asset_dir: /tmp/simulacion_dron_fiducials
+spawn_service_timeout_sec: 60.0
+spawn_response_timeout_sec: 15.0
+ready_topic: /fiducial_spawn_ready

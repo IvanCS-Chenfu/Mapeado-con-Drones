@@ -35,7 +35,6 @@ def _optional_override(context, overrides, name, cast):
 def _launch_server(context):
     config_dir = LaunchConfiguration('config_dir').perform(context)
     parameters = [os.path.join(config_dir, name) for name in CONFIG_FILES]
-    parameters.append(LaunchConfiguration('calibration_config').perform(context))
     replay_debug_config = LaunchConfiguration('replay_debug_config').perform(context)
     if replay_debug_config:
         parameters.append(replay_debug_config)
@@ -50,6 +49,8 @@ def _launch_server(context):
             LaunchConfiguration('debug_pipeline_flow_events').perform(context)),
         'debug_architecture_telemetry': _as_bool(
             LaunchConfiguration('debug_architecture_telemetry').perform(context)),
+        'fiducial_objects_config': LaunchConfiguration(
+            'fiducial_objects_config').perform(context),
     }
     optional = (
         ('rawdb_record_enabled', _as_bool),
@@ -62,10 +63,15 @@ def _launch_server(context):
         ('pose_store_debug_anchor_x', float),
         ('pose_store_debug_anchor_y', float),
         ('pose_store_debug_anchor_z', float),
-        ('fiducial_sim_enabled', _as_bool),
         ('fiducial_translation_threshold_m', float),
         ('fiducial_rotation_threshold_rad', float),
         ('fiducial_yaw_threshold_rad', float),
+        ('fiducial_visual_min_distance_m', float),
+        ('fiducial_visual_max_distance_m', float),
+        ('fiducial_visual_consistency_translation_m', float),
+        ('fiducial_visual_consistency_rotation_rad', float),
+        ('fiducial_visual_visit_gap_sec', float),
+        ('fiducial_visual_recent_capacity_per_drone', int),
     )
     for name, cast in optional:
         _optional_override(context, overrides, name, cast)
@@ -75,26 +81,42 @@ def _launch_server(context):
     if log_level not in ('debug', 'info', 'warn', 'error', 'fatal'):
         raise ValueError(f'nivel de log ROS invalido: {log_level}')
 
-    return [Node(
+    config_server = Node(
+        package='orbslam3_server',
+        executable='fiducial_config_server.py',
+        name='fiducial_config_server',
+        output='screen',
+        parameters=[{
+            'config_file': LaunchConfiguration(
+                'fiducial_objects_config').perform(context),
+            'use_sim_time': overrides['use_sim_time'],
+            'debug_architecture_telemetry': overrides[
+                'debug_architecture_telemetry'],
+        }],
+    )
+
+    global_server = Node(
         package='orbslam3_server',
         executable='global_map_server',
         name='global_map_server',
         output='screen',
         parameters=parameters,
         arguments=['--ros-args', '--log-level', log_level],
-    )]
+    )
+    return [config_server, global_server]
 
 
 def generate_launch_description():
     default_config_dir = PathJoinSubstitution([
         FindPackageShare('orbslam3_server'), 'config', 'global_map'])
-    default_calibration = PathJoinSubstitution([
-        FindPackageShare('orbslam3_server'), 'config', 'calibration_dron.yaml'])
+    default_fiducial_objects = PathJoinSubstitution([
+        FindPackageShare('orbslam3_server'), 'config',
+        'fiducial_objects.yaml'])
 
     arguments = [
         DeclareLaunchArgument('config_dir', default_value=default_config_dir),
         DeclareLaunchArgument(
-            'calibration_config', default_value=default_calibration),
+            'fiducial_objects_config', default_value=default_fiducial_objects),
         DeclareLaunchArgument('replay_debug_config', default_value=''),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('drone_count', default_value='2'),
@@ -116,10 +138,15 @@ def generate_launch_description():
         'pose_store_debug_anchor_x',
         'pose_store_debug_anchor_y',
         'pose_store_debug_anchor_z',
-        'fiducial_sim_enabled',
         'fiducial_translation_threshold_m',
         'fiducial_rotation_threshold_rad',
         'fiducial_yaw_threshold_rad',
+        'fiducial_visual_min_distance_m',
+        'fiducial_visual_max_distance_m',
+        'fiducial_visual_consistency_translation_m',
+        'fiducial_visual_consistency_rotation_rad',
+        'fiducial_visual_visit_gap_sec',
+        'fiducial_visual_recent_capacity_per_drone',
     ):
         arguments.append(DeclareLaunchArgument(name, default_value=YAML_SENTINEL))
 

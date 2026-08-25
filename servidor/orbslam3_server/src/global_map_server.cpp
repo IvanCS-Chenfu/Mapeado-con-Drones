@@ -1,14 +1,16 @@
 #include "orbslam3_server/primary_queue.hpp"
-#include "orbslam3_server/ground_truth_buffer.hpp"
+#include "orbslam3_server/fiducial_object_interpreter.hpp"
 #include "orbslam3_server/secondary_queue.hpp"
 #include "orbslam3_server/submap_color.hpp"
 
 #include "orbslam3_multi/sparse_global_backend.hpp"
+#include "orbslam3_msgs/msg/fiducial_key_frame_observations.hpp"
 #include "orbslam3_msgs/msg/orb_map.hpp"
 #include "orbslam3_msgs/srv/get_orb_map.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/executors/multi_threaded_executor.hpp"
+#include "rclcpp/serialization.hpp"
+#include "rclcpp/serialized_message.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/msg/point_field.hpp"
 #include "std_msgs/msg/bool.hpp"
@@ -44,15 +46,6 @@ namespace orbslam3_server
 namespace
 {
 
-struct FiducialConfig
-{
-  int32_t id = 0;
-  double x = 0.0;
-  double y = 0.0;
-  double z = 0.0;
-  double radius_m = 0.0;
-};
-
 struct ReplayVisitState
 {
   int32_t fiducial_id = 0;
@@ -60,48 +53,9 @@ struct ReplayVisitState
   double last_stamp_sec = 0.0;
 };
 
-int64_t StampToNanoseconds(const builtin_interfaces::msg::Time & stamp)
-{
-  return static_cast<int64_t>(stamp.sec) * 1000000000LL + stamp.nanosec;
-}
-
 double StampToSeconds(const builtin_interfaces::msg::Time & stamp)
 {
   return static_cast<double>(stamp.sec) + static_cast<double>(stamp.nanosec) * 1e-9;
-}
-
-bool PoseToMatrix(const geometry_msgs::msg::Pose & pose, Eigen::Matrix4d * matrix)
-{
-  const Eigen::Quaterniond quaternion(
-    pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z);
-  if (!std::isfinite(pose.position.x) || !std::isfinite(pose.position.y) ||
-    !std::isfinite(pose.position.z) || !std::isfinite(quaternion.w()) ||
-    !std::isfinite(quaternion.x()) || !std::isfinite(quaternion.y()) ||
-    !std::isfinite(quaternion.z()) || quaternion.norm() < 1e-9)
-  {
-    return false;
-  }
-  *matrix = Eigen::Matrix4d::Identity();
-  matrix->block<3, 3>(0, 0) = quaternion.normalized().toRotationMatrix();
-  (*matrix)(0, 3) = pose.position.x;
-  (*matrix)(1, 3) = pose.position.y;
-  (*matrix)(2, 3) = pose.position.z;
-  return matrix->allFinite();
-}
-
-geometry_msgs::msg::Pose MatrixToPose(const Eigen::Matrix4d & matrix)
-{
-  geometry_msgs::msg::Pose pose;
-  pose.position.x = matrix(0, 3);
-  pose.position.y = matrix(1, 3);
-  pose.position.z = matrix(2, 3);
-  const Eigen::Quaterniond quaternion(matrix.block<3, 3>(0, 0));
-  const auto normalized = quaternion.normalized();
-  pose.orientation.x = normalized.x();
-  pose.orientation.y = normalized.y();
-  pose.orientation.z = normalized.z();
-  pose.orientation.w = normalized.w();
-  return pose;
 }
 
 float PackRgb(float red, float green, float blue)
@@ -140,30 +94,6 @@ void WritePointField(std::vector<uint8_t> * data, size_t offset, const T & value
   std::memcpy(data->data() + offset, &value, sizeof(T));
 }
 
-Eigen::Matrix4d BuildBodyToCamera(
-  double x, double y, double z, double roll_deg, double pitch_deg,
-  double yaw_deg, bool optical_convention)
-{
-  Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();
-  if (optical_convention) {
-    Eigen::Matrix3d rotation;
-    rotation << 0.0, 0.0, 1.0,
-      -1.0, 0.0, 0.0,
-      0.0, -1.0, 0.0;
-    transform.block<3, 3>(0, 0) = rotation;
-  } else {
-    constexpr double kDegToRad = 3.14159265358979323846 / 180.0;
-    const Eigen::AngleAxisd roll(roll_deg * kDegToRad, Eigen::Vector3d::UnitX());
-    const Eigen::AngleAxisd pitch(pitch_deg * kDegToRad, Eigen::Vector3d::UnitY());
-    const Eigen::AngleAxisd yaw(yaw_deg * kDegToRad, Eigen::Vector3d::UnitZ());
-    transform.block<3, 3>(0, 0) = (yaw * pitch * roll).toRotationMatrix();
-  }
-  transform(0, 3) = x;
-  transform(1, 3) = y;
-  transform(2, 3) = z;
-  return transform;
-}
-
 }  // namespace
 
 // Fase 2: pipeline_flow no evalua payloads cuando esta desactivado.
@@ -197,11 +127,19 @@ public:
       declare_parameter<int64_t>("secondary_queue_high_watermark", 64));
     secondary_low_watermark_ = static_cast<size_t>(
       declare_parameter<int64_t>("secondary_queue_low_watermark", 16));
+    const int64_t fiducial_pending_capacity = declare_parameter<int64_t>(
+      "fiducial_pending_capacity_per_drone", 10);
     if (secondary_high_watermark_ == 0 ||
       secondary_low_watermark_ >= secondary_high_watermark_)
     {
       throw std::invalid_argument("secondary watermarks invalidos");
     }
+    if (fiducial_pending_capacity <= 0) {
+      throw std::invalid_argument(
+              "fiducial_pending_capacity_per_drone debe ser positivo");
+    }
+    backend_.SetFiducialPendingCapacityPerDrone(
+      static_cast<size_t>(fiducial_pending_capacity));
     declare_parameter<int64_t>("primary_worker_debug_delay_ms", 0);
     record_enabled_ = declare_parameter<bool>("rawdb_record_enabled", false);
     record_path_ = declare_parameter<std::string>("rawdb_record_path", "");
@@ -225,8 +163,31 @@ public:
     debug_anchor_x_ = declare_parameter<double>("pose_store_debug_anchor_x", 10.0);
     debug_anchor_y_ = declare_parameter<double>("pose_store_debug_anchor_y", 0.0);
     debug_anchor_z_ = declare_parameter<double>("pose_store_debug_anchor_z", 0.0);
-    fiducial_sim_enabled_ = declare_parameter<bool>("fiducial_sim_enabled", true);
-    fiducial_gt_max_dt_sec_ = declare_parameter<double>("fiducial_gt_max_dt_sec", 1.0);
+    const std::string fiducial_objects_config = declare_parameter<std::string>(
+      "fiducial_objects_config", "");
+    if (fiducial_objects_config.empty()) {
+      throw std::invalid_argument("fiducial_objects_config no puede estar vacio");
+    }
+    fiducial_object_interpreter_.Load(fiducial_objects_config);
+    auto visual_config = fiducial_object_interpreter_.GetConfig();
+    visual_config.min_distance_m = declare_parameter<double>(
+      "fiducial_visual_min_distance_m", visual_config.min_distance_m);
+    visual_config.max_distance_m = declare_parameter<double>(
+      "fiducial_visual_max_distance_m", visual_config.max_distance_m);
+    visual_config.consistency_translation_m = declare_parameter<double>(
+      "fiducial_visual_consistency_translation_m", 0.15);
+    visual_config.consistency_rotation_rad = declare_parameter<double>(
+      "fiducial_visual_consistency_rotation_rad", 0.2617993877991494);
+    visual_config.visit_gap_sec = declare_parameter<double>(
+      "fiducial_visual_visit_gap_sec", 2.0);
+    const int64_t recent_capacity = declare_parameter<int64_t>(
+      "fiducial_visual_recent_capacity_per_drone", 50);
+    if (recent_capacity <= 0) {
+      throw std::invalid_argument(
+              "fiducial_visual_recent_capacity_per_drone debe ser positivo");
+    }
+    visual_config.recent_capacity_per_drone = static_cast<size_t>(recent_capacity);
+    fiducial_object_interpreter_.Configure(visual_config);
     orbslam3_multi::FiducialOptimizationConfig optimization_config;
     optimization_config.translation_threshold_m = declare_parameter<double>(
       "fiducial_translation_threshold_m", 0.35);
@@ -352,32 +313,6 @@ public:
     score_config.far_min_factor = static_cast<float>(declare_parameter<double>(
         "score_far_min_factor", 0.25));
     backend_.ConfigureLandmarkScores(score_config);
-    const double body_camera_x = declare_parameter<double>("body_T_camera_x", 0.10);
-    const double body_camera_y = declare_parameter<double>("body_T_camera_y", 0.03);
-    const double body_camera_z = declare_parameter<double>("body_T_camera_z", 0.03);
-    const double body_camera_roll =
-      declare_parameter<double>("body_T_camera_roll_deg", 0.0);
-    const double body_camera_pitch =
-      declare_parameter<double>("body_T_camera_pitch_deg", -90.0);
-    const double body_camera_yaw =
-      declare_parameter<double>("body_T_camera_yaw_deg", 90.0);
-    const bool optical_convention =
-      declare_parameter<bool>("use_camera_optical_frame_convention", true);
-    body_T_camera_ = BuildBodyToCamera(
-      body_camera_x, body_camera_y, body_camera_z, body_camera_roll,
-      body_camera_pitch, body_camera_yaw, optical_convention);
-    fiducials_ = {
-      {
-        1, declare_parameter<double>("fiducial_1_x", 0.0),
-        declare_parameter<double>("fiducial_1_y", 9.0),
-        declare_parameter<double>("fiducial_1_z", 1.0),
-        declare_parameter<double>("fiducial_1_radius", 2.0)},
-      {
-        2, declare_parameter<double>("fiducial_2_x", 0.0),
-        declare_parameter<double>("fiducial_2_y", -9.0),
-        declare_parameter<double>("fiducial_2_z", 1.0),
-        declare_parameter<double>("fiducial_2_radius", 2.0)}};
-
     if (drone_count <= 0) {
       throw std::invalid_argument("drone_count debe ser positivo");
     }
@@ -443,6 +378,24 @@ public:
           get_logger(), "[F3C-SERVER-SUBSCRIBED] drone_id=%ld topic=%s",
           drone_id, topic.c_str());
 
+        const std::string fiducial_topic = "/" + namespace_base + "_" +
+          std::to_string(drone_id) + "/orbslam/fiducial_keyframe_observations";
+        fiducial_subscriptions_.push_back(
+          create_subscription<
+            orbslam3_msgs::msg::FiducialKeyFrameObservations>(
+            fiducial_topic,
+            rclcpp::QoS(rclcpp::KeepLast(32)).reliable().durability_volatile(),
+            [this, drone_id, fiducial_topic](
+              orbslam3_msgs::msg::FiducialKeyFrameObservations::ConstSharedPtr batch)
+            {
+              OnFiducialBatch(
+                static_cast<uint32_t>(drone_id), fiducial_topic, std::move(batch));
+            }));
+        RCLCPP_INFO(
+          get_logger(),
+          "[FID-SERVER-SUBSCRIBED] drone_id=%ld topic=%s capacity=%ld",
+          drone_id, fiducial_topic.c_str(), fiducial_pending_capacity);
+
         const std::string snapshot_service = "/" + namespace_base + "_" +
           std::to_string(drone_id) + "/orbslam/get_full_map";
         snapshot_services_[static_cast<uint32_t>(drone_id)] = snapshot_service;
@@ -454,23 +407,6 @@ public:
           "[F3G-SNAPSHOT-CLIENT-READY] drone_id=%ld service=%s",
           drone_id, snapshot_service.c_str());
 
-        const std::string gt_topic = "/" + namespace_base + "_" +
-          std::to_string(drone_id) + "/sensor/GT/pose";
-        rclcpp::SubscriptionOptions gt_options;
-        if (!gt_callback_group_) {
-          gt_callback_group_ = create_callback_group(
-            rclcpp::CallbackGroupType::MutuallyExclusive);
-        }
-        gt_options.callback_group = gt_callback_group_;
-        gt_subscriptions_.push_back(
-          create_subscription<geometry_msgs::msg::PoseStamped>(
-            gt_topic, rclcpp::QoS(rclcpp::KeepLast(50)).reliable(),
-            [this, drone_id](geometry_msgs::msg::PoseStamped::ConstSharedPtr pose) {
-              OnGroundTruth(static_cast<uint32_t>(drone_id), std::move(pose));
-            }, gt_options));
-        RCLCPP_INFO(
-          get_logger(), "[F3E-GT-SUBSCRIBED] drone_id=%ld topic=%s capacity=50",
-          drone_id, gt_topic.c_str());
       }
 
       if (full_snapshot_enabled_) {
@@ -493,15 +429,15 @@ public:
       "[F3C-SERVER-INIT] mode=%s high=%zu low=%zu record_enabled=%s",
       replay_path_.empty() ? "live" : "replay", high_watermark_, low_watermark_,
       record_enabled_ ? "true" : "false");
-    RCLCPP_WARN(
+    RCLCPP_INFO(
       get_logger(),
-      "[F3E-FID-CONFIG] enabled=%s max_dt=%.3f ring=50 "
-      "fid1=(%.2f,%.2f,%.2f,r=%.2f) fid2=(%.2f,%.2f,%.2f,r=%.2f) "
-      "body_T_camera=(%.2f,%.2f,%.2f) optical=%s",
-      fiducial_sim_enabled_ ? "true" : "false", fiducial_gt_max_dt_sec_,
-      fiducials_[0].x, fiducials_[0].y, fiducials_[0].z, fiducials_[0].radius_m,
-      fiducials_[1].x, fiducials_[1].y, fiducials_[1].z, fiducials_[1].radius_m,
-      body_camera_x, body_camera_y, body_camera_z, optical_convention ? "true" : "false");
+      "[FID-OBJECT-CONFIG] path=%s objects=%zu tags=%zu range=[%.3f,%.3f] "
+      "consistency=(%.3f,%.6f) visit_gap=%.3f recent_capacity=%zu",
+      fiducial_objects_config.c_str(), fiducial_object_interpreter_.ObjectCount(),
+      fiducial_object_interpreter_.TagCount(), visual_config.min_distance_m,
+      visual_config.max_distance_m, visual_config.consistency_translation_m,
+      visual_config.consistency_rotation_rad, visual_config.visit_gap_sec,
+      visual_config.recent_capacity_per_drone);
     RCLCPP_WARN(
       get_logger(),
       "[F3H-SECONDARY-CONFIG] high=%zu low=%zu priorities=MAX,HIGH,NORMAL "
@@ -528,7 +464,6 @@ public:
     }
     snapshot_clients_.clear();
     subscriptions_.clear();
-    gt_subscriptions_.clear();
     primary_queue_.Close();
     if (worker_.joinable()) {
       worker_.join();
@@ -548,6 +483,34 @@ public:
       fiducial_observations_deferred_, pose_stats.anchors, pose_stats.poses,
       pose_stats.active_poses, pose_stats.hard_fiducial_keyframes,
       raw_stats.fiducial_observations);
+    double traffic_elapsed_sec = 0.0;
+    uint64_t traffic_max_rate = 0;
+    {
+      std::lock_guard<std::mutex> lock(fiducial_traffic_mutex_);
+      if (fiducial_traffic_last_stamp_sec_ >= fiducial_traffic_first_stamp_sec_) {
+        traffic_elapsed_sec = std::max(
+          0.0, fiducial_traffic_last_stamp_sec_ - fiducial_traffic_first_stamp_sec_);
+      }
+      for (const auto & item : fiducial_batches_per_second_) {
+        traffic_max_rate = std::max(traffic_max_rate, item.second);
+      }
+    }
+    const uint64_t visual_batches = fiducial_visual_batches_received_.load();
+    RCLCPP_INFO(
+      get_logger(),
+      "[FID-VISUAL-FINAL] received=%lu interpreted=%lu tags=%lu bytes=%lu "
+      "primary=%lu no_primary=%lu rejected=%lu avg_tags=%.3f avg_bytes=%.3f "
+      "mean_rate_hz=%.3f max_rate_hz=%lu",
+      visual_batches, fiducial_visual_batches_interpreted_.load(),
+      fiducial_visual_tags_interpreted_.load(), fiducial_visual_bytes_received_.load(),
+      fiducial_visual_primaries_.load(), fiducial_visual_without_primary_.load(),
+      fiducial_visual_interpretation_rejected_.load(),
+      visual_batches == 0U ? 0.0 :
+      static_cast<double>(fiducial_visual_tags_received_.load()) / visual_batches,
+      visual_batches == 0U ? 0.0 :
+      static_cast<double>(fiducial_visual_bytes_received_.load()) / visual_batches,
+      traffic_elapsed_sec <= 0.0 ? 0.0 : visual_batches / traffic_elapsed_sec,
+      traffic_max_rate);
 
     if (record_enabled_ && !record_path_.empty()) {
       std::string error;
@@ -871,69 +834,193 @@ private:
     }
   }
 
-  void OnGroundTruth(
-    uint32_t drone_id,
-    geometry_msgs::msg::PoseStamped::ConstSharedPtr pose)
+  void OnFiducialBatch(
+    uint32_t expected_drone_id,
+    const std::string & topic,
+    orbslam3_msgs::msg::FiducialKeyFrameObservations::ConstSharedPtr batch)
   {
-    if (!pose || !fiducial_sim_enabled_) {
+    if (!batch || batch->drone_id != expected_drone_id) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[FID-SYNC-REJECT] expected_drone=%u payload_drone=%u topic=%s "
+        "reason=topic_payload_identity",
+        expected_drone_id, batch ? batch->drone_id : 0U, topic.c_str());
       return;
     }
-    Eigen::Matrix4d world_T_body;
-    if (!PoseToMatrix(pose->pose, &world_T_body)) {
+    rclcpp::Serialization<orbslam3_msgs::msg::FiducialKeyFrameObservations> serialization;
+    rclcpp::SerializedMessage serialized;
+    serialization.serialize_message(batch.get(), &serialized);
+    ++fiducial_visual_batches_received_;
+    fiducial_visual_tags_received_ += batch->observations.size();
+    fiducial_visual_bytes_received_ += serialized.size();
+    const double batch_stamp_sec = StampToSeconds(batch->header.stamp);
+    {
+      std::lock_guard<std::mutex> lock(fiducial_traffic_mutex_);
+      if (fiducial_batches_per_second_.empty()) {
+        fiducial_traffic_first_stamp_sec_ = batch_stamp_sec;
+      }
+      fiducial_traffic_last_stamp_sec_ = std::max(
+        fiducial_traffic_last_stamp_sec_, batch_stamp_sec);
+      const int64_t second_bucket = static_cast<int64_t>(std::floor(batch_stamp_sec));
+      ++fiducial_batches_per_second_[{expected_drone_id, second_bucket}];
+    }
+    auto result = backend_.SubmitFiducialBatch(*batch);
+    if (result.evicted_keyframe_id.has_value()) {
+      const auto & evicted = *result.evicted_keyframe_id;
       RCLCPP_WARN(
-        get_logger(), "[F3E-GT-BUFFER] drone_id=%u accepted=false reason=invalid_pose",
-        drone_id);
+        get_logger(),
+        "[FID-SYNC-EVICTED] drone=%u epoch=%lu kf=%lu pending=%lu "
+        "peak=%lu evicted=%lu",
+        evicted.drone_id, evicted.map_epoch, evicted.local_kf_id,
+        result.stats.pending_current, result.stats.pending_peak,
+        result.stats.evicted);
+    }
+    LogFiducialSubmitResult(*batch, result);
+    if (result.match.has_value()) {
+      HandleSynchronizedFiducialBatch(*result.match);
+    }
+  }
+
+  void LogFiducialSubmitResult(
+    const orbslam3_msgs::msg::FiducialKeyFrameObservations & batch,
+    const orbslam3_multi::FiducialBatchSubmitResult & result)
+  {
+    const auto status = orbslam3_multi::ToString(result.status);
+    const bool warning =
+      result.status == orbslam3_multi::FiducialBatchSubmitStatus::Conflict ||
+      result.status == orbslam3_multi::FiducialBatchSubmitStatus::Rejected;
+    if (warning) {
+      RCLCPP_WARN(
+        get_logger(),
+        "[FID-SYNC-%s] drone=%u epoch=%lu kf=%lu tags=%zu reason=%s "
+        "pending=%lu peak=%lu evicted=%lu duplicate=%lu conflict=%lu rejected=%lu",
+        result.status == orbslam3_multi::FiducialBatchSubmitStatus::Conflict ?
+        "CONFLICT" : "REJECT",
+        batch.drone_id, batch.map_epoch, batch.local_keyframe_id,
+        batch.observations.size(), result.reason.c_str(),
+        result.stats.pending_current, result.stats.pending_peak,
+        result.stats.evicted, result.stats.duplicate,
+        result.stats.conflict, result.stats.rejected);
       return;
     }
+    RCLCPP_INFO(
+      get_logger(),
+      "[FID-SYNC-%s] drone=%u epoch=%lu kf=%lu tags=%zu pending=%lu "
+      "peak=%lu matched_immediate=%lu matched_pending=%lu duplicate=%lu",
+      status, batch.drone_id, batch.map_epoch, batch.local_keyframe_id,
+      batch.observations.size(), result.stats.pending_current,
+      result.stats.pending_peak, result.stats.matched_immediate,
+      result.stats.matched_from_pending, result.stats.duplicate);
+  }
 
+  void HandleSynchronizedFiducialBatch(
+    const orbslam3_multi::SynchronizedFiducialBatch & match)
+  {
+    RCLCPP_INFO(
+      get_logger(),
+      "[FID-SYNC-MATCHED] drone=%u epoch=%lu kf=%lu tags=%zu "
+      "raw_arrival=%lu source=%s",
+      match.keyframe_id.drone_id, match.keyframe_id.map_epoch,
+      match.keyframe_id.local_kf_id, match.batch.observations.size(),
+      match.raw_first_arrival_id,
+      match.matched_from_pending ? "pending" : "immediate");
     if (architecture_telemetry_enabled_) {
       EmitArchitectureActivity(
-        "sim_to_server_fiducial_gt", "sensor/GT/pose", drone_id);
+        "wrapper_to_server_fiducial_observations",
+        "/dron_X/orbslam/fiducial_keyframe_observations",
+        match.keyframe_id.drone_id);
+    }
+    if (pipeline_flow_events_enabled_) {
+      std::ostringstream detail;
+      detail << " tags=" << match.batch.observations.size()
+             << " kf=" << match.keyframe_id.local_kf_id
+             << " match=" << (match.matched_from_pending ? "pending" : "immediate");
+      F2_PIPELINE_FLOW_EVENT(
+        "wrapper_server_fiducial", "fiducial_batch_matched",
+        match.raw_first_arrival_id, "live", match.keyframe_id.drone_id,
+        match.keyframe_id.map_epoch, primary_queue_.Pending(), detail.str());
     }
 
-    GroundTruthSample sample;
-    sample.stamp_ns = StampToNanoseconds(pose->header.stamp);
-    sample.world_T_body = pose->pose;
-    double nearest_distance = std::numeric_limits<double>::infinity();
-    for (const auto & fiducial : fiducials_) {
-      const double dx = pose->pose.position.x - fiducial.x;
-      const double dy = pose->pose.position.y - fiducial.y;
-      const double dz = pose->pose.position.z - fiducial.z;
-      const double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-      if (distance < nearest_distance) {
-        nearest_distance = distance;
-        sample.distance_to_fiducial_m = distance;
-        sample.fiducial_id = distance <= fiducial.radius_m ? fiducial.id : 0;
-      }
+    FiducialKeyFrameInterpretation interpretation;
+    try {
+      interpretation = fiducial_object_interpreter_.Interpret(match);
+    } catch (const std::exception & error) {
+      ++fiducial_visual_interpretation_rejected_;
+      RCLCPP_ERROR(
+        get_logger(),
+        "[FID-OBJECT-REJECT] drone=%u epoch=%lu kf=%lu reason=%s",
+        match.keyframe_id.drone_id, match.keyframe_id.map_epoch,
+        match.keyframe_id.local_kf_id, error.what());
+      return;
     }
-    const int32_t previous_fiducial = live_fiducial_id_by_drone_[drone_id];
-    if (sample.fiducial_id > 0) {
-      if (sample.fiducial_id != previous_fiducial) {
-        live_visit_id_by_drone_[drone_id] = next_fiducial_visit_id_++;
-        RCLCPP_INFO(
-          get_logger(),
-          "[F3H-FID-VISIT-START] drone_id=%u fid=%d visit=%lu stamp=%.6f",
-          drone_id, sample.fiducial_id, live_visit_id_by_drone_[drone_id],
-          static_cast<double>(sample.stamp_ns) * 1e-9);
-      }
-      sample.fiducial_visit_id = live_visit_id_by_drone_[drone_id];
-    } else {
-      live_visit_id_by_drone_[drone_id] = 0;
+    ++fiducial_visual_batches_interpreted_;
+    fiducial_visual_tags_interpreted_ += match.batch.observations.size();
+    for (const auto tag_id : interpretation.unknown_tag_ids) {
+      RCLCPP_WARN(
+        get_logger(),
+        "[FID-OBJECT-UNKNOWN-TAG] drone=%u epoch=%lu kf=%lu tag=%u",
+        match.keyframe_id.drone_id, match.keyframe_id.map_epoch,
+        match.keyframe_id.local_kf_id, tag_id);
     }
-    live_fiducial_id_by_drone_[drone_id] = sample.fiducial_id;
-    gt_buffer_.Push(drone_id, sample);
-    const auto size = gt_buffer_.Size(drone_id);
-    const uint64_t samples_received = ++gt_samples_received_[drone_id];
-    if (samples_received == 1U || samples_received == GroundTruthBuffer::kCapacityPerDrone ||
-      samples_received % 500U == 0U)
-    {
+    for (const auto & object : interpretation.objects) {
       RCLCPP_INFO(
         get_logger(),
-        "[F3E-GT-BUFFER] drone_id=%u accepted=true received=%lu size=%zu capacity=50 "
-        "stamp=%.6f fid=%d distance=%.3f",
-        drone_id, samples_received, size, static_cast<double>(sample.stamp_ns) * 1e-9,
-        sample.fiducial_id, sample.distance_to_fiducial_m);
+        "[FID-OBJECT-FUSED] drone=%u epoch=%lu kf=%lu object=%d faces=%zu "
+        "eligible=%s reason=%s quality=%.6f distance=%.3f",
+        match.keyframe_id.drone_id, match.keyframe_id.map_epoch,
+        match.keyframe_id.local_kf_id, object.object_id, object.tags.size(),
+        object.anchor_eligible ? "true" : "false", object.reason.c_str(),
+        object.quality, object.distance_m);
+      for (const auto & tag : object.tags) {
+        RCLCPP_INFO(
+          get_logger(),
+          "[FID-OBJECT-TAG] drone=%u epoch=%lu kf=%lu object=%d tag=%u "
+          "range=%s distance=%.3f base_weight=%.6f robust_weight=%.6f "
+          "residual=(%.6f,%.6f)",
+          match.keyframe_id.drone_id, match.keyframe_id.map_epoch,
+          match.keyframe_id.local_kf_id, object.object_id, tag.tag_id,
+          tag.in_range ? "true" : "false", tag.distance_m, tag.base_weight,
+          tag.robust_weight, tag.translation_residual_m, tag.rotation_residual_rad);
+      }
     }
+    if (!interpretation.primary_index.has_value()) {
+      ++fiducial_visual_without_primary_;
+      RCLCPP_INFO(
+        get_logger(),
+        "[FID-OBJECT-NO-PRIMARY] drone=%u epoch=%lu kf=%lu objects=%zu unknown=%zu",
+        match.keyframe_id.drone_id, match.keyframe_id.map_epoch,
+        match.keyframe_id.local_kf_id, interpretation.objects.size(),
+        interpretation.unknown_tag_ids.size());
+      return;
+    }
+
+    const auto & primary = interpretation.objects[*interpretation.primary_index];
+    ++fiducial_visual_primaries_;
+    RCLCPP_WARN(
+      get_logger(),
+      "[FID-OBJECT-PRIMARY] drone=%u epoch=%lu kf=%lu object=%d visit=%lu "
+      "faces=%zu quality=%.6f distance=%.3f",
+      match.keyframe_id.drone_id, match.keyframe_id.map_epoch,
+      match.keyframe_id.local_kf_id, primary.object_id,
+      interpretation.primary_visit_id, primary.tags.size(), primary.quality,
+      primary.distance_m);
+
+    orbslam3_multi::FiducialObservation observation;
+    observation.arrival_id = match.raw_first_arrival_id;
+    observation.keyframe_id = match.keyframe_id;
+    observation.fiducial_id = primary.object_id;
+    observation.fiducial_visit_id = interpretation.primary_visit_id;
+    observation.world_T_camera_target = primary.world_T_camera_fused;
+    observation.keyframe_stamp_sec = StampToSeconds(match.raw_keyframe.stamp);
+    observation.observation_stamp_sec = StampToSeconds(match.batch.header.stamp);
+    observation.association_dt_sec = std::abs(
+      observation.observation_stamp_sec - observation.keyframe_stamp_sec);
+    observation.distance_to_fiducial_m = primary.distance_m;
+    observation.source = "visual_fiducial";
+    std::ostringstream quality;
+    quality << "q=" << primary.quality << ";faces=" << primary.tags.size();
+    observation.quality = quality.str();
+    HandleFiducialObservation(observation, true, "visual_live");
   }
 
   void StartReplay()
@@ -967,6 +1054,13 @@ private:
       });
 
     for (auto observation : replay_observations) {
+      if (observation.source != "visual_fiducial") {
+        RCLCPP_WARN(
+          get_logger(),
+          "[FID-REPLAY-REJECT] arrival_id=%lu source=%s reason=non_visual_fiducial",
+          observation.arrival_id, observation.source.c_str());
+        continue;
+      }
       if (observation.fiducial_visit_id == 0) {
         const orbslam3_multi::RawSubmapId submap_id{
           observation.keyframe_id.drone_id, observation.keyframe_id.map_epoch};
@@ -1093,6 +1187,10 @@ private:
           raw.stats.journal_entries, journal_storage.resident_entries,
           journal_storage.record_bytes_written, raw.stats.submaps,
           raw.stats.keyframes, raw.stats.mappoints);
+
+        for (const auto & match : raw.synchronized_fiducial_batches) {
+          HandleSynchronizedFiducialBatch(match);
+        }
 
         if (input.kind == PrimaryInputKind::FullSnapshot) {
           RCLCPP_WARN(
@@ -1263,8 +1361,6 @@ private:
         } else {
           if (input.source == PrimaryInputSource::Replay) {
             ProcessReplayFiducials(input.arrival_id, raw);
-          } else {
-            ProcessLiveFiducials(input.arrival_id, raw);
           }
           MaybeCommitSyntheticAnchor(input.arrival_id, ToString(input.source), raw);
           BuildAndPublishGlobalMap(input.arrival_id, ToString(input.source), raw);
@@ -1862,9 +1958,8 @@ private:
         ++secondary_committed_;
       } else if (hard_failure) {
         ++secondary_hard_failed_;
-        secondary_blocking_failure_.store(true);
         RCLCPP_ERROR(
-          get_logger(), "[F3L-HARD-FAILURE] task=%lu reason=%s stop_drones=true",
+          get_logger(), "[F3L-HARD-FAILURE] task=%lu reason=%s action=continue",
           queued.task_id, final_reason.c_str());
         F2_SECONDARY_FLOW_EVENT(
           "optimization_manager_validation", "hard_failure", queued,
@@ -2043,32 +2138,6 @@ private:
     EnqueueLoopTasks(&plan.direct_loop_tasks, "raw_without_covisibility_update");
   }
 
-  orbslam3_multi::FiducialObservation ToLiveObservation(
-    uint64_t arrival_id,
-    const orbslam3_multi::RawKeyFrameId & keyframe_id,
-    const orbslam3_msgs::msg::OrbKeyFrame & keyframe,
-    const GroundTruthMatch & match) const
-  {
-    Eigen::Matrix4d world_T_body;
-    if (!PoseToMatrix(match.sample.world_T_body, &world_T_body)) {
-      throw std::invalid_argument("muestra GT normalizada invalida");
-    }
-    orbslam3_multi::FiducialObservation observation;
-    observation.arrival_id = arrival_id;
-    observation.keyframe_id = keyframe_id;
-    observation.fiducial_id = match.sample.fiducial_id;
-    observation.fiducial_visit_id = match.sample.fiducial_visit_id;
-    observation.world_T_camera_target = MatrixToPose(world_T_body * body_T_camera_);
-    observation.keyframe_stamp_sec = StampToSeconds(keyframe.stamp);
-    observation.observation_stamp_sec =
-      static_cast<double>(match.sample.stamp_ns) * 1e-9;
-    observation.association_dt_sec = match.dt_sec;
-    observation.distance_to_fiducial_m = match.sample.distance_to_fiducial_m;
-    observation.source = "simulated_gt";
-    observation.quality = match.dt_sec <= 0.5 * fiducial_gt_max_dt_sec_ ? "ok" : "low";
-    return observation;
-  }
-
   static orbslam3_multi::FiducialObservation ToReplayObservation(
     const orbslam3_multi::RecordedFiducialObservation & recorded)
   {
@@ -2085,59 +2154,6 @@ private:
     observation.source = recorded.source;
     observation.quality = recorded.quality;
     return observation;
-  }
-
-  void ProcessLiveFiducials(
-    uint64_t arrival_id,
-    const orbslam3_multi::RawInsertResult & raw)
-  {
-    if (!fiducial_sim_enabled_) {
-      return;
-    }
-    auto keyframe_ids = raw.new_keyframe_ids;
-    std::sort(
-      keyframe_ids.begin(), keyframe_ids.end(),
-      [](const auto & lhs, const auto & rhs) {
-        return lhs.local_kf_id < rhs.local_kf_id;
-      });
-    for (const auto & keyframe_id : keyframe_ids) {
-      const auto keyframe = backend_.GetRawKeyFrame(keyframe_id);
-      if (!keyframe.has_value()) {
-        RCLCPP_WARN(
-          get_logger(),
-          "[F3E-FID-ASSOC-REJECT] arrival_id=%lu submap=(%u,%lu) kf=%lu "
-          "reason=raw_keyframe_missing",
-          arrival_id, keyframe_id.drone_id, keyframe_id.map_epoch,
-          keyframe_id.local_kf_id);
-        continue;
-      }
-
-      const auto samples = gt_buffer_.Snapshot(keyframe_id.drone_id);
-      const auto match = GroundTruthBuffer::FindNearest(
-        samples, StampToNanoseconds(keyframe->stamp), fiducial_gt_max_dt_sec_);
-      if (!match.matched) {
-        RCLCPP_INFO(
-          get_logger(),
-          "[F3E-FID-ASSOC-REJECT] arrival_id=%lu submap=(%u,%lu) kf=%lu "
-          "kf_stamp=%.6f nearest_dt=%.6f samples=%zu reason=%s",
-          arrival_id, keyframe_id.drone_id, keyframe_id.map_epoch,
-          keyframe_id.local_kf_id, StampToSeconds(keyframe->stamp), match.dt_sec,
-          samples.size(), match.reason.c_str());
-        continue;
-      }
-
-      const auto observation = ToLiveObservation(arrival_id, keyframe_id, *keyframe, match);
-      RCLCPP_WARN(
-        get_logger(),
-        "[F3E-FID-KF-ASSOC] arrival_id=%lu submap=(%u,%lu) kf=%lu fid=%d "
-        "kf_stamp=%.6f gt_stamp=%.6f nearest_dt=%.6f distance=%.3f quality=%s",
-        arrival_id, keyframe_id.drone_id, keyframe_id.map_epoch,
-        keyframe_id.local_kf_id, observation.fiducial_id,
-        observation.keyframe_stamp_sec, observation.observation_stamp_sec,
-        observation.association_dt_sec, observation.distance_to_fiducial_m,
-        observation.quality.c_str());
-      HandleFiducialObservation(observation, true, "live");
-    }
   }
 
   void ProcessReplayFiducials(
@@ -2539,7 +2555,7 @@ private:
         secondary_pressure_active_ = false;
       }
       const bool active = backpressure_->Active() || secondary_pressure_active_ ||
-        optimization_active_.load() || secondary_blocking_failure_.load();
+        optimization_active_.load();
       if (active != combined_backpressure_active_) {
         combined_backpressure_active_ = active;
         transition = active;
@@ -2581,12 +2597,11 @@ private:
       "[F3C-BACKPRESSURE] active=%s primary_pending=%zu primary_high=%zu "
       "primary_low=%zu secondary_pending=%zu secondary_critical=%zu "
       "secondary_maintenance=%zu secondary_high=%zu secondary_low=%zu "
-      "optimization_active=%s blocking_failure=%s initial=%s",
+      "optimization_active=%s initial=%s",
       active ? "true" : "false", pending, high_watermark_, low_watermark_,
       secondary.total, secondary.critical, secondary.maintenance,
       secondary_high_watermark_, secondary_low_watermark_,
       optimization_active_.load() ? "true" : "false",
-      secondary_blocking_failure_.load() ? "true" : "false",
       initial ? "true" : "false");
     if (!initial) {
       F2_PIPELINE_FLOW_EVENT(
@@ -2803,9 +2818,9 @@ private:
   std::thread secondary_worker_;
 
   std::vector<rclcpp::Subscription<orbslam3_msgs::msg::OrbMap>::SharedPtr> subscriptions_;
-  std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr>
-  gt_subscriptions_;
-  rclcpp::CallbackGroup::SharedPtr gt_callback_group_;
+  std::vector<rclcpp::Subscription<
+      orbslam3_msgs::msg::FiducialKeyFrameObservations>::SharedPtr>
+  fiducial_subscriptions_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr flow_publisher_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr architecture_activity_publisher_;
   bool pipeline_flow_events_enabled_ = false;
@@ -2838,7 +2853,6 @@ private:
   std::atomic<uint64_t> secondary_hard_failed_{0};
   std::atomic<uint64_t> next_pipeline_task_id_{1000000000000ULL};
   std::atomic<bool> optimization_active_{false};
-  std::atomic<bool> secondary_blocking_failure_{false};
   std::atomic<bool> shutting_down_{false};
   uint64_t replay_total_ = 0;
   size_t high_watermark_ = 8;
@@ -2866,15 +2880,7 @@ private:
   double debug_anchor_x_ = 10.0;
   double debug_anchor_y_ = 0.0;
   double debug_anchor_z_ = 0.0;
-  bool fiducial_sim_enabled_ = true;
-  double fiducial_gt_max_dt_sec_ = 1.0;
   orbslam3_multi::FiducialOptimizationConfig fiducial_optimization_config_;
-  Eigen::Matrix4d body_T_camera_ = Eigen::Matrix4d::Identity();
-  std::vector<FiducialConfig> fiducials_;
-  GroundTruthBuffer gt_buffer_;
-  std::map<uint32_t, uint64_t> gt_samples_received_;
-  std::map<uint32_t, int32_t> live_fiducial_id_by_drone_;
-  std::map<uint32_t, uint64_t> live_visit_id_by_drone_;
   uint64_t next_fiducial_visit_id_ = 1;
   std::map<orbslam3_multi::RawSubmapId, ReplayVisitState> replay_visit_state_;
   std::map<uint64_t, std::vector<orbslam3_multi::RecordedFiducialObservation>>
@@ -2882,6 +2888,19 @@ private:
   uint64_t fiducial_observations_processed_ = 0;
   uint64_t fiducial_anchors_created_ = 0;
   uint64_t fiducial_observations_deferred_ = 0;
+  FiducialObjectInterpreter fiducial_object_interpreter_;
+  std::atomic<uint64_t> fiducial_visual_batches_interpreted_{0};
+  std::atomic<uint64_t> fiducial_visual_batches_received_{0};
+  std::atomic<uint64_t> fiducial_visual_tags_received_{0};
+  std::atomic<uint64_t> fiducial_visual_bytes_received_{0};
+  std::atomic<uint64_t> fiducial_visual_tags_interpreted_{0};
+  std::atomic<uint64_t> fiducial_visual_primaries_{0};
+  std::atomic<uint64_t> fiducial_visual_without_primary_{0};
+  std::atomic<uint64_t> fiducial_visual_interpretation_rejected_{0};
+  std::mutex fiducial_traffic_mutex_;
+  std::map<std::pair<uint32_t, int64_t>, uint64_t> fiducial_batches_per_second_;
+  double fiducial_traffic_first_stamp_sec_ = 0.0;
+  double fiducial_traffic_last_stamp_sec_ = 0.0;
   std::map<orbslam3_multi::RawKeyFrameId, int32_t> keyframe_marker_ids_;
   std::set<orbslam3_multi::RawKeyFrameId> published_keyframes_;
   int32_t next_keyframe_marker_id_ = 1;

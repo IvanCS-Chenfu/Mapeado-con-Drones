@@ -16,10 +16,13 @@
 #include "Tracking.h"
 
 #include "utility.hpp"
+#include "fiducial-detector.hpp"
 
 /* AÑADIDO */
 #include "orbslam3_msgs/msg/orb_map.hpp"
+#include "orbslam3_msgs/msg/fiducial_key_frame_observations.hpp"
 #include "orbslam3_msgs/srv/get_orb_map.hpp"
+#include "orbslam3_msgs/srv/get_fiducial_config.hpp"
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose.hpp"
@@ -36,6 +39,11 @@
 #include <set>
 #include <tuple>
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
 /* AÑADIDO */
 
 
@@ -56,6 +64,8 @@ class StereoSlamNode : public rclcpp::Node
 
         bool doRectify;
         cv::Mat M1l,M2l,M1r,M2r;
+        cv::Mat external_rectified_camera_matrix_;
+        cv::Mat external_rectified_distortion_;
 
         cv_bridge::CvImageConstPtr cv_ptrLeft;
         cv_bridge::CvImageConstPtr cv_ptrRight;
@@ -68,6 +78,9 @@ class StereoSlamNode : public rclcpp::Node
 
         /* AÑADIDO */
         rclcpp::Publisher<orbslam3_msgs::msg::OrbMap>::SharedPtr orb_map_delta_pub_;
+        rclcpp::Publisher<
+            orbslam3_msgs::msg::FiducialKeyFrameObservations>::SharedPtr
+            fiducial_observations_pub_;
         rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_local_pub_;
         rclcpp::Publisher<std_msgs::msg::String>::SharedPtr architecture_activity_pub_;
         bool debug_architecture_telemetry_ = false;
@@ -75,7 +88,64 @@ class StereoSlamNode : public rclcpp::Node
             architecture_last_emit_;
         void EmitArchitectureActivity(
             const std::string& edge_id,
-            const std::string& interface_name);
+            const std::string& interface_name,
+            const std::string& interface_kind = "topic");
+
+        enum class FiducialConfigState
+        {
+            WAIT_SERVICE,
+            REQUEST_CONFIG,
+            READY,
+            DISABLED
+        };
+
+        struct FiducialJob
+        {
+            uint32_t drone_id = 0;
+            uint64_t map_epoch = 0;
+            ORB_SLAM3::System::KeyFrameCreationEvent event;
+            cv::Mat image;
+            orbslam3_ros2::FiducialCameraModel camera;
+            std::string camera_optical_frame;
+        };
+
+        static constexpr const char* kFiducialConfigService =
+            "/global_mapping/get_fiducial_config";
+        rclcpp::Client<orbslam3_msgs::srv::GetFiducialConfig>::SharedPtr
+            fiducial_config_client_;
+        rclcpp::TimerBase::SharedPtr fiducial_config_timer_;
+        std::atomic<FiducialConfigState> fiducial_config_state_{
+            FiducialConfigState::WAIT_SERVICE};
+        std::chrono::steady_clock::time_point fiducial_next_retry_;
+        std::chrono::steady_clock::time_point fiducial_request_deadline_;
+        uint64_t fiducial_request_generation_ = 0;
+        int fiducial_queue_capacity_ = 4;
+        orbslam3_ros2::FiducialDetector fiducial_detector_;
+        std::deque<FiducialJob> fiducial_jobs_;
+        std::mutex fiducial_jobs_mutex_;
+        std::condition_variable fiducial_jobs_cv_;
+        bool fiducial_worker_stop_ = false;
+        std::thread fiducial_worker_thread_;
+
+        bool debug_fiducial_visualization_ = false;
+        rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr
+            fiducial_debug_image_pub_;
+
+        void ManageFiducialConfig();
+        void HandleFiducialConfigResponse(
+            uint64_t generation,
+            rclcpp::Client<orbslam3_msgs::srv::GetFiducialConfig>::SharedFuture
+                future);
+        void EnqueueFiducialJob(
+            const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
+            const std::string& camera_optical_frame);
+        void FiducialWorkerLoop();
+        void PublishFiducialObservations(
+            const FiducialJob& job,
+            const orbslam3_ros2::FiducialDetectionResult& result);
+        void PublishFiducialDebugImage(
+            const FiducialJob& job,
+            const orbslam3_ros2::FiducialDetectionResult& result);
 
         rclcpp::Service<orbslam3_msgs::srv::GetOrbMap>::SharedPtr full_map_service_;
 
