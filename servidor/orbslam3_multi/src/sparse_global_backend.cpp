@@ -50,14 +50,23 @@ CovisibilityPatch BuildServerCovisibilityPatch(
   const LoopTaskComputation & computation,
   const RawMapDatabase & raw_database,
   const GlobalPoseStore & pose_store,
-  uint64_t expected_database_revision)
+  uint64_t expected_database_revision,
+  bool require_fusion_compatible = true)
 {
   CovisibilityPatch patch;
   patch.source_arrival_id = computation.task.source_arrival_id;
   patch.expected_database_revision = expected_database_revision;
   std::map<std::pair<RawKeyFrameId, RawKeyFrameId>, CovisibilityEdge> best_edges;
-  for (const auto & geometry : computation.geometry_results) {
-    if (!geometry.accepted || !geometry.fusion_compatible) {
+  for (size_t index = 0; index < computation.geometry_results.size(); ++index) {
+    const auto & geometry = computation.geometry_results[index];
+    const bool selected_optimization_geometry = std::find(
+      computation.optimization_geometry_indices.begin(),
+      computation.optimization_geometry_indices.end(), index) !=
+      computation.optimization_geometry_indices.end();
+    if (!geometry.accepted ||
+      (require_fusion_compatible && !geometry.fusion_compatible) ||
+      (!require_fusion_compatible && !selected_optimization_geometry))
+    {
       continue;
     }
     const auto query_raw = raw_database.GetKeyFrame(geometry.query_keyframe_id);
@@ -352,6 +361,43 @@ bool SparseGlobalBackend::ValidateRecentLossAnchor(
   return error.translation_m <= translation_limit && error.rotation_rad <= rotation_limit;
 }
 
+void SparseGlobalBackend::ApplyWorldAuthorityCascadeLocked(
+  const RawSubmapId & seed_submap, uint64_t source_task_id,
+  LoopAnchorBatchResult * anchor_commit,
+  std::vector<RawKeyFrameId> * reconciliation_keyframe_ids)
+{
+  if (anchor_commit == nullptr || reconciliation_keyframe_ids == nullptr) {
+    return;
+  }
+  std::vector<LoopAnchorBatchEntry> entries;
+  {
+    std::lock_guard<std::mutex> pipeline_lock(loop_pipeline_mutex_);
+    *reconciliation_keyframe_ids =
+      loop_pipeline_.ConfirmedConstraintComponentKeyFrames(seed_submap);
+    entries = loop_pipeline_.BuildAnchorCascade(
+      source_task_id, seed_submap, raw_database_, pose_store_);
+  }
+  for (const auto & entry : entries) {
+    if (!ValidateRecentLossAnchor(entry, nullptr)) {
+      return;
+    }
+  }
+  if (entries.empty()) {
+    return;
+  }
+  *anchor_commit = pose_store_.CommitLoopAnchorBatch(entries, source_task_id);
+  if (anchor_commit->status != PoseCommitStatus::Applied) {
+    return;
+  }
+  RefreshScoresAfterPoseChanges(anchor_commit->submap_changes);
+  for (const auto & entry : entries) {
+    recent_loss_continuity_.erase(entry.snapshot.submap_id);
+  }
+  const std::set<RawSubmapId> anchored_submaps(
+    anchor_commit->anchored_submaps.begin(), anchor_commit->anchored_submaps.end());
+  InvalidateRejectedLoopRegions(anchored_submaps);
+}
+
 PrimaryBackendResult SparseGlobalBackend::InsertDelta(
   uint64_t arrival_id,
   std::shared_ptr<const orbslam3_msgs::msg::OrbMap> delta)
@@ -579,6 +625,9 @@ FiducialProcessResult SparseGlobalBackend::ProcessFiducialObservation(
         submap_id, observation.fiducial_visit_id, observation.keyframe_id);
       result.hard_keyframe = true;
       InvalidateRejectedLoopRegions({submap_id});
+      ApplyWorldAuthorityCascadeLocked(
+        submap_id, observation.arrival_id, &result.cascade_anchor_commit,
+        &result.reconciliation_keyframe_ids);
     }
     return result;
   }
@@ -626,6 +675,9 @@ FiducialProcessResult SparseGlobalBackend::ProcessFiducialObservation(
       submap_id, observation.fiducial_visit_id, observation.keyframe_id);
     recent_loss_continuity_.erase(submap_id);
     InvalidateRejectedLoopRegions({submap_id});
+    ApplyWorldAuthorityCascadeLocked(
+      submap_id, observation.arrival_id, &result.cascade_anchor_commit,
+      &result.reconciliation_keyframe_ids);
   }
   return result;
 }
@@ -823,25 +875,56 @@ void SparseGlobalBackend::ApplyProtectedRegionGuard(LoopTaskComputation * comput
       computation->protected_translation_error_m, geometry.current_translation_error_m);
     computation->protected_rotation_error_rad = std::max(
       computation->protected_rotation_error_rad, geometry.current_rotation_error_rad);
-    if (query_stable && candidate_stable &&
-      (geometry.current_translation_error_m >
-      loop_pipeline_config_.hard_corridor_max_translation_m ||
-      geometry.current_rotation_error_rad >
-      loop_pipeline_config_.hard_corridor_max_rotation_rad))
-    {
-      computation->protected_region_rejected = true;
-      std::lock_guard<std::mutex> lock(loop_rejection_mutex_);
-      loop_rejection_ledger_.insert(key);
-      continue;
-    }
     accepted_indices.push_back(index);
   }
   computation->optimization_geometry_indices = std::move(accepted_indices);
   if (computation->optimization_geometry_indices.empty()) {
     computation->decision = LoopTaskDecisionKind::GeometryRejected;
-    computation->reason = computation->rejection_ledger_hit ?
-      "regional_rejection_ledger_hit" : "protected_region_far_repeated_loop";
+    computation->reason = "regional_rejection_ledger_hit";
     computation->optimization.reason = computation->reason;
+    return;
+  }
+
+  size_t risk_signals = 0U;
+  if (computation->protected_query_stable !=
+    computation->protected_candidate_stable)
+  {
+    ++risk_signals;
+  }
+  if (computation->hypothesis_support.competing_support != 0U) {
+    ++risk_signals;
+  }
+  bool large_correction = false;
+  bool recent_loss = false;
+  for (const size_t index : computation->optimization_geometry_indices) {
+    const auto & geometry = computation->geometry_results[index];
+    large_correction = large_correction ||
+      geometry.current_translation_error_m >
+        loop_pipeline_config_.hypothesis_large_correction_translation_m ||
+      geometry.current_rotation_error_rad >
+        loop_pipeline_config_.hypothesis_large_correction_rotation_rad;
+    recent_loss = recent_loss ||
+      recent_loss_continuity_.count(geometry.query_submap_id) != 0U;
+  }
+  if (large_correction) {
+    ++risk_signals;
+  }
+  if (recent_loss) {
+    ++risk_signals;
+  }
+  const size_t required_support = risk_signals == 0U ?
+    loop_pipeline_config_.hypothesis_support_no_risk :
+    (risk_signals == 1U ? loop_pipeline_config_.hypothesis_support_one_risk :
+    loop_pipeline_config_.hypothesis_support_multiple_risks);
+  computation->hypothesis_support.required_support = std::max(
+    computation->hypothesis_support.required_support, required_support);
+  if (computation->hypothesis_support.support <
+    computation->hypothesis_support.required_support)
+  {
+    computation->decision = LoopTaskDecisionKind::WaitingIndependentSupport;
+    computation->reason = "adaptive_support_required_for_risky_loop";
+    computation->optimization.reason = computation->reason;
+    computation->optimization_geometry_indices.clear();
   }
 }
 
@@ -1049,8 +1132,23 @@ LoopTaskComputation SparseGlobalBackend::CommitLoopFusion(
 
 LoopTaskComputation SparseGlobalBackend::ProcessLoopTask(const LoopTask & task)
 {
-  auto computation = loop_pipeline_.Process(
-    task, raw_database_, pose_store_, covisibility_database_);
+  std::optional<RecentLossRecoveryContext> recent_loss;
+  {
+    std::lock_guard<std::mutex> state_lock(state_commit_mutex_);
+    const RawSubmapId query_submap{
+      task.query_keyframe_id.drone_id, task.query_keyframe_id.map_epoch};
+    const auto found = recent_loss_continuity_.find(query_submap);
+    if (found != recent_loss_continuity_.end()) {
+      recent_loss = RecentLossRecoveryContext{
+        query_submap, found->second.trusted_world_pose};
+    }
+  }
+  LoopTaskComputation computation;
+  {
+    std::lock_guard<std::mutex> pipeline_lock(loop_pipeline_mutex_);
+    computation = loop_pipeline_.Process(
+      task, raw_database_, pose_store_, covisibility_database_, recent_loss);
+  }
   if (task.intent == LoopTaskIntent::Full &&
     computation.decision == LoopTaskDecisionKind::OptimizationEvidence)
   {
@@ -1381,17 +1479,29 @@ AcceptedPoseBatchResult SparseGlobalBackend::CommitGraphProposal(
     batch.continuation_control = window.continuation_keyframe_id;
     bool past_window = false;
     for (const auto & raw : snapshot->keyframes) {
-      if (raw.id.local_kf_id < window.first_keyframe_id.local_kf_id || !raw.active) {
+      const bool explicit_intervals = !window.raw_intervals.empty();
+      const bool inside_interval = explicit_intervals && std::any_of(
+        window.raw_intervals.begin(), window.raw_intervals.end(),
+        [&raw](const PoseGraphSubmapWindow::RawInterval & interval) {
+          return raw.id.local_kf_id >= interval.first_keyframe_id.local_kf_id &&
+                 raw.id.local_kf_id <= interval.last_keyframe_id.local_kf_id;
+        });
+      if ((explicit_intervals && !inside_interval) ||
+        (!explicit_intervals &&
+        raw.id.local_kf_id < window.first_keyframe_id.local_kf_id) || !raw.active)
+      {
         continue;
       }
-      if (raw.id.local_kf_id > window.last_keyframe_id.local_kf_id) {
+      if (!explicit_intervals &&
+        raw.id.local_kf_id > window.last_keyframe_id.local_kf_id)
+      {
         past_window = true;
       }
       const auto current_pose = current_poses.find(raw.id);
       if (current_pose == current_poses.end() || !current_pose->second.active) {
         continue;
       }
-      if (past_window && current_pose->second.hard_fiducial) {
+      if (!explicit_intervals && past_window && current_pose->second.hard_fiducial) {
         break;
       }
       Eigen::Isometry3d correction = Eigen::Isometry3d::Identity();
@@ -1565,16 +1675,6 @@ LoopTaskComputation SparseGlobalBackend::ProcessLoopOptimization(
         graph = pose_graph_builder_.BuildLoop(
           computation, snapshots, poses, pose_store_.GetStats().store_revision,
           covisibility_database_, loop_pipeline_config_, dependencies);
-        if (graph.success) {
-          for (auto & keyframe : graph.problem.keyframes) {
-            const auto corridor = pose_store_.GetHardCorridorReference(keyframe.id);
-            if (corridor.has_value()) {
-              keyframe.hard_corridor = true;
-              keyframe.hard_corridor_reference_pose = corridor->world_pose;
-              keyframe.hard_corridor_alpha = corridor->alpha;
-            }
-          }
-        }
       }
     }
     computation.optimization.graph_ms += std::chrono::duration<double, std::milli>(
@@ -1624,20 +1724,16 @@ LoopTaskComputation SparseGlobalBackend::ProcessLoopOptimization(
       std::chrono::steady_clock::now() - validation_start).count();
     computation.optimization.structural_edges_checked =
       validation.structural_edges_checked;
-    computation.optimization.hard_corridor_keyframes_checked =
-      validation.hard_corridor_keyframes_checked;
+    computation.optimization.optimized_keyframes_checked =
+      validation.optimized_keyframes_checked;
     computation.optimization.max_structural_translation_increase_m =
       validation.max_structural_translation_increase_m;
     computation.optimization.max_structural_rotation_increase_rad =
       validation.max_structural_rotation_increase_rad;
-    computation.optimization.max_corridor_translation_excess_before_m =
-      validation.max_corridor_translation_excess_before_m;
-    computation.optimization.max_corridor_translation_excess_after_m =
-      validation.max_corridor_translation_excess_after_m;
-    computation.optimization.max_corridor_rotation_excess_before_rad =
-      validation.max_corridor_rotation_excess_before_rad;
-    computation.optimization.max_corridor_rotation_excess_after_rad =
-      validation.max_corridor_rotation_excess_after_rad;
+    computation.optimization.max_optimized_translation_change_m =
+      validation.max_optimized_translation_change_m;
+    computation.optimization.max_optimized_rotation_change_rad =
+      validation.max_optimized_rotation_change_rad;
     if (validation.decision == ValidationDecision::AcceptFull) {
       break;
     }
@@ -1719,6 +1815,17 @@ LoopTaskComputation SparseGlobalBackend::ProcessLoopOptimization(
     std::unique(
       computation.rerun_keyframe_ids.begin(), computation.rerun_keyframe_ids.end()),
     computation.rerun_keyframe_ids.end());
+  auto prior_patch = BuildServerCovisibilityPatch(
+    computation, raw_database_, pose_store_,
+    covisibility_database_.GetStats().revision, false);
+  prior_patch.expected_database_revision.reset();
+  const auto prior_apply = covisibility_database_.ApplyPatch(prior_patch);
+  if (!prior_apply.committed) {
+    computation.decision = LoopTaskDecisionKind::Error;
+    computation.reason = "accepted_pose_commit_prior_loop_failed:" + prior_apply.reason;
+    computation.optimization.reason = computation.reason;
+    return computation;
+  }
   computation.optimization.reason = "atomic_covisible_loop_commit";
   computation.decision = LoopTaskDecisionKind::OptimizationCommitted;
   std::set<RawSubmapId> optimized_submaps;
@@ -1728,6 +1835,10 @@ LoopTaskComputation SparseGlobalBackend::ProcessLoopOptimization(
   InvalidateRejectedLoopRegions(optimized_submaps);
 
   computation.fusion_pairs.clear();
+  if (!validation.fusion_compatible) {
+    computation.reason = "safe_pose_commit_prior_loop_without_landmark_fusion";
+    return computation;
+  }
   std::set<size_t> accepted_geometry_indices;
   for (const auto & edge : graph.problem.loop_edges) {
     accepted_geometry_indices.insert(edge.source_geometry_index);
@@ -1785,6 +1896,7 @@ void SparseGlobalBackend::ConfigureFiducialOptimization(
 void SparseGlobalBackend::ConfigureLoopPipeline(const LoopPipelineConfig & config)
 {
   std::lock_guard<std::mutex> state_lock(state_commit_mutex_);
+  std::lock_guard<std::mutex> pipeline_lock(loop_pipeline_mutex_);
   loop_pipeline_config_ = config;
   loop_pipeline_.Configure(config);
 }
@@ -1924,44 +2036,6 @@ PoseGraphBuildResult SparseGlobalBackend::BuildFiducialPoseGraph(
     poses.insert(submap_poses.begin(), submap_poses.end());
   }
 
-  LoopTaskComputation synthetic;
-  synthetic.task.task_id = task.task_id;
-  synthetic.task.query_keyframe_id = task.keyframe_id;
-  LoopGeometryResult source_window;
-  source_window.accepted = true;
-  source_window.query_keyframe_id = task.keyframe_id;
-  source_window.candidate_keyframe_id = task.control_keyframe_id;
-  source_window.query_submap_id = task.submap_id;
-  source_window.candidate_submap_id = task.submap_id;
-  source_window.matches = 1U;
-  source_window.inliers = 1U;
-  source_window.candidate_local_T_query_local = Eigen::Isometry3d::Identity();
-  synthetic.geometry_results.push_back(source_window);
-  synthetic.optimization_geometry_indices.push_back(0U);
-
-  std::map<size_t, CovisibilityEdge> server_edge_by_geometry;
-  for (const auto & edge : server_edges) {
-    const RawSubmapId first{edge.kf_a.drone_id, edge.kf_a.map_epoch};
-    const RawSubmapId second{edge.kf_b.drone_id, edge.kf_b.map_epoch};
-    if (first == second || component.count(first) == 0U ||
-      component.count(second) == 0U)
-    {
-      continue;
-    }
-    LoopGeometryResult geometry;
-    geometry.accepted = true;
-    geometry.query_keyframe_id = edge.kf_b;
-    geometry.candidate_keyframe_id = edge.kf_a;
-    geometry.query_submap_id = second;
-    geometry.candidate_submap_id = first;
-    geometry.matches = std::max<size_t>(1U, edge.support);
-    geometry.inliers = geometry.matches;
-    geometry.candidate_local_T_query_local = Eigen::Isometry3d::Identity();
-    const size_t geometry_index = synthetic.geometry_results.size();
-    synthetic.geometry_results.push_back(std::move(geometry));
-    synthetic.optimization_geometry_indices.push_back(geometry_index);
-    server_edge_by_geometry[geometry_index] = edge;
-  }
   std::map<RawSubmapId, LoopAnchorDependencySnapshot> dependencies;
   for (const auto & dependency : dependency_list) {
     if (component.count(dependency.child_submap_id) != 0U &&
@@ -1971,45 +2045,9 @@ PoseGraphBuildResult SparseGlobalBackend::BuildFiducialPoseGraph(
     }
   }
 
-  auto result = pose_graph_builder_.BuildLoop(
-    synthetic, snapshots, poses, pose_store_.GetStats().store_revision,
+  return pose_graph_builder_.BuildExpandedFiducial(
+    task, snapshots, poses, pose_store_.GetStats().store_revision,
     covisibility_database_, loop_pipeline_config_, dependencies);
-  if (!result.success) {
-    return result;
-  }
-  std::set<std::pair<size_t, size_t>> confirmed_pairs;
-  std::vector<PoseGraphEdge> confirmed_edges;
-  for (const auto & loop_edge : result.problem.loop_edges) {
-    const auto source = server_edge_by_geometry.find(loop_edge.source_geometry_index);
-    if (source == server_edge_by_geometry.end()) {
-      continue;
-    }
-    PoseGraphEdge edge = loop_edge;
-    edge.relative_raw_pose = source->second.relative_pose_measured;
-    edge.supporting_keyframes = source->second.support;
-    edge.information_weight = std::max(1.0, source->second.information_weight);
-    edge.kind = PoseGraphEdgeKind::PriorLoop;
-    confirmed_pairs.insert(std::minmax(edge.from_index, edge.to_index));
-    confirmed_edges.push_back(std::move(edge));
-  }
-  result.problem.covisibility_edges.erase(
-    std::remove_if(
-      result.problem.covisibility_edges.begin(),
-      result.problem.covisibility_edges.end(),
-      [&confirmed_pairs](const PoseGraphEdge & edge) {
-        return edge.kind == PoseGraphEdgeKind::PriorLoop &&
-               confirmed_pairs.count(std::minmax(edge.from_index, edge.to_index)) != 0U;
-      }),
-    result.problem.covisibility_edges.end());
-  result.problem.covisibility_edges.insert(
-    result.problem.covisibility_edges.end(),
-    confirmed_edges.begin(), confirmed_edges.end());
-  result.problem.loop_edges.clear();
-  result.problem.kind = PoseGraphProblemKind::FiducialAbsolute;
-  result.problem.task = task;
-  result.problem.raw_submap_revision = raw_snapshot->submap_revision;
-  result.reason = "confirmed_multi_submap_fiducial_graph";
-  return result;
 }
 
 OptimizationProposal SparseGlobalBackend::OptimizeFiducialPoseGraph(
@@ -2070,7 +2108,11 @@ FiducialCommitResult SparseGlobalBackend::CommitFiducialProposal(
       fiducial_anchor_manager_.AcceptControl(
         problem.task.submap_id, problem.task.fiducial_visit_id,
         problem.task.keyframe_id);
+      std::lock_guard<std::mutex> state_lock(state_commit_mutex_);
       recent_loss_continuity_.erase(problem.task.submap_id);
+      ApplyWorldAuthorityCascadeLocked(
+        problem.task.submap_id, problem.task.task_id,
+        &result.cascade_anchor_commit, &result.reconciliation_keyframe_ids);
     }
     std::set<RawSubmapId> fiducial_submaps;
     for (const auto & changes : commit.submap_changes) {
@@ -2292,6 +2334,9 @@ FiducialCommitResult SparseGlobalBackend::CommitFiducialProposal(
       problem.task.submap_id, problem.task.fiducial_visit_id,
       problem.task.keyframe_id);
     recent_loss_continuity_.erase(problem.task.submap_id);
+    ApplyWorldAuthorityCascadeLocked(
+      problem.task.submap_id, problem.task.task_id,
+      &result.cascade_anchor_commit, &result.reconciliation_keyframe_ids);
   }
   InvalidateRejectedLoopRegions({problem.task.submap_id});
   return result;

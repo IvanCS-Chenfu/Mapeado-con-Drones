@@ -40,6 +40,11 @@ sentinel `__from_yaml__`; si no se proporcionan prevalece el YAML.
 dron el FIFO de batches visuales que aun no tienen KF raw; puede ajustarse sin
 recompilar y las copias Servidor/Simulacion deben permanecer identicas.
 
+`loop_fusion.yaml` configura la recuperacion reciente 1/1 mediante
+`loop_recent_loss_single_recovery_enabled=true`, limites `0.50 m/0.15 rad` y
+recorrido maximo `2.0 m`. Al quedar fuera se mantiene el apoyo adaptativo
+2/4/6; no es una prohibicion de anclaje por distancia.
+
 `log_level` controla el nivel ROS del nodo y vale `info` por defecto. El launch
 de simulacion lo establece en `error` cuando `fase3_logs_terminal=false`, de
 modo que desaparece la telemetria `[F3*]` pero siguen visibles los errores

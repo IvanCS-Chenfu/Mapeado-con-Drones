@@ -72,25 +72,24 @@ submission, matches y estadisticas; todavia no interpreta objetos.
   `target_world_T_kf` con umbrales 0.35 m, 0.35 rad y 0.25 rad de yaw.
 - Cada KF distinto con error alto produce una `FiducialOptimizationTask`; el
   dequeue vuelve a consultar pose y ultimo control.
-- `PoseGraphBuilder` construye ventanas loop y fiduciales multi-submapa con
-  controles base 30 %, hard fijos, temporal, covisibilidad sparse,
-  loops/fusiones server transitivas y dependencias blandas.
+- `PoseGraphBuilder::BuildSegmented()` construye ventanas loop/fiducial por
+  intervalos hard e incidencia server; la ruta fiducial no sintetiza un loop.
 - `OptimizationManager` resuelve ambos tipos sobre una propuesta privada; el
-  loop mueve conjuntamente ambos lados segun su relacion RANSAC.
+  loop mueve los KFs no fijos segun RANSAC, estructura y pesos efectivos.
 - `OptimizationValidator` exige cobertura de cada `CurrentLoop` y rechaza sin
-  escribir degradacion temporal, covisible, de fusiones previas, hard o de
-  corredores hard-hard.
+  escribir degradacion temporal, covisible, de fusiones previas o hard. Los KFs
+  internos no tienen deadband de 2 cm; revisitados se limitan a 5 m/20 grados.
+- Consenso server 3/60 fija temporalmente los segmentos soporte, nunca como
+  hard persistente. Convergencia 0.05/0.03, fusion 0.20/0.12 y commit seguro
+  0.25/0.15 son independientes; todo commit conserva `PriorLoop`.
 - El commit atomico rebasa sobre poses actuales, omite controles intermedios
   caducados y puede conservar un extremo culled con raw estable como apoyo
   virtual sin reactivarlo ni escribirlo. Exige dos controles activos por
   submapa e incluye KFs tardios/tail compatibles. Solo los KFs activos movidos
   se notifican dirty.
-- Antes del builder, las regiones respaldadas en ambos extremos por
-  fiduciales/corredores o vecinos temporal-covisibles protegidos se comparan
-  contra RANSAC. Una discrepancia mayor de 5 m/20 grados se rechaza y se guarda
-  en un ledger regional revisionado; con solo un extremo fiable se mantiene la
-  rama asimetrica. Los cambios de anchor/loop/fusion invalidan las entradas
-  afectadas.
+- La admision exige apoyo 2/4/6 segun perdida/asimetria, ambiguedad y correccion
+  grande, con progresion coherente de query y candidate. El corredor es senal
+  de riesgo, no una segunda clase de hard.
 
 `GlobalPoseStore` conserva un `ContinuationRecord` atomico por submapa. Un
 commit full actualiza poses y continuidad; todo KF posterior al control mantiene
@@ -187,3 +186,6 @@ retiradas en 3T tras validar esta implementación.
 - cierre 3T: CTest `orbslam3_multi` 9/9 y prueba 195 con 11 commits loop,
   453 KFs activos publicados, colas drenadas y cero hard failures tras retirar
   las copias legacy.
+- correccion 3Q: CTest 9/9; prueba 219 con 22 commits de 30 solves, sin mover
+  hard ni violar 5 m/20 grados. La mejora visual es desigual en zonas
+  multi-epoch y queda una cola residual de reruns al apagar.

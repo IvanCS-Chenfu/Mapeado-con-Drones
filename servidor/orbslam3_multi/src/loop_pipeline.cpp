@@ -628,12 +628,12 @@ LoopGeometryResult LoopPipeline::VerifyRegion(
 bool LoopPipeline::AddHypothesisEvidence(
   const SubmapPair & pair, const Eigen::Isometry3d & first_T_second,
   const HypothesisObservation & observation,
-  const LoopPipelineConfig & config, Hypothesis * accepted,
-  LoopHypothesisSupportSummary * summary)
+  size_t risk_signals, const LoopPipelineConfig & config, Hypothesis * accepted,
+  LoopHypothesisSupportSummary * summary,
+  const std::optional<size_t> & required_support_override)
 {
   LoopHypothesisSupportSummary local_summary;
   local_summary.observed = true;
-  local_summary.required_support = config.hypothesis_min_support;
   local_summary.ambiguity_margin = config.ambiguity_margin;
   auto & candidates = hypotheses_[pair];
   auto found = std::find_if(
@@ -660,11 +660,42 @@ bool LoopPipeline::AddHypothesisEvidence(
         nearest_yaw = 0.0;
         break;
       }
+      if (previous.candidate_keyframe_id == observation.candidate_keyframe_id) {
+        independent = false;
+        nearest_translation = 0.0;
+        nearest_yaw = 0.0;
+        break;
+      }
       if (SameSubmap(previous.query_keyframe_id, observation.query_keyframe_id)) {
         Eigen::Isometry3d first_pose;
         Eigen::Isometry3d second_pose;
         if (!PoseToIsometry(previous.query_local_pose, &first_pose) ||
           !PoseToIsometry(observation.query_local_pose, &second_pose))
+        {
+          independent = false;
+          break;
+        }
+        const double translation =
+          (first_pose.translation() - second_pose.translation()).norm();
+        const double yaw = std::abs(NormalizeAngle(
+          YawFromRotation(first_pose.linear()) -
+          YawFromRotation(second_pose.linear())));
+        nearest_translation = std::min(nearest_translation, translation);
+        nearest_yaw = std::min(nearest_yaw, yaw);
+        if (translation < config.independent_translation_m &&
+          yaw < config.independent_yaw_rad)
+        {
+          independent = false;
+          break;
+        }
+      }
+      if (SameSubmap(
+          previous.candidate_keyframe_id, observation.candidate_keyframe_id))
+      {
+        Eigen::Isometry3d first_pose;
+        Eigen::Isometry3d second_pose;
+        if (!PoseToIsometry(previous.candidate_local_pose, &first_pose) ||
+          !PoseToIsometry(observation.candidate_local_pose, &second_pose))
         {
           independent = false;
           break;
@@ -702,9 +733,16 @@ bool LoopPipeline::AddHypothesisEvidence(
   }
   local_summary.support = found->observations.size();
   local_summary.competing_support = second_support;
+  if (second_support != 0U) {
+    ++risk_signals;
+  }
+  local_summary.required_support = required_support_override.value_or(
+    risk_signals == 0U ? config.hypothesis_support_no_risk :
+    (risk_signals == 1U ? config.hypothesis_support_one_risk :
+    config.hypothesis_support_multiple_risks));
   local_summary.ambiguity_satisfied = second_support == 0U ||
     found->observations.size() >= second_support + config.ambiguity_margin;
-  const bool enough = found->observations.size() >= config.hypothesis_min_support &&
+  const bool enough = found->observations.size() >= local_summary.required_support &&
     local_summary.ambiguity_satisfied;
   local_summary.accepted = enough;
   if (enough && accepted != nullptr) {
@@ -716,16 +754,94 @@ bool LoopPipeline::AddHypothesisEvidence(
   return enough;
 }
 
+std::optional<LoopAnchorBatchEntry> LoopPipeline::BuildSingleRecoveryAnchor(
+  const LoopGeometryResult & geometry, const RawKeyFrameId & candidate_control,
+  const RawMapDatabase & raw_database, const GlobalPoseStore & pose_store) const
+{
+  const auto parent_anchor = pose_store.GetSubmapAnchorPose(geometry.candidate_submap_id);
+  const auto snapshot = raw_database.GetSubmapPoseSnapshot(geometry.query_submap_id);
+  Eigen::Isometry3d world_T_parent_local;
+  if (!parent_anchor.has_value() || !snapshot.has_value() ||
+    !PoseToIsometry(*parent_anchor, &world_T_parent_local))
+  {
+    return std::nullopt;
+  }
+  LoopAnchorBatchEntry entry;
+  entry.snapshot = *snapshot;
+  entry.world_T_local = IsometryToPose(
+    world_T_parent_local * geometry.candidate_local_T_query_local);
+  entry.loop_control_keyframe_id = geometry.query_keyframe_id;
+  entry.parent_submap_id = geometry.candidate_submap_id;
+  entry.parent_control_keyframe_id = candidate_control;
+  return entry;
+}
+
+std::vector<RawKeyFrameId> LoopPipeline::ConfirmedConstraintComponentKeyFrames(
+  const RawSubmapId & seed_submap) const
+{
+  std::map<RawSubmapId, std::vector<const Constraint *>> adjacency;
+  for (const auto & [pair, constraint] : active_constraints_) {
+    (void)pair;
+    if (constraint.provisional) {
+      continue;
+    }
+    adjacency[constraint.first].push_back(&constraint);
+    adjacency[constraint.second].push_back(&constraint);
+  }
+  if (adjacency.count(seed_submap) == 0U) {
+    return {};
+  }
+  std::set<RawSubmapId> visited{seed_submap};
+  std::queue<RawSubmapId> pending;
+  pending.push(seed_submap);
+  std::set<RawKeyFrameId> keyframes;
+  while (!pending.empty()) {
+    const RawSubmapId current = pending.front();
+    pending.pop();
+    for (const auto * constraint : adjacency[current]) {
+      keyframes.insert(constraint->first_control);
+      keyframes.insert(constraint->second_control);
+      const RawSubmapId next = current == constraint->first ?
+        constraint->second : constraint->first;
+      if (visited.insert(next).second) {
+        pending.push(next);
+      }
+    }
+  }
+  return {keyframes.begin(), keyframes.end()};
+}
+
 std::vector<LoopAnchorBatchEntry> LoopPipeline::BuildAnchorCascade(
-  uint64_t task_id, const RawMapDatabase & raw_database,
-  const GlobalPoseStore & pose_store) const
+  uint64_t task_id, const RawSubmapId & seed_submap,
+  const RawMapDatabase & raw_database, const GlobalPoseStore & pose_store) const
 {
   (void)task_id;
   std::map<RawSubmapId, std::vector<const Constraint *>> adjacency;
   for (const auto & [pair, constraint] : active_constraints_) {
     (void)pair;
+    if (constraint.provisional) {
+      continue;
+    }
     adjacency[constraint.first].push_back(&constraint);
     adjacency[constraint.second].push_back(&constraint);
+  }
+  if (adjacency.count(seed_submap) == 0U) {
+    return {};
+  }
+
+  std::set<RawSubmapId> component{seed_submap};
+  std::queue<RawSubmapId> component_pending;
+  component_pending.push(seed_submap);
+  while (!component_pending.empty()) {
+    const RawSubmapId current = component_pending.front();
+    component_pending.pop();
+    for (const auto * constraint : adjacency[current]) {
+      const RawSubmapId next = current == constraint->first ?
+        constraint->second : constraint->first;
+      if (component.insert(next).second) {
+        component_pending.push(next);
+      }
+    }
   }
 
   std::map<RawSubmapId, Eigen::Isometry3d> world_anchors;
@@ -734,6 +850,9 @@ std::vector<LoopAnchorBatchEntry> LoopPipeline::BuildAnchorCascade(
   std::queue<RawSubmapId> pending;
   for (const auto & [submap, edges] : adjacency) {
     (void)edges;
+    if (component.count(submap) == 0U) {
+      continue;
+    }
     const auto pose = pose_store.GetSubmapAnchorPose(submap);
     Eigen::Isometry3d transform;
     if (pose.has_value() && PoseToIsometry(*pose, &transform)) {
@@ -806,7 +925,8 @@ std::vector<LoopAnchorBatchEntry> LoopPipeline::BuildAnchorCascade(
 LoopTaskComputation LoopPipeline::Process(
   const LoopTask & task, const RawMapDatabase & raw_database,
   const GlobalPoseStore & pose_store,
-  const CovisibilityDatabase & covisibility_database)
+  const CovisibilityDatabase & covisibility_database,
+  const std::optional<RecentLossRecoveryContext> & recent_loss)
 {
   LoopTaskComputation result;
   result.task = task;
@@ -835,11 +955,30 @@ LoopTaskComputation LoopPipeline::Process(
       HypothesisObservation observation;
       observation.query_keyframe_id = task.query_keyframe_id;
       observation.query_local_pose = query->pose;
+      observation.candidate_keyframe_id = geometry.candidate_keyframe_id;
+      const auto candidate = raw_database.GetKeyFrame(geometry.candidate_keyframe_id);
+      if (!candidate.has_value()) {
+        return false;
+      }
+      observation.candidate_local_pose = candidate->pose;
       observation.child_control_keyframe_id = task.query_keyframe_id;
+      size_t risk_signals = 0U;
+      if (pose_store.HasSubmapAnchor(geometry.query_submap_id) !=
+        pose_store.HasSubmapAnchor(geometry.candidate_submap_id))
+      {
+        ++risk_signals;
+      }
+      if (geometry.current_translation_error_m >
+          config_.hypothesis_large_correction_translation_m ||
+        geometry.current_rotation_error_rad >
+          config_.hypothesis_large_correction_rotation_rad)
+      {
+        ++risk_signals;
+      }
       Hypothesis accepted;
       LoopHypothesisSupportSummary support;
       const bool enough = AddHypothesisEvidence(
-        pair, first_T_second, observation, config_, &accepted, &support);
+        pair, first_T_second, observation, risk_signals, config_, &accepted, &support);
       if (!result.hypothesis_support.observed || support.accepted ||
         support.support > result.hypothesis_support.support)
       {
@@ -1053,6 +1192,8 @@ LoopTaskComputation LoopPipeline::Process(
   bool anchored_high_error_geometry = false;
   bool optimization_evidence = false;
   bool constraint_activated = false;
+  bool provisional_promoted = false;
+  std::optional<RawSubmapId> activated_submap;
   for (const auto & region : result.regions) {
     auto geometry = VerifyRegion(
       task, region, raw_database, pose_store, covisibility_database);
@@ -1098,9 +1239,51 @@ LoopTaskComputation LoopPipeline::Process(
       continue;
     }
     accepted_cross_submap_geometry = true;
+    const auto pair = CanonicalSubmaps(
+      geometry.query_submap_id, geometry.candidate_submap_id);
     const auto query_anchor = pose_store.GetSubmapAnchorPose(geometry.query_submap_id);
     const auto candidate_anchor = pose_store.GetSubmapAnchorPose(geometry.candidate_submap_id);
     if (query_anchor.has_value() && candidate_anchor.has_value()) {
+      const auto active = active_constraints_.find(pair);
+      if (active != active_constraints_.end() && active->second.provisional) {
+        const auto candidate = raw_database.GetKeyFrame(region.seed_keyframe_id);
+        if (!candidate.has_value()) {
+          result.geometry_results.push_back(std::move(geometry));
+          continue;
+        }
+        Eigen::Isometry3d first_T_second =
+          pair.first == geometry.candidate_submap_id ?
+          geometry.candidate_local_T_query_local :
+          geometry.candidate_local_T_query_local.inverse();
+        HypothesisObservation confirmation;
+        confirmation.query_keyframe_id = task.query_keyframe_id;
+        confirmation.query_local_pose = query->pose;
+        confirmation.candidate_keyframe_id = region.seed_keyframe_id;
+        confirmation.candidate_local_pose = candidate->pose;
+        confirmation.child_control_keyframe_id = task.query_keyframe_id;
+        const size_t risk_signals =
+          geometry.current_translation_error_m >
+          config_.hypothesis_large_correction_translation_m ||
+          geometry.current_rotation_error_rad >
+          config_.hypothesis_large_correction_rotation_rad ? 1U : 0U;
+        Hypothesis confirmed;
+        LoopHypothesisSupportSummary support;
+        if (!AddHypothesisEvidence(
+            pair, first_T_second, confirmation, risk_signals, config_,
+            &confirmed, &support))
+        {
+          result.hypothesis_support = support;
+          geometry.reason = "provisional_constraint_waiting_confirmation";
+          result.geometry_results.push_back(std::move(geometry));
+          continue;
+        }
+        active->second.provisional = false;
+        active->second.support = confirmed.observations.size();
+        result.hypothesis_support = support;
+        constraint_activated = true;
+        provisional_promoted = true;
+        activated_submap = geometry.query_submap_id;
+      }
       if (geometry.fusion_compatible) {
         result.fusion_pairs.insert(
           result.fusion_pairs.end(), geometry.inlier_pairs.begin(), geometry.inlier_pairs.end());
@@ -1113,8 +1296,6 @@ LoopTaskComputation LoopPipeline::Process(
       continue;
     }
 
-    const auto pair = CanonicalSubmaps(
-      geometry.query_submap_id, geometry.candidate_submap_id);
     Eigen::Isometry3d first_T_second;
     if (pair.first == geometry.candidate_submap_id) {
       first_T_second = geometry.candidate_local_T_query_local;
@@ -1124,12 +1305,82 @@ LoopTaskComputation LoopPipeline::Process(
     HypothesisObservation observation;
     observation.query_keyframe_id = task.query_keyframe_id;
     observation.query_local_pose = query->pose;
+    observation.candidate_keyframe_id = region.seed_keyframe_id;
+    const auto candidate = raw_database.GetKeyFrame(region.seed_keyframe_id);
+    if (!candidate.has_value()) {
+      result.geometry_results.push_back(std::move(geometry));
+      continue;
+    }
+    observation.candidate_local_pose = candidate->pose;
     observation.child_control_keyframe_id =
       !query_anchor.has_value() ? task.query_keyframe_id : region.seed_keyframe_id;
+    const bool large_correction = geometry.current_translation_error_m >
+        config_.hypothesis_large_correction_translation_m ||
+      geometry.current_rotation_error_rad >
+        config_.hypothesis_large_correction_rotation_rad;
+    size_t risk_signals = query_anchor.has_value() !=
+      pose_store.HasSubmapAnchor(geometry.candidate_submap_id) ? 1U : 0U;
+    if (large_correction) {
+      ++risk_signals;
+    }
+    bool single_loop_recovery = false;
+    if (config_.recent_loss_single_loop_enabled && recent_loss.has_value() &&
+      recent_loss->submap_id == geometry.query_submap_id &&
+      !query_anchor.has_value() && candidate_anchor.has_value() &&
+      result.regions.size() == 1U && !large_correction)
+    {
+      result.recent_loss_single_loop_checked = true;
+      const auto snapshot = raw_database.GetSubmapPoseSnapshot(geometry.query_submap_id);
+      if (snapshot.has_value()) {
+        const auto query_index = std::find_if(
+          snapshot->keyframes.begin(), snapshot->keyframes.end(),
+          [&task](const auto & input) {return input.id == task.query_keyframe_id;});
+        if (query_index != snapshot->keyframes.end()) {
+          double path_m = 0.0;
+          for (auto current = snapshot->keyframes.begin() + 1;
+            current <= query_index; ++current)
+          {
+            Eigen::Isometry3d previous_pose;
+            Eigen::Isometry3d current_pose;
+            if (!PoseToIsometry((current - 1)->local_pose, &previous_pose) ||
+              !PoseToIsometry(current->local_pose, &current_pose))
+            {
+              path_m = std::numeric_limits<double>::infinity();
+              break;
+            }
+            path_m += (current_pose.translation() - previous_pose.translation()).norm();
+          }
+          result.recent_loss_single_loop_path_m = path_m;
+          Eigen::Isometry3d world_T_candidate_local;
+          Eigen::Isometry3d query_local_pose;
+          if (PoseToIsometry(*candidate_anchor, &world_T_candidate_local) &&
+            PoseToIsometry(query->pose, &query_local_pose))
+          {
+            const auto error = ComputeFiducialError(
+              IsometryToPose(
+                world_T_candidate_local * geometry.candidate_local_T_query_local *
+                query_local_pose),
+              recent_loss->trusted_world_pose);
+            result.recent_loss_translation_m = error.translation_m;
+            result.recent_loss_rotation_rad = error.rotation_rad;
+            result.recent_loss_translation_limit_m =
+              config_.recent_loss_single_loop_translation_m;
+            result.recent_loss_rotation_limit_rad =
+              config_.recent_loss_single_loop_rotation_rad;
+            single_loop_recovery =
+              path_m <= config_.recent_loss_single_loop_max_path_m &&
+              error.translation_m <= config_.recent_loss_single_loop_translation_m &&
+              error.rotation_rad <= config_.recent_loss_single_loop_rotation_rad;
+            result.recent_loss_single_loop_eligible = single_loop_recovery;
+          }
+        }
+      }
+    }
     Hypothesis accepted;
     LoopHypothesisSupportSummary support;
     if (AddHypothesisEvidence(
-        pair, first_T_second, observation, config_, &accepted, &support))
+        pair, first_T_second, observation, risk_signals, config_, &accepted, &support,
+        single_loop_recovery ? std::optional<size_t>(1U) : std::nullopt))
     {
       Constraint constraint;
       constraint.first = pair.first;
@@ -1140,8 +1391,18 @@ LoopTaskComputation LoopPipeline::Process(
         task.query_keyframe_id : region.seed_keyframe_id;
       constraint.second_control = pair.second == geometry.query_submap_id ?
         task.query_keyframe_id : region.seed_keyframe_id;
+      constraint.provisional = single_loop_recovery && accepted.observations.size() == 1U;
       active_constraints_[pair] = constraint;
       constraint_activated = true;
+      activated_submap = geometry.query_submap_id;
+      if (constraint.provisional) {
+        const auto entry = BuildSingleRecoveryAnchor(
+          geometry, region.seed_keyframe_id, raw_database, pose_store);
+        if (entry.has_value()) {
+          result.anchor_entries = {*entry};
+          result.recent_loss_single_loop_used = true;
+        }
+      }
     }
     if (!result.hypothesis_support.observed || support.accepted ||
       support.support > result.hypothesis_support.support)
@@ -1164,6 +1425,24 @@ LoopTaskComputation LoopPipeline::Process(
     result.reason = "anchored_high_error_waiting_independent_support";
     return result;
   }
+  if (constraint_activated) {
+    if (result.anchor_entries.empty() && activated_submap.has_value()) {
+      result.anchor_entries = BuildAnchorCascade(
+        task.task_id, *activated_submap, raw_database, pose_store);
+    }
+    if (!result.anchor_entries.empty()) {
+      result.decision = LoopTaskDecisionKind::AnchorProposed;
+      result.reason = result.recent_loss_single_loop_used ?
+        "recent_loss_single_loop_anchor_proposed" :
+        "coherent_component_has_world_authority";
+      return result;
+    }
+    if (!provisional_promoted) {
+      result.decision = LoopTaskDecisionKind::ConstraintActivated;
+      result.reason = "unanchored_constraint_activated";
+      return result;
+    }
+  }
   if (!result.fusion_pairs.empty()) {
     std::sort(result.fusion_pairs.begin(), result.fusion_pairs.end());
     result.fusion_pairs.erase(
@@ -1173,20 +1452,9 @@ LoopTaskComputation LoopPipeline::Process(
     result.reason = "all_anchored_regions_fusion_compatible";
     return result;
   }
-  if (constraint_activated) {
-    result.anchor_entries = BuildAnchorCascade(task.task_id, raw_database, pose_store);
-    if (!result.anchor_entries.empty()) {
-      result.decision = LoopTaskDecisionKind::AnchorProposed;
-      result.reason = "coherent_component_has_world_authority";
-      return result;
-    }
-    result.decision = LoopTaskDecisionKind::ConstraintActivated;
-    result.reason = "unanchored_constraint_activated";
-    return result;
-  }
   if (accepted_cross_submap_geometry) {
     result.decision = LoopTaskDecisionKind::WaitingIndependentSupport;
-    result.reason = "waiting_second_independent_query";
+    result.reason = "waiting_adaptive_independent_support";
   } else if (same_submap_diagnostic) {
     result.decision = LoopTaskDecisionKind::SameSubmapDiagnostic;
     result.reason = "same_submap_geometry_diagnostic_only";

@@ -184,6 +184,20 @@ bool RelaxEdge(
   return from->second.matrix().allFinite() && to->second.matrix().allFinite();
 }
 
+double FamilyNormalizedGain(
+  const PoseGraphEdge & edge, const std::vector<PoseGraphEdge> & family,
+  double base_gain)
+{
+  double mean_weight = 0.0;
+  for (const auto & member : family) {
+    mean_weight += std::max(0.1, member.information_weight);
+  }
+  mean_weight /= std::max<size_t>(1U, family.size());
+  const double relative_weight =
+    std::max(0.1, edge.information_weight) / std::max(0.1, mean_weight);
+  return base_gain * std::clamp(relative_weight, 0.25, 4.0);
+}
+
 }  // namespace
 
 OptimizationManager::OptimizationManager(FiducialOptimizationConfig config)
@@ -273,7 +287,8 @@ OptimizationProposal OptimizationManager::Optimize(
     double previous_cost = proposal.initial_cost;
     for (size_t iteration = 0; iteration < kMaxIterations; ++iteration) {
       for (const auto & edge : problem.temporal_edges) {
-        if (!RelaxEdge(problem, edge, 0.08, &controls)) {
+        if (!RelaxEdge(problem, edge,
+            FamilyNormalizedGain(edge, problem.temporal_edges, 0.08), &controls)) {
           proposal.status = OptimizationSolverStatus::NumericalFailure;
           proposal.reason = "temporal_relaxation_failed";
           return proposal;
@@ -281,7 +296,8 @@ OptimizationProposal OptimizationManager::Optimize(
       }
       for (const auto & edge : problem.covisibility_edges) {
         const double gain = edge.kind == PoseGraphEdgeKind::PriorLoop ? 0.18 : 0.10;
-        if (!RelaxEdge(problem, edge, gain, &controls)) {
+        if (!RelaxEdge(problem, edge,
+            FamilyNormalizedGain(edge, problem.covisibility_edges, gain), &controls)) {
           proposal.status = OptimizationSolverStatus::NumericalFailure;
           proposal.reason = "covisibility_relaxation_failed";
           return proposal;
@@ -290,7 +306,8 @@ OptimizationProposal OptimizationManager::Optimize(
       const double loop_gain = 0.72 /
         std::sqrt(static_cast<double>(problem.loop_edges.size()));
       for (const auto & loop_edge : problem.loop_edges) {
-        if (!RelaxEdge(problem, loop_edge, loop_gain, &controls)) {
+        if (!RelaxEdge(problem, loop_edge,
+            FamilyNormalizedGain(loop_edge, problem.loop_edges, loop_gain), &controls)) {
           proposal.status = OptimizationSolverStatus::NumericalFailure;
           proposal.reason = "loop_relaxation_failed";
           return proposal;
@@ -303,25 +320,21 @@ OptimizationProposal OptimizationManager::Optimize(
         proposal.reason = "graph_cost_invalid";
         return proposal;
       }
-      bool within_quarter_threshold = true;
-      bool within_half_threshold = true;
+      bool within_convergence_target = true;
       for (size_t edge_index = 0; edge_index < problem.loop_edges.size(); ++edge_index) {
         const auto & loop_edge = problem.loop_edges[edge_index];
         const auto error = RelativeConstraintError(
           controls.at(loop_edge.from_index), controls.at(loop_edge.to_index),
           measured_loops[edge_index]);
-        within_quarter_threshold = within_quarter_threshold &&
-          error.translation_m <= 0.25 * problem.loop_translation_threshold_m &&
-          error.rotation_rad <= 0.25 * problem.loop_rotation_threshold_rad;
-        within_half_threshold = within_half_threshold &&
-          error.translation_m <= 0.5 * problem.loop_translation_threshold_m &&
-          error.rotation_rad <= 0.5 * problem.loop_rotation_threshold_rad;
+        within_convergence_target = within_convergence_target &&
+          error.translation_m <= problem.loop_convergence_translation_m &&
+          error.rotation_rad <= problem.loop_convergence_rotation_rad;
       }
       const bool practically_converged = proposal.iterations >= 24U &&
-        within_quarter_threshold &&
+        within_convergence_target &&
         current_cost <= proposal.initial_cost;
-      if (within_half_threshold &&
-        (practically_converged ||
+      if (practically_converged ||
+        (within_convergence_target &&
         std::abs(previous_cost - current_cost) <= 1e-8 * (1.0 + previous_cost)))
       {
         break;
@@ -451,7 +464,9 @@ OptimizationProposal OptimizationManager::Optimize(
   constexpr size_t kFiducialGraphIterations = 80U;
   for (size_t iteration = 0; iteration < kFiducialGraphIterations; ++iteration) {
     for (const auto & edge : problem.temporal_edges) {
-      if (!RelaxEdge(problem, edge, 0.04, &optimized_controls)) {
+        if (!RelaxEdge(problem, edge,
+            FamilyNormalizedGain(edge, problem.temporal_edges, 0.04),
+            &optimized_controls)) {
         proposal.status = OptimizationSolverStatus::NumericalFailure;
         proposal.reason = "fiducial_temporal_relaxation_failed";
         return proposal;
@@ -459,7 +474,9 @@ OptimizationProposal OptimizationManager::Optimize(
     }
     for (const auto & edge : problem.covisibility_edges) {
       const double gain = edge.kind == PoseGraphEdgeKind::PriorLoop ? 0.12 : 0.07;
-      if (!RelaxEdge(problem, edge, gain, &optimized_controls)) {
+        if (!RelaxEdge(problem, edge,
+            FamilyNormalizedGain(edge, problem.covisibility_edges, gain),
+            &optimized_controls)) {
         proposal.status = OptimizationSolverStatus::NumericalFailure;
         proposal.reason = "fiducial_covisibility_relaxation_failed";
         return proposal;

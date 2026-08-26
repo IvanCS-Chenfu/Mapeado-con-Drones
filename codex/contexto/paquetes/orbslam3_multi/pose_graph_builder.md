@@ -19,20 +19,22 @@ propagacion multi-submapa.
 - protege vecindades de extremos con ratio 0.20;
 - crea aristas temporales SE(3) entre controles y un plan de propagacion para
   no controles;
-- `Build()` fiducial parte del snapshot target y expande la componente solo por
-  loops/fusiones `ServerLoopGeometric` y dependencias soft confirmadas; la
-  covisibilidad ORB nativa refuerza submapas ya incluidos, no los descubre;
-- `BuildLoop()` obtiene el subgrafo conectado de query/candidate hasta
-  autoridades hard, siguiendo tramos temporales, todas las fusiones server
-  transitivas, dependencias blandas y constraints previas;
+- `BuildSegmented()` es la seleccion comun: `BuildLoop()` aporta endpoints
+  RANSAC y `BuildExpandedFiducial()` el target fiducial real, sin loop sintetico;
+- cada endpoint selecciona intervalos delimitados por hard anterior/posterior;
+  intervalos separados no crean temporal ni propagacion a traves del hueco;
+- otro intervalo entra solo por `ServerLoopGeometric` o dependencia soft
+  incidente; la covisibilidad ORB nativa refuerza, pero no descubre submapas;
 - un hijo soft conectado a un tramo delimitado por hard se incluye en la
   ventana conjunta;
 - los hard fiduciales son vertices fijos; una arista `CurrentLoop` conserva la
   medida relativa RANSAC y no fija unilateralmente query ni candidate;
 - `BuildLoop()` incorpora entre una y tres regiones coherentes de error alto
   como aristas `CurrentLoop`, deduplicadas y con cobertura final obligatoria;
-- el problema conserva aristas estructurales temporales, covisibles, de fusion
-  previa y referencias de corredor hard-hard para validacion before/after;
+- el problema conserva estructura temporal, covisible y de fusion previa, y
+  marca poses `LoopOptimized`/`FiducialOptimized` como revisitadas;
+- al menos tres segmentos soporte, excluido query, con cobertura server minima
+  60 % quedan `consensus_fixed` solo durante ese solve, nunca hard persistentes;
 - la densidad base del 30 % se amplia con endpoints de constraints. La
   covisibilidad nativa se mantiene sparse: maximo seis aristas fuertes por
   control para evitar grafos densos cuadraticos.
@@ -45,10 +47,10 @@ include/orbslam3_multi/pose_graph_problem.hpp
 include/orbslam3_multi/pose_graph_builder.hpp
   -> PoseGraphBuilder::Build / BuildLoop
 src/pose_graph_builder.cpp
-  -> rg -n "PoseGraphBuilder::(Build|BuildLoop)|AppendNativeCovisibilityEdges|control_vertex_ratio"
+  -> rg -n "PoseGraphBuilder::(Build|BuildLoop|BuildExpandedFiducial|BuildSegmented)|consensus_submaps|control_vertex_ratio"
 test/test_fiducial_optimization.cpp
   -> cobertura, hard, covisibilidad sparse, loop relativo y dependencia soft
 ```
 
-Los tests de 3Q cubren expansion fiducial multi-submapa, cierre transitivo,
-varias `CurrentLoop`, componente soft y corredores hard-hard.
+Los tests 3Q cubren segmentacion loop/fiducial, incidencia server, varias
+`CurrentLoop`, consenso temporal, pesos y origen optimizado.

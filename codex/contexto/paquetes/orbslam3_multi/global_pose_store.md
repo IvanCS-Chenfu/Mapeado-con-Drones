@@ -45,6 +45,9 @@ src/global_pose_store.cpp
 - `CommitLoopOptimizedPoses()` valida y aplica en una sola revision las poses
   corregidas de todos los submapas de un grafo 3Q. Ningun hard puede moverse;
   un fallo de revision/invariante deja el store intacto.
+- Las poses conservan `source_kind=LoopOptimized` o `FiducialOptimized`; el
+  builder usa ese linaje y la pose world vigente para la guarda de revisitados,
+  sin crear una segunda base de referencias.
 - `AcceptedPoseBatchResult` devuelve `detail` con el precondicionante exacto y
   los conteos `rebased_skipped_controls`/`rebased_inactive_controls`. Los
   apoyos virtuales se usan para interpolar fuera del store: no se reactivan ni

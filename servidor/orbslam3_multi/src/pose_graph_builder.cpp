@@ -64,6 +64,12 @@ bool SameSubmap(const RawKeyFrameId & first, const RawKeyFrameId & second)
   return first.drone_id == second.drone_id && first.map_epoch == second.map_epoch;
 }
 
+bool IsPreviouslyOptimized(PoseSourceKind source)
+{
+  return source == PoseSourceKind::FiducialOptimized ||
+         source == PoseSourceKind::LoopOptimized;
+}
+
 }  // namespace
 
 PoseGraphBuilder::PoseGraphBuilder(FiducialOptimizationConfig config)
@@ -151,6 +157,7 @@ PoseGraphBuildResult PoseGraphBuilder::Build(
     keyframe.current_world_pose = pose->second.world_pose;
     keyframe.raw_revision = raw.raw_revision;
     keyframe.pose_revision = pose->second.pose_revision;
+    keyframe.previously_optimized = IsPreviouslyOptimized(pose->second.source_kind);
     result.problem.keyframes.push_back(keyframe);
     accumulated_path.push_back(accumulated_path.empty() ? 0.0 : accumulated_path.back());
     if (result.problem.keyframes.size() > 1U) {
@@ -370,6 +377,14 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     loop_config.fusion_translation_threshold_m;
   result.problem.loop_rotation_threshold_rad =
     loop_config.fusion_rotation_threshold_rad;
+  result.problem.loop_convergence_translation_m =
+    loop_config.optimization_convergence_translation_m;
+  result.problem.loop_convergence_rotation_rad =
+    loop_config.optimization_convergence_rotation_rad;
+  result.problem.loop_safe_correction_translation_m =
+    loop_config.safe_correction_translation_m;
+  result.problem.loop_safe_correction_rotation_rad =
+    loop_config.safe_correction_rotation_rad;
   result.problem.structural_temporal_increase_m =
     loop_config.structural_temporal_increase_m;
   result.problem.structural_temporal_increase_rad =
@@ -382,10 +397,10 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     loop_config.structural_prior_loop_increase_m;
   result.problem.structural_prior_loop_increase_rad =
     loop_config.structural_prior_loop_increase_rad;
-  result.problem.hard_corridor_max_translation_m =
-    loop_config.hard_corridor_max_translation_m;
-  result.problem.hard_corridor_max_rotation_rad =
-    loop_config.hard_corridor_max_rotation_rad;
+  result.problem.optimized_keyframe_max_translation_m =
+    loop_config.optimized_keyframe_max_translation_m;
+  result.problem.optimized_keyframe_max_rotation_rad =
+    loop_config.optimized_keyframe_max_rotation_rad;
 
   std::vector<std::pair<size_t, const LoopGeometryResult *>> selected_geometries;
   for (const size_t index : computation.optimization_geometry_indices) {
@@ -433,25 +448,189 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     endpoints[selected_geometry->candidate_submap_id].push_back(
       selected_geometry->candidate_keyframe_id);
   }
-  for (const auto & [child_submap, dependency] : loop_dependencies) {
-    (void)child_submap;
-    endpoints[dependency.child_submap_id].push_back(
-      dependency.child_control_keyframe_id);
-    endpoints[dependency.parent_submap_id].push_back(
-      dependency.parent_control_keyframe_id);
+  return BuildSegmented(
+    std::move(result.problem), selected_geometries, std::move(endpoints),
+    raw_snapshots, poses, covisibility_database, loop_config, loop_dependencies);
+}
+
+PoseGraphBuildResult PoseGraphBuilder::BuildExpandedFiducial(
+  const FiducialOptimizationTask & task,
+  const std::map<RawSubmapId, RawSubmapPoseSnapshot> & raw_snapshots,
+  const std::map<RawKeyFrameId, GlobalPoseRecord> & poses,
+  uint64_t pose_store_revision,
+  const CovisibilityDatabase & covisibility_database,
+  const LoopPipelineConfig & loop_config,
+  const std::map<RawSubmapId, LoopAnchorDependencySnapshot> &
+  loop_dependencies) const
+{
+  const auto source_snapshot = raw_snapshots.find(task.submap_id);
+  if (source_snapshot == raw_snapshots.end()) {
+    PoseGraphBuildResult result;
+    result.reason = "raw_submap_missing";
+    return result;
   }
-  for (const auto & edge : covisibility_database.GetEdgesBySource(
-      CovisibilityEdgeSource::ServerLoopGeometric))
-  {
-    const RawSubmapId first{edge.kf_a.drone_id, edge.kf_a.map_epoch};
-    const RawSubmapId second{edge.kf_b.drone_id, edge.kf_b.map_epoch};
-    if (first == second || raw_snapshots.count(first) == 0U ||
-      raw_snapshots.count(second) == 0U)
-    {
-      continue;
+  const auto validation = Build(
+    task, source_snapshot->second, poses, pose_store_revision,
+    &covisibility_database);
+  if (!validation.success) {
+    return validation;
+  }
+
+  PoseGraphProblem seed;
+  seed.kind = PoseGraphProblemKind::FiducialAbsolute;
+  seed.task = task;
+  seed.raw_submap_revision = source_snapshot->second.submap_revision;
+  seed.pose_store_revision = pose_store_revision;
+  seed.covisibility_revision = covisibility_database.GetStats().revision;
+  seed.structural_temporal_increase_m = loop_config.structural_temporal_increase_m;
+  seed.structural_temporal_increase_rad = loop_config.structural_temporal_increase_rad;
+  seed.structural_covisibility_increase_m = loop_config.structural_covisibility_increase_m;
+  seed.structural_covisibility_increase_rad = loop_config.structural_covisibility_increase_rad;
+  seed.structural_prior_loop_increase_m = loop_config.structural_prior_loop_increase_m;
+  seed.structural_prior_loop_increase_rad = loop_config.structural_prior_loop_increase_rad;
+  seed.optimized_keyframe_max_translation_m =
+    loop_config.optimized_keyframe_max_translation_m;
+  seed.optimized_keyframe_max_rotation_rad =
+    loop_config.optimized_keyframe_max_rotation_rad;
+
+  std::map<RawSubmapId, std::vector<RawKeyFrameId>> endpoints;
+  endpoints[task.submap_id].push_back(task.keyframe_id);
+  return BuildSegmented(
+    std::move(seed), {}, std::move(endpoints), raw_snapshots, poses,
+    covisibility_database, loop_config, loop_dependencies);
+}
+
+PoseGraphBuildResult PoseGraphBuilder::BuildSegmented(
+  PoseGraphProblem seed_problem,
+  const std::vector<std::pair<size_t, const LoopGeometryResult *>> &
+  selected_geometries,
+  std::map<RawSubmapId, std::vector<RawKeyFrameId>> endpoints,
+  const std::map<RawSubmapId, RawSubmapPoseSnapshot> & raw_snapshots,
+  const std::map<RawKeyFrameId, GlobalPoseRecord> & poses,
+  const CovisibilityDatabase & covisibility_database,
+  const LoopPipelineConfig & loop_config,
+  const std::map<RawSubmapId, LoopAnchorDependencySnapshot> &
+  loop_dependencies) const
+{
+  PoseGraphBuildResult result;
+  result.problem = std::move(seed_problem);
+  using RawRange = std::pair<size_t, size_t>;
+  std::map<RawSubmapId, std::vector<RawRange>> selected_ranges;
+  const auto refresh_ranges = [&](const RawSubmapId & submap_id) {
+      const auto snapshot_found = raw_snapshots.find(submap_id);
+      if (snapshot_found == raw_snapshots.end()) {
+        return false;
+      }
+      const auto & snapshot = snapshot_found->second;
+      std::vector<RawRange> ranges;
+      for (const auto & endpoint : endpoints[submap_id]) {
+        const auto endpoint_found = std::find_if(
+          snapshot.keyframes.begin(), snapshot.keyframes.end(),
+          [&endpoint](const auto & input) {return input.id == endpoint;});
+        if (endpoint_found == snapshot.keyframes.end()) {
+          return false;
+        }
+        const size_t endpoint_index = static_cast<size_t>(
+          endpoint_found - snapshot.keyframes.begin());
+        std::optional<size_t> lower_hard;
+        std::optional<size_t> upper_hard;
+        for (size_t index = 0; index < snapshot.keyframes.size(); ++index) {
+          const auto pose = poses.find(snapshot.keyframes[index].id);
+          if (pose == poses.end() || !pose->second.hard_fiducial) {
+            continue;
+          }
+          if (index <= endpoint_index) {
+            lower_hard = index;
+          }
+          if (index >= endpoint_index && !upper_hard.has_value()) {
+            upper_hard = index;
+          }
+        }
+        ranges.emplace_back(
+          lower_hard.value_or(0U), upper_hard.value_or(endpoint_index));
+      }
+      std::sort(ranges.begin(), ranges.end());
+      std::vector<RawRange> merged;
+      for (const auto & range : ranges) {
+        if (merged.empty() || range.first > merged.back().second + 1U) {
+          merged.push_back(range);
+        } else {
+          merged.back().second = std::max(merged.back().second, range.second);
+        }
+      }
+      selected_ranges[submap_id] = std::move(merged);
+      return true;
+    };
+  const auto selected = [&](const RawKeyFrameId & id) {
+      const RawSubmapId submap{id.drone_id, id.map_epoch};
+      const auto snapshot_found = raw_snapshots.find(submap);
+      const auto ranges_found = selected_ranges.find(submap);
+      if (snapshot_found == raw_snapshots.end() ||
+        ranges_found == selected_ranges.end())
+      {
+        return false;
+      }
+      const auto keyframe_found = std::find_if(
+        snapshot_found->second.keyframes.begin(),
+        snapshot_found->second.keyframes.end(),
+        [&id](const auto & input) {return input.id == id;});
+      if (keyframe_found == snapshot_found->second.keyframes.end()) {
+        return false;
+      }
+      const size_t index = static_cast<size_t>(
+        keyframe_found - snapshot_found->second.keyframes.begin());
+      return std::any_of(
+        ranges_found->second.begin(), ranges_found->second.end(),
+        [index](const RawRange & range) {
+          return index >= range.first && index <= range.second;
+        });
+    };
+
+  for (const auto & [submap_id, submap_endpoints] : endpoints) {
+    (void)submap_endpoints;
+    if (!refresh_ranges(submap_id)) {
+      result.reason = "loop_endpoint_missing";
+      return result;
     }
-    endpoints[first].push_back(edge.kf_a);
-    endpoints[second].push_back(edge.kf_b);
+  }
+  const auto server_edges = covisibility_database.GetEdgesBySource(
+    CovisibilityEdgeSource::ServerLoopGeometric);
+  bool expanded = true;
+  while (expanded) {
+    expanded = false;
+    const auto add_endpoint = [&](const RawKeyFrameId & endpoint) {
+        const RawSubmapId submap{endpoint.drone_id, endpoint.map_epoch};
+        if (raw_snapshots.count(submap) == 0U) {
+          return false;
+        }
+        auto & values = endpoints[submap];
+        if (std::find(values.begin(), values.end(), endpoint) != values.end()) {
+          return false;
+        }
+        values.push_back(endpoint);
+        return refresh_ranges(submap);
+      };
+    for (const auto & edge : server_edges) {
+      if (selected(edge.kf_a) && !selected(edge.kf_b)) {
+        expanded = add_endpoint(edge.kf_b) || expanded;
+      }
+      if (selected(edge.kf_b) && !selected(edge.kf_a)) {
+        expanded = add_endpoint(edge.kf_a) || expanded;
+      }
+    }
+    for (const auto & [child_submap, dependency] : loop_dependencies) {
+      (void)child_submap;
+      if (selected(dependency.child_control_keyframe_id) &&
+        !selected(dependency.parent_control_keyframe_id))
+      {
+        expanded = add_endpoint(dependency.parent_control_keyframe_id) || expanded;
+      }
+      if (selected(dependency.parent_control_keyframe_id) &&
+        !selected(dependency.child_control_keyframe_id))
+      {
+        expanded = add_endpoint(dependency.child_control_keyframe_id) || expanded;
+      }
+    }
   }
   for (auto & [submap_id, submap_endpoints] : endpoints) {
     (void)submap_id;
@@ -462,6 +641,7 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
   }
   std::map<RawKeyFrameId, size_t> graph_index;
   std::map<RawSubmapId, std::vector<size_t>> submap_indices;
+  std::map<RawSubmapId, std::vector<std::vector<size_t>>> submap_interval_indices;
 
   for (const auto & [submap_id, submap_endpoints] : endpoints) {
     const auto snapshot_found = raw_snapshots.find(submap_id);
@@ -470,49 +650,10 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
       return result;
     }
     const auto & snapshot = snapshot_found->second;
-    std::vector<size_t> endpoint_indices;
-    for (const auto & endpoint : submap_endpoints) {
-      const auto found = std::find_if(
-        snapshot.keyframes.begin(), snapshot.keyframes.end(),
-        [&endpoint](const auto & input) {return input.id == endpoint;});
-      if (found == snapshot.keyframes.end()) {
-        result.reason = "loop_endpoint_missing";
-        return result;
-      }
-      endpoint_indices.push_back(static_cast<size_t>(found - snapshot.keyframes.begin()));
-    }
-
-    size_t first = *std::min_element(endpoint_indices.begin(), endpoint_indices.end());
-    size_t last = *std::max_element(endpoint_indices.begin(), endpoint_indices.end());
-    bool found_hard = false;
-    for (const size_t endpoint_index : endpoint_indices) {
-      std::optional<size_t> lower;
-      std::optional<size_t> upper;
-      for (size_t index = 0; index < snapshot.keyframes.size(); ++index) {
-        const auto pose = poses.find(snapshot.keyframes[index].id);
-        if (pose == poses.end() || !pose->second.hard_fiducial) {
-          continue;
-        }
-        found_hard = true;
-        if (index <= endpoint_index) {
-          lower = index;
-        }
-        if (index >= endpoint_index && !upper.has_value()) {
-          upper = index;
-        }
-      }
-      if (lower.has_value()) {
-        first = std::min(first, *lower);
-      }
-      if (upper.has_value()) {
-        last = std::max(last, *upper);
-      }
-    }
-    if (!found_hard) {
-      first = 0U;
-      last = snapshot.keyframes.empty() ? 0U : snapshot.keyframes.size() - 1U;
-    }
-    if (snapshot.keyframes.empty() || first > last) {
+    const auto ranges_found = selected_ranges.find(submap_id);
+    if (snapshot.keyframes.empty() || ranges_found == selected_ranges.end() ||
+      ranges_found->second.empty())
+    {
       result.reason = "loop_window_empty";
       return result;
     }
@@ -521,46 +662,66 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     window.submap_id = submap_id;
     window.raw_submap_revision = snapshot.submap_revision;
     window.graph_begin = result.problem.keyframes.size();
-    window.first_keyframe_id = snapshot.keyframes[first].id;
-    window.last_keyframe_id = snapshot.keyframes[last].id;
+    window.first_keyframe_id = snapshot.keyframes[ranges_found->second.front().first].id;
+    window.last_keyframe_id = snapshot.keyframes[ranges_found->second.back().second].id;
     window.continuation_keyframe_id = *std::max_element(
       submap_endpoints.begin(), submap_endpoints.end(),
       [](const auto & lhs, const auto & rhs) {
         return lhs.local_kf_id < rhs.local_kf_id;
       });
 
-    std::vector<double> path;
-    for (size_t raw_index = first; raw_index <= last; ++raw_index) {
-      const auto & raw = snapshot.keyframes[raw_index];
-      const auto pose = poses.find(raw.id);
-      const bool mandatory_endpoint = std::find(
-        submap_endpoints.begin(), submap_endpoints.end(), raw.id) !=
-        submap_endpoints.end();
-      if (pose == poses.end() || (!raw.active && !mandatory_endpoint) ||
-        (!pose->second.active && !mandatory_endpoint))
-      {
-        continue;
+    for (const auto & range : ranges_found->second) {
+      window.raw_intervals.push_back(
+        {snapshot.keyframes[range.first].id, snapshot.keyframes[range.second].id});
+      std::vector<size_t> interval_indices;
+      std::vector<double> path;
+      for (size_t raw_index = range.first; raw_index <= range.second; ++raw_index) {
+        const auto & raw = snapshot.keyframes[raw_index];
+        const auto pose = poses.find(raw.id);
+        const bool mandatory_endpoint = std::find(
+          submap_endpoints.begin(), submap_endpoints.end(), raw.id) !=
+          submap_endpoints.end();
+        if (pose == poses.end() || (!raw.active && !mandatory_endpoint) ||
+          (!pose->second.active && !mandatory_endpoint))
+        {
+          continue;
+        }
+        PoseGraphKeyFrame keyframe;
+        keyframe.id = raw.id;
+        keyframe.raw_local_pose = raw.local_pose;
+        keyframe.current_world_pose = pose->second.world_pose;
+        keyframe.raw_revision = raw.raw_revision;
+        keyframe.pose_revision = pose->second.pose_revision;
+        keyframe.previously_optimized = IsPreviouslyOptimized(pose->second.source_kind);
+        keyframe.fixed = pose->second.hard_fiducial;
+        graph_index[keyframe.id] = result.problem.keyframes.size();
+        interval_indices.push_back(result.problem.keyframes.size());
+        submap_indices[submap_id].push_back(result.problem.keyframes.size());
+        result.problem.keyframes.push_back(std::move(keyframe));
+        path.push_back(path.empty() ? 0.0 : path.back());
+        if (path.size() > 1U) {
+          Eigen::Isometry3d previous;
+          Eigen::Isometry3d current;
+          PoseToIsometry(
+            result.problem.keyframes[interval_indices[interval_indices.size() - 2U]].raw_local_pose,
+            &previous);
+          PoseToIsometry(result.problem.keyframes.back().raw_local_pose, &current);
+          path.back() = path[path.size() - 2U] +
+            (current.translation() - previous.translation()).norm();
+        }
       }
-      PoseGraphKeyFrame keyframe;
-      keyframe.id = raw.id;
-      keyframe.raw_local_pose = raw.local_pose;
-      keyframe.current_world_pose = pose->second.world_pose;
-      keyframe.raw_revision = raw.raw_revision;
-      keyframe.pose_revision = pose->second.pose_revision;
-      keyframe.fixed = pose->second.hard_fiducial;
-      graph_index[keyframe.id] = result.problem.keyframes.size();
-      submap_indices[submap_id].push_back(result.problem.keyframes.size());
-      result.problem.keyframes.push_back(std::move(keyframe));
-      path.push_back(path.empty() ? 0.0 : path.back());
-      if (path.size() > 1U) {
-        Eigen::Isometry3d previous;
-        Eigen::Isometry3d current;
-        PoseToIsometry(result.problem.keyframes[result.problem.keyframes.size() - 2U].raw_local_pose,
-          &previous);
-        PoseToIsometry(result.problem.keyframes.back().raw_local_pose, &current);
-        path.back() = path[path.size() - 2U] +
-          (current.translation() - previous.translation()).norm();
+      if (interval_indices.size() < 2U) {
+        result.reason = "loop_submap_interval_too_small";
+        return result;
       }
+      const double total_path = path.back();
+      for (size_t offset = 0; offset < interval_indices.size(); ++offset) {
+        const size_t index = interval_indices[offset];
+        result.problem.keyframes[index].path_alpha = total_path > 1e-9 ?
+          path[offset] / total_path : static_cast<double>(offset) /
+          static_cast<double>(interval_indices.size() - 1U);
+      }
+      submap_interval_indices[submap_id].push_back(std::move(interval_indices));
     }
     if (submap_indices[submap_id].size() < 2U) {
       result.reason = "loop_submap_window_too_small";
@@ -573,39 +734,35 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     {
       window.continuation_keyframe_id = window.last_keyframe_id;
     }
-    const double total_path = path.back();
-    for (size_t offset = 0; offset < submap_indices[submap_id].size(); ++offset) {
-      const size_t index = submap_indices[submap_id][offset];
-      result.problem.keyframes[index].path_alpha = total_path > 1e-9 ?
-        path[offset] / total_path : static_cast<double>(offset) /
-        static_cast<double>(submap_indices[submap_id].size() - 1U);
-    }
     result.problem.submap_windows.push_back(window);
   }
 
   std::set<size_t> selected_controls;
-  for (const auto & [submap_id, indices] : submap_indices) {
+  for (const auto & [submap_id, intervals] : submap_interval_indices) {
     (void)submap_id;
-    selected_controls.insert(indices.front());
-    selected_controls.insert(indices.back());
-    for (const size_t index : indices) {
-      const bool loop_endpoint = std::any_of(
-        selected_geometries.begin(), selected_geometries.end(),
-        [&result, index](const auto & selected) {
-          return result.problem.keyframes[index].id == selected.second->query_keyframe_id ||
-                 result.problem.keyframes[index].id == selected.second->candidate_keyframe_id;
-        });
-      if (result.problem.keyframes[index].fixed || loop_endpoint)
-      {
-        selected_controls.insert(index);
+    for (const auto & indices : intervals) {
+      selected_controls.insert(indices.front());
+      selected_controls.insert(indices.back());
+      for (const size_t index : indices) {
+        const bool loop_endpoint = std::any_of(
+          selected_geometries.begin(), selected_geometries.end(),
+          [&result, index](const auto & selected_geometry) {
+            return result.problem.keyframes[index].id ==
+                     selected_geometry.second->query_keyframe_id ||
+                   result.problem.keyframes[index].id ==
+                     selected_geometry.second->candidate_keyframe_id;
+          });
+        if (result.problem.keyframes[index].fixed || loop_endpoint) {
+          selected_controls.insert(index);
+        }
       }
-    }
-    const size_t wanted = std::max<size_t>(
-      2U, static_cast<size_t>(std::ceil(
-        std::clamp(config_.control_vertex_ratio, 0.0, 1.0) * indices.size())));
-    for (size_t rank = 0; rank < wanted; ++rank) {
-      selected_controls.insert(indices[rank * (indices.size() - 1U) /
-        std::max<size_t>(1U, wanted - 1U)]);
+      const size_t wanted = std::max<size_t>(
+        2U, static_cast<size_t>(std::ceil(
+          std::clamp(config_.control_vertex_ratio, 0.0, 1.0) * indices.size())));
+      for (size_t rank = 0; rank < wanted; ++rank) {
+        selected_controls.insert(indices[rank * (indices.size() - 1U) /
+          std::max<size_t>(1U, wanted - 1U)]);
+      }
     }
   }
 
@@ -628,6 +785,9 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     (void)child_submap;
     const auto parent = graph_index.find(dependency.parent_control_keyframe_id);
     const auto child = graph_index.find(dependency.child_control_keyframe_id);
+    if (parent == graph_index.end() && child == graph_index.end()) {
+      continue;
+    }
     if (parent == graph_index.end() || child == graph_index.end()) {
       result.reason = "loop_dependency_control_missing";
       return result;
@@ -637,55 +797,51 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
   }
   result.problem.control_indices.assign(
     selected_controls.begin(), selected_controls.end());
-  if (std::none_of(
-      result.problem.control_indices.begin(), result.problem.control_indices.end(),
-      [&result](size_t index) {return result.problem.keyframes[index].fixed;}))
-  {
-    result.problem.keyframes[result.problem.control_indices.front()].fixed = true;
-  }
   for (const size_t index : result.problem.control_indices) {
     result.problem.keyframes[index].control = true;
   }
 
-  for (const auto & [submap_id, indices] : submap_indices) {
+  for (const auto & [submap_id, intervals] : submap_interval_indices) {
     (void)submap_id;
-    std::vector<size_t> controls;
-    for (const size_t index : indices) {
-      if (selected_controls.count(index) != 0U) {
-        controls.push_back(index);
+    for (const auto & indices : intervals) {
+      std::vector<size_t> controls;
+      for (const size_t index : indices) {
+        if (selected_controls.count(index) != 0U) {
+          controls.push_back(index);
+        }
       }
-    }
-    for (size_t edge_index = 1U; edge_index < controls.size(); ++edge_index) {
-      const size_t from = controls[edge_index - 1U];
-      const size_t to = controls[edge_index];
-      PoseGraphEdge edge;
-      edge.from_index = from;
-      edge.to_index = to;
-      edge.relative_raw_pose = RelativePose(
-        result.problem.keyframes[from].raw_local_pose,
-        result.problem.keyframes[to].raw_local_pose);
-      edge.supporting_keyframes = to - from + 1U;
-      edge.information_weight = 2.0;
-      edge.kind = PoseGraphEdgeKind::Temporal;
-      result.problem.temporal_edges.push_back(std::move(edge));
-    }
-    for (const size_t index : indices) {
-      if (selected_controls.count(index) != 0U) {
-        continue;
+      for (size_t edge_index = 1U; edge_index < controls.size(); ++edge_index) {
+        const size_t from = controls[edge_index - 1U];
+        const size_t to = controls[edge_index];
+        PoseGraphEdge edge;
+        edge.from_index = from;
+        edge.to_index = to;
+        edge.relative_raw_pose = RelativePose(
+          result.problem.keyframes[from].raw_local_pose,
+          result.problem.keyframes[to].raw_local_pose);
+        edge.supporting_keyframes = to - from + 1U;
+        edge.information_weight = 2.0;
+        edge.kind = PoseGraphEdgeKind::Temporal;
+        result.problem.temporal_edges.push_back(std::move(edge));
       }
-      const auto upper = std::upper_bound(controls.begin(), controls.end(), index);
-      if (upper == controls.begin() || upper == controls.end()) {
-        continue;
+      for (const size_t index : indices) {
+        if (selected_controls.count(index) != 0U) {
+          continue;
+        }
+        const auto upper = std::upper_bound(controls.begin(), controls.end(), index);
+        if (upper == controls.begin() || upper == controls.end()) {
+          continue;
+        }
+        const size_t lower = *(upper - 1);
+        const double denominator =
+          result.problem.keyframes[*upper].path_alpha -
+          result.problem.keyframes[lower].path_alpha;
+        const double alpha = denominator > 1e-9 ?
+          (result.problem.keyframes[index].path_alpha -
+          result.problem.keyframes[lower].path_alpha) / denominator : 0.5;
+        result.problem.propagation_plan.push_back(
+          {index, lower, *upper, std::clamp(alpha, 0.0, 1.0)});
       }
-      const size_t lower = *(upper - 1);
-      const double denominator =
-        result.problem.keyframes[*upper].path_alpha -
-        result.problem.keyframes[lower].path_alpha;
-      const double alpha = denominator > 1e-9 ?
-        (result.problem.keyframes[index].path_alpha -
-        result.problem.keyframes[lower].path_alpha) / denominator : 0.5;
-      result.problem.propagation_plan.push_back(
-        {index, lower, *upper, std::clamp(alpha, 0.0, 1.0)});
     }
   }
 
@@ -731,6 +887,8 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
         std::clamp(std::log1p(static_cast<double>(edge.support)), 1.0, 8.0);
       graph_edge.kind = edge.source == CovisibilityEdgeSource::Orbslam3Native ?
         PoseGraphEdgeKind::CovisibilityNative : PoseGraphEdgeKind::PriorLoop;
+      graph_edge.consensus_eligible =
+        edge.source == CovisibilityEdgeSource::ServerLoopGeometric;
       result.problem.covisibility_edges.push_back(std::move(graph_edge));
       if (edge.source == CovisibilityEdgeSource::Orbslam3Native) {
         ++accepted_neighbors;
@@ -742,6 +900,9 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     (void)child_submap;
     const auto parent = graph_index.find(dependency.parent_control_keyframe_id);
     const auto child = graph_index.find(dependency.child_control_keyframe_id);
+    if (parent == graph_index.end() && child == graph_index.end()) {
+      continue;
+    }
     if (parent == graph_index.end() || child == graph_index.end()) {
       result.reason = "loop_dependency_control_missing";
       return result;
@@ -755,6 +916,127 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     dependency_edge.information_weight = 12.0;
     dependency_edge.kind = PoseGraphEdgeKind::PriorLoop;
     result.problem.covisibility_edges.push_back(std::move(dependency_edge));
+  }
+
+  std::set<RawSubmapId> query_submaps;
+  if (result.problem.kind == PoseGraphProblemKind::FiducialAbsolute) {
+    query_submaps.insert(result.problem.task.submap_id);
+  } else {
+    for (const auto & [geometry_index, geometry] : selected_geometries) {
+      (void)geometry_index;
+      query_submaps.insert(geometry->query_submap_id);
+    }
+  }
+
+  std::map<RawSubmapId, std::set<size_t>> prior_covered_keyframes;
+  std::map<RawSubmapId, std::set<RawSubmapId>> prior_adjacency;
+  for (const auto & edge : result.problem.covisibility_edges) {
+    if (edge.kind != PoseGraphEdgeKind::PriorLoop || !edge.consensus_eligible) {
+      continue;
+    }
+    const RawSubmapId from_submap = SubmapOf(
+      result.problem.keyframes[edge.from_index].id);
+    const RawSubmapId to_submap = SubmapOf(
+      result.problem.keyframes[edge.to_index].id);
+    if (from_submap == to_submap || query_submaps.count(from_submap) != 0U ||
+      query_submaps.count(to_submap) != 0U)
+    {
+      continue;
+    }
+    prior_covered_keyframes[from_submap].insert(edge.from_index);
+    prior_covered_keyframes[to_submap].insert(edge.to_index);
+    prior_adjacency[from_submap].insert(to_submap);
+    prior_adjacency[to_submap].insert(from_submap);
+  }
+
+  std::map<RawSubmapId, double> prior_coverage;
+  std::set<RawSubmapId> coverage_qualified;
+  const double minimum_coverage = std::clamp(
+    loop_config.consensus_min_coverage_ratio, 0.0, 1.0);
+  for (const auto & [submap_id, indices] : submap_indices) {
+    const double coverage = indices.empty() ? 0.0 :
+      static_cast<double>(prior_covered_keyframes[submap_id].size()) /
+      static_cast<double>(indices.size());
+    prior_coverage[submap_id] = coverage;
+    if (coverage + 1e-12 >= minimum_coverage) {
+      coverage_qualified.insert(submap_id);
+    }
+  }
+
+  std::set<RawSubmapId> visited;
+  std::set<RawSubmapId> consensus_submaps;
+  for (const auto & root : coverage_qualified) {
+    if (!visited.insert(root).second) {
+      continue;
+    }
+    std::set<RawSubmapId> component{root};
+    std::vector<RawSubmapId> pending{root};
+    while (!pending.empty()) {
+      const RawSubmapId current = pending.back();
+      pending.pop_back();
+      for (const auto & neighbor : prior_adjacency[current]) {
+        if (coverage_qualified.count(neighbor) == 0U ||
+          !visited.insert(neighbor).second)
+        {
+          continue;
+        }
+        component.insert(neighbor);
+        pending.push_back(neighbor);
+      }
+    }
+    if (component.size() < std::max<size_t>(3U, loop_config.consensus_min_segments)) {
+      continue;
+    }
+    double component_coverage = 1.0;
+    for (const auto & submap_id : component) {
+      component_coverage = std::min(component_coverage, prior_coverage[submap_id]);
+    }
+    result.problem.consensus_segments = std::max(
+      result.problem.consensus_segments, component.size());
+    result.problem.consensus_coverage_ratio = std::max(
+      result.problem.consensus_coverage_ratio, component_coverage);
+    consensus_submaps.insert(component.begin(), component.end());
+  }
+  if (!consensus_submaps.empty()) {
+    const double multiplier = std::max(
+      1.0, loop_config.consensus_prior_weight_multiplier);
+    for (auto & edge : result.problem.covisibility_edges) {
+      if (edge.kind != PoseGraphEdgeKind::PriorLoop || !edge.consensus_eligible) {
+        continue;
+      }
+      const RawSubmapId from_submap = SubmapOf(
+        result.problem.keyframes[edge.from_index].id);
+      const RawSubmapId to_submap = SubmapOf(
+        result.problem.keyframes[edge.to_index].id);
+      if (consensus_submaps.count(from_submap) != 0U &&
+        consensus_submaps.count(to_submap) != 0U)
+      {
+        edge.information_weight = std::clamp(
+          edge.information_weight * multiplier, 1.0, 60.0);
+      }
+    }
+
+    std::set<size_t> expanded_controls(
+      result.problem.control_indices.begin(), result.problem.control_indices.end());
+    for (const auto & submap_id : consensus_submaps) {
+      for (const size_t index : submap_indices[submap_id]) {
+        auto & keyframe = result.problem.keyframes[index];
+        keyframe.fixed = true;
+        keyframe.consensus_fixed = true;
+        keyframe.control = true;
+        expanded_controls.insert(index);
+      }
+    }
+    result.problem.control_indices.assign(
+      expanded_controls.begin(), expanded_controls.end());
+    result.problem.propagation_plan.erase(
+      std::remove_if(
+        result.problem.propagation_plan.begin(),
+        result.problem.propagation_plan.end(),
+        [&result](const PoseGraphPropagationEntry & entry) {
+          return result.problem.keyframes[entry.keyframe_index].consensus_fixed;
+        }),
+      result.problem.propagation_plan.end());
   }
 
   for (const auto & [geometry_index, selected_geometry] : selected_geometries) {
@@ -794,10 +1076,14 @@ PoseGraphBuildResult PoseGraphBuilder::BuildLoop(
     result.problem.loop_edges.push_back(std::move(loop_edge));
   }
   result.success = true;
-  result.reason = SameSubmap(
-    selected_geometries.front().second->query_keyframe_id,
-    selected_geometries.front().second->candidate_keyframe_id) ?
-    "covisible_intra_submap_loop_graph" : "covisible_multi_submap_loop_graph";
+  if (selected_geometries.empty()) {
+    result.reason = "confirmed_multi_submap_fiducial_graph";
+  } else {
+    result.reason = SameSubmap(
+      selected_geometries.front().second->query_keyframe_id,
+      selected_geometries.front().second->candidate_keyframe_id) ?
+      "covisible_intra_submap_loop_graph" : "covisible_multi_submap_loop_graph";
+  }
   return result;
 }
 

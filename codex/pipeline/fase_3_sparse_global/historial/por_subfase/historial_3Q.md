@@ -601,3 +601,139 @@
 - Conclusion: prueba 213 `A REVISAR DE NUEVO EN 3Q`. Reproducirla, correlacionar
   propuestas con la nube visible y distinguir falsos loops, mala ventana y
   rechazo excesivamente conservador antes de elegir una correccion.
+
+## 2026-08-26 - Prueba 218 - deadband de 2 cm incorrecta
+
+- objetivo intentado: validar la primera implementacion segmentada de 3Q con
+  trayectoria tipica y fiduciales reales;
+- resultado: 17/17 pasos y 22/22 goals, exit 0 y recursos estables;
+- evidencia: 14 resultados loop y cero commits; diez propuestas convergentes
+  rechazadas por `hard_corridor_displacement_exceeded`, dos por estructura
+  covisible y dos por intervalo pequeno;
+- diagnostico: la deadband absoluta convertia incorrectamente todos los KFs
+  intermedios en casi-hard;
+- conclusion: `NO CONSEGUIDA`; retirar 2 cm y proteger solo hard y revisitados.
+
+## 2026-08-26 - Prueba 219 - loops funcionales y revision visual
+
+- objetivo intentado: validar ventana segmentada comun, KFs internos movibles,
+  revisitados 5 m/20 grados y consenso temporal 3/60;
+- paquetes: builds correctos de `orbslam3_multi`, `orbslam3_server` y
+  `simulacion_dron`; CTest 9/9, 12/12 y 10/10;
+- prueba Gazebo: 17/17 pasos, 22/22 goals, exit 0, `success=true`, RViz2 activo,
+  `guard_triggered=false` y minimo disponible 4702.2 MiB;
+- reducciones: runner/goals, `F3Q-*`, backpressure/hard/revisitados,
+  `F3C-RAW-COMMIT`, anchors fiduciales y reanchor loop;
+- evidencia positiva: 30 solves terminados, 22 commits loop y cinco fusiones
+  post-opt. Sin rechazo por 2 cm, movimiento hard, violacion 5 m/20 grados,
+  `blocking_failure` ni fatal. Maximo revisitado 1.404495 m/0.181256 rad;
+- descartes: dos `loop_submap_interval_too_small`, dos
+  `relative_loop_not_improved`, dos `relative_loop_above_safe_threshold`, uno
+  `relative_graph_cost_increased` y uno
+  `native_covisibility_structure_degraded`;
+- anchors: ninguno por loop; cinco anchors fiduciales directos para `(2,0)`,
+  `(1,1)`, `(2,1)`, `(1,2)` y `(1,3)`;
+- revision visual: una esquina queda completamente corregida; ambas esquinas
+  derechas corrigen peor y otra mejora solo parcialmente. “Inferior izquierda”
+  aparece como totalmente corregida y como parcial; falta aclarar la segunda;
+- correlacion: `(2,1)`, `(1,2)` y `(1,3)` nacen en tramos derechos. Temporal no
+  cruza epochs; `(1,2)` no inicia solves y `(1,3)` solo completa uno. Esto
+  respalda, sin probar una causa unica, la hipotesis de menor conectividad;
+- evidencia negativa: `pending` alcanza 51 por reruns post-opt y queda un solve
+  activo al apagar;
+- conclusion: `PARCIAL`; los loops ya optimizan y mejoran el mapa, pero las
+  zonas multi-epoch y la carga de reruns no quedan cerradas.
+
+### Revision posterior - por que no hubo anchors loop
+
+- no es una nueva ejecucion ni un cambio de codigo;
+- un anchor loop solo se propone tras activar una constraint con apoyo
+  independiente y poder propagarla desde un submapa que ya tenga world;
+- `(1,1)` activo constraints con apoyo 2/2 y 3/2, pero ocurrio antes de que
+  `(2,0)` o `(1,1)` recibieran fiducial, por lo que la componente no tenia
+  autoridad world y termino `unanchored_constraint_activated`;
+- `(2,1)` y `(1,2)` tuvieron geometria rechazada durante sus breves ventanas
+  sin anchor y fueron anclados directamente por fiducial;
+- `(1,3)` permanecio mas tiempo sin anchor, pero la hipotesis riesgosa exigia
+  seis apoyos: alcanzo como maximo cuatro y quedo
+  `waiting_adaptive_independent_support` hasta el fiducial;
+- detalle de implementacion: `BuildAnchorCascade()` se ejecuta al activar una
+  constraint; la llegada posterior de un fiducial no relanza por si sola las
+  constraints antiguas. En 219 esto no cambio los cinco anchors finales, todos
+  fiduciales directos.
+
+## 2026-08-26 - Prueba 220 - cascada correcta y outlier aislado de pose
+
+- objetivo intentado: validar la mejora conservadora posterior a 219: cascada
+  de constraints al aparecer autoridad world y recuperacion tras perdida con
+  un loop solo dentro de continuidad estricta, conservando el resto de 3Q;
+- archivos modificados: `loop_pipeline`, `sparse_global_backend`, resultados
+  fiduciales, carga de parametros del servidor, ambas copias de
+  `loop_fusion.yaml`, tests y contrato 3Q;
+- builds: `orbslam3_multi`, `orbslam3_server` y `simulacion_dron` correctos;
+  CTest 9/9, 12/12 y 10/10;
+- prueba Gazebo: el primer Gazebo murio antes del escenario y el retry previsto
+  arranco correctamente. El intento valido completo 17/17 pasos, 22/22 goals,
+  `success=true`, exit 0, `guard_triggered=false` y 4443.3 MiB minimos;
+- evidencia funcional: el primer fiducial de `(1,0)` disparo
+  `[F3O-WORLD-CASCADE]` y anclo otro submapa de la componente sin esperar un
+  tercer loop. La recuperacion 1/1 no se uso incorrectamente: en `(1,2)` la
+  continuidad daba inicialmente unos 5.6 m frente al limite 0.5 m; tras superar
+  2 m de recorrido se aplico el fallback 6/6 y el anchor normal se comprometio
+  en `task=1000000005560`;
+- revision visual del usuario: resultado general excelente. Un unico movimiento
+  deterioro algo la esquina superior derecha mirando hacia `+Y`;
+- atribucion principal: `task=1000000005590`, creada por
+  `anchor_revision_changed` para el antiguo query `(1,2,191)`, fue la unica
+  optimizacion loop de 220 que salto de ventanas normales de 49-75 KFs a tres
+  submapas, 296 KFs y 277 KFs movidos;
+- inconsistencia que la activo: tres candidatos consecutivos `65/66/67`
+  confirmaron RANSAC. Las constraints con 65 y 67 ya daban error world
+  practicamente cero, pero la de 66 daba `1.0118 m/0.1290 rad`. Esto demuestra
+  un residual relativo aislado, no que la pose absoluta del 66 fuese por si sola
+  la incorrecta: tambien puede proceder de la medida de esa region o de una
+  deformacion repartida. La seleccion incorporo las tres regiones como
+  `CurrentLoop` porque eran compatibles con la misma hipotesis y no eran
+  fusionables; no exige que cada region seleccionada aporte error alto ni
+  contrasta el residual aislado con sus vecinos;
+- efecto: el solve redujo el coste `20247.82 -> 71.47` y el error maximo a
+  `0.05194 m/0.00747 rad`, pero distribuyo la correccion por 296 KFs. Permitio
+  hasta `0.28883 m/0.04129 rad` de incremento estructural y reajusto KFs ya
+  optimizados hasta `0.32602 m/0.05414 rad`;
+- por que se acepto: esos valores quedan ampliamente dentro de los limites
+  vigentes de estructura (`2 m` temporal, `1 m` covisible) y revisitados
+  (`5 m/20 grados`). El validator comprueba maximos individuales, no detecta el
+  patron espacial "un KF discrepa y sus dos vecinos ya coinciden";
+- la fusion posterior quedo stale por
+  `fusion_dependencies_changed_before_commit`, pero esto no revierte el commit
+  de poses ya valido. El commit reencolo 277 KFs, agrupados en 255 regiones;
+- contraste fiducial: `task=6` tambien fue grande, pero respondio a un error
+  absoluto real de `(1,0)` en fiducial 1 (`1.183 m`) mientras `(2,0)` ya habia
+  promovido un control coherente en ese fiducial (`0.115 m`). Fijo el target a
+  cero y no presenta la firma aislada 0/1 m/0. Las tareas finales 9 y 11
+  corrigieron errores absolutos de 0.419 y 0.412 m. No son la causa principal
+  indicada por la evidencia, aunque la telemetria 220 no conserva la lista de
+  KFs movidos por submapa para demostrar la atribucion espacial al 100 %;
+- conclusion revisada por decision del usuario: `A REVISAR`. El resultado
+  visual global de 220 es excelente y se acepta continuar sin otra correccion.
+  Si el movimiento incoherente vuelve a aparecer, 3Q se reabrira desde
+  `1000000005590`; no se atribuye a cascada ni recuperacion de un loop;
+- interpretacion conversada posterior: si las tres transformaciones RANSAC son
+  mutuamente coherentes, las tres deben permanecer como `CurrentLoop` con
+  objetivo cero. Query-65/query-67 ya satisfechas deben seguir tirando para no
+  separarse, query-66 solicita la correccion y toda la ventana reparte el
+  movimiento segun hard, estructura y autoridad. No se fija ningun extremo ni
+  se convierte la pose inicial del 66 en destino absoluto;
+- auditoria del contrato exacto: el builder ya crea una `CurrentLoop` por cada
+  region seleccionada y el criterio de convergencia del solver combina con AND
+  que todas queden bajo `0.05 m/0.03 rad`. El hueco esta en la terminacion y
+  validacion: tras 160 iteraciones se devuelve `Converged` aunque no se haya
+  alcanzado ese objetivo; el validator solo exige a cada loop el commit seguro
+  `0.25 m/0.15 rad` y usa mejora OR entre loops. Por ello una relation que
+  partia de cero puede empeorar si otra mejora, y aun aceptarse;
+- siguiente paso recomendado: conservar las tres como `CurrentLoop`, hacer
+  observable el error inicial/final individual y exigir que cada una alcance
+  convergencia practica o, si ya estaba satisfecha, no empeore fuera de una
+  histeresis minima. Mantener la ventana completa y endurecer la degradacion
+  estructural local que en 220 alcanzo 0.289 m. No cambiar runtime sin nueva
+  preparacion/autorizacion.

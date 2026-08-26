@@ -173,6 +173,72 @@ TEST(FiducialOptimization, StrongCovisibilityPromotesAndConstrainsControls)
   EXPECT_NEAR(proposal.final_error.translation_m, 0.0, 1e-9);
 }
 
+TEST(FiducialOptimization, ExpandedGraphFollowsOnlyIncidentServerEdge)
+{
+  std::map<orbslam3_multi::RawSubmapId,
+    orbslam3_multi::RawSubmapPoseSnapshot> snapshots;
+  std::map<orbslam3_multi::RawKeyFrameId,
+    orbslam3_multi::GlobalPoseRecord> poses;
+  for (uint32_t drone = 1; drone <= 2; ++drone) {
+    orbslam3_multi::RawSubmapPoseSnapshot snapshot;
+    snapshot.submap_id = {drone, 3};
+    snapshot.submap_revision = drone;
+    for (uint64_t id = 0; id < 6; ++id) {
+      orbslam3_multi::RawKeyFramePoseInput raw;
+      raw.id = {drone, 3, id};
+      raw.raw_revision = id + 1;
+      raw.local_pose = MakePose(static_cast<double>(id));
+      snapshot.keyframes.push_back(raw);
+
+      orbslam3_multi::GlobalPoseRecord pose;
+      pose.keyframe_id = raw.id;
+      pose.world_pose = MakePose(static_cast<double>(id), 2.0 * (drone - 1U));
+      pose.raw_world_pose = pose.world_pose;
+      pose.pose_revision = id + 1;
+      pose.active = true;
+      pose.hard_fiducial = id == 0;
+      poses[raw.id] = pose;
+    }
+    snapshots[snapshot.submap_id] = snapshot;
+  }
+
+  orbslam3_multi::CovisibilityDatabase covisibility;
+  orbslam3_multi::CovisibilityPatch patch;
+  orbslam3_multi::CovisibilityEdge edge;
+  edge.kf_a = {1, 3, 2};
+  edge.kf_b = {2, 3, 3};
+  edge.source = orbslam3_multi::CovisibilityEdgeSource::ServerLoopGeometric;
+  edge.support = 24;
+  edge.information_weight = 18.0;
+  edge.relative_pose_measured = MakePose(1.0, 2.0);
+  patch.upserts.push_back(edge);
+  ASSERT_TRUE(covisibility.ApplyPatch(patch).committed);
+
+  orbslam3_multi::FiducialOptimizationTask task;
+  task.task_id = 45;
+  task.submap_id = {1, 3};
+  task.control_keyframe_id = {1, 3, 0};
+  task.keyframe_id = {1, 3, 4};
+  task.target_world_T_kf = MakePose(4.0, 1.0);
+
+  orbslam3_multi::PoseGraphBuilder builder;
+  orbslam3_multi::LoopPipelineConfig loop_config;
+  const auto graph = builder.BuildExpandedFiducial(
+    task, snapshots, poses, 12, covisibility, loop_config);
+  ASSERT_TRUE(graph.success) << graph.reason;
+  EXPECT_EQ(graph.problem.kind, orbslam3_multi::PoseGraphProblemKind::FiducialAbsolute);
+  EXPECT_EQ(graph.problem.submap_windows.size(), 2U);
+  EXPECT_TRUE(graph.problem.loop_edges.empty());
+  EXPECT_TRUE(std::any_of(
+    graph.problem.covisibility_edges.begin(),
+    graph.problem.covisibility_edges.end(),
+    [](const auto & graph_edge) {
+      return graph_edge.kind == orbslam3_multi::PoseGraphEdgeKind::PriorLoop &&
+             graph_edge.supporting_keyframes == 24U &&
+             std::abs(graph_edge.information_weight - 18.0) < 1e-9;
+    }));
+}
+
 TEST(FiducialOptimization, SafePartialProposalRequestsAnotherPass)
 {
   Fixture fixture;
@@ -221,7 +287,7 @@ TEST(LoopOptimization, BuildsAndSolvesJointCovisibleRelativeGraph)
       pose.raw_world_pose = pose.world_pose;
       pose.pose_revision = id + 1;
       pose.active = true;
-      pose.hard_fiducial = id == 0;
+      pose.hard_fiducial = id == 0 || id == 4;
       poses[raw.id] = pose;
     }
     snapshots[snapshot.submap_id] = snapshot;
@@ -247,8 +313,8 @@ TEST(LoopOptimization, BuildsAndSolvesJointCovisibleRelativeGraph)
   orbslam3_multi::CovisibilityDatabase covisibility;
   orbslam3_multi::CovisibilityPatch patch;
   orbslam3_multi::CovisibilityEdge edge;
-  edge.kf_a = {1, 1, 3};
-  edge.kf_b = {2, 1, 3};
+  edge.kf_a = {1, 1, 5};
+  edge.kf_b = {2, 1, 5};
   edge.source = orbslam3_multi::CovisibilityEdgeSource::ServerLoopGeometric;
   edge.support = 20;
   edge.information_weight = 4.0;
@@ -263,6 +329,12 @@ TEST(LoopOptimization, BuildsAndSolvesJointCovisibleRelativeGraph)
     computation, snapshots, poses, 50, covisibility, loop_config);
   ASSERT_TRUE(graph.success) << graph.reason;
   EXPECT_EQ(graph.problem.submap_windows.size(), 2U);
+  EXPECT_EQ(graph.problem.keyframes.size(), 8U);
+  for (const auto & window : graph.problem.submap_windows) {
+    ASSERT_EQ(window.raw_intervals.size(), 1U);
+    EXPECT_EQ(window.raw_intervals.front().first_keyframe_id.local_kf_id, 4U);
+    EXPECT_EQ(window.raw_intervals.front().last_keyframe_id.local_kf_id, 7U);
+  }
   EXPECT_EQ(graph.problem.loop_edges.size(), 1U);
   EXPECT_GE(graph.problem.covisibility_edges.size(), 1U);
 
@@ -466,7 +538,7 @@ TEST(LoopOptimization, RejectsConstraintThatCannotMoveHardEndpoints)
   orbslam3_multi::OptimizationValidator validator;
   const auto validation = validator.Validate(problem, proposal);
   EXPECT_EQ(validation.decision, orbslam3_multi::ValidationDecision::HardFailure);
-  EXPECT_EQ(validation.reason, "relative_loop_still_above_threshold");
+  EXPECT_EQ(validation.reason, "relative_loop_above_safe_threshold");
 }
 
 TEST(LoopOptimization, IncludesSoftAuthorityBetweenHardFiducials)
@@ -587,6 +659,89 @@ TEST(LoopOptimization, RejectsLocallyGoodLoopThatBreaksPriorFusion)
   EXPECT_EQ(validation.structural_edges_checked, 1U);
 }
 
+TEST(LoopOptimization, MajorityConsensusTemporarilyFixesThreeSupportSegments)
+{
+  std::map<orbslam3_multi::RawSubmapId,
+    orbslam3_multi::RawSubmapPoseSnapshot> snapshots;
+  std::map<orbslam3_multi::RawKeyFrameId,
+    orbslam3_multi::GlobalPoseRecord> poses;
+  for (uint32_t drone = 1; drone <= 4; ++drone) {
+    orbslam3_multi::RawSubmapPoseSnapshot snapshot;
+    snapshot.submap_id = {drone, 5};
+    snapshot.submap_revision = drone;
+    for (uint64_t id = 0; id < 5; ++id) {
+      orbslam3_multi::RawKeyFramePoseInput raw;
+      raw.id = {drone, 5, id};
+      raw.raw_revision = id + 1;
+      raw.local_pose = MakePose(static_cast<double>(id));
+      snapshot.keyframes.push_back(raw);
+
+      orbslam3_multi::GlobalPoseRecord pose;
+      pose.keyframe_id = raw.id;
+      pose.world_pose = MakePose(static_cast<double>(id), 2.0 * (drone - 1U));
+      pose.raw_world_pose = pose.world_pose;
+      pose.pose_revision = id + 1;
+      pose.active = true;
+      pose.hard_fiducial = id == 0;
+      poses[raw.id] = pose;
+    }
+    snapshots[snapshot.submap_id] = snapshot;
+  }
+
+  orbslam3_multi::CovisibilityPatch patch;
+  for (uint64_t id = 1; id <= 3; ++id) {
+    for (uint32_t first_drone = 2; first_drone <= 3; ++first_drone) {
+      orbslam3_multi::CovisibilityEdge edge;
+      edge.kf_a = {first_drone, 5, id};
+      edge.kf_b = {first_drone + 1U, 5, id};
+      edge.source = orbslam3_multi::CovisibilityEdgeSource::ServerLoopGeometric;
+      edge.support = 20;
+      edge.information_weight = 10.0;
+      edge.relative_pose_measured = MakePose(0.0, 2.0);
+      patch.upserts.push_back(edge);
+    }
+  }
+  orbslam3_multi::CovisibilityDatabase covisibility;
+  ASSERT_TRUE(covisibility.ApplyPatch(patch).committed);
+
+  orbslam3_multi::LoopTaskComputation computation;
+  computation.task.task_id = 93;
+  orbslam3_multi::LoopGeometryResult geometry;
+  geometry.query_keyframe_id = {1, 5, 4};
+  geometry.candidate_keyframe_id = {2, 5, 4};
+  geometry.query_submap_id = {1, 5};
+  geometry.candidate_submap_id = {2, 5};
+  geometry.accepted = true;
+  geometry.inliers = 30;
+  geometry.matches = 40;
+  geometry.candidate_local_T_query_local = Eigen::Isometry3d::Identity();
+  computation.geometry_results.push_back(geometry);
+
+  orbslam3_multi::LoopPipelineConfig config;
+  orbslam3_multi::PoseGraphBuilder builder;
+  const auto graph = builder.BuildLoop(
+    computation, snapshots, poses, 30, covisibility, config);
+  ASSERT_TRUE(graph.success) << graph.reason;
+  EXPECT_EQ(graph.problem.consensus_segments, 3U);
+  EXPECT_NEAR(graph.problem.consensus_coverage_ratio, 0.60, 1e-9);
+  EXPECT_TRUE(std::all_of(
+    graph.problem.keyframes.begin(), graph.problem.keyframes.end(),
+    [](const auto & keyframe) {
+      if (keyframe.id.drone_id == 1U) {
+        return keyframe.fixed == (keyframe.id.local_kf_id == 0U) &&
+               !keyframe.consensus_fixed;
+      }
+      return keyframe.fixed && keyframe.consensus_fixed;
+    }));
+  EXPECT_TRUE(std::all_of(
+    graph.problem.covisibility_edges.begin(),
+    graph.problem.covisibility_edges.end(),
+    [](const auto & edge) {
+      return edge.kind != orbslam3_multi::PoseGraphEdgeKind::PriorLoop ||
+             std::abs(edge.information_weight - 20.0) < 1e-9;
+    }));
+}
+
 TEST(LoopOptimization, AllowsRigidSoftMotionThatPreservesPriorFusion)
 {
   orbslam3_multi::PoseGraphProblem problem;
@@ -624,22 +779,15 @@ TEST(LoopOptimization, AllowsRigidSoftMotionThatPreservesPriorFusion)
   EXPECT_EQ(validation.decision, orbslam3_multi::ValidationDecision::AcceptFull);
 }
 
-TEST(LoopOptimization, RejectsHardCorridorDisplacement)
+TEST(LoopOptimization, AllowsUnoptimizedIntermediateMovementBeyondTwoCentimeters)
 {
   orbslam3_multi::PoseGraphProblem problem;
   problem.kind = orbslam3_multi::PoseGraphProblemKind::LoopRelative;
-  problem.loop_translation_threshold_m = 0.35;
-  problem.loop_rotation_threshold_rad = 0.25;
-  problem.hard_corridor_max_translation_m = 5.0;
-  problem.hard_corridor_max_rotation_rad = 0.3490658503988659;
   for (uint64_t id = 0; id < 2; ++id) {
     orbslam3_multi::PoseGraphKeyFrame keyframe;
     keyframe.id = {1, 0, id};
     keyframe.current_world_pose = MakePose(static_cast<double>(id));
     keyframe.control = true;
-    keyframe.hard_corridor = true;
-    keyframe.hard_corridor_reference_pose = keyframe.current_world_pose;
-    keyframe.hard_corridor_alpha = 0.5;
     problem.control_indices.push_back(problem.keyframes.size());
     problem.keyframes.push_back(keyframe);
   }
@@ -647,47 +795,8 @@ TEST(LoopOptimization, RejectsHardCorridorDisplacement)
   orbslam3_multi::OptimizationProposal proposal;
   proposal.status = orbslam3_multi::OptimizationSolverStatus::Converged;
   proposal.controls = {
-    {problem.keyframes[0].id, MakePose(6.0)},
-    {problem.keyframes[1].id, MakePose(7.0)}};
-  proposal.keyframes = proposal.controls;
-  proposal.initial_loop_errors.push_back({2.0, 0.5, 0.5});
-  proposal.final_loop_errors.push_back({0.10, 0.05, 0.05});
-  proposal.initial_cost = 10.0;
-  proposal.final_cost = 1.0;
-
-  orbslam3_multi::OptimizationValidator validator;
-  const auto validation = validator.Validate(problem, proposal);
-  EXPECT_EQ(validation.decision, orbslam3_multi::ValidationDecision::HardFailure);
-  EXPECT_EQ(validation.reason, "hard_corridor_displacement_exceeded");
-  EXPECT_EQ(validation.hard_corridor_keyframes_checked, 1U);
-}
-
-TEST(LoopOptimization, AllowsImprovementOfPreexistingCorridorExcess)
-{
-  orbslam3_multi::PoseGraphProblem problem;
-  problem.kind = orbslam3_multi::PoseGraphProblemKind::LoopRelative;
-  problem.loop_translation_threshold_m = 0.35;
-  problem.loop_rotation_threshold_rad = 0.25;
-  problem.hard_corridor_max_translation_m = 5.0;
-  problem.hard_corridor_max_rotation_rad = 0.3490658503988659;
-  for (uint64_t id = 0; id < 2; ++id) {
-    orbslam3_multi::PoseGraphKeyFrame keyframe;
-    keyframe.id = {1, 0, id};
-    keyframe.current_world_pose = MakePose(6.0 + static_cast<double>(id));
-    keyframe.control = true;
-    keyframe.hard_corridor = true;
-    keyframe.hard_corridor_reference_pose = MakePose(static_cast<double>(id));
-    keyframe.hard_corridor_alpha = 0.5;
-    problem.control_indices.push_back(problem.keyframes.size());
-    problem.keyframes.push_back(keyframe);
-  }
-  AddCurrentLoopEdge(problem);
-
-  orbslam3_multi::OptimizationProposal proposal;
-  proposal.status = orbslam3_multi::OptimizationSolverStatus::Converged;
-  proposal.controls = {
-    {problem.keyframes[0].id, MakePose(5.5)},
-    {problem.keyframes[1].id, MakePose(6.5)}};
+    {problem.keyframes[0].id, MakePose(0.50)},
+    {problem.keyframes[1].id, MakePose(1.50)}};
   proposal.keyframes = proposal.controls;
   proposal.initial_loop_errors.push_back({2.0, 0.5, 0.5});
   proposal.final_loop_errors.push_back({0.10, 0.05, 0.05});
@@ -697,8 +806,103 @@ TEST(LoopOptimization, AllowsImprovementOfPreexistingCorridorExcess)
   orbslam3_multi::OptimizationValidator validator;
   const auto validation = validator.Validate(problem, proposal);
   EXPECT_EQ(validation.decision, orbslam3_multi::ValidationDecision::AcceptFull);
-  EXPECT_NEAR(validation.max_corridor_translation_excess_before_m, 1.0, 1e-9);
-  EXPECT_NEAR(validation.max_corridor_translation_excess_after_m, 0.5, 1e-9);
+  EXPECT_EQ(validation.optimized_keyframes_checked, 0U);
+}
+
+TEST(LoopOptimization, AllowsPreviouslyOptimizedAdjustmentInsideRevisitLimit)
+{
+  orbslam3_multi::PoseGraphProblem problem;
+  problem.kind = orbslam3_multi::PoseGraphProblemKind::LoopRelative;
+  for (uint64_t id = 0; id < 2; ++id) {
+    orbslam3_multi::PoseGraphKeyFrame keyframe;
+    keyframe.id = {1, 0, id};
+    keyframe.current_world_pose = MakePose(static_cast<double>(id));
+    keyframe.control = true;
+    keyframe.previously_optimized = true;
+    problem.control_indices.push_back(problem.keyframes.size());
+    problem.keyframes.push_back(keyframe);
+  }
+  AddCurrentLoopEdge(problem);
+
+  orbslam3_multi::OptimizationProposal proposal;
+  proposal.status = orbslam3_multi::OptimizationSolverStatus::Converged;
+  proposal.controls = {
+    {problem.keyframes[0].id, MakePose(4.9, 0.0, 0.30)},
+    {problem.keyframes[1].id, MakePose(5.9, 0.0, 0.30)}};
+  proposal.keyframes = proposal.controls;
+  proposal.initial_loop_errors.push_back({2.0, 0.5, 0.5});
+  proposal.final_loop_errors.push_back({0.10, 0.05, 0.05});
+  proposal.initial_cost = 10.0;
+  proposal.final_cost = 1.0;
+
+  orbslam3_multi::OptimizationValidator validator;
+  const auto validation = validator.Validate(problem, proposal);
+  EXPECT_EQ(validation.decision, orbslam3_multi::ValidationDecision::AcceptFull);
+  EXPECT_EQ(validation.optimized_keyframes_checked, 2U);
+  EXPECT_NEAR(validation.max_optimized_translation_change_m, 4.9, 1e-9);
+  EXPECT_NEAR(validation.max_optimized_rotation_change_rad, 0.30, 1e-9);
+}
+
+TEST(LoopOptimization, RejectsPreviouslyOptimizedTranslationBeyondFiveMeters)
+{
+  orbslam3_multi::PoseGraphProblem problem;
+  problem.kind = orbslam3_multi::PoseGraphProblemKind::LoopRelative;
+  for (uint64_t id = 0; id < 2; ++id) {
+    orbslam3_multi::PoseGraphKeyFrame keyframe;
+    keyframe.id = {1, 0, id};
+    keyframe.current_world_pose = MakePose(static_cast<double>(id));
+    keyframe.control = true;
+    keyframe.previously_optimized = true;
+    problem.control_indices.push_back(problem.keyframes.size());
+    problem.keyframes.push_back(keyframe);
+  }
+  AddCurrentLoopEdge(problem);
+  orbslam3_multi::OptimizationProposal proposal;
+  proposal.status = orbslam3_multi::OptimizationSolverStatus::Converged;
+  proposal.controls = {
+    {problem.keyframes[0].id, MakePose(5.01)},
+    {problem.keyframes[1].id, MakePose(6.01)}};
+  proposal.keyframes = proposal.controls;
+  proposal.initial_loop_errors.push_back({1.0, 0.2, 0.2});
+  proposal.final_loop_errors.push_back({0.10, 0.05, 0.05});
+  proposal.initial_cost = 10.0;
+  proposal.final_cost = 1.0;
+
+  orbslam3_multi::OptimizationValidator validator;
+  const auto validation = validator.Validate(problem, proposal);
+  EXPECT_EQ(validation.decision, orbslam3_multi::ValidationDecision::HardFailure);
+  EXPECT_EQ(validation.reason, "optimized_keyframe_revisit_limit_exceeded");
+}
+
+TEST(LoopOptimization, RejectsPreviouslyOptimizedRotationBeyondTwentyDegrees)
+{
+  orbslam3_multi::PoseGraphProblem problem;
+  problem.kind = orbslam3_multi::PoseGraphProblemKind::LoopRelative;
+  for (uint64_t id = 0; id < 2; ++id) {
+    orbslam3_multi::PoseGraphKeyFrame keyframe;
+    keyframe.id = {1, 0, id};
+    keyframe.current_world_pose = MakePose(static_cast<double>(id));
+    keyframe.control = true;
+    keyframe.previously_optimized = true;
+    problem.control_indices.push_back(problem.keyframes.size());
+    problem.keyframes.push_back(keyframe);
+  }
+  AddCurrentLoopEdge(problem);
+  orbslam3_multi::OptimizationProposal proposal;
+  proposal.status = orbslam3_multi::OptimizationSolverStatus::Converged;
+  proposal.controls = {
+    {problem.keyframes[0].id, MakePose(0.0, 0.0, 0.36)},
+    {problem.keyframes[1].id, MakePose(1.0, 0.0, 0.36)}};
+  proposal.keyframes = proposal.controls;
+  proposal.initial_loop_errors.push_back({1.0, 0.2, 0.2});
+  proposal.final_loop_errors.push_back({0.10, 0.05, 0.05});
+  proposal.initial_cost = 10.0;
+  proposal.final_cost = 1.0;
+
+  orbslam3_multi::OptimizationValidator validator;
+  const auto validation = validator.Validate(problem, proposal);
+  EXPECT_EQ(validation.decision, orbslam3_multi::ValidationDecision::HardFailure);
+  EXPECT_EQ(validation.reason, "optimized_keyframe_revisit_limit_exceeded");
 }
 
 }  // namespace

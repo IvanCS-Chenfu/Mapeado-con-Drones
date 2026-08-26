@@ -44,6 +44,11 @@ despliegue: ejecutar simulación usa estos valores; ejecutar directamente el
 servidor usa su propia copia. En la etapa actual ambas copias deben ser
 idénticas y `test_global_map_config.py` lo comprueba automáticamente.
 
+`loop_fusion.yaml` incluye los cuatro parametros
+`loop_recent_loss_single_recovery_*`. El perfil de simulacion coincide con el
+canonico: recuperacion 1/1 habilitada, `0.50 m`, `0.15 rad` y recorrido maximo
+`2.0 m`; fuera de esa continuidad se aplica el apoyo adaptativo 2/4/6.
+
 Perfil `config/debug.yaml` y argumentos homonimos:
 
 ```text

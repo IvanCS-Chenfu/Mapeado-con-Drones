@@ -67,7 +67,8 @@ ValidationResult OptimizationValidator::Validate(
     if (keyframe.fixed && !PosesNear(
         found->second, keyframe.current_world_pose, 1e-8, 1e-8))
     {
-      result.reason = "hard_control_moved";
+      result.reason = keyframe.consensus_fixed ?
+        "consensus_control_moved" : "hard_control_moved";
       return result;
     }
   }
@@ -79,14 +80,18 @@ ValidationResult OptimizationValidator::Validate(
       result.reason = "relative_loop_error_coverage_mismatch";
       return result;
     }
-    bool within_threshold = true;
+    bool within_fusion_threshold = true;
+    bool within_safe_threshold = true;
     bool improved = false;
     for (size_t index = 0; index < proposal.final_loop_errors.size(); ++index) {
       const auto & initial = proposal.initial_loop_errors[index];
       const auto & final = proposal.final_loop_errors[index];
-      within_threshold = within_threshold &&
+      within_fusion_threshold = within_fusion_threshold &&
         final.translation_m <= problem.loop_translation_threshold_m &&
         final.rotation_rad <= problem.loop_rotation_threshold_rad;
+      within_safe_threshold = within_safe_threshold &&
+        final.translation_m <= problem.loop_safe_correction_translation_m &&
+        final.rotation_rad <= problem.loop_safe_correction_rotation_rad;
       improved = improved || final.translation_m + 1e-9 < initial.translation_m ||
         final.rotation_rad + 1e-9 < initial.rotation_rad;
     }
@@ -131,56 +136,38 @@ ValidationResult OptimizationValidator::Validate(
       proposed_keyframes[keyframe.id] = keyframe.world_pose;
     }
     for (const auto & keyframe : problem.keyframes) {
-      if (!keyframe.hard_corridor) {
+      if (!keyframe.previously_optimized) {
         continue;
       }
-      ++result.hard_corridor_keyframes_checked;
+      ++result.optimized_keyframes_checked;
       const auto found = proposed_keyframes.find(keyframe.id);
       if (found == proposed_keyframes.end()) {
-        result.reason = "hard_corridor_pose_missing";
+        result.reason = "optimized_keyframe_pose_missing";
         return result;
       }
-      const auto initial_error = ComputeFiducialError(
-        keyframe.current_world_pose, keyframe.hard_corridor_reference_pose);
-      const auto final_error = ComputeFiducialError(
-        found->second, keyframe.hard_corridor_reference_pose);
-      const double shape = std::clamp(
-        4.0 * keyframe.hard_corridor_alpha *
-        (1.0 - keyframe.hard_corridor_alpha), 0.0, 1.0);
-      const double translation_limit = keyframe.fixed ? 1e-8 :
-        std::max(0.05, shape * problem.hard_corridor_max_translation_m);
-      const double rotation_limit = keyframe.fixed ? 1e-8 :
-        std::max(0.01, shape * problem.hard_corridor_max_rotation_rad);
-      const double initial_translation_excess = std::max(
-        0.0, initial_error.translation_m - translation_limit);
-      const double final_translation_excess = std::max(
-        0.0, final_error.translation_m - translation_limit);
-      const double initial_rotation_excess = std::max(
-        0.0, initial_error.rotation_rad - rotation_limit);
-      const double final_rotation_excess = std::max(
-        0.0, final_error.rotation_rad - rotation_limit);
-      result.max_corridor_translation_excess_before_m = std::max(
-        result.max_corridor_translation_excess_before_m, initial_translation_excess);
-      result.max_corridor_translation_excess_after_m = std::max(
-        result.max_corridor_translation_excess_after_m, final_translation_excess);
-      result.max_corridor_rotation_excess_before_rad = std::max(
-        result.max_corridor_rotation_excess_before_rad, initial_rotation_excess);
-      result.max_corridor_rotation_excess_after_rad = std::max(
-        result.max_corridor_rotation_excess_after_rad, final_rotation_excess);
-      if (final_translation_excess > initial_translation_excess + 1e-8 ||
-        final_rotation_excess > initial_rotation_excess + 1e-8)
+      const auto change = ComputeFiducialError(
+        found->second, keyframe.current_world_pose);
+      result.max_optimized_translation_change_m = std::max(
+        result.max_optimized_translation_change_m, change.translation_m);
+      result.max_optimized_rotation_change_rad = std::max(
+        result.max_optimized_rotation_change_rad, change.rotation_rad);
+      if (change.translation_m > problem.optimized_keyframe_max_translation_m ||
+        change.rotation_rad > problem.optimized_keyframe_max_rotation_rad)
       {
-        result.reason = "hard_corridor_displacement_exceeded";
+        result.reason = "optimized_keyframe_revisit_limit_exceeded";
         return result;
       }
     }
 
-    if (within_threshold && improved && cost_improved) {
+    result.fusion_compatible = within_fusion_threshold;
+    if (within_safe_threshold && improved && cost_improved) {
       result.decision = ValidationDecision::AcceptFull;
-      result.reason = "relative_loop_within_fusion_threshold";
+      result.reason = within_fusion_threshold ?
+        "relative_loop_within_fusion_threshold" :
+        "relative_loop_safe_commit_without_fusion";
       return result;
     }
-    result.reason = !within_threshold ? "relative_loop_still_above_threshold" :
+    result.reason = !within_safe_threshold ? "relative_loop_above_safe_threshold" :
       (!improved ? "relative_loop_not_improved" : "relative_graph_cost_increased");
     return result;
   }

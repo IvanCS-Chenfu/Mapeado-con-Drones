@@ -2,36 +2,34 @@
 
 ## Objetivo
 
-Implementar y validar 4G+4H: interpretar objetos fiduciales visuales, entregar
-el primary al manager existente y eliminar por completo la ruta GT fiducial.
+Validar la mejora conservadora 3Q posterior a 219: cascada al aparecer world y
+recuperacion reciente 1/1 estricta, sin alterar el solver ni los fiduciales.
 
-## Resultado
+## Cambios
 
-Se incorpora `FiducialObjectInterpreter` con carga `yaml-cpp`, rango por tag,
-fusion robusta, primary determinista, visitas por intervalos y FIFO 50. El
-handoff conserva KF/arrival exactos y usa `source=visual_fiducial`.
+- cascada de constraints activas tras fiducial directo u optimizado;
+- anchor 1/1 provisional solo dentro de `0.50 m/0.15 rad` y recorrido `2 m`;
+- fuera de esa banda se conserva el apoyo adaptativo 2/4/6;
+- YAML, telemetria y regresiones sincronizados en los tres paquetes.
 
-Se eliminaron subscription, buffer, conversion body-camera, parametros, replay
-y arista GT fiducial. El GT de control/Fase 5 no se modifico.
+## Validacion
 
-Builds de `orbslam3_multi`, `orbslam3_server` y `simulacion_dron` correctos.
-CTest final: 150 tests de Servidor y 85 de Simulacion sin fallos. La prueba 216
-completa la trayectoria sin GT con 52/52 primary y los tres objetos. El smoke
-217 valida ambos grafos live. Guardas 15/15.
+Builds correctos y CTest 9/9, 12/12 y 10/10. La prueba 220 completa 17/17
+pasos y 22/22 goals con exit 0. La cascada world funciona y la continuidad
+estricta evita un anchor 1/1 incorrecto; `(1,2)` se ancla despues por 6/6.
 
-## Cierre de Fase 4
+El usuario considera el resultado general excelente, con un unico movimiento
+incorrecto en la esquina superior derecha. El diagnostico apunta con alta
+confianza a `task=1000000005590`: constraints consecutivas con error world
+`0/1.012/0 m` se seleccionaron juntas y movieron 277 KFs de una ventana de 296.
+Los limites estructurales vigentes permitieron 0.289 m de deterioro relativo.
 
-El usuario da por concluida la Fase 4 completa con alcance 4A-4H. 4I queda
-aplazada como regresion opcional futura con perfil ESP32-CAM y no condiciona
-el cierre.
+## Punto de entrada
 
-`loop_submap_window_too_small` observado ante algunas derivas pertenece al
-backend existente y debe revisarse en su fase, sin reabrir la interpretacion
-fiducial.
-
-## Punto de entrada actual
-
-El usuario fija 3Q como subfase actual antes de continuar a Fase 5. Deben
-diagnosticarse las derivas visibles y los nueve rechazos loop tardios de la
-prueba 213. La preparacion 3Q no se ha iniciado y no existe autorizacion
-funcional para modificar el backend ni ejecutar una nueva prueba.
+3Q queda `A REVISAR` por decision del usuario. Las tres relaciones ya entran
+como `CurrentLoop` y deben seguir haciendolo. No se aplica otra correccion ahora:
+si el fallo reaparece, revisar que 160 iteraciones no se declaren convergentes
+sin objetivo, comprobar mejora/no degradacion por loop y limitar deterioro
+estructural local. No se asume que el candidate central sea la unica pose
+incorrecta.
+No modificar cascada, recuperacion 1/1, solver, fiduciales ni umbrales globales.

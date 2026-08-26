@@ -1,6 +1,6 @@
 # 00 - Contexto de compactacion
 
-## Checkpoint vigente 2026-08-25
+## Checkpoint vigente 2026-08-26
 
 ```text
 Estado: Fase 4 CONSEGUIDA Y CERRADA con alcance 4A-4H; Fase 3 reabierta en 3Q.
@@ -17,15 +17,707 @@ Decision de cierre: el usuario aplaza 4I como regresion opcional futura; no
 condiciona ni reabre el cierre de Fase 4.
 Subfase actual: 3Q, para diagnosticar y corregir las optimizaciones que dejaron
 derivas visibles en la prueba 213.
-Preparacion 3Q: NO_INICIADA
-Acuerdo cerrado 3Q: no
-Autorizacion funcional 3Q: PENDIENTE
-Prueba acordada 3Q: pendiente de preparacion conversada
-Dudas abiertas 3Q: causa exacta de los rechazos tardios, seleccion ambigua,
-tamano de ventana y posible sobrerigidez del validator de corredor.
-Trabajo activo: no; solo queda fijado el nuevo punto de entrada.
-Siguiente accion exacta: preparar 3Q con el usuario antes de modificar codigo o
-ejecutar pruebas. Este retorno no reabre 4G+4H ni Fase 4.
+Preparacion 3Q: CERRADA
+Acuerdo cerrado 3Q: si
+Autorizacion funcional 3Q: CONCEDIDA el 2026-08-26
+Prueba acordada 3Q: regresiones deterministas de los casos 194 y 213, tests y
+builds seleccionados de `orbslam3_multi`, `orbslam3_server` y
+`simulacion_dron`, y repeticion de la trayectoria tipica equivalente a la 213
+con Gazebo, RViz2 y logs F3Q; la revision visual final corresponde al usuario.
+Dudas abiertas 3Q: ninguna.
+Clarificacion conversada 3Q: los fiduciales hard no se mueven; el corredor
+hard-hard conserva para cada KF entre el primer y ultimo hard una pose world de
+referencia y una tolerancia local modulada por su posicion en el tramo. El
+validador actual rechaza si el exceso final sobre esa tolerancia supera al
+exceso inicial en mas de `1e-8`, por lo que un exceso nuevo de `0.000416 m`
+cancela toda la propuesta aunque los hard sigan exactamente fijos. Pendiente
+explicar al usuario el grafo completo y cerrar despues la politica correctiva.
+Propuesta funcional del usuario 3Q: construir la ventana por segmentos
+temporales delimitados por el hard anterior y, si existe, el siguiente;
+expandir a otros submapas solo mediante covisibilidad/fusiones confirmadas cuyos
+extremos pertenezcan a esos segmentos; aplicar igual expansion a optimizaciones
+fiduciales; condensar como priors un consenso mayoritario de al menos tres
+submapas para que absorba la correccion el lado query; exigir secuencias de
+loops coherentes al lado no anclado, continuidad espacial reforzada tras
+perdida y apoyo creciente con riesgo/distancia. Valoracion provisional: buena
+direccion, pero la mayoria debe medir fuentes independientes y cobertura
+distribuida, y la distancia no debe decidir sola porque la pose world puede
+estar precisamente afectada por deriva.
+Confirmaciones posteriores 3Q: la rama 3Q parte de RANSAC valido con residual
+bajo y discrepancia world alta; la segmentacion sera simetrica para query y
+candidate; se acepta expansion solo por relaciones server confirmadas,
+consenso/scaffold independiente y secuencias query-candidate coherentes. El
+solver debe mantener todos los hard inmoviles y acercar las nubes segun la
+transformacion RANSAC, permitiendo reparto de correccion entre ambos lados de
+acuerdo con aristas y autoridad. Continuidad tras perdida y proteccion de zonas
+repetidas se conservan. El usuario propone reducir el umbral de fusion.
+Dato runtime verificado: hoy `loop_fusion_translation_threshold_m=0.35` y
+`loop_fusion_rotation_threshold_rad=0.25` (14.3 grados); el mismo par clasifica
+fusion directa y fija el residual final exigido por el validator. Cambiarlo sin
+separar ambos usos puede aumentar simultaneamente solves y rechazos.
+Auditoria preparatoria detallada 3Q: viable sin tocar ORB-SLAM3 ni mensajes.
+`LoopPipeline` hoy acumula solo pose/id query y no comprueba progresion del
+candidate; el apoyo adaptativo debe conservar endpoints canonicos de ambos
+lados y una secuencia coherente. Regla propuesta configurable: 2 apoyos sin
+riesgo, 4 con una senal y 6 con dos o mas; senales simples: asimetria protegida
+o perdida reciente, ambiguedad competidora y correccion grande. El cierre por
+submapa completo de `SparseGlobalBackend` y `BuildLoop()` debe sustituirse por
+intervalos delimitados por hard consecutivos, siguiendo solo aristas server
+incidentes; varios intervalos del mismo submapa se combinan en un unico batch
+atomico. El fiducial multi-submapa deja de usar un loop sintetico y reutiliza
+esa seleccion real. El consenso de tres segmentos independientes no fija
+candidate: aporta `PriorLoop` y cobertura, y el solver reparte movimiento;
+solo hard queda inmovil. Hallazgo adicional: `information_weight` participa en
+el coste pero no en `RelaxEdge`, por lo que debe normalizarse por familia y
+afectar la relajacion para que autoridad/soporte gobiernen de verdad. Corredor:
+referencias por parejas de hard consecutivos y deadband configurable inicial
+`0.02 m / 0.00872665 rad`, sin tolerancia para hard. Fusion directa propuesta
+`0.20 m / 0.12 rad`; separar parametro de residual final. Regresiones nuevas:
+194 ambiguo/asimetrico queda en HOLD con apoyo insuficiente y ventana acotada;
+213 acepta exceso numerico y rechaza exceso material; segmentacion loop y
+fiducial, consenso no hard, pesos efectivos y commit multi-intervalo.
+Clarificacion de histeresis 3Q: el usuario acepta la opcion recomendada y
+pregunta por el objetivo cero. El error de pose `CurrentLoop` debe minimizarse
+respecto a la transformacion RANSAC hacia cero; las poses de camara y los pares
+de puntos no tienen por que coincidir exactamente por distinto punto de vista y
+ruido. El solver actual corta segun fracciones del umbral de aceptacion, por lo
+que se propone un target de convergencia propio cercano a cero. Una propuesta
+entre el limite de fusion y el maximo seguro puede comprometer una mejora sin
+fusionar landmarks; debe conservar la constraint relativa aceptada como
+`PriorLoop` para una futura refinacion. Solo se fusionan puntos tras opt si el
+error de pose queda dentro de `0.20 m / 0.12 rad` y pasa dispersion/evidencia.
+Acuerdo final de umbrales 3Q: objetivo matematico del `CurrentLoop` cero;
+convergencia practica propia `0.05 m / 0.03 rad`; fusion directa o post-opt de
+landmarks solo hasta `0.20 m / 0.12 rad`; aceptacion maxima de una correccion
+segura sin fusion hasta `0.25 m / 0.15 rad`. Entre los dos ultimos limites se
+comprometen las poses si pasan las guardas estructurales, se conserva la
+constraint como `PriorLoop` y no se fusionan landmarks. Por encima del maximo
+seguro, o ante movimiento de hard/infraccion estructural material, se rechaza.
+Trabajo activo: ejecucion completa de 3Q autorizada sobre el estado vigente
+posterior a Fase 4, usando fiduciales reales y la trayectoria tipica actual.
+Plan activo 3Q: localizar simbolos desde docs de paquete; implementar ventana
+segmentada/expansion covisible/apoyo adaptativo; separar convergencia, fusion y
+commit seguro; hacer efectivos los pesos y la deadband de corredor; retirar
+logica obsoleta; ampliar regresiones; compilar, ejecutar suites y repetir la
+trayectoria equivalente a 213 con Gazebo/RViz2 y logs reducidos.
+Contexto 3Q leido: contrato 3Q, especificacion, implementacion, testing,
+criterios, historial 3Q resumen y fragmentos 194/213 del historial largo; docs
+de `orbslam3_multi` y `orbslam3_server` localizan `LoopPipeline`,
+`PoseGraphBuilder`, `OptimizationValidator` y `SparseGlobalBackend`.
+Preparacion Fase 5: CERRADA para ejecutar primero 5A como auditoria y
+reconciliacion documental de `Fase_5_preparada_para_Codex.zip`.
+Acuerdo cerrado Fase 5: si
+Autorizacion funcional Fase 5/5A: CONCEDIDA y consumida el 2026-08-25 para el
+alcance exclusivamente documental acordado.
+Prueba acordada Fase 5/5A: revision de coherencia documental y
+`git diff --check`; sin build, test ni simulacion porque 5A no modificara codigo,
+launch, YAML funcional, configuracion ni mensajes.
+Dudas abiertas Fase 5/5A: ninguna.
+Acuerdo Fase 5/5A: actualizar el pipeline, resumen y contratos 5A-5H para
+absorber las decisiones del zip; conservar 5I como nota/stub absorbido en 5H;
+crear o actualizar el indice/historial documental sin inventar ejecuciones;
+preparar 5B como primera subfase funcional. Se puede avanzar documentalmente
+en paralelo con 3Q, pero antes de backend fuerte en 5C/5D se verificara el
+cierre final de 3Q y el HEAD vigente.
+Contexto Fase 5 leido: README/resumen/pipeline propuestos del zip, subfases
+propuestas 5A-5H y nota 5I absorbida; pipeline/resumen/5A vigentes del repo;
+docs de `orbslam3_ros2`, `orbslam3_msgs`, `orbslam3_multi`,
+`orbslam3_server`, `dron_individual`, `simulacion_dron` y ADR 0002 GT.
+Observacion Fase 5: HEAD actual `a44b8b8` difiere del SHA auditado del zip
+`1d585059`; el zip cambia decisiones funcionales respecto a los MD vigentes:
+`O_T_B` continuo para control, `W_T_B` global corregible aparte, usar ref-KF
+real + `Tcr`, rechazar goals absolutos sin `W_T_O`, no imponer smoothing,
+usar `GT_FALLBACK` temporal solo en F5 y absorber la antigua 5I en 5H. ADR
+0002 debe reconciliarse antes de implementar ese fallback.
+Decision GT_FALLBACK confirmada por el usuario: mantenerlo durante toda Fase 5
+y hasta que Fase 6 aporte tareas reales de recuperacion. Si ORB-SLAM3 se pierde,
+el dron debe poder terminar trayectorias largas como el rodeo del edificio sin
+quedar bloqueado. Es una fuente temporal de continuidad de control, visible y
+parametrizable; no alimenta el mapa, anchors, optimizacion ni la pose global
+final, y su retirada queda como condicion explicita de Fase 6.
+Plan ejecutado Fase 5/5A: reconciliar `pipeline_fase_5.md`, su resumen y los
+contratos 5A-5H con el zip y el acuerdo conversado; dejar 5I como stub absorbido
+en 5H; crear indice e historial de 5A; verificar referencias, estados y
+`git diff --check`. No modificar codigo, launch, YAML, configuracion ni mensajes;
+no ejecutar build, test o simulacion.
+Resultado Fase 5/5A: CONSEGUIDA documentalmente. Pipeline, resumen y contratos
+reconciliados; 5I absorbida en 5H; historial creado. Verificacion correcta:
+referencias presentes, cero clausulas obsoletas buscadas, contratos menores de
+250 lineas, bloques Markdown equilibrados y `git diff --check` correcto.
+Trabajo activo Fase 5: no. 5B no esta preparada ni autorizada.
+Preparacion por bloques Fase 5B-5H: EN_DEBATE.
+Acuerdo cerrado bloques Fase 5: no.
+Autorizacion funcional bloques Fase 5: PENDIENTE.
+Propuesta de bloques: B1=`5B`; B2=`5C+5D+5E+5F` con checkpoints internos y
+puerta humana tras metricas 5F; B3=`5G+5H` con reconciliacion previa de ADR
+0002, prueba dirigida de `GT_FALLBACK` y vuelta final multi-dron.
+Pruebas propuestas: tests deterministas por capa, builds aislados solo tras
+cada bloque coherente y una simulacion integrada por bloque; B2 espera el
+cierre de 3Q y termina presentando metricas para aceptacion del usuario; B3
+incluye perdida dirigida y trayectoria tipica completa.
+Dudas abiertas bloques Fase 5: confirmar la division en tres bloques y el
+criterio de una sola simulacion integrada por bloque; concretar al preparar B3
+el mecanismo reproducible para provocar `RECENTLY_LOST` sin contaminar el
+estimador. No iniciar ejecucion F5 mientras 3Q comparta el worktree activo.
+Cambios completados Fase 5/5A: reconciliados pipeline, resumen y contratos
+5A-5H; 5I convertida en stub absorbido; creados `historial/INDEX.md`,
+`historial_5A.md` y su resumen; sincronizados `PIPELINE_MAESTRO.md`, contexto
+minimo, estado actual resumido y ultima sesion. No se modifico codigo, launch,
+YAML funcional, configuracion ni mensajes; no hubo build, test o simulacion.
+Siguiente accion exacta 3Q: leer los resúmenes y MDs vigentes de los componentes
+afectados, localizar los simbolos exactos y registrar los archivos criticos
+antes de editar codigo o configuracion.
+Archivos criticos localizados 3Q: `loop_pipeline.hpp/.cpp`,
+`pose_graph_problem.hpp`, `pose_graph_builder.hpp/.cpp`,
+`optimization_manager.hpp/.cpp`, `optimization_validator.hpp/.cpp`,
+`sparse_global_backend.hpp/.cpp`, `global_pose_store.hpp/.cpp`,
+`global_map_server.cpp`, las dos copias `config/global_map/loop_fusion.yaml` y
+tests de `orbslam3_multi`/Servidor/Simulacion. Hallazgos confirmados: expansion
+transitiva en `BuildLoop`, relajacion sin peso efectivo, convergencia ligada al
+umbral de fusion, validator sin banda separada de commit y corredor antiguo
+`5 m / 20 grados` con comparacion de exceso casi exacta.
+Siguiente accion exacta 3Q tras localizacion: inspeccionar solo las estructuras
+y funciones senaladas, cerrar el diseno mecanico de tipos/parametros y aplicar
+el primer bloque de implementacion y regresiones sin tocar ORB-SLAM3 ni msgs.
+Bloque 1 implementado 3Q: umbral de fusion reducido a `0.20 m / 0.12 rad`;
+convergencia separada `0.05 m / 0.03 rad`; commit seguro hasta
+`0.25 m / 0.15 rad`; apoyo adaptativo 2/4/6 con progresion query-candidate,
+ambiguedad, anclaje/perdida y correccion grande; `information_weight` afecta
+la relajacion normalizado por familia; corredor reemplaza `5 m / 20 grados` y
+comparacion `1e-8` por deadband `0.02 m / 0.00872665 rad`; commit seguro fuera
+de fusion no fusiona landmarks. YAML Servidor/Simulacion sincronizados y
+regresion numerica `0.000416 m` anadida. Aun pendientes ventana segmentada,
+persistencia explicita de `PriorLoop`, limpieza final y validacion.
+Siguiente accion exacta 3Q: compilar `orbslam3_multi` para detectar errores
+mecanicos del bloque 1 antes de abordar la seleccion segmentada.
+Build 3Q bloque 1: `orbslam3_multi` 1/1 correcto, exit 0, 58.8 s. Log completo
+conservado en `codex/archivos_auxiliares/colcon_build.log` y no leido.
+Siguiente accion exacta 3Q: implementar la seleccion por intervalos temporales
+hard delimitados y expansion solo por aristas server incidentes en esos
+intervalos; adaptar commit atomico y tests antes del siguiente build.
+Bloque 2 implementado 3Q: `BuildLoop()` parte solo de endpoints CurrentLoop,
+calcula intervalos temporales entre hard consecutivos y expande iterativamente
+solo cuando el extremo de una arista `ServerLoopGeometric` o dependencia soft
+ya cae dentro de un intervalo seleccionado. Intervalos disjuntos del mismo
+submapa no crean aristas temporales ni propagacion a traves del hueco. Cada
+submapa conserva un unico batch con lista explicita de intervalos y el commit
+solo actualiza KFs dentro de ellos. Eliminado el fixed artificial cuando no hay
+hard; el gauge relativo se reparte entre lados movibles.
+Siguiente accion exacta 3Q: rebuild aislado de `orbslam3_multi`; si compila,
+ejecutar su CTest para localizar regresiones contractuales antes de completar
+la ruta fiducial comun y persistencia PriorLoop.
+Build 3Q bloque 2: `orbslam3_multi` 1/1 correcto, exit 0, 42.8 s. Log completo
+conservado en `codex/archivos_auxiliares/colcon_build.log` y no leido.
+Siguiente accion exacta 3Q: ejecutar CTest de
+`/home/chenfu/Gazebo/build/servidor/orbslam3_multi`; registrar el resultado
+antes de corregir tests o continuar con el bloque funcional restante.
+CTest `orbslam3_multi` intento 1: no ejecuto funcionalmente ninguna suite;
+0/9 porque el entorno no encontraba
+`liborbslam3_msgs__rosidl_generator_c.so` (exit 8). No es evidencia de fallo
+del codigo. Correccion operativa mecanica: repetir el mismo CTest tras cargar
+`/opt/ros/iron/setup.bash` y `/home/chenfu/Gazebo/install/servidor/setup.bash`.
+CTest `orbslam3_multi` intento 2: 8/9 targets correctos; 7/12 casos de
+`test_loop_pipeline` pasan y cinco contratos antiguos fallan. Causa: siguen
+esperando aceptacion fija tras dos apoyos y rechazo previo `5 m / 20 grados`,
+ambos comportamientos sustituidos deliberadamente por apoyo adaptativo 2/4/6.
+`test_fiducial_optimization`, incluida la deadband numerica, pasa completo.
+Siguiente accion exacta 3Q: reemplazar los cinco tests obsoletos por regresiones
+de apoyo adaptativo/continuidad y ventana acotada, sin restaurar el guard viejo;
+despues rebuild y CTest.
+Tests 3Q actualizados: los casos de anclaje, error alto y perdida reciente
+aportan suficientes KFs independientes para los defaults 2/4/6; el antiguo
+test de rechazo previo por distancia ahora exige HOLD sin solver y soporte
+adaptativo; el asimetrico exige evidencia solo tras reunir apoyo. No se ha
+restaurado el guard `5 m / 20 grados`.
+Siguiente accion exacta 3Q: rebuild `orbslam3_multi` y repetir CTest con overlay.
+Build 3Q tests adaptativos: `orbslam3_multi` 1/1 correcto, exit 0, 4.89 s.
+Log completo conservado y no leido. Siguiente accion exacta: CTest completo de
+`orbslam3_multi` con overlays ROS/Servidor cargados.
+CTest `orbslam3_multi` intento 3: 8/9 targets; el nuevo HOLD adaptativo pasa,
+pero cuatro escenarios de pipeline aun no alcanzan/cierran su flujo esperado.
+La suite de grafo/validator permanece correcta. Diagnostico siguiente: revisar
+la geometria sintetica de progresion candidate y la persistencia de PriorLoop;
+no relajar los defaults ni restaurar expectativas obsoletas sin comprobar la
+causa exacta.
+Diagnostico/correccion intento 3: el fixture usaba BoW identico en todos los
+KFs, de modo que candidate quedaba artificialmente fijo aunque query avanzase;
+ahora cada pareja temporal comparte una palabra distintiva. Hallazgo funcional
+real: el `ServerLoopGeometric` aceptado solo se persistia durante fusion 3P;
+ahora todo commit loop de poses aplica inmediatamente su constraint seleccionada
+como `PriorLoop`, tambien en la banda segura sin fusion. Si esa persistencia
+falla se informa error explicito y nunca se intenta fusionar.
+Siguiente accion exacta 3Q: rebuild y CTest completo de `orbslam3_multi`.
+Build 3Q regresion segmentada: `orbslam3_multi` 1/1 correcto, exit 0, 9.43 s;
+log completo conservado y no leido. Siguiente accion: CTest completo con overlay.
+CTest `orbslam3_multi` intento 5: 9/9 targets correctos, 100 %, incluida
+regresion de intervalo hard `[4,7]`, deadband numerica, apoyo adaptativo,
+continuidad de perdida, pesos y persistencia de PriorLoop. Siguiente accion:
+Checkpoint de reanudacion tras compactacion 2026-08-26: la peticion mas
+reciente es continuar la ejecucion 3Q ya autorizada; alcance, umbrales, prueba
+y dudas permanecen sin cambios. Tras el CTest 9/9 se eliminaron campos y
+razones obsoletas (`hard_corridor_alpha`, `protected_region_rejected` y
+`waiting_second_independent_query`), pero esa limpieza aun no se ha recompilado.
+Siguiente accion exacta 3Q: repetir busquedas estaticas, `git diff --check` y
+comparacion de YAML; despues rebuild y CTest de `orbslam3_multi` antes de
+completar la ruta fiducial comun, consenso, builds de integracion y simulacion.
+Auditoria estatica posterior a limpieza 3Q: no quedan referencias no
+documentales a los simbolos y parametros obsoletos buscados; `git diff --check`
+correcto y las copias Servidor/Simulacion de `loop_fusion.yaml` son identicas.
+Siguiente accion exacta 3Q: rebuild seleccionado de `orbslam3_multi`.
+Build 3Q posterior a limpieza: `orbslam3_multi` 1/1 correcto, exit 0, 1 min
+2 s. Log completo conservado por la herramienta y no leido. Siguiente accion
+exacta 3Q: repetir CTest completo de `orbslam3_multi` con overlays cargados.
+CTest 3Q posterior a limpieza: primer lanzamiento dentro del sandbox no fue
+funcional porque CTest no pudo escribir `LastTest.log` en `build/`; repetido
+con permiso operativo, 9/9 targets correctos, 100 %, 30.40 s. Siguiente accion
+exacta 3Q: eliminar la adaptacion de optimizacion fiducial mediante loop
+sintetico y reutilizar la seleccion segmentada mediante una entrada comun real;
+anadir la regresion correspondiente antes de integrar Servidor.
+Ruta fiducial comun 3Q implementada: `PoseGraphBuilder::BuildSegmented()` es la
+seleccion compartida; `BuildLoop()` la alimenta con constraints RANSAC
+`CurrentLoop` y `BuildExpandedFiducial()` con el target fiducial real, sin
+`LoopTaskComputation` ni geometria sintetica. La expansion solo incorpora
+`PriorLoop` server/dependencias confirmadas, mantiene intervalos explicitos y
+solo hard queda fixed. Regresion multi-submapa reforzada para exigir problema
+`FiducialAbsolute`, ventanas segmentadas y cero `loop_edges`. Siguiente accion
+exacta 3Q: compilar `orbslam3_multi` y ejecutar su CTest completo.
+Build 3Q selector fiducial comun: `orbslam3_multi` 1/1 correcto, exit 0,
+39.3 s. Siguiente accion exacta 3Q: CTest completo con overlays para validar
+la regresion multi-submapa y detectar cambios de comportamiento del solver.
+CTest 3Q selector fiducial comun intento 1: 8/9 targets; todas las suites salvo
+un caso pasan. `AnchorsUnanchoredSubmapAfterAdaptiveIndependentSupport` obtiene
+una sola ventana y ningun `PriorLoop` al sustituir el anchor soft del hijo por
+fiducial hard. El nuevo selector no esta siguiendo en ese fixture la relacion
+padre-hijo hasta el segundo submapa. No se cambia el contrato; siguiente accion
+exacta: inspeccionar IDs y representacion de esa dependencia, corregir la
+incidencia y repetir build/CTest.
+Diagnostico selector fiducial: la arista/dependencia del fixture estaba anclada
+en un KF posterior al target y fuera de su intervalo; incluirla reproduciria el
+cierre transitivo obsoleto. La regresion ahora exige una sola ventana y ningun
+prior en ese caso. Se anadio un caso directo donde una arista
+`ServerLoopGeometric` toca el intervalo: debe crear dos ventanas segmentadas,
+un `PriorLoop` con soporte/peso reales y cero `CurrentLoop`. Siguiente accion:
+rebuild y CTest de `orbslam3_multi`.
+Build 3Q regresion de incidencia fiducial: `orbslam3_multi` 1/1 correcto,
+exit 0, 12.2 s. Siguiente accion: CTest completo con overlays.
+CTest 3Q incidencia fiducial: 9/9 targets correctos, 100 %, 29.89 s. La ruta
+fiducial comun queda validada con expansion solo por arista incidente y sin
+loops sinteticos. Siguiente accion exacta 3Q: hacer explicita y testeable la
+regla de consenso de al menos tres segmentos y cobertura 60 % como refuerzo de
+`PriorLoop`, sin convertir ningun KF no hard en fixed.
+Consenso 3Q implementado: cobertura = KFs activos del intervalo que son
+extremos de `PriorLoop` inter-submapa / KFs activos del intervalo. Una
+componente de al menos 3 segmentos donde todos cubren al menos 0.60 multiplica
+por 2 los pesos prior (cap 60), sin alterar `fixed`. Parametros ROS/YAML
+explicitos y copias sincronizadas. Regresion de tres segmentos anadida con
+cobertura minima 0.60, pesos 10->20 y solo KF hard fijo. Siguiente accion:
+build y CTest `orbslam3_multi`.
+Build 3Q consenso: `orbslam3_multi` 1/1 correcto, exit 0, 1 min 5 s.
+Siguiente accion: CTest completo con overlays.
+CTest 3Q consenso: 9/9 targets correctos, 100 %, 29.25 s. Quedan validados
+selector segmentado loop/fiducial, incidencia server, apoyo adaptativo,
+histeresis, pesos efectivos, corredor y consenso 3/60 sin hard artificial.
+Siguiente accion exacta 3Q: build seleccionado y CTest completo de
+`orbslam3_server`, seguido de integracion `simulacion_dron`.
+Build integracion 3Q Servidor: `orbslam3_server` 1/1 correcto, exit 0, 20.3 s.
+Siguiente accion: CTest del paquete Servidor con overlays.
+CTest integracion 3Q Servidor intento 1: 11/12 tests correctos; unico fallo
+`uncrustify` por formato de una llamada `std::max` en la carga del apoyo
+adaptativo. No hay fallo funcional. Correccion mecanica exacta indicada por el
+linter y repeticion de build/CTest.
+Build Servidor tras formato: `orbslam3_server` 1/1 correcto, exit 0, 20.0 s.
+Siguiente accion: repetir CTest 12 targets.
+CTest integracion 3Q Servidor intento 2: 12/12 correctos, 100 %, 5.65 s,
+incluidos linters y contratos de configuracion. Siguiente accion exacta: build
+seleccionado y CTest completo de `simulacion_dron`.
+Build integracion 3Q Simulacion: `simulacion_dron` 1/1 correcto, exit 0,
+1.00 s. Siguiente accion: CTest completo del paquete con overlays.
+CTest integracion 3Q Simulacion: 10/10 correctos, 100 %, 8.37 s, incluidos
+contratos global map/fiducial y linters. Builds y suites seleccionadas quedan
+verdes. Siguiente accion exacta 3Q: leer el workflow de simulacion, recuperar
+el comando vigente equivalente a la prueba 213 con trayectoria tipica,
+fiduciales reales, Gazebo/RViz2 y logs F3Q; registrar la prueba antes de lanzar.
+Prueba 218 preparada para 3Q: YAML absoluto
+`codex/archivos_auxiliares/trayectorias/prueba_tipica_rodeo_edificio_dos_fiduciales.yaml`;
+launch `ros2 launch simulacion_dron multi_dron.launch.py` con Gazebo GUI=true,
+RViz2 sparse=true, mission GUI=false, ambos grafos/navegadores y telemetria web
+false, logs F3 terminal=true, visualizacion fiducial=true durante 5.0 s,
+`rawdb_record_enabled=false`; fiduciales reales/spawn vigentes y GT fiducial
+funcionalmente OFF por el perfil posterior a Fase 4. Startup 20 s, timeout
+900 s, post-scenario 30 s, un retry Gazebo y monitor de recursos. Criterio:
+runner 17/17 y todos los goals correctos; optimizaciones 3Q que terminen en
+commit seguro, HOLD adaptativo o rechazo justificado sin mover hard ni mantener
+backpressure; continuidad de wrappers/RViz2 y revision visual final del usuario.
+Siguiente accion exacta: ejecutar prueba 218 y registrar exit/success/log antes
+de reducir o analizar.
+Prueba 218 finalizada: primer startup murio antes del escenario y la herramienta
+uso correctamente su unico retry; el segundo intento completo scenario exit 0,
+`[SIM-DONE] success=true` y `[SIM-EXIT-CODE] 0`. Duracion operativa resumida
+505 s; `guard_triggered=false`, minimo disponible 4900.6 MiB, servidor RSS max
+289.6 MiB, grupo RSS max 2642.5 MiB, RViz max 225.0 MiB y web 0 MiB. Log
+completo conservado en `codex/archivos_auxiliares/logs/prueba_218.log` y no
+leido. Siguiente accion exacta: generar reducciones por runner/goals, decisiones
+3Q/solver/commit, invariantes hard/backpressure, fiduciales reales/visualizacion
+y errores; analizar solo artefactos reducidos.
+Reduccion runner 218: bloque completo de 196 lineas; 17/17 pasos, 22/22 goals
+con `success=true`, `SCENARIO-RUNNER-DONE success=true`, scenario/tool exit 0.
+Siguiente accion: reducir exclusivamente marcadores 3Q de evidencia, grafo,
+solver, validator, commit, prior y backpressure para clasificar cada intento.
+Diagnostico reducido 3Q prueba 218: 14 intentos loop, cero commits. Dos fallan
+builder por `loop_submap_interval_too_small`; dos convergen pero degradan
+covisibilidad nativa; diez convergen a error final aprox. 0.018-0.050 m y
+0.0025-0.0108 rad, pero validator rechaza por
+`hard_corridor_displacement_exceeded`. En siete rechazos repetidos el exceso
+final queda casi constante 0.0266-0.0268 m / 0.00533-0.00537 rad; otros quedan
+0.0336-0.0438 m. Fiduciales absolutos si hacen commits, pero no son commits
+loop. Backpressure se libera tras cada intento y no hay hard failure. Conclusion
+provisional: 3Q NO CONSEGUIDA aun; la deadband se esta aplicando como limite
+absoluto casi-hard sobre KFs intermedios y sigue cancelando las optimizaciones.
+Siguiente accion exacta: inspeccionar formula builder/validator del corredor y
+corregir su semantica para proteger hard exactos y estructura relativa sin
+impedir el movimiento necesario de KFs internos; repetir tests y simulacion.
+Auditoria formula corredor 218: `RefreshHardCorridorLocked()` guarda como
+referencia la pose vigente tras cada commit fiducial; por ello el exceso inicial
+de todos los KFs internos es cero. `OptimizationValidator` rechaza cualquier
+movimiento posterior superior a la deadband 0.02 m / 0.00872665 rad, de modo
+que trata de facto todo el tramo como casi-hard. Esto contradice el objetivo de
+deformar el segmento manteniendo solo los fiduciales inmoviles. Aumentar la
+deadband solo desplazaria el mismo fallo. Recomendacion: retirar la guarda
+absoluta/deadband de commit para KFs internos y conservar el corredor como
+senal de riesgo/apoyo adaptativo; proteger con hard exactos, estructura
+temporal/covis/prior, coste mejorado y maximo seguro 0.25/0.15. Eliminar campos
+y parametros muertos de deadband para no dejar logica obsoleta.
+Autorizacion funcional 3Q: SUSPENDIDA por esta decision material detectada en
+la prueba 218.
+Dudas abiertas 3Q: confirmar sustitucion de la guarda absoluta del corredor
+por las guardas estructurales recomendadas y autorizar repetir build/tests y
+trayectoria tipica.
+Siguiente accion exacta: esperar confirmacion del usuario; no editar codigo ni
+repetir simulacion hasta cerrar esta decision.
+Clarificacion posterior a prueba 218: el limite de 2 cm sobre KFs intermedios
+fue una interpretacion incorrecta y se retirara. Solo los fiduciales hard son
+inmoviles permanentemente. Los KFs normales pueden moverse segun CurrentLoop,
+aristas temporales, covisibilidad y PriorLoop. Los KFs ya optimizados pueden
+reajustarse, pero una nueva optimizacion se rechaza si pretende moverlos mas de
+5 m o 20 grados respecto a su pose optimizada protegida. Cuando al menos tres
+segmentos independientes tienen fusiones en al menos el 60 % de sus KFs, esos
+segmentos se fijan temporalmente durante ese solve y actuan como autoridad; se
+mueve el lado query. No se convierten en hard fiduciales permanentes.
+Preparacion 3Q tras diagnostico 218: CERRADA.
+Acuerdo cerrado 3Q: si.
+Autorizacion funcional 3Q: PENDIENTE de una orden explicita para aplicar esta
+correccion y repetir build, tests y trayectoria tipica.
+Dudas abiertas 3Q: ninguna.
+Siguiente accion exacta: tras autorizacion explicita, retirar la deadband
+absoluta y su configuracion obsoleta, restaurar la guarda 5 m/20 grados solo
+para KFs previamente optimizados, fijar temporalmente el consenso 3/60,
+actualizar regresiones y repetir validacion completa y simulacion.
+Autorizacion funcional 3Q tras prueba 218: CONCEDIDA el 2026-08-26 para
+actualizar contrato y codigo con la politica aclarada, compilar, ejecutar tests
+y repetir la trayectoria tipica completa.
+Trabajo activo 3Q: retirar la guarda absoluta de 2 cm; implementar proteccion
+5 m/20 grados solo respecto a poses previamente optimizadas; fijar de forma
+temporal, no hard persistente, los segmentos de consenso 3/60; limpiar campos,
+parametros y tests obsoletos; validar con builds, suites y nueva simulacion.
+Dudas abiertas 3Q: ninguna.
+Checkpoint de reanudacion tras compactacion 2026-08-26: releido fisicamente el
+estado obligatorio y reconciliado con la ultima orden del usuario. La
+autorizacion sigue CONCEDIDA y el alcance no cambia. El contrato 3Q ya refleja
+la politica aclarada; en codigo ya se retiraron los campos de deadband, se
+anadio la guarda de KFs previamente optimizados y el marcado temporal del
+consenso, pero faltan cerrar la regresion 3/60, buscar restos obsoletos,
+compilar, ejecutar suites y repetir la trayectoria tipica.
+Siguiente accion exacta tras reanudacion: adaptar el test de consenso para un
+query movil y tres segmentos soporte fijados solo durante el solve; despues
+realizar auditoria estatica y compilar `orbslam3_multi`.
+Auditoria previa al build de correccion 3Q: regresion de consenso adaptada a un
+query movil y tres segmentos soporte; solo `ServerLoopGeometric` es elegible
+para formar consenso, no las dependencias soft que tambien se representan como
+`PriorLoop`. No quedan simbolos de deadband en codigo/configuracion, ambas
+copias YAML son identicas y `git diff --check` es correcto.
+Build preparado: ejecutar
+`./codex/herramientas/build_selected_packages.sh orbslam3_multi` para validar
+tipos, builder, validator y regresiones tras retirar 2 cm e introducir
+5 m/20 grados y fixed temporal 3/60. Siguiente accion tras terminar: registrar
+exit/paquetes/log antes de cualquier diagnostico o CTest.
+Build correccion 3Q intento 1: no inicio colcon; exit 2 porque la herramienta
+requiere `--group`. No es evidencia del codigo ni genero un fallo de paquete.
+Correccion mecanica: ejecutar
+`./codex/herramientas/build_selected_packages.sh --group servidor orbslam3_multi`
+y registrar inmediatamente su resultado.
+Build correccion 3Q intento 2: `orbslam3_multi` fallo, exit 2, 0/1 paquetes,
+53.2 s. El unico error mostrado es mecanico en la nueva expectativa del test:
+`RawKeyFrameId` no tiene miembro `submap_id`. Log completo conservado en
+`codex/archivos_auxiliares/colcon_build.log` y no leido directamente.
+Siguiente accion exacta: usar el campo real de `RawKeyFrameId` en esa lambda,
+repetir `git diff --check` y relanzar el mismo build.
+Build correccion 3Q intento 3: `git diff --check` correcto, pero colcon no
+inicio el paquete porque el sandbox impidio crear
+`/home/chenfu/Gazebo/log/servidor/build_*` (`Read-only file system`). No es
+evidencia del codigo. Siguiente accion exacta: repetir el mismo build con el
+permiso operativo preaprobado para la herramienta de compilacion.
+Build correccion 3Q intento 4: `orbslam3_multi` 1/1 correcto, exit 0, 15.9 s.
+Log completo conservado en `codex/archivos_auxiliares/colcon_build.log` y no
+leido. Siguiente accion exacta: ejecutar el CTest completo de
+`/home/chenfu/Gazebo/build/servidor/orbslam3_multi` con overlays ROS/Servidor;
+registrar el resultado antes de corregir o integrar otros paquetes.
+CTest correccion 3Q `orbslam3_multi`: 9/9 targets correctos, 100 %, 29.09 s,
+incluidos `test_fiducial_optimization` y `test_loop_pipeline`. Quedan verdes
+las regresiones de movimiento intermedio >2 cm, guarda de revisitados
+5 m/20 grados, consenso temporal 3/60, ventanas y soporte adaptativo.
+Siguiente accion exacta: compilar `orbslam3_server` para validar carga de
+parametros y telemetria F3Q; despues ejecutar sus tests completos.
+Build integracion correccion 3Q Servidor: `orbslam3_server` 1/1 correcto,
+exit 0, 20.8 s. Log completo conservado por la herramienta y no leido.
+Siguiente accion exacta: CTest completo de
+`/home/chenfu/Gazebo/build/servidor/orbslam3_server` con overlays cargados.
+CTest integracion correccion 3Q Servidor: 12/12 targets correctos, 100 %,
+6.59 s, incluidos contratos de configuracion y linters. Siguiente accion
+exacta: compilar `simulacion_dron` para instalar y validar la copia YAML de la
+nueva politica antes de ejecutar su CTest.
+Build integracion correccion 3Q Simulacion: `simulacion_dron` 1/1 correcto,
+exit 0, 0.97 s. Log completo conservado y no leido. Siguiente accion exacta:
+CTest completo de `/home/chenfu/Gazebo/build/simulacion/simulacion_dron` con
+los overlays Dron/Servidor/Simulacion cargados.
+CTest integracion correccion 3Q Simulacion: 10/10 targets correctos, 100 %,
+8.33 s, incluidos `global_map_config_contract`, fiduciales y linters. Builds y
+suites seleccionadas quedan verdes. Siguiente accion exacta: releer el workflow
+de simulacion, registrar la prueba 219 equivalente a 218 y ejecutarla con
+trayectoria tipica, fiduciales reales, Gazebo/RViz2 y logs F3Q.
+Prueba 219 preparada para la correccion 3Q: YAML absoluto
+`/home/chenfu/Gazebo/src/codex/archivos_auxiliares/trayectorias/prueba_tipica_rodeo_edificio_dos_fiduciales.yaml`;
+launch `ros2 launch simulacion_dron multi_dron.launch.py` con Gazebo GUI=true,
+RViz2 sparse=true, mission GUI=false, grafos web/telemetria web=false, logs F3
+terminal=true, visualizacion fiducial=true durante 5.0 s y
+`rawdb_record_enabled=false`. Startup 20 s, post-scenario 30 s, timeout 900 s,
+un retry Gazebo y monitor de recursos. Criterio: runner 17/17 y goals
+correctos; commits loop cuando la propuesta sea valida; ningun rechazo por la
+deadband retirada; hard inmoviles; revisitados dentro de 5 m/20 grados;
+consenso temporal si aparece; sin backpressure persistente. Siguiente accion:
+ejecutar 219 y registrar exit/success/ruta de log antes de reducir o analizar.
+Prueba 219 finalizada: scenario exit 0, `[SIM-DONE] success=true` y
+`[SIM-EXIT-CODE] 0`; duracion resumida 508 s, `guard_triggered=false`, minimo
+disponible 4702.2 MiB, servidor RSS max 265.5 MiB, grupo RSS max 2596.0 MiB y
+RViz max 226.6 MiB. Log completo conservado en
+`codex/archivos_auxiliares/logs/prueba_219.log` y no leido. Siguiente accion
+exacta: generar reducciones tematicas de runner/goals, decisiones y commits
+F3Q, invariantes hard/revisitados/consenso, backpressure y errores; analizar
+solo esos artefactos.
+Analisis reducido prueba 219: runner 17/17 y 22/22 goals con exito. Hubo 31
+inicios F3Q y 30 resultados: 22 commits loop y 8 descartes (2 ventana pequena,
+2 sin mejora, 2 sobre umbral seguro, 1 coste global mayor y 1 degradacion de
+covisibilidad nativa). Tres commits fusionaron landmarks post-opt. No aparece
+la razon obsoleta de 2 cm, ni movimiento hard, violacion de revisitados,
+`blocking_failure`, fatal o guarda de recursos. Cinco commits terminaron en
+fusion post-opt. Maximo reajuste medido en KFs
+ya optimizados: 1.404495 m / 0.181256 rad, bajo 5 m / 0.349066 rad.
+Riesgo residual 219: los commits reencolan KFs movidos; `pending` alcanzo 51 y
+quedo un solve iniciado al apagar tras la espera final. La funcionalidad de
+optimizar loops queda demostrada, pero no se declara eliminada la presion de
+cola/escalabilidad. No se cambia unilateralmente la politica de reencolado
+porque no forma parte del mecanismo concreto acordado.
+Siguiente accion exacta: actualizar docs de paquete e historial 3Q, conservar
+218 y 219 como entradas separadas, ejecutar verificaciones documentales finales
+y cerrar 3Q como PARCIAL por el riesgo de cola pendiente de decision posterior.
+Revision visual del usuario sobre 219: la esquina inferior izquierda mirando
+hacia +Y queda completamente corregida; las dos esquinas derechas corrigen peor,
+posiblemente por varios cambios de `map_epoch`; el usuario vuelve a mencionar
+una esquina inferior izquierda mejorada solo parcialmente, referencia espacial
+que debe aclararse porque contradice la primera frase. Solicita correlacionar
+estas zonas con optimizaciones canceladas, motivos y anchors por loop.
+Siguiente accion exacta: generar reducciones tematicas de 219 para anchors,
+epochs, decisiones F3O/F3Q y fiduciales; cruzar la cronologia con el recorrido
+sin leer el log completo y actualizar la conclusion viva de la misma prueba.
+Correlacion visual/log 219 completada: no hubo anchors loop ni reanchors; los
+cinco anchors fueron fiduciales directos en `(2,0)`, `(1,1)`, `(2,1)`, `(1,2)`
+y `(1,3)`. Los cambios `(2,1)`, `(1,2)` y `(1,3)` aparecen en tramos derechos,
+donde temporal no cruza epochs. Tras el bloque inicial casi todos los solves
+usan query `(2,1)`; `(1,2)` no inicia ninguno y `(1,3)` completa uno. Esto es
+consistente con la mejora visual desigual, sin demostrar una causa unica.
+Documentacion viva actualizada: contrato 3Q, resumen/historial/indice, docs de
+componentes, contexto minimo, estado y ultima sesion. Conclusion 219/3Q:
+PARCIAL; no queda implementacion funcional activa, pendiente aclaracion visual
+de la esquina repetida y decision del usuario sobre cierre o mejora multi-epoch.
+Verificacion final documental: `git diff --check` correcto; no quedan
+afirmaciones vigentes del exceso de corredor antiguo en docs de componentes.
+Los cambios paralelos de Fase 5 permanecen intactos y no se han mezclado con
+la implementacion 3Q. Trabajo activo 3Q: no; espera respuesta del usuario sobre
+la referencia de esquina y la decision de cierre o nueva preparacion.
+Diagnostico conversacional posterior sobre anchors loop 219: el mecanismo no
+esta deshabilitado. Requiere activar una constraint con apoyo independiente y
+que su componente contenga ya autoridad world. `(1,1)` activo constraints con
+2/2 y 3/2 antes de los primeros fiduciales, pero ambos lados estaban aun sin
+anchor y `BuildAnchorCascade()` no podia sembrar world. `(2,1)` y `(1,2)`
+recibieron geometria rechazada mientras estaban sin anchor y luego fiducial
+directo. `(1,3)` acumulo como maximo 4/6 apoyos en una hipotesis riesgosa y no
+activo constraint antes de su fiducial. `BuildAnchorCascade()` se invoca al
+activar una constraint, no automaticamente al llegar luego un fiducial.
+Trabajo activo: no; explicacion documental sincronizada, sin cambios de codigo.
+Checkpoint de reanudacion 2026-08-26: contexto fisico releido y reconciliado
+con la pregunta vigente. Confirmado en codigo que `BuildAnchorCascade()` recorre
+la componente de `active_constraints_` y puede anclar en lote sus submapas no
+anclados cuando ya existe autoridad world, pero solo se invoca desde una nueva
+activacion de constraint. `ProcessFiducialObservation()` no dispara esa cascada:
+si A y B conservan una constraint relativa sin world y A recibe despues un
+fiducial, B permanece sin anchor hasta que otro loop compatible vuelva a activar
+el procesamiento. Trabajo activo: no; no se ha modificado codigo.
+Preparacion mejora conservadora 3Q: CERRADA. Acuerdo cerrado: si.
+Autorizacion funcional: CONCEDIDA el 2026-08-26. Dudas abiertas: ninguna.
+Objetivo: conservar el comportamiento estable de 3Q y corregir solo dos huecos:
+disparar la cascada/reconciliacion de constraints activas al aparecer nueva
+autoridad world y permitir recuperacion reciente con un unico loop cuando la
+continuidad sea inequivoca. Fuera de esa banda se conserva el apoyo adaptativo
+2/4/6; superar 2 m no impide anclar. Parametros iniciales YAML: 0.50 m,
+0.15 rad y recorrido maximo 2.0 m. El anchor de un solo loop no habilita fusion,
+scaffold ni propagacion amplia hasta segundo loop independiente o fiducial.
+Exclusiones: no cambiar solver, validator, umbrales de fusion ni scheduler
+general; la deduplicacion adicional de cola queda supeditada a nueva evidencia.
+Prueba acordada: unitarias deterministas, builds/CTest afectados y repeticion
+de la trayectoria con fiduciales reales equivalente a 219, comparando anchors,
+optimizaciones, descartes, map_epoch, pending y revision visual humana.
+Riesgos aceptados: anchor soft provisional mal asociado y trabajo adicional al
+llegar world; se contienen mediante continuidad estricta, ausencia de
+ambiguedad, commit atomico y sin propagacion/fusion provisional.
+Plan: actualizar contrato, localizar simbolos y YAML; implementar y probar el
+bloque minimo; compilar/CTest; ejecutar simulacion; reducir logs y documentar.
+Siguiente accion exacta: leer resúmenes/MDs de componentes y localizar las
+rutas de configuracion, commit fiducial, constraints y tests antes de editar.
+Contrato 3Q actualizado con la politica acordada: recuperacion reciente en tres
+bandas, parametros YAML 0.50 m/0.15 rad/2.0 m, constraint provisional sin
+fusion/scaffold/propagacion, fallback 2/4/6 y cascada atomica al aparecer world.
+Archivos criticos confirmados: `loop_pipeline.hpp/.cpp` para evidencia y grafo
+de constraints; `sparse_global_backend.hpp/.cpp` para continuidad y commits;
+`fiducial_types.hpp` y `global_map_server.cpp` para devolver/reencolar cascada;
+las dos copias `config/global_map/loop_fusion.yaml`; tests de loop pipeline y
+contratos de Servidor/Simulacion. No se tocara solver, validator, fusion ni cola
+general. Bloque conservador 3Q implementado: contexto de perdida y cuatro
+parametros YAML; via de un loop con continuidad estricta; constraint provisional
+que bloquea fusion y cascada hasta confirmacion; promocion por segundo apoyo;
+`BuildAnchorCascade()` acotado a componente y sin provisionales; commits
+fiduciales directos/optimizados disparan cascada y devuelven endpoints para
+reconciliacion normal. Servidor carga ambas copias YAML, reencola endpoints y
+expone `[F3O-WORLD-CASCADE]`/`single_recovery`. Regresiones añadidas para
+cascada sin tercer loop, recuperacion cercana 1/1 y fallback sobre 2 m. Solver,
+validator, fusion y scheduler general no se han modificado. Siguiente accion
+exacta: build aislado de `orbslam3_multi`; registrar resultado y corregir solo
+errores mecanicos antes de ejecutar CTest.
+Build mejora conservadora 3Q intento 1: `orbslam3_multi` 1/1 correcto, exit 0,
+1 min 20 s. Log completo conservado en
+`codex/archivos_auxiliares/colcon_build.log` y no leido. Siguiente accion exacta:
+ejecutar CTest completo de `orbslam3_multi` con overlays ROS/Servidor; registrar
+resultado antes de cualquier correccion o build del servidor.
+CTest mejora conservadora 3Q `orbslam3_multi`: 9/9 targets correctos, exit 0,
+incluido `test_loop_pipeline` con cascada fiducial, anchor 1/1 cercano y fallback
+adaptativo sobre 2 m. No hubo regresiones en raw, pose store, optimizacion,
+scalability ni fusion. Siguiente accion exacta: compilar `orbslam3_server` para
+validar carga de parametros, telemetria y reencolado de reconciliacion.
+Build mejora conservadora 3Q `orbslam3_server`: 1/1 correcto, exit 0, 21.3 s;
+log completo conservado y no leido. Siguiente accion exacta: ejecutar CTest
+completo de `orbslam3_server` con overlays y registrar el resultado.
+CTest mejora conservadora 3Q `orbslam3_server`: 12/12 correctos, exit 0;
+configuracion, backpressure, tests funcionales y linters pasan. Siguiente accion
+exacta: compilar `simulacion_dron` para instalar/validar la replica YAML y luego
+ejecutar su CTest completo antes de preparar la simulacion larga.
+Build mejora conservadora 3Q `simulacion_dron`: 1/1 correcto, exit 0, 0.71 s;
+replica YAML instalada. Siguiente accion exacta: ejecutar CTest completo de
+`simulacion_dron` con los tres overlays y registrar el resultado.
+CTest mejora conservadora 3Q `simulacion_dron`: 10/10 correctos, exit 0;
+`global_map_config_contract`, fiduciales y linters pasan. Builds y suites quedan
+verdes: `orbslam3_multi` 9/9, `orbslam3_server` 12/12 y Simulacion 10/10.
+Prueba 220 preparada como repeticion exacta de 219: YAML
+`codex/archivos_auxiliares/trayectorias/prueba_tipica_rodeo_edificio_dos_fiduciales.yaml`;
+launch `ros2 launch simulacion_dron multi_dron.launch.py` con Gazebo GUI,
+RViz2 sparse, mission GUI/web desactivados, logs F3 terminal, visualizacion
+fiducial 5 s y raw record off. Startup 20 s, post-scenario 30 s, timeout 900 s,
+un retry Gazebo y monitor de recursos. Criterio: 17/17 pasos, 22/22 goals,
+success/exit 0; hard inmoviles; sin regresion de commits loop; medir cascadas,
+single recovery, anchors, descartes, epochs y pending. La revision visual final
+corresponde al usuario. Siguiente accion exacta: ejecutar prueba 220 y registrar
+resultado/ruta del log antes de reducir o analizar.
+Prueba 220 finalizada: primer arranque Gazebo murio temprano y el retry previsto
+arranco correctamente; escenario exit 0, `[SIM-DONE] success=true` y
+`[SIM-EXIT-CODE] 0`. Segundo intento: 505 s, `guard_triggered=false`, minimo
+MemAvailable 4443.3 MiB, servidor RSS max 273.7 MiB, grupo RSS max 2634.9 MiB
+y RViz max 225.9 MiB. Log completo conservado en
+`codex/archivos_auxiliares/logs/prueba_220.log` y no leido. Siguiente accion
+exacta: generar reducciones separadas para runner/goals, single recovery y
+cascadas, anchors/epochs, F3Q solves/commits/descartes, pending/invariantes y
+errores; analizar exclusivamente esos artefactos.
+Revision visual humana prueba 220: resultado general excelente; unico problema
+observado, una optimizacion/movimiento de KFs sin sentido que deterioro algo la
+esquina superior derecha mirando hacia +Y. Esta observacion sustituye cualquier
+cierre visual provisional y debe incorporarse a la entrada de la misma prueba.
+Trabajo activo: diagnosticar esa correccion cruzando el paso por la esquina con
+solves F3Q, submapas/epochs, ventanas, aristas y magnitudes; no cambiar codigo
+hasta aislar causa. Siguiente accion exacta: reducir/leer cronologia F3Q del
+intervalo entre pasos 7-13 y luego ampliar solo los patrones que falten.
+Checkpoint de reanudacion 2026-08-26: archivo releido fisicamente tras la
+compactacion y estado reconciliado con la ultima peticion. La prueba 220 no se
+repite ni se modifica codigo: se compararan el commit fiducial `task=6`, el
+commit loop `task=1000000005590` y las correcciones fiduciales posteriores
+usando solo reducciones tematicas, para atribuir la deformacion de la esquina
+superior derecha y actualizar la conclusion viva de esa misma prueba.
+Diagnostico visual 220 cerrado: causa principal con alta confianza en
+`task=1000000005590`, reencolada por `anchor_revision_changed` tras anclar
+`(1,2)`. Fue la unica optimizacion loop que salto de ventanas habituales de
+49-75 KFs a 3 submapas/296 KFs y movio 277. Los candidatos consecutivos
+65/66/67 dieron error world casi `0/1.0118/0 m`; la seleccion incorporo las
+tres regiones compatibles no fusionables como `CurrentLoop`, aunque solo la
+constraint central discrepaba. Esto no demuestra que la pose del 66 fuese la
+unica incorrecta: puede ser la medida regional o una deformacion distribuida.
+El validator acepto porque el deterioro estructural maximo
+`0.288825 m/0.041285 rad` y el reajuste de optimizados
+`0.326020 m/0.054135 rad` quedan bajo 2 m temporal, 1 m covisible y 5 m/20
+grados. La fusion posterior stale no revirtio el commit de poses. `task=6`
+respondio en cambio a un error fiducial absoluto real de 1.183 m y el dron 2 ya
+tenia control coherente en fiducial 1; no presenta la firma aislada 0/1/0.
+Conclusion prueba 220 revisada por decision del usuario: `A REVISAR`. Resultado
+global excelente y defecto residual aislado aceptado sin otra correccion ahora.
+Trabajo funcional activo: no. Continuar pipeline; reabrir 3Q solo si reaparece
+el mismo fallo. Punto de reentrada conservado: mantener las tres medidas como
+`CurrentLoop` sobre la ventana completa y corregir enforcement, porque
+`OptimizationManager` declara `Converged` tras 160 iteraciones aunque no alcance
+`0.05 m/0.03 rad`, mientras el validator admite `0.25 m/0.15 rad`, mejora OR y
+degradacion estructural local amplia. No asumir que el 66 sea la unica pose
+incorrecta ni cambiar cascada, recuperacion 1/1 o fiduciales.
+Peticion de cierre vigente: crear un commit unico con el trabajo pendiente
+coherente de 3Q y la reconciliacion documental 5A ya realizada, y publicarlo en
+GitHub. Siguiente accion exacta: verificar diff/status/branch/remoto, ejecutar
+`git diff --check`, incluir los archivos nuevos de historial Fase 5, crear el
+commit y hacer push sin reescribir historia ni revertir cambios.
+Verificacion previa al commit: rama `main`, HEAD y `origin/main` en `a44b8b8`;
+remoto `origin` correcto; `git diff --check` sin errores. El lote contiene 49
+archivos: runtime/tests/config/docs 3Q y reconciliacion documental 5A, incluidos
+sus tres historiales nuevos. No contiene logs de prueba. Siguiente accion
+exacta: stage completo del lote coherente, commit unico descriptivo y push
+normal a `origin/main`.
+revisar restos obsoletos/contratos de configuracion y compilar
+`orbslam3_server`; despues ejecutar sus tests antes de Simulacion.
+Build 3Q PriorLoop/progresion: `orbslam3_multi` 1/1 correcto, exit 0, 19.4 s;
+log completo conservado y no leido. Siguiente accion: CTest completo con overlay.
+CTest `orbslam3_multi` intento 4: 8/9 targets, 9/12 casos de pipeline. Ya pasan
+anclaje adaptativo, HOLD repetido y asimetria; quedan tres expectativas legacy:
+rigidez exacta del hijo durante reanchor (el nuevo solver reparte correccion),
+diagnostico de continuidad sin detalle de razones y prohibicion global de toda
+reevaluacion tras aceptar una pareja (debe omitirse la pareja, no candidatos
+nuevos). Siguiente accion: ajustar esas expectativas al contrato vigente y
+añadir detalle estable para diagnosticar el caso de perdida reciente.
+Build 3Q ajuste contratos pipeline: `orbslam3_multi` 1/1 correcto, exit 0,
+5.03 s; log completo conservado y no leido. Siguiente accion: ejecutar primero
+`test_loop_pipeline` para obtener la razon exacta del caso de perdida reciente.
+Test dirigido pipeline: 2/3 correctos; anclaje adaptativo y optimizacion/fusion
+pasan. El caso de perdida queda en `waiting_second_independent_query` para sus
+ocho tareas y no alcanza la guarda de continuidad porque mezcla dos propiedades
+en una sola regresion. Correccion de test: fijar soporte 2/2/2 solo en ese caso
+para aislar y verificar la continuidad espacial; la politica 2/4/6 permanece
+cubierta por los tests adaptativos separados y por los defaults runtime.
+Regresion de ventana anadida: dos submapas con hard en KF 0/4 y loop en KF 7
+deben producir exactamente un intervalo `[4,7]` por submapa y ocho KFs totales;
+la arista server incidente en KF 5 entra sin recuperar el tramo anterior.
+Siguiente accion exacta 3Q: rebuild y CTest completo de `orbslam3_multi`.
+Siguiente accion exacta Fase 5: preparar conversadamente 5B como primera
+subfase funcional. Antes de 5C/5D verificar el cierre de 3Q y el HEAD vigente.
+Cualquier implementacion funcional requiere preparación y autorización propias.
 ```
 
 ## Estado vivo

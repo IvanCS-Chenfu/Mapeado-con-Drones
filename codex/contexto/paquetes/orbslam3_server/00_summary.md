@@ -62,10 +62,10 @@ ambas coalescen, `Full` prevalece. El intent efectivo aparece en dequeue y en
 `[F3Q-OPT-START]`. Los KFs movidos se agrupan por region y cada refresh limita
 sus candidatos por proximidad de subnubes world.
 
-Las hipotesis lejanas cuyos dos extremos pertenecen a regiones protegidas por
-fiducial/corredor se rechazan antes del grafo con umbral 5 m/20 grados. Un
-ledger regional revisionado extiende el rechazo a KFs vecinos equivalentes sin
-impedir la optimizacion asimetrica cuando solo un extremo es fiable.
+El apoyo loop es adaptativo 2/4/6. El corredor hard-hard eleva el riesgo, pero
+no inmoviliza sus KFs internos. El limite 5 m/20 grados se aplica al movimiento
+propuesto de poses ya optimizadas; solo hard permanece fijo permanentemente.
+Consenso server 3/60 fija soportes de forma privada durante el solve.
 
 3R configura score geometrico raw y bonus fused, emite telemetria live cada 25
 arrivals y conserva `score/rgb` rojo-amarillo-verde en la nube completa. La
@@ -156,3 +156,6 @@ publishers:    /global_mapping/backpressure_active
   puntos con score/rgb y alcanza 249.5 MiB RSS maximo.
 - cierre 3S: prueba 196 mantiene el servidor operativo con nivel `error`,
   completa el escenario y no emite ningun marcador `[F3*]`.
+- correccion 3Q: build correcto y CTest 12/12. Prueba 219 completa 17/17 pasos,
+  logra 22 commits loop de 30 solves y no mueve hard ni supera 5 m/20 grados;
+  queda carga residual de reruns y mejora visual desigual en zonas multi-epoch.

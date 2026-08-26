@@ -241,9 +241,17 @@ public:
     loop_config.max_residual_m = declare_parameter<double>(
       "loop_max_residual_m", 0.75);
     loop_config.fusion_translation_threshold_m = declare_parameter<double>(
-      "loop_fusion_translation_threshold_m", 0.35);
+      "loop_fusion_translation_threshold_m", 0.20);
     loop_config.fusion_rotation_threshold_rad = declare_parameter<double>(
-      "loop_fusion_rotation_threshold_rad", 0.25);
+      "loop_fusion_rotation_threshold_rad", 0.12);
+    loop_config.optimization_convergence_translation_m = declare_parameter<double>(
+      "loop_optimization_convergence_translation_m", 0.05);
+    loop_config.optimization_convergence_rotation_rad = declare_parameter<double>(
+      "loop_optimization_convergence_rotation_rad", 0.03);
+    loop_config.safe_correction_translation_m = declare_parameter<double>(
+      "loop_safe_correction_translation_m", 0.25);
+    loop_config.safe_correction_rotation_rad = declare_parameter<double>(
+      "loop_safe_correction_rotation_rad", 0.15);
     loop_config.independent_translation_m = declare_parameter<double>(
       "loop_independent_translation_m", 0.20);
     loop_config.independent_yaw_rad = declare_parameter<double>(
@@ -252,8 +260,18 @@ public:
       "loop_hypothesis_translation_tolerance_m", 0.50);
     loop_config.hypothesis_rotation_tolerance_rad = declare_parameter<double>(
       "loop_hypothesis_rotation_tolerance_rad", 0.35);
-    loop_config.hypothesis_min_support = static_cast<size_t>(std::max<int64_t>(
-        2, declare_parameter<int64_t>("loop_hypothesis_min_support", 2)));
+    loop_config.hypothesis_support_no_risk = static_cast<size_t>(std::max<int64_t>(
+        2, declare_parameter<int64_t>("loop_hypothesis_support_no_risk", 2)));
+    loop_config.hypothesis_support_one_risk = static_cast<size_t>(std::max<int64_t>(
+        2, declare_parameter<int64_t>("loop_hypothesis_support_one_risk", 4)));
+    loop_config.hypothesis_support_multiple_risks = static_cast<size_t>(
+      std::max<int64_t>(
+        2, declare_parameter<int64_t>(
+          "loop_hypothesis_support_multiple_risks", 6)));
+    loop_config.hypothesis_large_correction_translation_m = declare_parameter<double>(
+      "loop_hypothesis_large_correction_translation_m", 1.0);
+    loop_config.hypothesis_large_correction_rotation_rad = declare_parameter<double>(
+      "loop_hypothesis_large_correction_rotation_rad", 0.20);
     loop_config.ambiguity_margin = static_cast<size_t>(std::max<int64_t>(
         1, declare_parameter<int64_t>("loop_ambiguity_margin", 2)));
     loop_config.structural_temporal_increase_m = declare_parameter<double>(
@@ -268,10 +286,16 @@ public:
       "loop_structural_prior_increase_m", 0.50);
     loop_config.structural_prior_loop_increase_rad = declare_parameter<double>(
       "loop_structural_prior_increase_rad", 0.35);
-    loop_config.hard_corridor_max_translation_m = declare_parameter<double>(
-      "loop_hard_corridor_max_translation_m", 5.0);
-    loop_config.hard_corridor_max_rotation_rad = declare_parameter<double>(
-      "loop_hard_corridor_max_rotation_rad", 0.3490658503988659);
+    loop_config.optimized_keyframe_max_translation_m = declare_parameter<double>(
+      "loop_optimized_keyframe_max_translation_m", 5.0);
+    loop_config.optimized_keyframe_max_rotation_rad = declare_parameter<double>(
+      "loop_optimized_keyframe_max_rotation_rad", 0.3490658503988659);
+    loop_config.consensus_min_segments = static_cast<size_t>(std::max<int64_t>(
+        3, declare_parameter<int64_t>("loop_consensus_min_segments", 3)));
+    loop_config.consensus_min_coverage_ratio = declare_parameter<double>(
+      "loop_consensus_min_coverage_ratio", 0.60);
+    loop_config.consensus_prior_weight_multiplier = declare_parameter<double>(
+      "loop_consensus_prior_weight_multiplier", 2.0);
     loop_config.recent_loss_base_translation_m = declare_parameter<double>(
       "loop_recent_loss_base_translation_m", 2.0);
     loop_config.recent_loss_path_drift_ratio = declare_parameter<double>(
@@ -280,6 +304,14 @@ public:
       "loop_recent_loss_base_rotation_rad", 0.35);
     loop_config.recent_loss_rotation_drift_ratio = declare_parameter<double>(
       "loop_recent_loss_rotation_drift_ratio", 0.20);
+    loop_config.recent_loss_single_loop_enabled = declare_parameter<bool>(
+      "loop_recent_loss_single_loop_enabled", true);
+    loop_config.recent_loss_single_loop_translation_m = declare_parameter<double>(
+      "loop_recent_loss_single_loop_translation_m", 0.50);
+    loop_config.recent_loss_single_loop_rotation_rad = declare_parameter<double>(
+      "loop_recent_loss_single_loop_rotation_rad", 0.15);
+    loop_config.recent_loss_single_loop_max_path_m = declare_parameter<double>(
+      "loop_recent_loss_single_loop_max_path_m", 2.0);
     backend_.ConfigureLoopPipeline(loop_config);
     orbslam3_multi::FusedLandmarkConfig fused_config;
     fused_config.max_track_dispersion_m = declare_parameter<double>(
@@ -1464,6 +1496,7 @@ private:
       std::string fusion_retry_cause;
       std::optional<orbslam3_multi::FiducialOptimizationTask> fiducial_retry_task;
       std::vector<orbslam3_multi::RawKeyFrameId> post_optimization_rerun_ids;
+      std::vector<orbslam3_multi::RawKeyFrameId> world_reconciliation_ids;
       uint64_t post_optimization_arrival = 0U;
       try {
         if (queued.kind == SecondaryTaskKind::DatabaseUpdate &&
@@ -1579,8 +1612,8 @@ private:
               "[F3Q-LOOP-OPT] task=%lu graph=%s optimized=%s accepted=%s committed=%s "
               "stale=%s submaps=%zu window=%zu controls=%zu edges=(temporal=%zu,covis=%zu,loop=%zu) "
               "iterations=%zu error_before=(%.6f,%.6f) error_after=(%.6f,%.6f) "
-              "structure=(edges=%zu,corridor_kfs=%zu,max_increase=%.6fm/%.6frad,"
-              "corridor_excess=%.6fm/%.6frad->%.6fm/%.6frad) "
+              "structure=(edges=%zu,optimized_kfs=%zu,max_increase=%.6fm/%.6frad,"
+              "optimized_change=%.6fm/%.6frad) "
               "cost=(%.6f->%.6f) time_ms=(graph=%.3f,solve=%.3f,validation=%.3f,commit=%.3f) "
               "rebuilds=%zu discarded_regions=%zu moved=%zu propagated=%zu "
               "rebased_skipped=%zu rebased_inactive=%zu fusion_after=%s reason=%s",
@@ -1598,13 +1631,11 @@ private:
               loop.optimization.final_translation_error_m,
               loop.optimization.final_rotation_error_rad,
               loop.optimization.structural_edges_checked,
-              loop.optimization.hard_corridor_keyframes_checked,
+              loop.optimization.optimized_keyframes_checked,
               loop.optimization.max_structural_translation_increase_m,
               loop.optimization.max_structural_rotation_increase_rad,
-              loop.optimization.max_corridor_translation_excess_before_m,
-              loop.optimization.max_corridor_rotation_excess_before_rad,
-              loop.optimization.max_corridor_translation_excess_after_m,
-              loop.optimization.max_corridor_rotation_excess_after_rad,
+              loop.optimization.max_optimized_translation_change_m,
+              loop.optimization.max_optimized_rotation_change_rad,
               loop.optimization.initial_cost, loop.optimization.final_cost,
               loop.optimization.graph_ms, loop.optimization.solve_ms,
               loop.optimization.validation_ms, loop.optimization.commit_ms,
@@ -1673,7 +1704,8 @@ private:
             "support=(observed=%s,compatible=%s,independent=%s,count=%zu/%zu,competing=%zu,"
             "ambiguity=%s,margin=%zu,separation=%.3fm/%.3frad,accepted=%s) "
             "recent_loss=(checked=%s,passed=%s,error=%.3fm/%.3frad,limit=%.3fm/%.3frad) "
-            "protected=(checked=%s,query=%s,candidate=%s,rejected=%s,ledger=%s,"
+            "single_recovery=(checked=%s,eligible=%s,used=%s,path=%.3fm) "
+            "protected=(checked=%s,query=%s,candidate=%s,ledger=%s,"
             "error=%.3fm/%.3frad) refresh_spatial=(accepted=%zu,rejected=%zu) "
             "reason=%s",
             queued.task_id, queued.loop->query_keyframe_id.drone_id,
@@ -1702,10 +1734,13 @@ private:
             loop.recent_loss_rotation_rad,
             loop.recent_loss_translation_limit_m,
             loop.recent_loss_rotation_limit_rad,
+            loop.recent_loss_single_loop_checked ? "true" : "false",
+            loop.recent_loss_single_loop_eligible ? "true" : "false",
+            loop.recent_loss_single_loop_used ? "true" : "false",
+            loop.recent_loss_single_loop_path_m,
             loop.protected_region_checked ? "true" : "false",
             loop.protected_query_stable ? "true" : "false",
             loop.protected_candidate_stable ? "true" : "false",
-            loop.protected_region_rejected ? "true" : "false",
             loop.rejection_ledger_hit ? "true" : "false",
             loop.protected_translation_error_m,
             loop.protected_rotation_error_rad,
@@ -1897,6 +1932,23 @@ private:
               post_optimization_rerun_ids.insert(
                 post_optimization_rerun_ids.end(), commit.rerun_keyframe_ids.begin(),
                 commit.rerun_keyframe_ids.end());
+              world_reconciliation_ids.insert(
+                world_reconciliation_ids.end(),
+                commit.reconciliation_keyframe_ids.begin(),
+                commit.reconciliation_keyframe_ids.end());
+              if (commit.cascade_anchor_commit.status ==
+                orbslam3_multi::PoseCommitStatus::Applied)
+              {
+                RCLCPP_WARN(
+                  get_logger(),
+                  "[F3O-WORLD-CASCADE] source=fiducial_optimization task=%lu "
+                  "seed=(%u,%lu) anchored=%zu dirty=%zu reconciliation=%zu",
+                  queued.task_id, active_task.submap_id.drone_id,
+                  active_task.submap_id.map_epoch,
+                  commit.cascade_anchor_commit.anchored_submaps.size(),
+                  commit.cascade_anchor_commit.dirty_keyframe_ids.size(),
+                  commit.reconciliation_keyframe_ids.size());
+              }
               post_optimization_arrival = active_task.observation_arrival_id;
               if (commit.full_accept) {
                 RCLCPP_WARN(
@@ -2029,6 +2081,15 @@ private:
           post_optimization_rerun_ids.size() >= created ?
           post_optimization_rerun_ids.size() - created : 0U,
           created, enqueued, secondary_queue_.Pending());
+      }
+      if (!world_reconciliation_ids.empty()) {
+        std::sort(world_reconciliation_ids.begin(), world_reconciliation_ids.end());
+        world_reconciliation_ids.erase(
+          std::unique(world_reconciliation_ids.begin(), world_reconciliation_ids.end()),
+          world_reconciliation_ids.end());
+        auto reconciliation = backend_.CreateLoopTasks(
+          post_optimization_arrival, world_reconciliation_ids);
+        EnqueueLoopTasks(&reconciliation, "fiducial_world_authority");
       }
       if (fusion_retry_keyframe.has_value()) {
         try {
@@ -2320,6 +2381,25 @@ private:
         observation.keyframe_id.drone_id, observation.keyframe_id.map_epoch,
         observation.keyframe_id.local_kf_id, observation.fiducial_id,
         orbslam3_multi::ToString(result.status), result.reason.c_str());
+    }
+
+    if (result.cascade_anchor_commit.status ==
+      orbslam3_multi::PoseCommitStatus::Applied)
+    {
+      RCLCPP_WARN(
+        get_logger(),
+        "[F3O-WORLD-CASCADE] source=fiducial arrival_id=%lu seed=(%u,%lu) "
+        "anchored=%zu dirty=%zu reconciliation=%zu",
+        observation.arrival_id, observation.keyframe_id.drone_id,
+        observation.keyframe_id.map_epoch,
+        result.cascade_anchor_commit.anchored_submaps.size(),
+        result.cascade_anchor_commit.dirty_keyframe_ids.size(),
+        result.reconciliation_keyframe_ids.size());
+    }
+    if (!result.reconciliation_keyframe_ids.empty()) {
+      auto reconciliation = backend_.CreateLoopTasks(
+        observation.arrival_id, result.reconciliation_keyframe_ids);
+      EnqueueLoopTasks(&reconciliation, "fiducial_world_authority");
     }
 
     const auto stats = backend_.GetPoseStats();

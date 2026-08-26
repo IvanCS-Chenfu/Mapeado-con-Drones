@@ -6,6 +6,7 @@
 Fase 2: CONSEGUIDA
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
+Fase 5: 5A CONSEGUIDA documentalmente; 5B-5H sin hacer
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -15,10 +16,11 @@ Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA; regresion opcional futura
-Subfase actual: 3Q, reabierta por errores de optimizacion
-Preparacion 3Q: NO_INICIADA; autorizacion funcional PENDIENTE
-Siguiente punto de entrada: diagnostico conversado de la prueba 213
+Subfase actual: 3Q A REVISAR tras mejora conservadora y prueba 220
+Preparacion 3Q: CERRADA; autorizacion ejecutada
+Siguiente punto de entrada: continuar pipeline; reabrir 3Q solo si reaparece el fallo
 Trabajo funcional activo: ninguno
+Punto de entrada paralelo Fase 5: preparar 5B
 Revision visual de prueba 200: confirmada correcta por el usuario
 Pendiente de Fase 2: ninguno
 Autorizacion 4A+4B: concedida y consumida
@@ -81,6 +83,40 @@ pasos y 22/22 goals, libera el backpressure tras cada optimizacion y produce
 74/74 PUB/SHOW fiduciales. El usuario da 4A-4F por concluidas, pero no acepta
 esta ejecucion como validacion de 3Q: hubo derivas visibles y nueve propuestas
 loop tardias rechazadas. La prueba 213 queda como reentrada obligatoria de 3Q.
+
+## Correccion 3Q y pruebas 219-220
+
+- ventana segmentada comun para loop/fiducial, sin loop sintetico ni cierre por
+  submapa completo;
+- solo hard inmovil; KFs internos sin deadband 2 cm y revisitados 5 m/20 grados;
+- apoyo 2/4/6, pesos efectivos, consenso temporal 3/60 y umbrales separados;
+- builds correctos; CTest `orbslam3_multi` 9/9, Servidor 12/12 y Simulacion 10/10;
+- 219 completa 17/17 y 22/22; 22/30 solves hacen commit y cinco fusionan;
+- ocho descartes explicables, cero hard/revisit/fatal y cero anchors por loop;
+- visualmente una esquina queda corregida por completo y la derecha multi-epoch
+  solo parcialmente; `pending` llega a 51 y queda un solve activo al apagar.
+- mejora posterior: cascada automatica al aparecer autoridad world y
+  recuperacion reciente 1/1 provisional dentro de `0.50 m/0.15 rad/2 m`, con
+  fallback 2/4/6 fuera de esa banda;
+- 220 completa 17/17 y 22/22, valida la cascada y no activa incorrectamente 1/1;
+  el usuario califica el resultado general como excelente;
+- defecto residual: `task=1000000005590` encontro constraints consecutivas con
+  error world casi `0/1.012/0 m`, selecciono las tres regiones y movio 277 KFs
+  de una ventana de 296. Esto no identifica por si solo al candidate central
+  como pose incorrecta. El validator admitio 0.289 m de degradacion estructural
+  por quedar dentro de sus limites amplios;
+- punto de entrada: conservar las tres como `CurrentLoop`, pero no aceptar
+  `MaxIterations` como convergencia ni permitir que loops ya satisfechos
+  empeoren por la mejora OR; añadir guarda estructural local, sin tocar cascada.
+
+## Fase 5A
+
+- arquitectura reconciliada con `O_T_B` continuo y `W_T_B` corregible;
+- reference KF real + `Tcr`; consulta inicial asíncrona y revisiones por push;
+- absolutos sin global rechazados y goals activos congelados en `O`;
+- `GT_FALLBACK` temporal visible hasta recovery real en Fase 6;
+- smoothing no obligatorio y antigua 5I absorbida en 5H;
+- sin cambios funcionales, builds, tests o simulaciones.
 
 ## Entrega de Fase 2
 

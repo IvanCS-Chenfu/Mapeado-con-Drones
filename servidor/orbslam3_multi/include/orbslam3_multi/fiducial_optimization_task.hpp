@@ -68,11 +68,13 @@ struct FiducialCommitResult
   bool committed = false;
   bool full_accept = false;
   PoseChangeSet pose_changes;
+  LoopAnchorBatchResult cascade_anchor_commit;
   FiducialError final_error;
   size_t window_keyframes = 0;
   size_t late_window_keyframes = 0;
   size_t tail_keyframes = 0;
   std::vector<RawKeyFrameId> rerun_keyframe_ids;
+  std::vector<RawKeyFrameId> reconciliation_keyframe_ids;
   std::string reason;
 };
 

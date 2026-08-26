@@ -2,127 +2,125 @@
 
 ## Estado vigente
 
-`REABIERTA; SUBFASE ACTUAL A REVISAR DESDE LA PRUEBA 213`.
-
-El cierre anterior permitio avanzar, pero el usuario ha fijado 3Q como punto
-actual antes de continuar a Fase 5. La preparacion correctiva aun no se ha
-iniciado y no hay autorizacion funcional para modificar el backend.
-
-3Q ejecuta `OptimizationEvidence` dentro de la misma `LoopTask` BAJA y reutiliza
-builder, solver, validator, store y fusion para fiducial absoluto y loop
-relativo. No crea cola, worker ni solver duplicados.
+`A REVISAR`: la correccion reabierta tras la prueba 213 y la mejora conservadora
+posterior estan implementadas y validadas. La prueba 220 da un resultado visual
+general excelente y demuestra la cascada world pendiente. El usuario acepta
+continuar sin otra correccion; 3Q solo se reabrira si vuelve a aparecer el
+movimiento incoherente aislado observado en una ventana de 296 KFs.
 
 ## Implementacion vigente
 
-- grafo SE(3) comun con hard fiduciales fijos, temporal, covisibilidad nativa,
-  loops/fusiones server, dependencias soft y ventanas multi-submapa;
-- regiones robustas de error alto dominan sobre fusiones de la misma tarea;
-  cada `CurrentLoop` queda cubierto y validado antes del commit;
-- cierre transitivo por todas las fusiones, sin bonus artificial, y validacion
-  de estructura temporal, covisible, fusiones previas y hard;
-- corredores hard-hard referidos al ultimo commit fiducial: un exceso heredado
-  puede mantenerse o reducirse, pero no crecer;
-- un epoch nunca anclado conserva anclaje loop libre; un epoch nuevo nacido
-  tras perder tracking anclado debe respetar una envolvente raw por KF;
-- commit multi-submapa con rebase sobre estado vigente. Intermedios caducados se
-  omiten; extremos culled con raw estable pueden actuar como apoyo virtual sin
-  reactivarse ni escribirse; se exigen dos controles activos por submapa;
-- todos los KFs movidos se reencolan como `FusionRefresh`: recalculan
-  BoW/RANSAC/fusion/score, pero no inician optimizacion recursiva. Las tareas
-  normales siguen siendo `Full` y prevalecen al coalescer;
-- los refresh se agrupan por region y filtran candidatos por AABB world; sus
-  pendientes son mantenimiento y no mantienen por si solos backpressure;
-- un precheck anterior al builder rechaza loops >5 m/20 grados cuando ambos
-  extremos pertenecen a regiones fiduciales/corredores protegidos. El ledger
-  regional revisionado evita repetirlos en KFs vecinos; un solo lado fiable
-  conserva la optimizacion asimetrica;
-- `stop_drones` cubre grafo, solve, validacion, commit y fusion directa; la
-  tarea sigue BAJA, no preemptiva, y el principal continua incorporando raw;
-- dirty sets contienen solo KFs activos realmente movidos; raw no se modifica
-  y el worker secundario no publica.
+- `PoseGraphBuilder::BuildSegmented()` selecciona intervalos temporales
+  delimitados por hard para loop y fiducial; no existe loop fiducial sintetico
+  ni cierre por submapa completo.
+- La expansion a otros submapas exige una relacion server incidente en el
+  intervalo. La covisibilidad ORB nativa refuerza, pero no descubre submapas.
+- Solo los fiduciales hard son inmoviles permanentemente. Los KFs intermedios
+  pueden superar 2 cm de movimiento si pasan estructura y commit.
+- Los KFs con pose `LoopOptimized` o `FiducialOptimized` pueden reajustarse; se
+  rechaza atomicamente si alguno cambia mas de 5 m o 20 grados.
+- Tres segmentos soporte independientes unidos por `ServerLoopGeometric`, con
+  cobertura minima 60 %, se fijan solo durante ese solve. Query no pertenece al
+  scaffold y la marca no se persiste como hard.
+- Apoyo adaptativo 2/4/6 segun perdida/asimetria, ambiguedad y correccion grande,
+  con progresion coherente de query y candidate.
+- `information_weight` afecta coste y relajacion por familia. Convergencia
+  `0.05 m/0.03 rad`, fusion `0.20 m/0.12 rad` y commit seguro
+  `0.25 m/0.15 rad` son decisiones independientes.
+- Todo commit loop conserva `PriorLoop`; fusionar landmarks requiere ademas
+  quedar dentro del umbral de fusion.
+- Cuando una constraint activa obtiene autoridad world por un fiducial, se
+  ejecuta una cascada acotada a su componente y se reencolan sus endpoints para
+  reconciliacion normal.
+- Tras perdida reciente puede usarse un unico loop solo con continuidad
+  estricta configurable (`0.50 m`, `0.15 rad`, recorrido maximo `2 m`). La
+  constraint queda provisional, sin fusion ni propagacion amplia, hasta un
+  segundo apoyo independiente o un fiducial. Fuera de esa banda sigue 2/4/6.
 
-## Evidencia final
+## Evidencia reciente
 
-- build final: 2/2 (`orbslam3_multi`, `orbslam3_server`), exit 0;
-- regresiones finales directas: grafos/validacion 14/14, pipeline 9/9 y cola
-  6/6; CTest `orbslam3_multi` 9/9, web 1/1 y servidor funcional 4/4;
-- regresion de perdida: una hipotesis repetida a unos 190 m no ancla el epoch
-  perdido, mientras el primer epoch nunca anclado sigue libre;
-- prueba 187 corta: `success=true`, tres optimizaciones/tres commits, 16
-  `FusionRefresh` altos diferidos, 1047 tareas, `pending=0`, cero hard failures;
-- prueba 188 larga: 25 etapas y dos vueltas, scenario/tool exit 0,
-  `success=true`; 26 propuestas loop, nueve commits `Full` y 17 rechazos
-  estructurales sin escritura;
-- los commits loop 188 reducen el error medio de traslacion de 0.469849 a
-  0.089286 m; solve maximo 6765.81 ms y commit maximo 11.873 ms;
-- fiduciales 188: nueve accepts full, ocho commits atomicos y cero hard
-  failures; dos submapas se anclan por loop;
-- fusion 188: 995/1196 commits y 84103 pares comprometidos, incluidos cinco
-  commits posteriores a optimizacion;
-- recursos 188: MemAvailable minimo 5166.6 MiB, servidor RSS maximo 423.4 MiB,
-  grupo 2014.6 MiB, PSI memoria cero y guarda inactiva.
-- prueba 191 larga: dos vueltas completas, `success=true`, cola final cero,
-  2104 secundarias y cero hard failures; cinco rechazos protegidos, 42 hits del
-  ledger y 18 refresh sin candidatos espaciales;
-- los gates 191 se liberan siempre y el maximo baja de 358.8 s en la prueba 189
-  interrumpida a 80.272 s. Mantenimiento puro nunca activa backpressure;
-- recursos 191: servidor RSS maximo 362.1 MiB, grupo 1948.8 MiB, PSI memoria
-  cero y guarda inactiva.
+- Prueba 218: escenario correcto, pero 0 commits loop; diez propuestas validas
+  se cancelaron por `hard_corridor_displacement_exceeded`. Demostro que la
+  deadband de 2 cm convertia incorrectamente los KFs internos en casi-hard.
+- Builds posteriores: `orbslam3_multi`, `orbslam3_server` y `simulacion_dron`
+  correctos. CTest 9/9, 12/12 y 10/10 respectivamente.
+- Prueba 219: 17/17 pasos, 22/22 goals, scenario/tool exit 0 y recursos estables.
+  De 30 solves terminados, 22 hacen commit y ocho se descartan justificadamente;
+  cinco commits terminan tambien en fusion post-opt.
+- Los ocho descartes son: dos intervalos demasiado pequenos, dos sin mejora de
+  todas las `CurrentLoop`, dos sobre el commit seguro, uno con coste global
+  creciente y uno que degradaba covisibilidad nativa.
+- No hay rechazo por 2 cm, movimiento hard, violacion 5 m/20 grados,
+  `blocking_failure` ni fatal. Maximo reajuste de pose ya optimizada:
+  1.404495 m / 0.181256 rad.
+- Revision visual del usuario: una esquina queda completamente corregida; las
+  dos derechas corrigen peor y otra esquina solo parcialmente. Esta lectura de
+  219 queda superada como estado vigente por la repeticion 220.
 
-## Fallos conservados
+- Prueba 220: builds correctos y CTest 9/9, 12/12 y 10/10; 17/17 pasos,
+  22/22 goals, `success=true`, exit 0 y recursos estables tras el retry Gazebo.
+- La cascada world se ejecuto al llegar el primer fiducial y anclo otro submapa
+  conectado. La recuperacion 1/1 rechazo correctamente una continuidad de
+  unos 5.6 m y `(1,2)` termino anclado por el fallback normal 6/6.
+- Revision visual 220: resultado general excelente; un movimiento deterioro
+  algo la esquina superior derecha mirando hacia `+Y`.
 
-- 176 y 179 siguen `NO CONSEGUIDAS` visualmente: 179 acepto una hipotesis de
-  unos 27 m sin validar la estructura previa;
-- 180 rechazo exceso de corredor heredado; 181 mantuvo una revision redundante;
-  182/184 localizaron controles culled; 185 conservo extremos demasiado
-  estrictos; 186 creo una realimentacion de 78 commits desde reruns post-opt;
-- 187 demuestra que `FusionRefresh` elimina esa realimentacion;
-- 189 se conserva `NO CONSEGUIDA`: repetitividad regional genero cinco solves
-  de 63-70 s y un gate de 358.8 s antes de la interrupcion;
-- 191 conserva una limitacion de coste: 31 rejects post-solver y una ventana de
-  786 KFs/83.44 s. No reproduce el bloqueo, pero la seleccion multi-region y
-  los umbrales pueden perfeccionarse mas adelante;
-- un CTest intermedio 8/9 fallo por fixtures sin `CurrentLoop`; la correccion
-  mecanica deja 9/9. Los fallos globales restantes son linters historicos de
-  `legacy2` y formato previo ajeno al alcance.
-- revision de la prueba 194: el dron 2 antihorario recibe dos commits loop
-  consecutivos antes del fiducial 2. El dominante corrige `3.950 m/0.454 rad`,
-  mueve 359 KFs y admite `0.686 m` de incremento estructural; el siguiente
-  corrige `0.780 m/0.078 rad` sobre 362 KFs. Ambos eran asimetricos
-  (`query` no protegida, candidato protegido), ambiguos y con diez competidores.
-  El fiducial posterior queda dentro de umbral y no reoptimiza el interior.
+## `map_epoch`, anchors y zonas derechas
 
-## Reentrada desde Fase 4 - prueba 213
+Submapas observados: dron 1 epochs 0-3; dron 2 epochs 0-1. Los cambios
+`(2,1)`, `(1,2)` y `(1,3)` aparecen durante los tramos de la derecha. Las
+aristas temporales no cruzan epochs, por lo que la hipotesis visual de menor
+autoridad en esas esquinas es consistente con los logs, aunque no demuestra por
+si sola causalidad geometrica.
 
-La prueba 213 completa 17/17 pasos, pero el usuario observa que varias derivas
-no fueron corregidas por loop. El reducido 3Q contiene 15 intentos: seis commits
-tempranos y nueve rechazos posteriores. Siete rechazos son
-`hard_corridor_displacement_exceeded` y dos `prior_loop_structure_degraded`;
-las ventanas rechazadas alcanzan 288-313 KFs. Varias propuestas reducen mucho el
-error loop, pero crean hasta 0.130115 m de exceso de corredor desde una referencia
-previa sin exceso; tambien aparecen hipotesis ambiguas con 29 competidores.
+No hubo anchors por loop: todos los `[F3O-LOOP-DONE]` tienen `anchors=0` y no
+aparece `[F3O-FID-LOOP-REANCHOR]`. Los cinco anchors creados fueron fiduciales
+directos para `(2,0)`, `(1,1)`, `(2,1)`, `(1,2)` y `(1,3)`.
 
-Esta evidencia no reabre Fase 4 ni invalida su cadena fiducial, pero obliga a
-revisar 3Q antes de considerar robusta la correccion de deriva: reproducir 213,
-correlacionar deriva/propuesta y distinguir sobrerigidez del validator frente a
-falsos loops o mala seleccion de ventana.
+La causa no es una desactivacion. Un anchor loop exige activar una constraint
+relativa con apoyo suficiente y que la componente contenga ya un submapa con
+autoridad world. `(1,1)` activo constraints 2/2 y 3/2 antes de los primeros
+fiduciales, cuando ambos lados seguian sin world. `(2,1)` y `(1,2)` rechazaron
+su geometria durante la ventana sin anchor. `(1,3)` necesitaba seis apoyos por
+riesgo/ambiguedad y alcanzo cuatro antes de recibir fiducial directo.
 
-## Cierre
+La distribucion 3Q tambien es asimetrica: tras el bloque inicial, la mayoria de
+los solves usan query `(2,1)`; `(1,2)` no inicia ninguno y `(1,3)` completa uno
+antes del cierre. Los grafos pueden incluir 3-4 submapas, pero una query nueva
+con menos continuidad no queda tan bien condicionada como el tramo con mas
+fusiones previas.
 
-La prueba 191 termina con cola vacia y corrige el bloqueo operativo de 189. La
-seleccion multi-region aun puede iniciar ventanas grandes cuando la relacion
-directa protegida es coherente; queda como perfeccionamiento futuro acordado.
-La prueba 195 no reproduce la mala optimizacion final y el usuario confirma que
-RViz2 se vio perfecto; las correcciones observadas ocurrieron al alcanzar el
-fiducial. 3Q queda conseguida para cerrar Fase 3, sin ocultar 194.
+## Defecto residual de 220
 
-La prueba 213 queda marcada expresamente como `A REVISAR DE NUEVO EN 3Q` por
-derivas no corregidas y predominio de rechazos loop tras los fiduciales hard.
+`task=1000000005590`, reencolada tras el anchor de `(1,2)`, fue la unica
+optimizacion loop de 220 que paso de las ventanas habituales de 49-75 KFs a
+tres submapas, 296 KFs y 277 KFs movidos. Para candidatos consecutivos 65/66/67,
+las constraints con 65 y 67 ya estaban alineadas casi a cero y solo la de 66
+presentaba `1.0118 m/0.1290 rad`. Esto no prueba que solo la pose del 66 fuese
+incorrecta. La seleccion incorporo las tres regiones como `CurrentLoop` y no
+contrasta ese residual relativo aislado con sus vecinos.
 
-Como mejora futura, un candidato cercano podria requerir dos apoyos
-independientes y uno lejano/ambiguo un umbral creciente de hasta 8-10 antes de
-una unica optimizacion. No se implementa en este cierre. El punto de reentrada
-continua siendo admision asimetrica, ambiguedad, tamaño de ventana y validacion
-de deformacion.
+El solve bajo el coste `20247.82 -> 71.47`, pero permitio un incremento
+estructural de 0.28883 m y reajustes de 0.32602 m. El validator lo acepto porque
+los limites actuales son 2 m temporal, 1 m covisible y 5 m/20 grados para KFs
+ya optimizados. La fusion posterior stale no revierte el commit de poses.
+
+Los fiduciales no muestran la misma firma: la tarea superior corrigio un error
+absoluto real de 1.183 m mientras el otro dron ya tenia control coherente allí.
+La telemetria no conserva el reparto de IDs movidos por submapa, por lo que la
+atribucion espacial no es demostrable al 100 %, pero la singularidad de
+`1000000005590` frente a todos los demas commits da confianza alta.
+
+El builder ya conserva las tres medidas compatibles como `CurrentLoop` y el
+solver intenta llevar todas a `0.05 m/0.03 rad`. El hueco es de enforcement:
+al agotar 160 iteraciones devuelve `Converged`; el validator permite hasta
+`0.25 m/0.15 rad` por loop y solo exige que mejore alguno. Siguiente paso:
+mantener la ventana completa y las tres `CurrentLoop`, registrar errores por
+arista y exigir convergencia/no degradacion individual, junto con una guarda
+estructural local. No cambiar cascada, recuperacion 1/1 ni fiduciales.
+
+Esta mejora queda documentada, no activa. No ejecutar cambios adicionales de
+3Q salvo nueva evidencia runtime del mismo fallo o peticion explicita del
+usuario.
 
 Detalle cronologico: `historial_3Q.md`.

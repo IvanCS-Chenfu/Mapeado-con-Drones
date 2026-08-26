@@ -32,8 +32,29 @@ public:
     const LoopPipelineConfig & loop_config,
     const std::map<RawSubmapId, LoopAnchorDependencySnapshot> &
     loop_dependencies = {}) const;
+  PoseGraphBuildResult BuildExpandedFiducial(
+    const FiducialOptimizationTask & task,
+    const std::map<RawSubmapId, RawSubmapPoseSnapshot> & raw_snapshots,
+    const std::map<RawKeyFrameId, GlobalPoseRecord> & poses,
+    uint64_t pose_store_revision,
+    const CovisibilityDatabase & covisibility_database,
+    const LoopPipelineConfig & loop_config,
+    const std::map<RawSubmapId, LoopAnchorDependencySnapshot> &
+    loop_dependencies = {}) const;
 
 private:
+  PoseGraphBuildResult BuildSegmented(
+    PoseGraphProblem seed_problem,
+    const std::vector<std::pair<size_t, const LoopGeometryResult *>> &
+    current_geometries,
+    std::map<RawSubmapId, std::vector<RawKeyFrameId>> endpoints,
+    const std::map<RawSubmapId, RawSubmapPoseSnapshot> & raw_snapshots,
+    const std::map<RawKeyFrameId, GlobalPoseRecord> & poses,
+    const CovisibilityDatabase & covisibility_database,
+    const LoopPipelineConfig & loop_config,
+    const std::map<RawSubmapId, LoopAnchorDependencySnapshot> &
+    loop_dependencies) const;
+
   FiducialOptimizationConfig config_;
 };
 

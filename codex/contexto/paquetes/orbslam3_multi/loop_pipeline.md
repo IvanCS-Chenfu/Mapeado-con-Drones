@@ -37,10 +37,20 @@ revalidate -> UpsertBow/SearchBow -> GroupRegions
 - La cola coalesce por apariencia, geometria semantica y anchor. El dequeue y
   el commit revalidan ademas `validation_revision`, que incluye la geometria
   exacta; reducir reevaluaciones no permite comprometer una nube antigua.
-- Anchors, evidencia de optimizacion y constraints no ancladas requieren dos
-  queries independientes compatibles. `BuildAnchorCascade()` puede resolver
+- Anchors y constraints no ancladas requieren dos queries independientes.
+  La evidencia de optimizacion usa apoyo adaptativo 2/4/6 segun
+  perdida/asimetria, ambiguedad y correccion grande, conservando progresion
+  coherente de query y candidate. `BuildAnchorCascade()` puede resolver
   atomicamente un componente conectado cuando uno de sus submapas obtiene
   world.
+- `RecentLossRecoveryContext` habilita excepcionalmente apoyo 1/1 si el nuevo
+  submapa permanece dentro de los limites configurados respecto al ultimo
+  control perdido. La constraint resultante es provisional: no entra en
+  fusion, scaffold ni cascada hasta recibir un segundo apoyo independiente o
+  un fiducial. Al superar el recorrido maximo se conserva el apoyo 2/4/6.
+- `BuildAnchorCascade()` tambien se invoca explicitamente cuando aparece nueva
+  autoridad world por fiducial; recorre solo constraints activas no
+  provisionales de la componente.
 - La independencia evita falsos positivos repetitivos. Los motivos de espera,
   competencia y ambiguedad quedan expuestos para distinguir demora legitima de
   falta de evidencia.
@@ -58,6 +68,12 @@ revalidate -> UpsertBow/SearchBow -> GroupRegions
   RANSAC; `Full` mantiene la busqueda global normal.
 - La telemetria `refresh_spatial=(accepted,rejected)` de `[F3O-LOOP-DONE]`
   permite medir el filtro sin alterar las decisiones de una tarea normal.
+- La seleccion de optimizacion vigente toma hasta tres regiones RANSAC
+  compatibles con la hipotesis soportada y no fusionables. No exige que cada
+  region seleccionada tenga error world alto; la prueba 220 demuestra que una
+  constraint alta aislada entre candidatos vecinos con constraints ya
+  satisfechas puede ampliar indebidamente el solve. Esto no identifica por si
+  solo que pose del par es incorrecta. Es el punto de reentrada actual de 3Q.
 
 ## Referencias
 
@@ -72,7 +88,9 @@ src/loop_pipeline.cpp
 
 Tests: `test_loop_pipeline` valida anclaje tras dos queries, dependencia blanda,
 coalescencia semantica, optimizacion+fusion dentro de la misma tarea y rechazo
-espacial temprano de `FusionRefresh` lejano.
+espacial temprano de `FusionRefresh` lejano. Tambien cubre apoyo adaptativo,
+cascada al aparecer world, recuperacion reciente 1/1 estricta y fallback al
+superar el recorrido maximo.
 Runtime: `[F3N-LOOP-ENQUEUE]` expone raw/appearance/geometry/validation/anchor,
 ademas de `[F3O-RANSAC]`, `[F3O-LOOP-DONE]` y `[F3P-FUSION]` cuando la decision
 de error bajo llega al commit.

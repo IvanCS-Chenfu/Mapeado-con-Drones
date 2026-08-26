@@ -17,13 +17,21 @@
     loop_min_inlier_ratio: 0.25
     loop_max_mean_residual_m: 0.20
     loop_max_residual_m: 0.75
-    loop_fusion_translation_threshold_m: 0.35
-    loop_fusion_rotation_threshold_rad: 0.25
+    loop_fusion_translation_threshold_m: 0.20
+    loop_fusion_rotation_threshold_rad: 0.12
+    loop_optimization_convergence_translation_m: 0.05
+    loop_optimization_convergence_rotation_rad: 0.03
+    loop_safe_correction_translation_m: 0.25
+    loop_safe_correction_rotation_rad: 0.15
     loop_independent_translation_m: 0.20
     loop_independent_yaw_rad: 0.0872664626
     loop_hypothesis_translation_tolerance_m: 0.50
     loop_hypothesis_rotation_tolerance_rad: 0.35
-    loop_hypothesis_min_support: 2
+    loop_hypothesis_support_no_risk: 2
+    loop_hypothesis_support_one_risk: 4
+    loop_hypothesis_support_multiple_risks: 6
+    loop_hypothesis_large_correction_translation_m: 1.0
+    loop_hypothesis_large_correction_rotation_rad: 0.20
     loop_ambiguity_margin: 2
     loop_structural_temporal_increase_m: 2.0
     loop_structural_temporal_increase_rad: 0.70
@@ -31,12 +39,19 @@
     loop_structural_covisibility_increase_rad: 0.50
     loop_structural_prior_increase_m: 0.50
     loop_structural_prior_increase_rad: 0.35
-    loop_hard_corridor_max_translation_m: 5.0
-    loop_hard_corridor_max_rotation_rad: 0.3490658503988659
+    loop_optimized_keyframe_max_translation_m: 5.0
+    loop_optimized_keyframe_max_rotation_rad: 0.3490658503988659
+    loop_consensus_min_segments: 3
+    loop_consensus_min_coverage_ratio: 0.60
+    loop_consensus_prior_weight_multiplier: 2.0
     loop_recent_loss_base_translation_m: 2.0
     loop_recent_loss_path_drift_ratio: 0.20
     loop_recent_loss_base_rotation_rad: 0.35
     loop_recent_loss_rotation_drift_ratio: 0.20
+    loop_recent_loss_single_loop_enabled: true
+    loop_recent_loss_single_loop_translation_m: 0.50
+    loop_recent_loss_single_loop_rotation_rad: 0.15
+    loop_recent_loss_single_loop_max_path_m: 2.0
     fusion_max_track_dispersion_m: 0.50
     fusion_visibility_depth_tolerance_m: 0.30
     fusion_visibility_cell_size_px: 8

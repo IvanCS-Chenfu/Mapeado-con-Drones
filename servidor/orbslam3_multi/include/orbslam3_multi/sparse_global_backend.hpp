@@ -129,6 +129,10 @@ private:
   void TrackSubmapTransition(const RawInsertResult & raw_result);
   bool ValidateRecentLossAnchor(
     const LoopAnchorBatchEntry & entry, LoopTaskComputation * computation) const;
+  void ApplyWorldAuthorityCascadeLocked(
+    const RawSubmapId & seed_submap, uint64_t source_task_id,
+    LoopAnchorBatchResult * anchor_commit,
+    std::vector<RawKeyFrameId> * reconciliation_keyframe_ids);
   bool IsProtectedLoopRegion(const RawKeyFrameId & keyframe_id) const;
   LoopRejectionKey BuildLoopRejectionKey(const LoopGeometryResult & geometry) const;
   void ApplyProtectedRegionGuard(LoopTaskComputation * computation);
@@ -166,6 +170,7 @@ private:
   std::set<LoopRejectionKey> loop_rejection_ledger_;
   // Orden de locks: state_commit -> componentes; builder y ledger nunca se toman al revés.
   mutable std::mutex state_commit_mutex_;
+  mutable std::mutex loop_pipeline_mutex_;
   mutable std::mutex loop_rejection_mutex_;
   mutable std::mutex builder_mutex_;
 };

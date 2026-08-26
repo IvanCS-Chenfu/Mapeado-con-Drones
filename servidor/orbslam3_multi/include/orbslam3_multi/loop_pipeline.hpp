@@ -37,13 +37,21 @@ struct LoopPipelineConfig
   double min_inlier_ratio = 0.25;
   double max_mean_residual_m = 0.20;
   double max_residual_m = 0.75;
-  double fusion_translation_threshold_m = 0.35;
-  double fusion_rotation_threshold_rad = 0.25;
+  double fusion_translation_threshold_m = 0.20;
+  double fusion_rotation_threshold_rad = 0.12;
+  double optimization_convergence_translation_m = 0.05;
+  double optimization_convergence_rotation_rad = 0.03;
+  double safe_correction_translation_m = 0.25;
+  double safe_correction_rotation_rad = 0.15;
   double independent_translation_m = 0.20;
   double independent_yaw_rad = 0.08726646259971647;
   double hypothesis_translation_tolerance_m = 0.50;
   double hypothesis_rotation_tolerance_rad = 0.35;
-  size_t hypothesis_min_support = 2;
+  size_t hypothesis_support_no_risk = 2;
+  size_t hypothesis_support_one_risk = 4;
+  size_t hypothesis_support_multiple_risks = 6;
+  double hypothesis_large_correction_translation_m = 1.0;
+  double hypothesis_large_correction_rotation_rad = 0.20;
   size_t ambiguity_margin = 2;
   double structural_temporal_increase_m = 2.0;
   double structural_temporal_increase_rad = 0.70;
@@ -51,13 +59,26 @@ struct LoopPipelineConfig
   double structural_covisibility_increase_rad = 0.50;
   double structural_prior_loop_increase_m = 0.50;
   double structural_prior_loop_increase_rad = 0.35;
-  double hard_corridor_max_translation_m = 5.0;
-  double hard_corridor_max_rotation_rad = 0.3490658503988659;
+  double optimized_keyframe_max_translation_m = 5.0;
+  double optimized_keyframe_max_rotation_rad = 0.3490658503988659;
+  size_t consensus_min_segments = 3;
+  double consensus_min_coverage_ratio = 0.60;
+  double consensus_prior_weight_multiplier = 2.0;
   double fusion_refresh_spatial_margin_m = 1.0;
   double recent_loss_base_translation_m = 2.0;
   double recent_loss_path_drift_ratio = 0.20;
   double recent_loss_base_rotation_rad = 0.35;
   double recent_loss_rotation_drift_ratio = 0.20;
+  bool recent_loss_single_loop_enabled = true;
+  double recent_loss_single_loop_translation_m = 0.50;
+  double recent_loss_single_loop_rotation_rad = 0.15;
+  double recent_loss_single_loop_max_path_m = 2.0;
+};
+
+struct RecentLossRecoveryContext
+{
+  RawSubmapId submap_id;
+  geometry_msgs::msg::Pose trusted_world_pose;
 };
 
 struct LoopCandidateRegion
@@ -171,7 +192,7 @@ struct LoopOptimizationSummary
   size_t rebased_skipped_controls = 0;
   size_t rebased_inactive_controls = 0;
   size_t structural_edges_checked = 0;
-  size_t hard_corridor_keyframes_checked = 0;
+  size_t optimized_keyframes_checked = 0;
   size_t iterations = 0;
   double initial_translation_error_m = 0.0;
   double final_translation_error_m = 0.0;
@@ -185,10 +206,8 @@ struct LoopOptimizationSummary
   double commit_ms = 0.0;
   double max_structural_translation_increase_m = 0.0;
   double max_structural_rotation_increase_rad = 0.0;
-  double max_corridor_translation_excess_before_m = 0.0;
-  double max_corridor_translation_excess_after_m = 0.0;
-  double max_corridor_rotation_excess_before_rad = 0.0;
-  double max_corridor_rotation_excess_after_rad = 0.0;
+  double max_optimized_translation_change_m = 0.0;
+  double max_optimized_rotation_change_rad = 0.0;
   std::string reason;
 };
 
@@ -231,10 +250,13 @@ struct LoopTaskComputation
   double recent_loss_translation_limit_m = 0.0;
   double recent_loss_rotation_rad = 0.0;
   double recent_loss_rotation_limit_rad = 0.0;
+  bool recent_loss_single_loop_checked = false;
+  bool recent_loss_single_loop_eligible = false;
+  bool recent_loss_single_loop_used = false;
+  double recent_loss_single_loop_path_m = 0.0;
   bool protected_region_checked = false;
   bool protected_query_stable = false;
   bool protected_candidate_stable = false;
-  bool protected_region_rejected = false;
   bool rejection_ledger_hit = false;
   double protected_translation_error_m = 0.0;
   double protected_rotation_error_rad = 0.0;
@@ -250,7 +272,13 @@ public:
   LoopTaskComputation Process(
     const LoopTask & task, const RawMapDatabase & raw_database,
     const GlobalPoseStore & pose_store,
-    const CovisibilityDatabase & covisibility_database);
+    const CovisibilityDatabase & covisibility_database,
+    const std::optional<RecentLossRecoveryContext> & recent_loss = std::nullopt);
+  std::vector<LoopAnchorBatchEntry> BuildAnchorCascade(
+    uint64_t task_id, const RawSubmapId & seed_submap,
+    const RawMapDatabase & raw_database, const GlobalPoseStore & pose_store) const;
+  std::vector<RawKeyFrameId> ConfirmedConstraintComponentKeyFrames(
+    const RawSubmapId & seed_submap) const;
   size_t IndexedKeyFrames() const;
 
 private:
@@ -275,6 +303,8 @@ private:
   {
     RawKeyFrameId query_keyframe_id;
     geometry_msgs::msg::Pose query_local_pose;
+    RawKeyFrameId candidate_keyframe_id;
+    geometry_msgs::msg::Pose candidate_local_pose;
     RawKeyFrameId child_control_keyframe_id;
   };
 
@@ -292,6 +322,7 @@ private:
     RawKeyFrameId first_control;
     RawKeyFrameId second_control;
     size_t support = 0;
+    bool provisional = false;
   };
 
   using SubmapPair = std::pair<RawSubmapId, RawSubmapId>;
@@ -318,11 +349,12 @@ private:
   bool AddHypothesisEvidence(
     const SubmapPair & pair, const Eigen::Isometry3d & first_T_second,
     const HypothesisObservation & observation,
-    const LoopPipelineConfig & config, Hypothesis * accepted,
-    LoopHypothesisSupportSummary * summary = nullptr);
-  std::vector<LoopAnchorBatchEntry> BuildAnchorCascade(
-    uint64_t task_id, const RawMapDatabase & raw_database,
-    const GlobalPoseStore & pose_store) const;
+    size_t risk_signals, const LoopPipelineConfig & config, Hypothesis * accepted,
+    LoopHypothesisSupportSummary * summary = nullptr,
+    const std::optional<size_t> & required_support_override = std::nullopt);
+  std::optional<LoopAnchorBatchEntry> BuildSingleRecoveryAnchor(
+    const LoopGeometryResult & geometry, const RawKeyFrameId & candidate_control,
+    const RawMapDatabase & raw_database, const GlobalPoseStore & pose_store) const;
 
   LoopPipelineConfig config_;
   std::map<RawKeyFrameId, BowEntry> bow_entries_;

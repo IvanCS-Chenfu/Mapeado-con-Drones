@@ -120,5 +120,13 @@ fases dense se usa headless y se habilitan solo las vistas necesarias.
 La validacion automatica de topologia, lifecycle y configuracion 3T esta
 conseguida.
 
+La copia `config/global_map/loop_fusion.yaml` incorpora la correccion reabierta
+3Q: sin deadband de 2 cm, revisitados 5 m/20 grados, consenso 3/60 y umbrales
+separados de convergencia/fusion/commit. Tambien replica la recuperacion tras
+perdida 1/1 estricta (`0.50 m`, `0.15 rad`, recorrido maximo `2 m`) con fallback
+2/4/6. El contrato de configuracion pasa dentro del CTest 10/10; la prueba 220
+termina 17/17 y 22/22 con resultado visual general excelente y un outlier 3Q
+residual documentado en su historial.
+
 Detalle: `launches.md`, `scenario_runner_node.md` y
 `pipeline_flow_visualizer.md`.

@@ -14,12 +14,18 @@ y distribuye la correccion mediante aristas temporales/covisibles. En
 y candidate pueden moverse y ningun prior world artificial fija un lado.
 
 El solver iterativo conserva el limite de 160 iteraciones, pero puede terminar
-desde la 24 cuando el error relativo cae por debajo de un cuarto de los
-umbrales, el coste no empeora y se alcanza convergencia practica. El validador
-sigue siendo la autoridad de accept: el corte temprano no compromete poses.
+desde la 24 al alcanzar el target independiente `0.05 m/0.03 rad` sin empeorar
+el coste. Fusion y commit no controlan la parada. `information_weight` afecta
+la relajacion normalizado por familia; el validador conserva la decision final.
 
-Con una fraccion menor puede devolver `MaxIterations` y un candidato parcial
-finito para que 3L lo valide y 3K lo comprometa/refine sin ceder el worker.
+En `LoopRelative`, todas las `CurrentLoop` participan y la condicion de parada
+exige conjuntamente que cada una alcance `0.05 m/0.03 rad`. Sin embargo, si se
+agotan las 160 iteraciones, la implementacion vigente devuelve igualmente
+`Converged`; no emite `MaxIterations` ni conserva si se alcanzo el target. Esta
+limitacion quedo expuesta por la prueba 220.
+
+La rama `FiducialAbsolute` si conserva su semantica de propuesta parcial y
+refinamiento. No debe extrapolarse ese contrato al solve `LoopRelative`.
 
 ## Referencias
 

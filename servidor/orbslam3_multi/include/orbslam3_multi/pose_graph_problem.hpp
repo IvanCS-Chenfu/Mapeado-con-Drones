@@ -37,10 +37,9 @@ struct PoseGraphKeyFrame
   double path_alpha = 0.0;
   bool control = false;
   bool fixed = false;
+  bool consensus_fixed = false;
+  bool previously_optimized = false;
   bool protected_neighborhood = false;
-  bool hard_corridor = false;
-  geometry_msgs::msg::Pose hard_corridor_reference_pose;
-  double hard_corridor_alpha = 0.0;
 };
 
 struct PoseGraphEdge
@@ -51,6 +50,7 @@ struct PoseGraphEdge
   size_t supporting_keyframes = 0;
   double information_weight = 1.0;
   PoseGraphEdgeKind kind = PoseGraphEdgeKind::Temporal;
+  bool consensus_eligible = false;
   size_t source_geometry_index = std::numeric_limits<size_t>::max();
 };
 
@@ -64,6 +64,12 @@ struct PoseGraphPropagationEntry
 
 struct PoseGraphSubmapWindow
 {
+  struct RawInterval
+  {
+    RawKeyFrameId first_keyframe_id;
+    RawKeyFrameId last_keyframe_id;
+  };
+
   RawSubmapId submap_id;
   uint64_t raw_submap_revision = 0;
   size_t graph_begin = 0;
@@ -71,6 +77,7 @@ struct PoseGraphSubmapWindow
   RawKeyFrameId first_keyframe_id;
   RawKeyFrameId last_keyframe_id;
   RawKeyFrameId continuation_keyframe_id;
+  std::vector<RawInterval> raw_intervals;
 };
 
 struct PoseGraphProblem
@@ -90,14 +97,20 @@ struct PoseGraphProblem
   std::vector<PoseGraphSubmapWindow> submap_windows;
   double loop_translation_threshold_m = 0.0;
   double loop_rotation_threshold_rad = 0.0;
+  double loop_convergence_translation_m = 0.05;
+  double loop_convergence_rotation_rad = 0.03;
+  double loop_safe_correction_translation_m = 0.25;
+  double loop_safe_correction_rotation_rad = 0.15;
   double structural_temporal_increase_m = 0.0;
   double structural_temporal_increase_rad = 0.0;
   double structural_covisibility_increase_m = 0.0;
   double structural_covisibility_increase_rad = 0.0;
   double structural_prior_loop_increase_m = 0.0;
   double structural_prior_loop_increase_rad = 0.0;
-  double hard_corridor_max_translation_m = 0.0;
-  double hard_corridor_max_rotation_rad = 0.0;
+  double optimized_keyframe_max_translation_m = 5.0;
+  double optimized_keyframe_max_rotation_rad = 0.3490658503988659;
+  size_t consensus_segments = 0;
+  double consensus_coverage_ratio = 0.0;
 };
 
 struct PoseGraphBuildResult

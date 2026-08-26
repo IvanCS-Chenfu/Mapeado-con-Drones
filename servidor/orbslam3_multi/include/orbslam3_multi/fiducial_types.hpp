@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace orbslam3_multi
 {
@@ -45,6 +46,8 @@ struct FiducialProcessResult
   FiducialObservation observation;
   geometry_msgs::msg::Pose world_T_local;
   PoseChangeSet pose_changes;
+  LoopAnchorBatchResult cascade_anchor_commit;
+  std::vector<RawKeyFrameId> reconciliation_keyframe_ids;
   FiducialError error;
   std::optional<FiducialOptimizationTask> optimization_task;
   bool journaled = false;

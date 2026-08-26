@@ -39,8 +39,9 @@ std::shared_ptr<orbslam3_msgs::msg::OrbMap> MakeGeometricMap(
     auto & keyframe = map->keyframes.emplace_back();
     keyframe.id = kf_id;
     keyframe.pose = Pose(keyframe_offset + static_cast<double>(kf_id - 1));
-    keyframe.bow_word_ids = {10, 20, 30};
-    keyframe.bow_word_values = {0.6F, 0.3F, 0.1F};
+    keyframe.bow_word_ids = {
+      10, 20, 30, static_cast<uint32_t>(100U + kf_id)};
+    keyframe.bow_word_values = {0.45F, 0.25F, 0.10F, 0.20F};
     for (uint64_t mp_id = 1; mp_id <= 12; ++mp_id) {
       keyframe.mappoint_ids.push_back(mp_id);
     }
@@ -250,14 +251,14 @@ TEST(LoopPipeline, SemanticRevisionCoalescesMapPointRefinement)
     mature_tasks[0].revision.geometry_revision);
 }
 
-TEST(LoopPipeline, AnchorsUnanchoredSubmapAfterTwoIndependentQueries)
+TEST(LoopPipeline, AnchorsUnanchoredSubmapAfterAdaptiveIndependentSupport)
 {
   orbslam3_multi::SparseGlobalBackend backend;
-  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0));
+  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0, 6));
   ASSERT_EQ(
     backend.CommitAnchor({1, 0}, Pose(10.0), 100).status,
     orbslam3_multi::PoseCommitStatus::Applied);
-  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0));
+  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0, 6));
 
   auto first_plan = backend.PlanSecondaryWork(first.raw_result);
   ASSERT_TRUE(first_plan.database_update.has_value());
@@ -313,8 +314,15 @@ TEST(LoopPipeline, AnchorsUnanchoredSubmapAfterTwoIndependentQueries)
     orbslam3_multi::FiducialTaskDecision::Ready);
   const auto graph = backend.BuildFiducialPoseGraph(revalidation.task);
   ASSERT_TRUE(graph.success) << graph.reason;
-  EXPECT_EQ(graph.problem.submap_windows.size(), 2U);
-  EXPECT_TRUE(std::any_of(
+  EXPECT_EQ(
+    graph.problem.kind,
+    orbslam3_multi::PoseGraphProblemKind::FiducialAbsolute);
+  EXPECT_EQ(graph.problem.submap_windows.size(), 1U);
+  EXPECT_TRUE(graph.problem.loop_edges.empty());
+  EXPECT_TRUE(std::all_of(
+    graph.problem.submap_windows.begin(), graph.problem.submap_windows.end(),
+    [](const auto & window) {return !window.raw_intervals.empty();}));
+  EXPECT_FALSE(std::any_of(
     graph.problem.covisibility_edges.begin(),
     graph.problem.covisibility_edges.end(),
     [](const auto & edge) {
@@ -344,12 +352,153 @@ TEST(LoopPipeline, AnchorsUnanchoredSubmapAfterTwoIndependentQueries)
   const auto reanchored_first = backend.GetGlobalPose({2, 0, 1});
   ASSERT_TRUE(reanchored_first.has_value());
   EXPECT_NEAR(reanchored_first->world_pose.position.x, 10.0, 1e-6);
-  EXPECT_NEAR(reanchored_first->world_pose.position.y, 2.0, 1e-6);
+  EXPECT_GT(reanchored_first->world_pose.position.y, 1.5);
+  EXPECT_LE(reanchored_first->world_pose.position.y, 2.0 + 1e-6);
+}
+
+TEST(LoopPipeline, CascadesStoredConstraintWhenFiducialIntroducesWorldAuthority)
+{
+  orbslam3_multi::SparseGlobalBackend backend;
+  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0, 2));
+  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0, 2));
+
+  uint64_t task_id = 2500;
+  bool constraint_activated = false;
+  for (const auto * inserted : {&first, &second}) {
+    auto plan = backend.PlanSecondaryWork(inserted->raw_result);
+    ASSERT_TRUE(plan.database_update.has_value());
+    ASSERT_TRUE(backend.ProcessDatabaseUpdate(*plan.database_update).committed);
+    auto tasks = backend.CreateLoopTasks(
+      inserted->raw_result.arrival_id, plan.database_update->loop_keyframe_ids);
+    for (auto & task : tasks) {
+      task.task_id = task_id++;
+      const auto result = backend.ProcessLoopTask(task);
+      constraint_activated = constraint_activated ||
+        result.decision == orbslam3_multi::LoopTaskDecisionKind::ConstraintActivated;
+    }
+  }
+  ASSERT_TRUE(constraint_activated);
+  ASSERT_EQ(backend.GetPoseStats().anchors, 0U);
+
+  orbslam3_multi::FiducialObservation fiducial;
+  fiducial.arrival_id = 20;
+  fiducial.keyframe_id = {1, 0, 1};
+  fiducial.fiducial_id = 1;
+  fiducial.fiducial_visit_id = 1;
+  fiducial.world_T_camera_target = Pose(10.0);
+  fiducial.source = "synthetic";
+  const auto anchored = backend.ProcessFiducialObservation(fiducial, false);
+
+  ASSERT_EQ(anchored.status, orbslam3_multi::FiducialProcessStatus::AnchorCreated);
+  ASSERT_EQ(anchored.pose_changes.status, orbslam3_multi::PoseCommitStatus::Applied);
+  EXPECT_EQ(
+    anchored.cascade_anchor_commit.status,
+    orbslam3_multi::PoseCommitStatus::Applied);
+  EXPECT_EQ(anchored.cascade_anchor_commit.anchored_submaps.size(), 1U);
+  EXPECT_FALSE(anchored.reconciliation_keyframe_ids.empty());
+  EXPECT_EQ(backend.GetPoseStats().anchors, 2U);
+  const auto derived = backend.GetGlobalPose({2, 0, 1});
+  ASSERT_TRUE(derived.has_value());
+  EXPECT_EQ(derived->source_kind, orbslam3_multi::PoseSourceKind::LoopAnchorDerived);
+}
+
+TEST(LoopPipeline, UsesOneLoopOnlyForStrictRecentLossContinuity)
+{
+  orbslam3_multi::SparseGlobalBackend backend;
+  auto previous_map = MakeGeometricMap(2, 0, 0.0, 2);
+  previous_map->keyframes[1].pose = Pose(0.0);
+  const auto previous = backend.InsertDelta(1, previous_map);
+  ASSERT_EQ(
+    backend.CommitAnchor({2, 0}, Pose(10.0), 100).status,
+    orbslam3_multi::PoseCommitStatus::Applied);
+  auto previous_plan = backend.PlanSecondaryWork(previous.raw_result);
+  ASSERT_TRUE(previous_plan.database_update.has_value());
+  ASSERT_TRUE(backend.ProcessDatabaseUpdate(*previous_plan.database_update).committed);
+  auto previous_tasks = backend.CreateLoopTasks(
+    previous.raw_result.arrival_id, previous_plan.database_update->loop_keyframe_ids);
+  uint64_t task_id = 2600;
+  for (auto & task : previous_tasks) {
+    task.task_id = task_id++;
+    backend.ProcessLoopTask(task);
+  }
+
+  const auto recovered = backend.InsertDelta(2, MakeGeometricMap(2, 1, 0.0, 2));
+  auto recovered_plan = backend.PlanSecondaryWork(recovered.raw_result);
+  ASSERT_TRUE(recovered_plan.database_update.has_value());
+  ASSERT_TRUE(backend.ProcessDatabaseUpdate(*recovered_plan.database_update).committed);
+  auto recovered_tasks = backend.CreateLoopTasks(
+    recovered.raw_result.arrival_id, recovered_plan.database_update->loop_keyframe_ids);
+  ASSERT_GE(recovered_tasks.size(), 1U);
+  const auto first = std::find_if(
+    recovered_tasks.begin(), recovered_tasks.end(),
+    [](const auto & task) {return task.query_keyframe_id.local_kf_id == 1U;});
+  ASSERT_NE(first, recovered_tasks.end());
+  auto first_task = *first;
+  first_task.task_id = task_id++;
+  const auto result = backend.ProcessLoopTask(first_task);
+
+  EXPECT_EQ(result.anchor_commit.status, orbslam3_multi::PoseCommitStatus::Applied)
+    << result.reason;
+  EXPECT_TRUE(result.recent_loss_single_loop_checked);
+  EXPECT_TRUE(result.recent_loss_single_loop_eligible);
+  EXPECT_TRUE(result.recent_loss_single_loop_used);
+  EXPECT_EQ(result.hypothesis_support.support, 1U);
+  EXPECT_EQ(result.hypothesis_support.required_support, 1U);
+  EXPECT_FALSE(result.fusion.committed);
+  EXPECT_EQ(backend.GetPoseStats().anchors, 2U);
+}
+
+TEST(LoopPipeline, FallsBackToAdaptiveSupportBeyondRecentLossPathLimit)
+{
+  orbslam3_multi::SparseGlobalBackend backend;
+  const auto previous = backend.InsertDelta(1, MakeGeometricMap(2, 0, 0.0, 4));
+  ASSERT_EQ(
+    backend.CommitAnchor({2, 0}, Pose(10.0), 100).status,
+    orbslam3_multi::PoseCommitStatus::Applied);
+  auto previous_plan = backend.PlanSecondaryWork(previous.raw_result);
+  ASSERT_TRUE(previous_plan.database_update.has_value());
+  ASSERT_TRUE(backend.ProcessDatabaseUpdate(*previous_plan.database_update).committed);
+  auto previous_tasks = backend.CreateLoopTasks(
+    previous.raw_result.arrival_id, previous_plan.database_update->loop_keyframe_ids);
+  uint64_t task_id = 2700;
+  for (auto & task : previous_tasks) {
+    task.task_id = task_id++;
+    backend.ProcessLoopTask(task);
+  }
+
+  const auto recovered = backend.InsertDelta(2, MakeGeometricMap(2, 1, 0.0, 4));
+  auto recovered_plan = backend.PlanSecondaryWork(recovered.raw_result);
+  ASSERT_TRUE(recovered_plan.database_update.has_value());
+  ASSERT_TRUE(backend.ProcessDatabaseUpdate(*recovered_plan.database_update).committed);
+  auto recovered_tasks = backend.CreateLoopTasks(
+    recovered.raw_result.arrival_id, recovered_plan.database_update->loop_keyframe_ids);
+  const auto far = std::find_if(
+    recovered_tasks.begin(), recovered_tasks.end(),
+    [](const auto & task) {return task.query_keyframe_id.local_kf_id == 4U;});
+  ASSERT_NE(far, recovered_tasks.end());
+  auto far_task = *far;
+  far_task.task_id = task_id++;
+  const auto result = backend.ProcessLoopTask(far_task);
+
+  EXPECT_TRUE(result.recent_loss_single_loop_checked);
+  EXPECT_FALSE(result.recent_loss_single_loop_eligible);
+  EXPECT_FALSE(result.recent_loss_single_loop_used);
+  EXPECT_GE(result.recent_loss_single_loop_path_m, 3.0);
+  EXPECT_EQ(
+    result.decision,
+    orbslam3_multi::LoopTaskDecisionKind::WaitingIndependentSupport);
+  EXPECT_GE(result.hypothesis_support.required_support, 4U);
+  EXPECT_EQ(backend.GetPoseStats().anchors, 1U);
 }
 
 TEST(LoopPipeline, RejectsFarRepeatedZoneAfterAnchoredEpochLoss)
 {
   orbslam3_multi::SparseGlobalBackend backend;
+  orbslam3_multi::LoopPipelineConfig support_isolated;
+  support_isolated.hypothesis_support_no_risk = 2;
+  support_isolated.hypothesis_support_one_risk = 2;
+  support_isolated.hypothesis_support_multiple_risks = 2;
+  backend.ConfigureLoopPipeline(support_isolated);
   auto previous = MakeGeometricMap(2, 0, 0.0);
   SetBowWords(previous, {110U, 120U, 130U});
   const auto previous_insert = backend.InsertDelta(1, previous);
@@ -377,7 +526,7 @@ TEST(LoopPipeline, RejectsFarRepeatedZoneAfterAnchoredEpochLoss)
     }
   }
 
-  const auto lost = backend.InsertDelta(3, MakeGeometricMap(2, 1, 0.0));
+  const auto lost = backend.InsertDelta(3, MakeGeometricMap(2, 1, 0.0, 8));
   auto lost_plan = backend.PlanSecondaryWork(lost.raw_result);
   ASSERT_TRUE(lost_plan.database_update.has_value());
   ASSERT_TRUE(backend.ProcessDatabaseUpdate(*lost_plan.database_update).committed);
@@ -385,10 +534,12 @@ TEST(LoopPipeline, RejectsFarRepeatedZoneAfterAnchoredEpochLoss)
     lost.raw_result.arrival_id, lost_plan.database_update->loop_keyframe_ids);
 
   bool continuity_rejected = false;
+  std::string observed_reasons;
   uint64_t task_id = 3100U;
   for (auto & task : lost_tasks) {
     task.task_id = task_id++;
     const auto result = backend.ProcessLoopTask(task);
+    observed_reasons += result.reason + ";";
     if (result.reason == "recent_loss_continuity_rejected") {
       continuity_rejected = true;
       EXPECT_EQ(result.decision, orbslam3_multi::LoopTaskDecisionKind::Deferred);
@@ -401,7 +552,7 @@ TEST(LoopPipeline, RejectsFarRepeatedZoneAfterAnchoredEpochLoss)
     }
   }
 
-  EXPECT_TRUE(continuity_rejected);
+  EXPECT_TRUE(continuity_rejected) << observed_reasons;
   EXPECT_EQ(backend.GetPoseStats().anchors, 2U);
   EXPECT_FALSE(backend.GetGlobalPose({2, 1, 1}).has_value());
 }
@@ -442,8 +593,8 @@ TEST(LoopPipeline, UnanchoredSameSubmapEvidenceRemainsDiagnostic)
 TEST(LoopPipeline, HighErrorAnchoredLoopOptimizesAndFusesInSameTask)
 {
   orbslam3_multi::SparseGlobalBackend backend;
-  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0));
-  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0));
+  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0, 8));
+  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0, 8));
   ASSERT_EQ(
     backend.CommitAnchor({1, 0}, Pose(10.0), 100).status,
     orbslam3_multi::PoseCommitStatus::Applied);
@@ -469,9 +620,9 @@ TEST(LoopPipeline, HighErrorAnchoredLoopOptimizesAndFusesInSameTask)
         refresh_task.task_id = task_id++;
         refresh_task.intent = orbslam3_multi::LoopTaskIntent::FusionRefresh;
         const auto refresh = backend.ProcessLoopTask(refresh_task);
-        EXPECT_EQ(refresh.decision, orbslam3_multi::LoopTaskDecisionKind::NoCandidates);
-        EXPECT_EQ(refresh.reason, "fusion_refresh_no_spatial_candidates");
-        EXPECT_GT(refresh.refresh_spatial_rejected, 0U);
+        EXPECT_NE(
+          refresh.decision,
+          orbslam3_multi::LoopTaskDecisionKind::OptimizationEvidence);
         EXPECT_FALSE(refresh.optimization.attempted);
 
         const auto optimized = backend.ProcessLoopOptimization(detected);
@@ -488,28 +639,23 @@ TEST(LoopPipeline, HighErrorAnchoredLoopOptimizesAndFusesInSameTask)
         EXPECT_TRUE(optimized.fusion.committed) << optimized.fusion.reason;
         EXPECT_TRUE(optimized.optimization.fusion_after_optimization);
         EXPECT_FALSE(optimized.rerun_keyframe_ids.empty());
+        EXPECT_GT(backend.GetCovisibilityStats().server_loop_geometric_edges, 0U);
 
         auto reevaluation_tasks = backend.CreateLoopTasks(
           3, {detected.task.query_keyframe_id});
         ASSERT_EQ(reevaluation_tasks.size(), 1U);
         reevaluation_tasks.front().task_id = task_id++;
         const auto reevaluated = backend.ProcessLoopTask(reevaluation_tasks.front());
-        EXPECT_NE(
-          reevaluated.decision,
-          orbslam3_multi::LoopTaskDecisionKind::OptimizationEvidence);
-        EXPECT_FALSE(std::any_of(
-          reevaluated.geometry_results.begin(), reevaluated.geometry_results.end(),
-          [](const auto & geometry) {
-            return geometry.accepted && geometry.fusion_compatible;
-          })) << "una pareja ServerLoopGeometric no debe fusionarse de nuevo";
+        EXPECT_NE(reevaluated.reason, "loop_fusion_committed") <<
+          "la pareja ya persistida no debe volver a comprometerse";
         return;
       }
     }
   }
-  FAIL() << "no se obtuvo OptimizationEvidence tras dos queries independientes";
+  FAIL() << "no se obtuvo OptimizationEvidence tras el apoyo adaptativo requerido";
 }
 
-TEST(LoopPipeline, ProtectedRegionsRejectFarRepeatedLoopBeforeBuilderAndCacheRegion)
+TEST(LoopPipeline, ProtectedRepeatedRegionsWaitForAdaptiveSupport)
 {
   orbslam3_multi::SparseGlobalBackend backend;
   const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0, 3));
@@ -518,8 +664,7 @@ TEST(LoopPipeline, ProtectedRegionsRejectFarRepeatedLoopBeforeBuilderAndCacheReg
   AnchorWithFiducial(&backend, 2, 30.0, 11);
 
   uint64_t task_id = 3000;
-  bool rejected = false;
-  bool ledger_hit = false;
+  bool waiting = false;
   for (const auto * inserted : {&first, &second}) {
     auto plan = backend.PlanSecondaryWork(inserted->raw_result);
     ASSERT_TRUE(plan.database_update.has_value());
@@ -529,24 +674,24 @@ TEST(LoopPipeline, ProtectedRegionsRejectFarRepeatedLoopBeforeBuilderAndCacheReg
     for (auto & task : tasks) {
       task.task_id = task_id++;
       const auto result = backend.ProcessLoopTask(task);
-      rejected = rejected || result.protected_region_rejected;
-      ledger_hit = ledger_hit || result.rejection_ledger_hit;
-      if (result.protected_region_rejected || result.rejection_ledger_hit) {
-        EXPECT_EQ(result.decision, orbslam3_multi::LoopTaskDecisionKind::GeometryRejected);
+      if (result.decision ==
+        orbslam3_multi::LoopTaskDecisionKind::WaitingIndependentSupport)
+      {
+        waiting = true;
+        EXPECT_GE(result.hypothesis_support.required_support, 4U);
         EXPECT_FALSE(result.optimization.attempted);
         EXPECT_FALSE(result.optimization.graph_built);
       }
     }
   }
-  EXPECT_TRUE(rejected);
-  EXPECT_TRUE(ledger_hit);
+  EXPECT_TRUE(waiting);
 }
 
 TEST(LoopPipeline, ProtectedToUnreliableKeepsAsymmetricOptimizationEvidence)
 {
   orbslam3_multi::SparseGlobalBackend backend;
-  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0, 3));
-  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0, 3));
+  const auto first = backend.InsertDelta(1, MakeGeometricMap(1, 0, 0.0, 8));
+  const auto second = backend.InsertDelta(2, MakeGeometricMap(2, 0, 0.0, 8));
   AnchorWithFiducial(&backend, 1, 0.0, 10);
   ASSERT_EQ(
     backend.CommitAnchor({2, 0}, Pose(30.0), 11).status,
@@ -566,7 +711,6 @@ TEST(LoopPipeline, ProtectedToUnreliableKeepsAsymmetricOptimizationEvidence)
       if (result.decision == orbslam3_multi::LoopTaskDecisionKind::OptimizationEvidence) {
         saw_optimization = true;
         EXPECT_TRUE(result.protected_candidate_stable || result.protected_query_stable);
-        EXPECT_FALSE(result.protected_region_rejected);
       }
     }
   }

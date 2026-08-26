@@ -61,6 +61,14 @@ convierte en fallo duro cuando otro commit adelanta el control.
   fiducial. Si llega el primer fiducial directo de ese hijo, recompone todas
   sus poses con `replacement_world_T_local`, lo hace hard y corta la
   dependencia. No construye ni publica el mapa desde el secundario.
+- `ProcessFiducialObservation()` y `CommitFiducialProposal()` aplican
+  `ApplyWorldAuthorityCascadeLocked()` despues de un nuevo hard. El resultado
+  devuelve tanto el commit de anchors conectados como los endpoints que el
+  servidor debe reencolar para reconciliacion 3Q. Constraints provisionales de
+  recuperacion 1/1 quedan fuera de esta cascada.
+- `ProcessLoopTask()` recibe `RecentLossRecoveryContext` capturado por submapa y
+  serializa la decision mutable de `LoopPipeline`; el grafo/solver continúan
+  fuera de esa seccion.
 
 ## Referencias
 
@@ -106,7 +114,9 @@ servidor realiza logs, telemetria y futuro handoff 4G fuera del lock.
   `OptimizationManager` y `OptimizationValidator` sobre un problema
   `LoopRelative`; conserva la computacion RANSAC de la misma tarea.
 - El grafo puede abarcar varios submapas mediante hard fiduciales, tramos
-  temporales, dependencias blandas, constraints previas y covisibilidad nativa.
+  temporales segmentados, dependencias blandas, constraints server incidentes
+  y covisibilidad nativa dentro de intervalos ya seleccionados. Loop y fiducial
+  reutilizan `BuildSegmented()`.
 - `CommitLoopProposal()` aplica correcciones sobre el estado vigente y llama a
   un commit multi-submapa atomico. Revalida controles activos, drift raw local,
   hard e invariantes; un conflicto incompatible devuelve stale sin escritura.
@@ -129,13 +139,13 @@ servidor realiza logs, telemetria y futuro handoff 4G fuera del lock.
   stale no revierte las poses correctas y origina el retry fresco del servidor.
 - `LoopOptimizationSummary` separa `graph_ms`, `solve_ms`, `validation_ms` y
   `commit_ms` para localizar coste sin instrumentacion externa.
-- Antes de construir el grafo, `EvaluateProtectedLoopRegions()` compara la
-  relacion world vigente con la medida RANSAC. Una region es protegida si el KF
-  o vecinos temporales/covisibles acotados pertenecen a un hard fiducial,
-  corredor hard-hard o solucion fiducial aceptada/optimizada. Si ambos lados
-  son fiables y la incompatibilidad supera 5 m o 20 grados, la region se
-  descarta como `protected_region_far_repeated_loop`; con un solo lado fiable
-  se conserva la optimizacion asimetrica.
+- El corredor hard-hard solo eleva el riesgo/admission; no limita a 2 cm los KFs
+  internos. El validator compara 5 m/20 grados exclusivamente sobre KFs cuya
+  pose vigente ya procede de optimizacion.
+- Todo commit de poses persiste inmediatamente la constraint seleccionada como
+  `PriorLoop`, incluso si queda en la banda segura sin fusion de landmarks.
+- Un consenso de tres segmentos server con cobertura 60 % fija esos soportes
+  solo en la propuesta privada y deja query como lado movible.
 - `LoopRejectionLedger` recuerda por regiones temporales, transformacion
   cuantizada y revisiones de anchor los rechazos protegidos o estructurales.
   Los KFs vecinos equivalentes terminan como

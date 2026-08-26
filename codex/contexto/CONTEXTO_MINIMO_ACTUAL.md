@@ -9,6 +9,7 @@ archivo y reconciliarlo con la peticion mas reciente.
 Fase 2: CONSEGUIDA el 2026-08-24
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
+Fase 5: 5A CONSEGUIDA documentalmente; implementación funcional sin iniciar
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -18,9 +19,10 @@ Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA como regresion opcional futura
-Subfase actual: 3Q, reabierta para corregir errores de optimizacion
-Preparacion 3Q: no iniciada; sin autorizacion funcional de cambios
-Siguiente punto de entrada: preparar 3Q a partir de la prueba 213
+Subfase actual: 3Q A REVISAR tras correccion y prueba 220
+Preparacion 3Q: cerrada; ejecucion autorizada ya realizada
+Siguiente punto de entrada: aclarar la esquina visual ambigua y decidir cierre
+Punto de entrada paralelo Fase 5: preparar 5B; antes de 5C/5D verificar 3Q
 Revision visual humana de prueba 200: confirmada correcta
 Cierre de Fase 2: completo
 ```
@@ -89,6 +91,13 @@ handoff al manager y retirada total de GT fiducial conseguidos. La 216 completa
 la trayectoria sin GT con 52/52 primary y tres objetos; la 217 valida ambos
 grafos live. El GT de control/Fase 5 permanece independiente.
 
+Fase 5A reconcilia el pipeline con la arquitectura `O_T_B` continua y
+`W_T_B` global corregible. Los goals absolutos sin `W_T_O` se rechazan,
+reference KF real + `Tcr` sustituyen nearest-KF y smoothing no es obligatorio.
+`GT_FALLBACK` se mantiene temporalmente durante Fase 5 para completar misiones
+ante `RECENTLY_LOST`, aislado de mapa/global y con retirada obligatoria en Fase
+6. La implementación funcional comienza en 5B y aún no está autorizada.
+
 Repeticion visual 212: seis yaw relativos aplicados y compilados, pero no
 alcanzados. Un `LoopTask` fue rechazado por
 `commit_pose_store_hard_constraint_violation`; su clasificacion hard fijo
@@ -101,3 +110,11 @@ servidor correctos. La prueba 213 completa 17/17 pasos y 22/22 goals, libera el
 backpressure, registra 74/74 PUB/SHOW fiduciales y termina con exit 0. El usuario
 da 4A-4F por concluidas, pero observa derivas no corregidas; 213 queda marcada
 para revisarla de nuevo en 3Q.
+
+Correccion 3Q posterior: retirada la deadband de 2 cm, ventana segmentada comun,
+apoyo 2/4/6, revisitados 5 m/20 grados y consenso temporal 3/60. Builds y CTests
+9/9, 12/12 y 10/10. Prueba 219: 17/17 pasos, 22/22 goals y 22 commits loop de
+30 solves; cinco fusiones post-opt, cero movimiento hard y cero anchors loop.
+La revision visual confirma correccion completa de una zona y parcial en las
+esquinas derechas multi-epoch. Queda carga de reruns y una referencia de
+esquina por aclarar antes del cierre definitivo.

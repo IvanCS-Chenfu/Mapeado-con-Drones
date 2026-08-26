@@ -69,6 +69,17 @@ dequeue -> revalidate -> graph -> solve -> validate -> atomic commit/refine
 principal sigue admitiendo, construyendo y publicando mientras el calculo
 privado esta activo.
 
+`loop_fusion.yaml` separa convergencia `0.05/0.03`, fusion `0.20/0.12`, commit
+seguro `0.25/0.15`, revisitados `5.0/0.349066` y consenso `3/0.60`. Los antiguos
+parametros de deadband de corredor no se declaran ni aceptan.
+
+La recuperacion reciente declara `loop_recent_loss_single_recovery_enabled`,
+`loop_recent_loss_single_recovery_translation_m`,
+`loop_recent_loss_single_recovery_rotation_rad` y
+`loop_recent_loss_single_recovery_max_path_m`; el perfil vigente usa
+`true`, `0.50`, `0.15` y `2.0`. Superar esos limites no bloquea el anchor: vuelve
+al apoyo adaptativo normal.
+
 ## Flujo 3M-3Q
 
 `EnqueueSecondaryWork()` se ejecuta despues del commit raw/pose principal. Si
@@ -100,6 +111,11 @@ servidor solo comunica los KFs dirty. `[F3K-ATOMIC-COMMIT]` distingue
 `moved_kfs` de `control_propagated` para hacer observable el movimiento rigido
 de hijos blandos.
 
+Todo fiducial directo u optimizado que aporte nueva autoridad world procesa la
+cascada devuelta por el backend, emite `[F3O-WORLD-CASCADE]` y reencola sus
+endpoints con `cause=anchor_revision_changed`. `[F3O-LOOP-DONE]` expone ademas
+`single_recovery=(checked,eligible,used,path)`.
+
 La telemetría histórica de `pipeline_flow` usa un único lifecycle `start/done` por tarea. Durante el cierre de Fase 2 toda su producción debe quedar completamente gateada por el debug de `pipeline_flow`, antes de construir strings/JSON. `system_architecture` no reutiliza esos eventos como bus universal.
 
 La telemetria usa un unico lifecycle `start/done` por tarea. Las etapas BoW,
@@ -121,6 +137,11 @@ graph, solve, validation y commit; cada `[F3Q-OPT-START]` debe tener
 `[F3Q-OPT-END]`. Tanto el lifecycle de dequeue como el inicio 3Q exponen el
 `intent` efectivo; esto distingue un `FusionRefresh` solicitado de una tarea
 coalescida donde prevalecio `Full`.
+
+La estructura `structure=(...,optimized_kfs=...,optimized_change=...)` de
+`[F3Q-LOOP-OPT]` informa cuantos KFs revisitados se comprobaron y su maximo
+cambio. Los rechazos usan `optimized_keyframe_revisit_limit_exceeded`; no
+existe `hard_corridor_displacement_exceeded` en el runtime vigente.
 
 Los KFs movidos por commits loop o fiducial se reencolan con intent
 `FusionRefresh`: pueden detectar y comprometer fusiones/scores, pero no iniciar
