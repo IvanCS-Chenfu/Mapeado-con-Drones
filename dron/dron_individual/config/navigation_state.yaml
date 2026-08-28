@@ -1,0 +1,25 @@
+/**:
+  ros__parameters:
+    orb_state_publish_rate_hz: 50.0
+    orb_state_filter.position_alpha: 0.55
+    orb_state_filter.orientation_alpha: 0.70
+    orb_state_filter.max_position_innovation_m: 0.30
+    orb_state_filter.max_rotation_innovation_rad: 0.35
+    orb_state_filter.max_linear_speed_mps: 1.5
+    orb_state_filter.max_angular_speed_radps: 1.5
+    orb_state_filter.max_linear_acceleration_mps2: 4.0
+    orb_state_filter.max_angular_acceleration_radps2: 12.0
+    orb_state_filter.max_consecutive_angular_rejections: 3
+    orb_state_filter.max_extrapolation_sec: 0.10
+    orb_state_filter.small_rotation_innovation_rad: 0.015
+    orb_state_filter.moderate_confirmation_frames: 3
+    orb_state_filter.moderate_post_reference_confirmation_frames: 4
+    orb_state_filter.moderate_max_pending_frames: 6
+    orb_state_filter.moderate_direction_consistency: 0.85
+    orb_state_filter.moderate_magnitude_ratio: 0.50
+    orb_state_filter.moderate_timeout_sec: 0.35
+    orb_state_filter.post_reference_switch_frames: 5
+    orb_reference_gate.confirmation_frames: 3
+    orb_reference_gate.max_pending_frames: 6
+    orb_reference_gate.max_step_translation_m: 0.10
+    orb_reference_gate.max_step_rotation_rad: 0.08

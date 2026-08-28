@@ -114,11 +114,15 @@ Tras la regresion 253, el suavizado pertenece exclusivamente a este wrapper.
 traslacion y propaga el estado a 50 Hz desde un timer de `StereoSlamNode`.
 Cada medida corrige gradualmente una prediccion SE(3). La salida queda limitada
 por velocidad y aceleracion lineal/angular, y la pose se integra desde esas
-mismas velocidades publicadas. Una innovacion angular moderada se reparte en el
-tiempo; una innovacion superior al gate duro conserva la prediccion y acumula
-rechazo. Tres rechazos duros consecutivos invalidan ORB. Tracking invalido
-reinicia el predictor y sigue publicando estado invalido a 50 Hz para que el
-mux pueda activar fallback sin perder cadencia.
+mismas velocidades publicadas. Una innovacion angular pequena se aplica; una
+moderada conserva la prediccion hasta confirmarse por direccion, magnitud y
+plausibilidad dinamica durante tres frames, o cuatro en la ventana posterior a
+un cambio de reference KF. Al confirmarse se absorbe gradualmente; si vuelve la
+trayectoria previa, expira o pierde coherencia se descarta. Una innovacion
+superior al gate duro conserva la prediccion y acumula rechazo. Tres rechazos
+duros consecutivos invalidan ORB. Tracking invalido reinicia el predictor y
+sigue publicando estado invalido a 50 Hz para que el mux pueda activar fallback
+sin perder cadencia.
 
 `NavigationStateEstimator` separa reference KF reportada, candidata y activa.
 La probation acumula una cadena de incrementos plausibles aunque cambie el ID
@@ -135,21 +139,35 @@ Parametros: `orb_state_publish_rate_hz`; `orb_state_filter.position_alpha`,
 `max_rotation_innovation_rad`, `max_linear_speed_mps`,
 `max_angular_speed_radps`, `max_linear_acceleration_mps2`,
 `max_angular_acceleration_radps2`, `max_consecutive_angular_rejections` y
-`max_extrapolation_sec`; `orb_reference_gate.confirmation_frames`,
+`max_extrapolation_sec`; `small_rotation_innovation_rad`,
+`moderate_confirmation_frames`,
+`moderate_post_reference_confirmation_frames`,
+`moderate_max_pending_frames`, `moderate_direction_consistency`,
+`moderate_magnitude_ratio`, `moderate_timeout_sec` y
+`post_reference_switch_frames`; `orb_reference_gate.confirmation_frames`,
 `max_pending_frames`, `max_step_translation_m` y `max_step_rotation_rad`.
-Marcadores: `[F5H-ORB-STATE-PREDICTOR]` y `[F5H-ORB-STATE-FILTER]`.
+La configuracion de despliegue vive en
+`dron/dron_individual/config/navigation_state.yaml`.
 
-La prueba 254 demostro la antigua incoherencia: la orientacion aceptaba pasos de
-unos `0.28 rad/frame` mientras la velocidad se limitaba. En 255 el gate evita
-publicar ese par, pero exige estabilidad del ID y provoca 10 timeouts. La
-implementacion vigente incorpora continuidad geometrica multi-KF y correccion
-SE(3) gradual, pero la prueba 256 no la valida para control: una innovacion
-aislada de `0.125261 rad` queda por debajo del gate duro de `0.35 rad` y produce
-un paso publicado de `0.119002 rad`; drone2 pierde tracking `0.793 s` despues.
-El handoff fue continuo y no hubo optimizacion W concurrente. La limitacion
-vigente es que una correccion moderada se aplica antes de confirmar persistencia
-temporal; resolverla requiere nuevo acuerdo funcional. La degradacion no
-pertenece a la autoridad W.
+Con `debug_orb_control_state=true`, `[F5H-ORB-MEASUREMENT]` conserva contexto,
+raw step, innovacion vectorial, clasificacion, id/contadores pending,
+consistencia, correccion aplicada, velocidades limitadas y salud.
+`[F5H-ORB-PUBLISH]` mide aparte el paso timer-a-timer realmente publicado,
+pose, omega, timestamp de imagen, instante ROS de recepcion y edad calculada
+solo entre instantes del mismo reloj. Los eventos moderados/duros abren una
+ventana detallada de dos segundos; fuera de ella la publicacion se muestrea.
+Marcadores generales: `[F5H-ORB-STATE-PREDICTOR]` y
+`[F5H-ORB-STATE-FILTER]`.
+
+La prueba 256 motivo esta iteracion: una innovacion de `0.125261 rad` y el
+campo raw ambiguo `rotation_step_rad=0.119002` precedieron la perdida sin probar
+causalidad. La telemetria nueva ya separa medida y paso publicado y pasa 21/21
+GTests, pero la prueba 259 falla en hover. Antes del primer pending, la
+expansion SMALL `base + 0.5*max_angular_acceleration*dt^2` acepta durante gaps
+correcciones mucho mayores que `0.015 rad` y llega a publicar `0.058777 rad`.
+Despues la direccion persistente del residual confirma una oscilacion
+realimentada y alcanza el limite de `0.075 rad/paso`. La proxima iteracion debe
+debatir SMALL fijo y evidencia raw/gauge; la degradacion no pertenece a W.
 
 El marcador diagnostico temporal `[F5H-WRAPPER-FRAME-DIAG]`, limitado a pose
 global autoritativa y con throttle de un segundo, separa `part=inputs`

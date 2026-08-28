@@ -5,6 +5,30 @@
 namespace orbslam3_ros2
 {
 
+namespace
+{
+constexpr float kConsistencyComparisonEpsilon = 1e-5f;
+}
+
+const char * AngularCorrectionClassName(AngularCorrectionClass value)
+{
+  switch (value) {
+    case AngularCorrectionClass::Initializing:
+      return "INITIALIZING";
+    case AngularCorrectionClass::Small:
+      return "SMALL";
+    case AngularCorrectionClass::ModeratePending:
+      return "MODERATE_PENDING";
+    case AngularCorrectionClass::ModerateConfirmed:
+      return "MODERATE_CONFIRMED";
+    case AngularCorrectionClass::ModerateDiscarded:
+      return "MODERATE_DISCARDED";
+    case AngularCorrectionClass::RejectedExcessive:
+      return "REJECTED_EXCESSIVE";
+  }
+  return "UNKNOWN";
+}
+
 OrbPosePredictor::OrbPosePredictor(const OrbPosePredictorConfig & config)
 : config_(config)
 {
@@ -14,11 +38,26 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
   const Sophus::SE3f & measurement,
   double stamp_sec)
 {
+  return UpdateMeasurement(measurement, stamp_sec, OrbMeasurementContext{});
+}
+
+PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
+  const Sophus::SE3f & measurement,
+  double stamp_sec,
+  const OrbMeasurementContext & context)
+{
   last_update_limited_ = false;
   last_orientation_rejected_ = false;
   last_position_innovation_m_ = 0.0f;
   last_rotation_innovation_rad_ = 0.0f;
   last_rotation_step_rad_ = 0.0f;
+  last_diagnostics_ = OrbPosePredictorDiagnostics{};
+  last_diagnostics_.measurement_processed = true;
+  last_diagnostics_.measurement_stamp_sec = stamp_sec;
+  last_diagnostics_.context = context;
+  last_diagnostics_.post_reference_switch =
+    context.reference_changed ||
+    context.frames_since_reference_change <= config_.post_reference_switch_frames;
   if (!valid_) {
     pose_ = measurement;
     stamp_sec_ = stamp_sec;
@@ -26,22 +65,43 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
     angular_velocity_.setZero();
     velocity_valid_ = false;
     valid_ = true;
+    raw_measurement_valid_ = true;
+    last_raw_measurement_ = measurement;
+    last_raw_stamp_sec_ = stamp_sec;
+    last_diagnostics_.classification = AngularCorrectionClass::Initializing;
+    last_diagnostics_.predictor_healthy = true;
     return Predict(stamp_sec);
   }
 
   const double dt = stamp_sec - stamp_sec_;
   if (dt <= 1e-4 || dt > 0.5) {
     Reset();
-    pose_ = measurement;
-    stamp_sec_ = stamp_sec;
-    valid_ = true;
-    return Predict(stamp_sec);
+    return UpdateMeasurement(measurement, stamp_sec, context);
+  }
+  last_diagnostics_.dt_sec = dt;
+  last_diagnostics_.previous_linear_velocity = linear_velocity_;
+  last_diagnostics_.previous_angular_velocity = angular_velocity_;
+
+  if (raw_measurement_valid_) {
+    last_diagnostics_.raw_rotation_step =
+      (measurement.so3() * last_raw_measurement_.so3().inverse()).log();
+    last_diagnostics_.raw_step_rotation_rad =
+      last_diagnostics_.raw_rotation_step.norm();
+    last_diagnostics_.raw_step_translation_m =
+      (measurement.translation() - last_raw_measurement_.translation()).norm();
+    last_diagnostics_.implied_angular_velocity =
+      last_diagnostics_.raw_rotation_step / static_cast<float>(dt);
+    last_diagnostics_.implied_angular_acceleration =
+      (last_diagnostics_.implied_angular_velocity - angular_velocity_) /
+      static_cast<float>(dt);
   }
 
   const Sophus::SE3f predicted = Propagate(dt);
   Eigen::Vector3f position_innovation =
     measurement.translation() - predicted.translation();
   last_position_innovation_m_ = position_innovation.norm();
+  last_diagnostics_.position_innovation = position_innovation;
+  last_diagnostics_.position_innovation_m = last_position_innovation_m_;
   position_innovation = ClampNorm(
     position_innovation,
     config_.max_position_innovation_m,
@@ -53,9 +113,163 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
   const Eigen::Vector3f rotation_innovation =
     (measurement.so3() * predicted.so3().inverse()).log();
   last_rotation_innovation_rad_ = rotation_innovation.norm();
-  last_orientation_rejected_ =
-    (config_.max_rotation_innovation_rad > 0.0f &&
-    last_rotation_innovation_rad_ > config_.max_rotation_innovation_rad);
+  last_diagnostics_.rotation_innovation = rotation_innovation;
+  last_diagnostics_.rotation_innovation_rad = last_rotation_innovation_rad_;
+
+  const float dynamic_small_allowance =
+    config_.max_angular_acceleration_radps2 > 0.0f ?
+    0.5f * config_.max_angular_acceleration_radps2 *
+    static_cast<float>(dt * dt) : 0.0f;
+  float small_rotation_limit =
+    std::max(0.0f, config_.small_rotation_innovation_rad) +
+    dynamic_small_allowance;
+  if (config_.max_rotation_innovation_rad > 0.0f) {
+    small_rotation_limit = std::min(
+      small_rotation_limit, config_.max_rotation_innovation_rad);
+  }
+  last_diagnostics_.small_rotation_limit_rad = small_rotation_limit;
+
+  bool apply_rotation_measurement = false;
+  const bool excessive =
+    config_.max_rotation_innovation_rad > 0.0f &&
+    last_rotation_innovation_rad_ > config_.max_rotation_innovation_rad;
+  const bool small = last_rotation_innovation_rad_ <= small_rotation_limit;
+  const bool same_pending_context =
+    pending_map_epoch_ == context.map_epoch &&
+    pending_reference_keyframe_id_ == context.reference_keyframe_id;
+  const auto snapshot_pending_diagnostics = [this]() {
+      last_diagnostics_.pending_correction_id = pending_correction_id_;
+      last_diagnostics_.pending_good_frames = pending_good_frames_;
+      last_diagnostics_.pending_total_frames = pending_total_frames_;
+    };
+
+  if (excessive) {
+    last_diagnostics_.classification = AngularCorrectionClass::RejectedExcessive;
+    last_orientation_rejected_ = true;
+    ++consecutive_angular_rejections_;
+    last_update_limited_ = true;
+    snapshot_pending_diagnostics();
+    ClearModerateState();
+  } else if (small) {
+    last_diagnostics_.classification = moderate_pending_valid_ ?
+      AngularCorrectionClass::ModerateDiscarded : AngularCorrectionClass::Small;
+    snapshot_pending_diagnostics();
+    ClearModerateState();
+    consecutive_angular_rejections_ = 0;
+    apply_rotation_measurement = true;
+  } else if (moderate_confirmed_active_) {
+    const float previous_norm = pending_innovation_.norm();
+    const float current_norm = rotation_innovation.norm();
+    const float cosine =
+      previous_norm > 1e-6f && current_norm > 1e-6f ?
+      pending_innovation_.dot(rotation_innovation) /
+      (previous_norm * current_norm) : 1.0f;
+    last_diagnostics_.consistency_cosine = cosine;
+    const bool confirmed_consistent =
+      same_pending_context &&
+      cosine + kConsistencyComparisonEpsilon >=
+      config_.moderate_direction_consistency;
+    if (confirmed_consistent) {
+      last_diagnostics_.classification = AngularCorrectionClass::ModerateConfirmed;
+      pending_innovation_ =
+        0.5f * pending_innovation_ + 0.5f * rotation_innovation;
+      ++pending_total_frames_;
+      ++pending_good_frames_;
+      apply_rotation_measurement = true;
+      consecutive_angular_rejections_ = 0;
+    } else {
+      last_diagnostics_.classification = AngularCorrectionClass::ModerateDiscarded;
+      snapshot_pending_diagnostics();
+      ClearModerateState();
+      StartModeratePending(
+        rotation_innovation, stamp_sec, context,
+        last_diagnostics_.post_reference_switch);
+      consecutive_angular_rejections_ = 0;
+    }
+  } else if (!moderate_pending_valid_ || !same_pending_context) {
+    if (moderate_pending_valid_) {
+      last_diagnostics_.classification = AngularCorrectionClass::ModerateDiscarded;
+      snapshot_pending_diagnostics();
+      ClearModerateState();
+    } else {
+      last_diagnostics_.classification = AngularCorrectionClass::ModeratePending;
+    }
+    StartModeratePending(
+      rotation_innovation, stamp_sec, context,
+      last_diagnostics_.post_reference_switch);
+    consecutive_angular_rejections_ = 0;
+  } else {
+    ++pending_total_frames_;
+    const float pending_norm = pending_innovation_.norm();
+    const float current_norm = rotation_innovation.norm();
+    const float cosine =
+      pending_norm > 1e-6f && current_norm > 1e-6f ?
+      pending_innovation_.dot(rotation_innovation) /
+      (pending_norm * current_norm) : 1.0f;
+    const float magnitude_ratio =
+      std::max(pending_norm, current_norm) > 1e-6f ?
+      std::min(pending_norm, current_norm) /
+      std::max(pending_norm, current_norm) : 1.0f;
+    last_diagnostics_.consistency_cosine = cosine;
+    last_diagnostics_.magnitude_ratio = magnitude_ratio;
+
+    const float raw_speed = last_diagnostics_.implied_angular_velocity.norm();
+    const float raw_acceleration =
+      last_diagnostics_.implied_angular_acceleration.norm();
+    const float speed_allowance =
+      std::max(0.0f, config_.max_angular_speed_radps) +
+      std::max(0.0f, config_.max_angular_acceleration_radps2) *
+      static_cast<float>(dt);
+    const bool raw_motion_plausible =
+      config_.max_angular_speed_radps <= 0.0f || raw_speed <= speed_allowance;
+    const bool raw_acceleration_plausible =
+      config_.max_angular_acceleration_radps2 <= 0.0f ||
+      raw_acceleration <= 2.0f * config_.max_angular_acceleration_radps2;
+    const bool persistent_offset =
+      last_diagnostics_.raw_step_rotation_rad <= small_rotation_limit;
+    const bool coherent =
+      cosine + kConsistencyComparisonEpsilon >=
+      config_.moderate_direction_consistency &&
+      magnitude_ratio + kConsistencyComparisonEpsilon >=
+      config_.moderate_magnitude_ratio &&
+      (persistent_offset || (raw_motion_plausible && raw_acceleration_plausible));
+    const bool pending_timed_out =
+      config_.moderate_timeout_sec > 0.0 &&
+      stamp_sec - pending_started_stamp_sec_ > config_.moderate_timeout_sec;
+    const bool pending_exhausted =
+      config_.moderate_max_pending_frames > 0 &&
+      pending_total_frames_ > config_.moderate_max_pending_frames;
+
+    if (!coherent || pending_timed_out || pending_exhausted) {
+      last_diagnostics_.classification = AngularCorrectionClass::ModerateDiscarded;
+      snapshot_pending_diagnostics();
+      ClearModerateState();
+      if (!pending_timed_out && !pending_exhausted) {
+        StartModeratePending(
+          rotation_innovation, stamp_sec, context,
+          last_diagnostics_.post_reference_switch);
+      }
+    } else {
+      ++pending_good_frames_;
+      pending_innovation_ =
+        0.5f * pending_innovation_ + 0.5f * rotation_innovation;
+      pending_post_reference_switch_ =
+        pending_post_reference_switch_ || last_diagnostics_.post_reference_switch;
+      const uint32_t required_frames = std::max(
+        1U, pending_post_reference_switch_ ?
+        config_.moderate_post_reference_confirmation_frames :
+        config_.moderate_confirmation_frames);
+      if (pending_good_frames_ >= required_frames) {
+        moderate_pending_valid_ = false;
+        moderate_confirmed_active_ = true;
+        last_diagnostics_.classification = AngularCorrectionClass::ModerateConfirmed;
+        apply_rotation_measurement = true;
+      } else {
+        last_diagnostics_.classification = AngularCorrectionClass::ModeratePending;
+      }
+    }
+    consecutive_angular_rejections_ = 0;
+  }
 
   const Eigen::Vector3f target_position =
     predicted.translation() + config_.position_alpha * position_innovation;
@@ -74,14 +288,17 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
   linear_velocity_ = desired_linear_velocity;
 
   Sophus::SO3f target_orientation = predicted.so3();
-  if (last_orientation_rejected_) {
-    ++consecutive_angular_rejections_;
-    last_update_limited_ = true;
-  } else {
-    consecutive_angular_rejections_ = 0;
+  if (apply_rotation_measurement) {
     target_orientation =
       Sophus::SO3f::exp(config_.orientation_alpha * rotation_innovation) *
       predicted.so3();
+  }
+  last_diagnostics_.applied_rotation_correction_rad =
+    (target_orientation * predicted.so3().inverse()).log().norm();
+  if (last_rotation_innovation_rad_ > 1e-6f) {
+    last_diagnostics_.correction_fraction_applied =
+      last_diagnostics_.applied_rotation_correction_rad /
+      last_rotation_innovation_rad_;
   }
   Eigen::Vector3f desired_angular_velocity =
     (target_orientation * pose_.so3().inverse()).log() /
@@ -100,11 +317,29 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
     desired_angular_velocity = angular_velocity_ + velocity_delta;
   }
   angular_velocity_ = desired_angular_velocity;
+  const Sophus::SE3f previous_pose = pose_;
   pose_ = Sophus::SE3f(
     Sophus::SO3f::exp(angular_velocity_ * static_cast<float>(dt)) * pose_.so3(),
     pose_.translation() + linear_velocity_ * static_cast<float>(dt));
   velocity_valid_ = true;
   stamp_sec_ = stamp_sec;
+  last_raw_measurement_ = measurement;
+  last_raw_stamp_sec_ = stamp_sec;
+  raw_measurement_valid_ = true;
+  const Sophus::SE3f published_step = previous_pose.inverse() * pose_;
+  last_diagnostics_.published_pose_translation_step_m =
+    published_step.translation().norm();
+  last_diagnostics_.published_pose_rotation_step_rad =
+    published_step.so3().log().norm();
+  last_diagnostics_.linear_velocity_after_limits = linear_velocity_;
+  last_diagnostics_.angular_velocity_after_limits = angular_velocity_;
+  if (last_diagnostics_.pending_correction_id == 0) {
+    last_diagnostics_.pending_correction_id = pending_correction_id_;
+    last_diagnostics_.pending_good_frames = pending_good_frames_;
+    last_diagnostics_.pending_total_frames = pending_total_frames_;
+  }
+  last_diagnostics_.predictor_healthy = healthy();
+  last_diagnostics_.consecutive_rejections = consecutive_angular_rejections_;
   return Predict(stamp_sec);
 }
 
@@ -133,6 +368,10 @@ void OrbPosePredictor::Reset()
   angular_velocity_.setZero();
   consecutive_angular_rejections_ = 0;
   last_orientation_rejected_ = false;
+  raw_measurement_valid_ = false;
+  next_pending_correction_id_ = 1;
+  ClearModerateState();
+  last_diagnostics_ = OrbPosePredictorDiagnostics{};
 }
 
 bool OrbPosePredictor::last_update_limited() const
@@ -170,6 +409,45 @@ float OrbPosePredictor::last_rotation_innovation_rad() const
 float OrbPosePredictor::last_rotation_step_rad() const
 {
   return last_rotation_step_rad_;
+}
+
+const OrbPosePredictorDiagnostics & OrbPosePredictor::last_diagnostics() const
+{
+  return last_diagnostics_;
+}
+
+void OrbPosePredictor::StartModeratePending(
+  const Eigen::Vector3f & innovation,
+  double stamp_sec,
+  const OrbMeasurementContext & context,
+  bool post_reference_switch)
+{
+  moderate_pending_valid_ = true;
+  moderate_confirmed_active_ = false;
+  pending_correction_id_ = next_pending_correction_id_++;
+  pending_started_stamp_sec_ = stamp_sec;
+  pending_innovation_ = innovation;
+  pending_initial_magnitude_ = innovation.norm();
+  pending_good_frames_ = 1;
+  pending_total_frames_ = 1;
+  pending_map_epoch_ = context.map_epoch;
+  pending_reference_keyframe_id_ = context.reference_keyframe_id;
+  pending_post_reference_switch_ = post_reference_switch;
+}
+
+void OrbPosePredictor::ClearModerateState()
+{
+  moderate_pending_valid_ = false;
+  moderate_confirmed_active_ = false;
+  pending_correction_id_ = 0;
+  pending_started_stamp_sec_ = 0.0;
+  pending_innovation_.setZero();
+  pending_initial_magnitude_ = 0.0f;
+  pending_good_frames_ = 0;
+  pending_total_frames_ = 0;
+  pending_map_epoch_ = 0;
+  pending_reference_keyframe_id_ = 0;
+  pending_post_reference_switch_ = false;
 }
 
 Eigen::Vector3f OrbPosePredictor::ClampNorm(

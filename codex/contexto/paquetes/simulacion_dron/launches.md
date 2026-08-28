@@ -62,7 +62,14 @@ fase3_abrir_navegador_web=false
 fase3_logs_terminal=false
 debug_fiducial_visualization=false
 debug_fiducial_display_seconds=5.0
+debug_orb_control_state=false
 ```
+
+`debug_orb_control_state` se propaga a cada `generar_dron.launch.py` y activa
+los marcadores estructurados `[F5H-ORB-MEASUREMENT]`, `[F5H-ORB-PUBLISH]` y
+`[F5H-CONTROL-DIAG]` sin cambiar fuente, trayectoria ni ganancias.
+`orb_qualification_samples=20` tambien se propaga al mux; la etapa 1 de 5H lo
+eleva para observar ORB mientras GT conserva el control.
 
 Con `fase3_logs_terminal=false`, el servidor usa nivel ROS `ERROR`: se
 suprimen los diagnosticos `[F3*]`, pero no los errores reales. El navegador

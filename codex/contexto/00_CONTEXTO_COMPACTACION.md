@@ -1,5 +1,421 @@
 # 00 - Contexto de compactacion
 
+## Checkpoint vigente 2026-08-28 - publicacion Git cierre 5H
+
+```text
+Estado: Fase 5H PARCIAL; implementacion, builds, tests, simulaciones y cierre
+documental completados. El usuario autoriza expresamente commit y push.
+Preparacion: CERRADA
+Acuerdo cerrado: si
+Autorizacion funcional: CONCEDIDA
+Prueba acordada: pruebas 257-259 ya ejecutadas y documentadas.
+Dudas abiertas: ninguna.
+Alcance Git: codigo, configuracion, launches, tests, seis escenarios F5H y
+documentacion vigente de la iteracion de estabilizacion ORB.
+Exclusiones: documento fuente del usuario, logs/metricas generados y cambios
+ajenos bajo `servidor/multidron_gui*`.
+Rama/remoto: `main` -> `origin/main` en
+`IvanCS-Chenfu/Mapeado-con-Drones`.
+Trabajo activo: preparar indice, verificarlo, crear commit y publicarlo.
+Siguiente accion exacta: añadir al indice exclusivamente las rutas del alcance
+F5H y validar `git diff --cached --check` antes del commit.
+```
+
+## Checkpoint vigente 2026-08-28 - reanudacion implementacion probation ORB
+
+```text
+Estado: Fase 5H PARCIAL; implementacion autorizada en curso.
+Preparacion: CERRADA
+Acuerdo cerrado: si
+Autorizacion funcional: CONCEDIDA
+Prueba acordada: etapas progresivas con parada al primer fallo del dron
+gobernado por ORB; en la etapa final basta el fallo de cualquiera.
+Dudas abiertas: ninguna.
+Reanudacion tras compactacion: checkpoint fisico releido y reconciliado con la
+ultima orden del usuario, `realiza las modificaciones`. Ya estan aplicados, sin
+build todavia, la probation angular temporal, diagnostics del predictor,
+telemetria debug de publicacion/control, parametros launch/config y la
+ampliacion inicial de GTests. No se altera GT, mux, ganancias, optimizador ni
+ORB-SLAM3 core.
+Trabajo activo: completar el mecanismo reproducible de parada de escenarios,
+sincronizar documentacion, compilar, ejecutar CTests y recorrer las pruebas
+progresivas hasta el primer fallo segun el acuerdo.
+Siguiente accion exacta: revisar el contexto corto de `simulacion_dron` y los
+simbolos minimos de `scenario_runner_node`/dependencias para decidir e
+implementar la parada de seguridad limitada a escenarios de Fase 5H.
+```
+
+## Checkpoint vigente 2026-08-28 - bloque funcional listo para build
+
+```text
+Estado: Fase 5H PARCIAL; implementacion autorizada terminada y sin validar.
+Preparacion: CERRADA
+Acuerdo cerrado: si
+Autorizacion funcional: CONCEDIDA
+Prueba acordada: etapas progresivas independientes; cortar la secuencia tras
+el primer fallo del dron gobernado por ORB, y en dos drones tras cualquiera.
+Dudas abiertas: ninguna.
+Cambios completados: `OrbPosePredictor` clasifica SMALL/MODERATE_PENDING/
+MODERATE_CONFIRMED/MODERATE_DISCARDED/REJECTED_EXCESSIVE, refuerza la
+confirmacion post-reference y conserva pose/omega coherentes; diagnostics
+separan raw, innovacion, correccion aplicada y paso publicado. El wrapper
+publica telemetria debug estructurada y el controlador correlaciona edad,
+errores, fuerza y torque sin cambiar formulas ni ganancias. Parametros en
+`dron_individual/config/navigation_state.yaml`; flag debug propagado por los
+launches y apagado por defecto. GTest focal contiene 21 casos totales y cubre
+los diez escenarios exigidos. GT, mux, W, ORB-SLAM3 core y trayectoria final
+permanecen funcionalmente intactos.
+Decision de infraestructura: no introducir un monitor de parada en
+`scenario_runner_node`; cada etapa sera un escenario corto independiente y la
+secuencia se detendra entre ejecuciones al analizar el log reducido.
+Validacion previa: `git diff --check` y `py_compile` de los tres launches
+correctos. Documentacion actual de los componentes, launch y contrato 5H
+sincronizada; historial de pruebas se actualizara al ejecutar evidencia real.
+Trabajo activo: build y validacion.
+Siguiente accion exacta: compilar solo `orbslam3` con
+`build_selected_packages.sh --group dron orbslam3`; registrar el resultado
+antes de ejecutar el CTest focal.
+```
+
+## Checkpoint vigente 2026-08-28 - build orbslam3 correcto
+
+```text
+Estado: Fase 5H PARCIAL; implementacion compila, tests pendientes.
+Build: `./codex/herramientas/build_selected_packages.sh --group dron orbslam3`
+termino con exit 0; 1/1 paquete correcto en 50.2 s. El stderr contiene avisos
+legacy de cv_bridge, Eigen/g2o y ORB_SLAM3, sin error de la modificacion.
+Trabajo activo: CTest focal, despues build de `dron_individual`.
+Siguiente accion exacta: ejecutar `ctest` limitado a
+`test_navigation_state_estimator` en `build/dron/orbslam3` y registrar sus 21
+GTests antes de cualquier correccion o build posterior.
+```
+
+## Checkpoint vigente 2026-08-28 - CTest probation intento 1
+
+```text
+CTest focal intento 1: 19/21 GTests correctos. Fallan solo
+`SustainedPhysicalYawDoesNotFreeze` y `FastPlausibleYawHasBoundedLag`.
+Diagnostico: las secuencias tienen innovaciones colineales cuya relacion de
+magnitudes teorica es exactamente 0.50, el umbral configurado; el redondeo
+float produce un valor apenas inferior, clasifica incoherente y reinicia el
+pending. Los casos aislado, persistente constante, Tcr mismo KF, post-switch,
+outlier, pose/omega y todos los gates de referencia pasan.
+Correccion siguiente: añadir una tolerancia numerica pequena solo a las
+comparaciones inclusivas de cosine/magnitude del gate moderado. Es mecanica y
+conserva el criterio funcional `>= 0.50` acordado.
+Trabajo activo: corregir, recompilar `orbslam3` y repetir el mismo CTest.
+```
+
+## Checkpoint vigente 2026-08-28 - rebuild tolerancia correcto
+
+```text
+Correccion mecanica aplicada: epsilon `1e-5` en las comparaciones inclusivas de
+consistencia angular, sin alterar ningun umbral configurado. Rebuild incremental
+de `orbslam3`: exit 0, 1/1 paquete en 7.14 s.
+Siguiente accion exacta: repetir el CTest focal de 21 casos.
+```
+
+## Checkpoint vigente 2026-08-28 - CTest probation conseguido
+
+```text
+CTest focal intento 2: 21/21 GTests correctos, 0 fallos. Quedan validados los
+diez comportamientos solicitados: pequeno, moderado aislado/persistente, yaw
+sostenido/rapido, Tcr mismo KF, cambio KF coherente, post-switch, outlier y
+coherencia pose/velocidades.
+Trabajo activo: validar integracion de controlador y launches.
+Siguiente accion exacta: compilar solo `dron_individual` con el script de build
+seleccionado; registrar el resultado antes de preparar escenarios.
+```
+
+## Checkpoint vigente 2026-08-28 - builds de codigo conseguidos
+
+```text
+Build `dron_individual`: exit 0, 1/1 paquete en 14.6 s. Junto al build de
+`orbslam3` y los 21/21 GTests, el codigo y la telemetria compilan completos.
+Trabajo activo: materializar los YAML cortos de simulacion progresiva, validar
+su sintaxis/instalacion y ejecutar desde la etapa 1 hasta el primer fallo.
+Siguiente accion exacta: inspeccionar solo el esquema de escenarios y los YAML
+5H existentes para crear etapas 1-7 de un dron sin modificar la trayectoria
+tipica final de dos drones.
+```
+
+## Checkpoint vigente 2026-08-28 - escenarios progresivos preparados
+
+```text
+Escenarios nuevos: etapas 1-6 en
+`codex/archivos_auxiliares/trayectorias/f5h_etapa_*.yaml`; etapa 7 reutiliza
+`prueba_rodeo_antihorario_un_dron_fid2_fid1_fid2.yaml` y etapa 8 reutiliza sin
+modificar `prueba_tipica_rodeo_edificio_dos_fiduciales.yaml`.
+Etapa 1 eleva exclusivamente por launch `orb_qualification_samples` para que GT
+gobierne hover/X/Y/Z/yaw lento/yaw rapido/90/180 mientras se observa ORB. El
+default normal sigue en 20 y el mux no cambia. Etapas 2-6 prueban hover,
+rectas, yaw, curva y handoff con drone1 tras anchor.
+Validacion estatica: seis YAML parsean, launches pasan `py_compile` y diff sin
+errores de whitespace.
+Trabajo activo: rebuild de los dos paquetes cuyos launches cambiaron.
+Siguiente accion exacta: rebuild incremental de `dron_individual` y despues
+build de `simulacion_dron`; registrar cada resultado antes de prueba 257.
+```
+
+## Checkpoint vigente 2026-08-28 - rebuild launch dron correcto
+
+```text
+Rebuild incremental `dron_individual`: exit 0, 1/1 en 1.58 s.
+Siguiente accion exacta: compilar `simulacion_dron` para validar y desplegar el
+nuevo argumento de launch; despues preparar checkpoint de prueba 257.
+```
+
+## Checkpoint vigente 2026-08-28 - build simulacion y prueba 257 preparada
+
+```text
+Build `simulacion_dron`: exit 0, 1/1 paquete en 0.67 s. Todos los builds y
+GTests previos estan correctos.
+Prueba 257 / etapa 1: YAML
+`codex/archivos_auxiliares/trayectorias/f5h_etapa_1_orb_observado_gt.yaml`;
+launch `multi_dron.launch.py` con Gazebo GUI, RViz sparse+poses Fase 5,
+telemetria ORB/control y metricas habilitadas, GUI de mision desactivada y
+`orb_qualification_samples=100000` para conservar GT durante toda la
+caracterizacion. Timeout 420 s, post-wait 5 s.
+Criterio: completar todas las maniobras con fuente GT, observar estados ORB y
+no confundir tracking perdido durante el giro 180 con inestabilidad de control
+ORB, ya que ORB no gobierna esta etapa. La prueba genera evidencia de umbrales;
+la secuencia posterior se detiene al primer fallo cuando ORB si gobierne.
+Trabajo activo: simulacion 257.
+Siguiente accion exacta: ejecutar 257; al terminar registrar exit/success/log
+antes de reducirlo o preparar 258.
+```
+
+## Checkpoint vigente 2026-08-28 - prueba 257 fallo de arranque
+
+```text
+Prueba 257 ejecutada: exit 1; `scenario_runner_node` termino con codigo 1 antes
+de realizar maniobras. Log completo conservado en
+`codex/archivos_auxiliares/logs/prueba_257.log` y no leido directamente.
+Recursos correctos, guard no activado. No existe evidencia funcional ORB/control
+y no cuenta como fallo de la etapa 1; se conserva como intento fallido de
+infraestructura.
+Siguiente accion exacta: reducir 257 con patrones de parser/scenario/error,
+leer solo el reducido y aplicar una correccion mecanica al YAML si procede.
+```
+
+## Checkpoint vigente 2026-08-28 - diagnostico 257 y prueba 258 preparada
+
+```text
+Reducido 257: `[SCENARIO-RUNNER-ERROR] bad file`; el runner resolvio la ruta
+relativa desde el workspace padre y no encontro el YAML bajo `src/`. No hubo
+error de parser ni evidencia funcional. Correccion mecanica: usar ruta absoluta.
+Prueba 258 repite exactamente etapa 1, launch, timeout y criterios de 257, con
+YAML absoluto `/home/chenfu/Gazebo/src/codex/archivos_auxiliares/trayectorias/
+f5h_etapa_1_orb_observado_gt.yaml` y salida de metricas `prueba_258`.
+Siguiente accion exacta: ejecutar 258 y registrar su resultado antes de reducir.
+```
+
+## Checkpoint vigente 2026-08-28 - prueba 258 ejecutada
+
+```text
+Prueba 258 / etapa 1: exit 0, `success=true`, duracion de monitor 127 s;
+scenario completo. Log completo en
+`codex/archivos_auxiliares/logs/prueba_258.log`, no leido directamente;
+metricas en `codex/archivos_auxiliares/metricas/prueba_258`. Recursos sanos,
+guard no activado, minimo 5397 MiB disponibles.
+Conclusion pendiente: verificar en reducido fuente GT exclusiva, presencia de
+telemetria ORB/control, clasificaciones y tracking por maniobra. No preparar
+etapa 2 hasta cerrar ese analisis.
+Siguiente accion exacta: reducir 258 con marcadores F5H/scenario/tracking/error
+y analizar solo el reducido.
+```
+
+## Checkpoint vigente 2026-08-28 - conclusion 258 y telemetria corregida
+
+```text
+Conclusion prueba 258 / etapa 1: CONSEGUIDA como caracterizacion. Scenario
+11/11 pasos y 7/7 goals correcto; drone1 conserva `orb_samples=0` y
+`fallback_ratio=1.0`, por lo que ningun movimiento fue gobernado por ORB.
+Tracking ORB permanece OK en hover/X/Y/Z/yaw lento; durante yaw rapido entra
+en tracking 3, completa yaw rapido y 180 con GT, y al final recupera tracking 2
+en epoch 1. No aparecen eventos MODERATE/REJECTED en el reducido dirigido;
+la perdida no queda causada por la probation. No se ajustan umbrales con esta
+unica ejecucion. Error Gazebo 255 aparece solo durante cleanup posterior a
+`SIM-DONE`.
+Incidencia de observabilidad: `[F5H-ORB-PUBLISH]` calculaba edad restando el
+timestamp relativo de imagen al reloj ROS absoluto. Corregido mecanicamente:
+separar `measurement_input_stamp` de `measurement_receive_stamp`, calcular edad
+con recepcion/publicacion del mismo reloj y abrir con ese reloj la ventana de
+dos segundos. No cambia pose, omega, fuente ni control.
+Trabajo activo: rebuild y CTest de la correccion de telemetria; despues etapa 2.
+Siguiente accion exacta: rebuild incremental de `orbslam3`, repetir CTest focal
+y solo con ambos correctos preparar prueba 259 de hover ORB.
+```
+
+## Checkpoint vigente 2026-08-28 - rebuild telemetria correcto
+
+```text
+Rebuild `orbslam3` tras separar relojes: exit 0, 1/1 en 45.2 s; solo avisos
+legacy ya conocidos.
+Siguiente accion exacta: repetir CTest focal 21/21; si pasa, preparar prueba 259
+de hover ORB con debug y relojes corregidos.
+```
+
+## Checkpoint vigente 2026-08-28 - CTest final y prueba 259 preparada
+
+```text
+CTest posterior a telemetria: 21/21 correcto, 0 fallos.
+Prueba 259 / etapa 2: YAML absoluto `f5h_etapa_2_hover_orb.yaml`; drone1 llega
+al fiducial 2 con GT, espera anchor, abre frontera a ORB mediante goal de hover
+y mantiene 25 s. Launch con Gazebo GUI, RViz2 sparse+pose, debug causal y
+metricas `prueba_259`; `orb_qualification_samples=20` normal. Timeout 240 s,
+post-wait 5 s.
+Criterio: fuente ORB confirmada durante hover, tracking 2 sostenido, sin retorno
+a GT, oscilacion creciente, torque repetido alto, estado incoherente ni goal
+fallido. Cualquiera detiene las etapas posteriores.
+Trabajo activo: simulacion 259.
+Siguiente accion exacta: ejecutar 259 y registrar exit/success/log antes de
+reducir o decidir continuar.
+```
+
+## Checkpoint vigente 2026-08-28 - prueba 259 ejecutada
+
+```text
+Prueba 259 / etapa 2: exit 0, `success=true`, monitor 92 s, recursos sanos y
+guard inactivo. Log completo conservado en
+`codex/archivos_auxiliares/logs/prueba_259.log`, no leido; metricas en
+`codex/archivos_auxiliares/metricas/prueba_259`.
+Conclusion pendiente: comprobar que el hover fue realmente ORB, sin perdida,
+fallback, divergencia, torque repetido alto ni edad incoherente. No preparar
+etapa 3 antes de cerrar el reducido.
+Siguiente accion exacta: reducir 259 con scenario, fuente, tracking,
+clasificaciones, publish/control y errores; analizar solo ese artefacto.
+```
+
+## Checkpoint vigente 2026-08-28 - prueba 259 NO CONSEGUIDA
+
+```text
+Conclusion prueba 259 / etapa 2: NO CONSEGUIDA. El scenario formal completa
+6/6 pasos y 2/2 goals, pero drone1 solo gobierna con ORB 227 muestras (~4.5 s)
+antes de volver a GT y perder tracking. Handoff GT->ORB continuo, salto 0.
+Cronologia: entrada ORB `1787947682.680`; antes del primer evento moderado ya
+crecen oscilacion y control (`er=0.0845`, `ew=0.471`, torque=0.0552) y una
+publicacion SMALL/no relevante da `published_rotation_step=0.058777` en
+`1787947686.450`. Primer pending `1787947686.657`; se descarta y reinicia; la
+nueva cadena confirma en `1787947686.805`, aplica 70% de una innovacion
+`0.176529` y despues publica pasos limitados de `0.075 rad`. Dos excesivos
+`0.359/0.760 rad` llegan en `1787947687.213/.266`; ORB->GT continuo en `.310`;
+tracking 3 en `1787947688.241`. El control ya reaccionaba antes de la probation,
+por lo que la confirmacion moderada amplifica una inestabilidad previa, no es su
+origen unico.
+Diagnostico de diseno: el umbral SMALL crece con `0.5*a*dt^2`; con gaps de
+medida puede aceptar como pequena una correccion muy superior al parametro
+base de 0.015 rad. Ademas, confirmar por direccion del residual puede aceptar
+un residual creciente generado por la propia realimentacion. La telemetria de
+relojes ya es correcta: edad 0-0.07 s en muestras validas.
+Criterio de parada aplicado: no ejecutar etapas 3-8 ni la trayectoria completa.
+No se aplicara otra correccion funcional dentro de esta autorizacion; requerira
+nuevo debate sobre umbral SMALL fijo y evidencia basada en incrementos raw/
+correccion de gauge antes de otra iteracion.
+Estado agregado: Fase 5H PARCIAL; iteracion de probation NO CONSEGUIDA en
+control dinamico pese a builds y 21/21 GTests.
+Trabajo activo: cierre documental y comprobacion final del diff; no quedan
+builds ni simulaciones autorizadas.
+Siguiente accion exacta: registrar 259 y la parada en historial/resumen/estado,
+actualizar plan y ejecutar validacion estatica final.
+```
+
+## Checkpoint vigente 2026-08-28 - cierre iteracion probation ORB
+
+```text
+Estado final: Fase 5H PARCIAL; iteracion solicitada implementada y validada
+hasta el primer fallo dinamico.
+Preparacion: CERRADA
+Acuerdo cerrado: si
+Autorizacion funcional: CONSUMIDA
+Prueba acordada: ejecutada progresivamente y detenida en etapa 2 conforme al
+criterio acordado.
+Dudas abiertas: ninguna para este cierre; una nueva estrategia requiere nuevo
+debate y autorizacion.
+Entregado: probation angular temporal parametrizada, diagnostics completos,
+telemetria debug de wrapper/control, perfil `navigation_state.yaml`, flag launch,
+21 GTests y seis escenarios auxiliares. GT, mux, ganancias, W, ORB-SLAM3 core y
+trayectoria tipica final no se modifican funcionalmente.
+Builds: `orbslam3`, `dron_individual` y `simulacion_dron` correctos; CTest final
+21/21. Prueba 257 fallo mecanico de ruta sin ejecutar escenario; 258 etapa 1
+CONSEGUIDA; 259 etapa 2 NO CONSEGUIDA tras 227 muestras ORB, fallback y tracking
+3. Etapas 3-8 no ejecutadas.
+Diagnostico vigente: oscilacion previa al pending por rama SMALL dependiente de
+`dt`; confirmar persistencia del residual puede aceptar realimentacion. La
+probation moderada por si sola no estabiliza hover. Siguiente iteracion debe
+debatir SMALL fijo e incrementos raw/correccion de gauge.
+Documentacion sincronizada: contrato 5H, historial largo/resumen/indice,
+resumen de Fase 5, contexto minimo, estado, ultima sesion y docs de los tres
+paquetes. `git diff --check`, `py_compile` y parseo de 6 YAML correctos.
+Cambios ajenos no tocados: artefactos previos, documento fuente del usuario y
+directorios no versionados `servidor/multidron_gui*` aparecidos durante la tarea.
+Trabajo activo: no.
+Siguiente accion exacta: explicar el cierre al usuario; no modificar ni simular
+de nuevo hasta acordar la siguiente estrategia.
+```
+
+## Checkpoint vigente 2026-08-28 - preparacion estabilizacion ORB post-256
+
+```text
+Estado: Fase 5H PARCIAL; nueva iteracion propuesta desde
+`Fase_5_instrucciones_Codex_estabilizacion_ORB_control.md`.
+Preparacion: CERRADA
+Acuerdo cerrado: si
+Autorizacion funcional: CONCEDIDA
+Prueba acordada: etapas progresivas, sin saltar directamente a dos drones. Cada
+etapa se detiene ante la primera perdida del dron gobernado por ORB,
+inestabilidad/divergencia grave, estado incoherente o goal fallido; en la etapa
+final basta el fallo de cualquiera de los dos drones. Un pending moderado bien
+descartado no detiene la prueba.
+Dudas abiertas: ninguna.
+Reconciliacion: `main` y `origin/main` coinciden en `206e568`; el documento de
+instrucciones es nuevo y no versionado. No existe acuerdo previo que autorice
+codigo, build o simulacion.
+Revision tecnica: la arquitectura O/W, Kref+Tcr, predictor local y GT intacto
+coinciden con el contrato solicitado. En la rama de mismo KF activo, cuando no
+hay referencia pending, la medida Tcr se acepta geometricamente y llega al
+predictor. El predictor vigente solo separa innovacion angular por el gate duro
+de `0.35 rad`; no tiene probation temporal moderada ni contexto de cambio de
+referencia. `rotation_step_rad` mide medida raw contra pose filtrada previa, no
+el paso publicado; la afirmacion previa de que 256 publico exactamente
+`0.119002 rad` queda como hipotesis no demostrada hasta instrumentarla.
+Diseno propuesto: estado angular SMALL/MODERATE_PENDING/MODERATE_CONFIRMED/
+MODERATE_DISCARDED/REJECTED_EXCESSIVE; pending conserva vector, eje, magnitud,
+timestamp, Kref, contexto post-switch y contadores. La consistencia usa
+direccion, magnitud, dt, omega previa y aceleracion implicita. Pending mantiene
+prediccion; confirmado absorbe gradualmente el residual desde el mismo estado
+pose/omega; incoherencia descarta sin invalidar ORB de inmediato. Umbrales y
+ventana post-KF seran parametros, sin tocar GT, ganancias, W ni ORB-SLAM3 core.
+Instrumentacion propuesta: diagnostico estructurado del predictor que distingue
+raw step, innovation, applied correction, published pose step y omega; eventos
+de publicacion/edad; marcador de control muestreado con ep/ev/er/ew, fuerza,
+torque y edad del NavigationState; tracking/KF reutiliza eventos existentes.
+Tests minimos: los diez casos exigidos por el documento, ampliando el GTest
+focal. Builds previstos: `orbslam3` y `dron_individual` solo si se anade la
+instrumentacion de control.
+Respuesta del usuario: acepta logs ROS estructurados activables por debug y
+reutilizar las metricas existentes, sin escritor CSV interno nuevo. Sobre la
+parada entendio inicialmente `cuando ambos drones se pierdan`; debe aclararse
+porque las etapas 2-7 gobiernan un solo dron con ORB y no conviene esperar una
+segunda perdida ni una colision si ya existe oscilacion/divergencia grave.
+Confirmacion final: el usuario acepta ese criterio y ordena realizar las
+modificaciones con todo lo acordado.
+Revision documental de 256 sincronizada: historial largo/resumen/indice 5H,
+resumen de Fase 5, contexto minimo, estado, ultima sesion y docs de
+`orbslam3_ros2` ya no equiparan `rotation_step_rad` con el salto publicado. Se
+conservan la innovacion de `0.125261 rad`, el valor `0.119002` y los `0.793 s`
+como evidencia cronologica, con causalidad pendiente de instrumentacion.
+Plan autorizado: (1) ampliar predictor y diagnostics con probation angular;
+(2) propagar parametros/debug por nodos y launch, anadir telemetria de control;
+(3) ampliar GTests con los diez casos; (4) crear escenarios progresivos sin
+modificar la vuelta final; (5) sincronizar docs de paquete/contrato; (6)
+compilar y ejecutar CTests; (7) lanzar etapas en orden, deteniendose en el
+primer fallo; (8) reducir logs, documentar cada prueba y concluir 5H.
+Trabajo activo: implementacion, build, tests y validacion progresiva.
+Siguiente accion exacta: definir las estructuras publicas de diagnostico y la
+maquina angular en `navigation-state-estimator.hpp/.cpp` antes de editar nodos.
+```
+
 ## Checkpoint vigente 2026-08-28 - cierre Git solicitado
 
 ```text

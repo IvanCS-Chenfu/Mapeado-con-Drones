@@ -174,6 +174,13 @@ class StereoSlamNode : public rclcpp::Node
         uint64_t orb_prediction_count_ = 0;
         uint64_t orb_limited_measurement_count_ = 0;
         double orb_state_publish_rate_hz_ = 50.0;
+        bool debug_orb_control_state_ = false;
+        uint32_t frames_since_reference_change_ = 0xFFFFFFFFU;
+        double latest_orb_measurement_stamp_sec_ = 0.0;
+        double latest_orb_measurement_input_stamp_sec_ = 0.0;
+        double orb_diagnostic_window_until_sec_ = 0.0;
+        bool last_published_orb_pose_valid_ = false;
+        Sophus::SE3f last_published_orb_pose_;
         int last_navigation_tracking_state_ = -999;
         rclcpp::Client<orbslam3_msgs::srv::GetGlobalKeyFramePose>::SharedPtr
             global_pose_client_;
@@ -198,6 +205,8 @@ class StereoSlamNode : public rclcpp::Node
             const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
             const Sophus::SE3f& Tcw);
         void PublishPredictedNavigationState();
+        void LogOrbMeasurementDiagnostics(
+            const orbslam3_ros2::OrbPosePredictorDiagnostics& diagnostics);
         void RequestGlobalPose(uint64_t map_epoch, uint64_t keyframe_id);
         void HandleGlobalPoseResponse(
             uint64_t generation,

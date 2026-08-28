@@ -312,15 +312,18 @@
   discontinuidad inicial del mux ni una optimizacion global en el intervalo;
 - secuencia critica de drone2: entra en ORB en `1787932610.482`, acepta los KF
   25 y 26, y en `1787932614.295` recibe una innovacion angular de
-  `0.125261 rad`. El filtro no la rechaza y publica un paso de `0.119002 rad`.
-  Despues acepta rapidamente los KF 28 y 31 y pierde tracking en
+  `0.125261 rad`. El filtro no la rechaza y registra
+  `rotation_step_rad=0.119002`, que mide la orientacion raw contra el estado
+  filtrado previo, no el salto publicado. Despues acepta rapidamente los KF 28
+  y 31 y pierde tracking en
   `1787932615.088`, solo `0.793 s` despues del salto;
-- diagnostico: el umbral duro de `0.35 rad` es demasiado permisivo para actitud
-  de control. La correccion gradual convierte un outlier moderado en un cambio
-  de aproximadamente `6.82 grados` antes de comprobar persistencia temporal;
-  suavizarlo no lo vuelve verdadero. El churn de referencias es el contexto
-  local que lo precede, pero la inyeccion angular aceptada es el primer evento
-  dinamico anormal demostrado;
+- interpretacion revisada: la cronologia demuestra una innovacion moderada no
+  rechazada antes de la perdida, pero la telemetria 256 no separa correccion
+  aplicada, paso de pose publicado ni omega publicada. Por tanto no demuestra
+  que el controlador recibiera `0.119002 rad` ni que esa medida causara el
+  colapso. La hipotesis vigente es que el gate instantaneo de `0.35 rad` puede
+  aceptar jitter visual sin confirmacion temporal; debe comprobarse midiendo la
+  cadena innovacion -> estado publicado -> error/torque -> tracking;
 - evidencia secundaria: el goal absoluto se transforma con el `W_T_O` vigente
   sin salto inicial. Sus cotas distintas en O corresponden a la inclinacion de
   ese marco y no demuestran otra causa del colapso. El `W_T_B` de drone1 acaba
@@ -331,3 +334,58 @@
   innovaciones moderadas se mantienen en cuarentena mientras la salida predice
   brevemente, y solo se incorporan si varias medidas confirman una evolucion
   fisicamente coherente. No tocar GT, mux, ganancias ni optimizador W.
+
+## 2026-08-28 - Probation temporal, pruebas 257 y 258 / etapa 1
+
+- implementacion: innovaciones angulares moderadas quedan pending hasta tres
+  confirmaciones coherentes, o cuatro tras un cambio de reference KF; aisladas
+  se descartan y persistentes se absorben gradualmente. La telemetria separa
+  raw, innovacion, correccion y paso publicado, y el control registra errores y
+  torque sin cambiar ganancias;
+- build/tests: `orbslam3` y `dron_individual` correctos. El primer CTest paso
+  19/21; dos giros exactos en el limite `0.50` fallaron por redondeo float. Tras
+  epsilon mecanico, 21/21 GTests correctos;
+- prueba 257: intento de infraestructura `NO EJECUTADO`; exit 1 porque la ruta
+  relativa del YAML no existia desde el cwd del runner. No hubo maniobras ni
+  evidencia funcional;
+- prueba 258 / etapa 1: `success=true`, 11/11 pasos y 7/7 goals. GT goberno toda
+  la ejecucion (`orb_samples=0`, `fallback_ratio=1.0`) mientras se observaron
+  hover, X/Y/Z, yaw lento, yaw rapido y 180 grados;
+- tracking: ORB permanecio OK hasta yaw rapido, entro en estado 3 durante ese
+  giro y recupero estado 2 al final en epoch 1. El reducido dirigido no contiene
+  clasificaciones moderadas ni excesivas, por lo que la perdida no se atribuye
+  a la nueva probation. No se ajustan umbrales con una sola ejecucion;
+- observabilidad: se detecto que la edad ORB mezclaba timestamp de imagen
+  relativo y reloj ROS absoluto. Se separan `measurement_input_stamp` y
+  `measurement_receive_stamp`; la edad y ventana detallada usan un mismo reloj.
+  Esta reparacion no cambia la salida de control;
+- conclusion etapa 1: `CONSEGUIDA` como caracterizacion. El error Gazebo 255
+  ocurre unicamente en cleanup posterior a `SIM-DONE`.
+
+## 2026-08-28 - Prueba 259 / etapa 2 hover ORB
+
+- prueba: drone1 llega y se ancla con GT, cambia a ORB con salto SE(3) cero y
+  debe mantener hover 25 s. El scenario formal completa 6/6 pasos y 2/2 goals,
+  pero el criterio dinamico falla;
+- fuente: ORB gobierna solo 227 muestras, unos 4.5 s. Despues conmuta a GT con
+  salto cero y tracking entra en estado 3. Las etapas 3-8 no se ejecutan por el
+  criterio de parada acordado;
+- antes de probation: la oscilacion ya crece con medidas clasificadas como
+  pequenas/no relevantes. A `1787947686.450` se publica un paso angular de
+  `0.058777 rad`; el control ya registra `er=0.0845`, `ew=0.471` y torque
+  `0.0552`, antes del primer pending;
+- probation: primer pending en `.657`, descarte y nueva cadena. Se confirma en
+  `.805` una innovacion `0.176529 rad`, aplica fraccion 0.70 y llega a pasos
+  publicados limitados de `0.075 rad`. Despues aparecen rechazos excesivos de
+  `0.359/0.760 rad`, fallback en `.310` y tracking 3 en el segundo siguiente;
+- diagnostico: la confirmacion moderada amplifica una inestabilidad previa, no
+  la origina por si sola. El limite SMALL crece con `0.5*a*dt^2`, por lo que un
+  gap puede convertir una correccion muy superior a `0.015 rad` en pequena.
+  Ademas, la direccion persistente del residual puede ser realimentacion, no
+  evidencia independiente de movimiento fisico;
+- telemetria: la reparacion de relojes queda validada; edades normales
+  `0-0.07 s` y ventana detallada activa;
+- conclusion: `NO CONSEGUIDA`. Builds y 21/21 GTests no predicen estabilidad de
+  hover real. 5H permanece `PARCIAL`; una siguiente iteracion debe debatir
+  SMALL fijo y confirmacion basada en incrementos raw/correccion de gauge antes
+  de modificar otra vez.

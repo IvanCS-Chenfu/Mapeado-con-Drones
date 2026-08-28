@@ -144,6 +144,27 @@ angulares moderadas se absorben gradualmente; solo las imposibles acumulan
 rechazo. El fallback permanece como proteccion temporal ante perdida real, no
 como mecanismo normal frente a cambios de KF. No se usa IMU.
 
+Correccion acordada tras 256: una innovacion angular pequena se aplica de forma
+normal; una moderada queda `MODERATE_PENDING` y no corrige la actitud hasta
+confirmarse temporalmente por direccion, magnitud y plausibilidad dinamica.
+La confirmacion exige tres frames y se refuerza a cuatro durante cinco frames
+tras cambiar reference KF. Una evidencia aislada se marca
+`MODERATE_DISCARDED`; una persistente pasa a `MODERATE_CONFIRMED` y se absorbe
+con los limites SE(3) existentes. El gate duro conserva
+`REJECTED_EXCESSIVE`. Todos los umbrales viven en
+`config/navigation_state.yaml`.
+
+El debug `debug_orb_control_state`, apagado por defecto, debe distinguir medida
+raw, innovacion, correccion aplicada y paso realmente publicado, y
+correlacionarlos con pose/omega, edad del estado, errores y torque del
+controlador. No se usa un unico `rotation_step` ambiguo para inferir causalidad.
+
+Limitacion vigente tras la etapa 2: esta politica no supera hover ORB. SMALL no
+puede expandirse con gaps hasta aceptar correcciones muy superiores al umbral
+base, y la persistencia del residual no basta como evidencia independiente de
+movimiento fisico. Cualquier sustitucion por SMALL fijo o confirmacion basada
+en incrementos raw/gauge requiere nuevo acuerdo antes de otra ejecucion.
+
 ## Pruebas de integración
 
 1. relativa con `pose_source=ORB`, mediante tests deterministas;

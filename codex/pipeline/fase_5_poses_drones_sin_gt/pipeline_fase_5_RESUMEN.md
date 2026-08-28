@@ -9,7 +9,7 @@
 5D: CONSEGUIDA
 5E: CONSEGUIDA tecnicamente
 5F: PARCIAL; puerta humana no aceptada
-5G-5H: PARCIAL; 256 acepta un salto angular ORB y colapsa
+5G-5H: PARCIAL; hover ORB 259 falla tras 227 muestras
 5I: absorbida en 5H
 Fase 5 funcional: en curso
 ```
@@ -136,6 +136,17 @@ gobierna pocos segundos. Revision visual pendiente antes de ajustar el gate.
 La prueba 256 permite churn geometrico multi-KF y corrige gradualmente todo el
 estado SE(3); build y 15/15 GTests pasan. La simulacion falla al entrar en ORB:
 el handoff tiene salto cero, pero drone2 acepta `0.125261 rad` de innovacion y
-publica `0.119002 rad` antes de perder tracking `0.793 s` despues. No coincide
-con una optimizacion W. Hace falta confirmar temporalmente las innovaciones
-angulares moderadas antes de inyectarlas al control.
+registra `rotation_step_rad=0.119002` antes de perder tracking `0.793 s`
+despues. No coincide con una optimizacion W. Ese campo no representa el salto
+publicado, por lo que la causalidad queda abierta. Hace falta confirmar
+temporalmente las innovaciones moderadas e instrumentar la cadena completa
+hasta pose/omega, torque y tracking.
+
+La iteracion siguiente implementa probation temporal y telemetria completa;
+builds y 21/21 GTests pasan. La etapa 1 de prueba 258 se consigue bajo GT
+observado. La etapa 2 de prueba 259 falla en hover: ORB entra con salto cero,
+pero oscila antes del primer pending; una salida SMALL publica `0.058777 rad`,
+la cadena moderada posterior llega a `0.075 rad/paso`, aparecen dos rechazos
+excesivos, fallback y tracking 3. Se detienen las etapas 3-8. El umbral SMALL
+dependiente de `dt` y la confirmacion basada en residual quedan como siguiente
+problema de diseno.

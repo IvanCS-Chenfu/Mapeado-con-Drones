@@ -65,7 +65,9 @@ def generate_launch_description():
             'debug_fiducial_visualization', default_value='false'),
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
+        DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
         DeclareLaunchArgument('gt_fallback_enabled', default_value='false'),
+        DeclareLaunchArgument('orb_qualification_samples', default_value='20'),
         DeclareLaunchArgument(
             'orb_vocabulary_path',
             default_value=PathJoinSubstitution([
@@ -84,7 +86,9 @@ def generate_launch_description():
         'debug_fiducial_visualization')
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
+    debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
     gt_fallback_enabled = LaunchConfiguration('gt_fallback_enabled')
+    orb_qualification_samples = LaunchConfiguration('orb_qualification_samples')
     orb_vocabulary_path = LaunchConfiguration('orb_vocabulary_path')
 
     common_debug = {
@@ -102,6 +106,8 @@ def generate_launch_description():
             parameters=[common_debug, {
                 'gt_fallback_enabled': ParameterValue(
                     gt_fallback_enabled, value_type=bool),
+                'orb_qualification_samples': ParameterValue(
+                    orb_qualification_samples, value_type=int),
             }],
         ),
         Node(
@@ -115,7 +121,11 @@ def generate_launch_description():
             executable='control_calcular_fuerzas',
             name='control_calcular_fuerzas',
             parameters=[
-                {'use_sim_time': ParameterValue(use_sim_time, value_type=bool)},
+                {
+                    'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+                    'debug_orb_control_state': ParameterValue(
+                        debug_orb_control_state, value_type=bool),
+                },
                 params_physical,
                 params_control,
             ],
@@ -139,6 +149,7 @@ def generate_launch_description():
                     debug_fiducial_visualization,
                 'debug_fiducial_display_seconds':
                     debug_fiducial_display_seconds,
+                'debug_orb_control_state': debug_orb_control_state,
                 'vocab': orb_vocabulary_path,
             }.items(),
         ),

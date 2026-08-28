@@ -57,6 +57,8 @@ def generate_launch_description():
         'config', 'orbslam', 'orbslam_stereo.yaml'])
     calibration_params = PathJoinSubstitution([
         FindPackageShare('dron_individual'), 'config', 'calibration.yaml'])
+    navigation_state_params = PathJoinSubstitution([
+        FindPackageShare('dron_individual'), 'config', 'navigation_state.yaml'])
 
     args = [
         DeclareLaunchArgument('vocab', default_value=default_vocab),
@@ -75,6 +77,7 @@ def generate_launch_description():
             'debug_fiducial_visualization', default_value='false'),
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
+        DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
     ]
 
     vocab = LaunchConfiguration('vocab')
@@ -92,6 +95,7 @@ def generate_launch_description():
         'debug_fiducial_visualization')
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
+    debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
 
     common_params = {
         'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
@@ -110,6 +114,8 @@ def generate_launch_description():
         debug_architecture_telemetry, value_type=bool)
     stereo_params['debug_fiducial_visualization'] = ParameterValue(
         debug_fiducial_visualization, value_type=bool)
+    stereo_params['debug_orb_control_state'] = ParameterValue(
+        debug_orb_control_state, value_type=bool)
 
     mono_node = Node(
         condition=UnlessCondition(usar_estereo),
@@ -123,7 +129,7 @@ def generate_launch_description():
         package='orbslam3', executable='stereo', name='orbslam3_stereo',
         output='screen', additional_env=orbslam_environment,
         arguments=[vocab, yaml_stereo, rectify],
-        parameters=[stereo_params, calibration_params],
+        parameters=[stereo_params, calibration_params, navigation_state_params],
         remappings=[
             ('camera/left', 'sensor/camara_izq/image_raw'),
             ('camera/right', 'sensor/camara_der/image_raw'),

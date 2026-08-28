@@ -162,6 +162,12 @@ Rol:
 - calcula fuerza total y torque deseado con control PD;
 - publica comandos agregados.
 
+Con `debug_orb_control_state=true`, el callback registra estados no consumibles
+mediante `[F5H-CONTROL-STATE-INVALID]` y el lazo emite a 10 Hz
+`[F5H-CONTROL-DIAG]`: timestamp/edad y metadata de `NavigationState`, normas
+`ep/ev/er/ew`, fuerza, torque, RPY y omega corporal. Las formulas y ganancias
+del controlador no cambian; el flag queda desactivado por defecto.
+
 Al cambiar `NavigationState.pose_source`, el callback sustituye cualquier
 consigna retenida del frame anterior por un hold en la nueva `o_t_body`:
 posición, velocidad, yaw y yaw rate actuales, con aceleración, jerk y yaw

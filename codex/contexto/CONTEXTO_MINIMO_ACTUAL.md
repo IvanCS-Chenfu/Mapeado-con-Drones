@@ -9,7 +9,7 @@ archivo y reconciliarlo con la peticion mas reciente.
 Fase 2: CONSEGUIDA el 2026-08-24
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 256
+Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 259
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -22,7 +22,7 @@ Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 256
 Subfase actual: 3Q A REVISAR tras correccion y prueba 220
 Preparacion 3Q: cerrada; ejecucion autorizada ya realizada
 Siguiente punto de entrada: aclarar la esquina visual ambigua y decidir cierre
-Punto de entrada Fase 5: acordar probation temporal de actitud ORB tras 256
+Punto de entrada Fase 5: debatir SMALL fijo y confirmacion raw/gauge tras 259
 Revision visual humana de prueba 200: confirmada correcta
 Cierre de Fase 2: completo
 ```
@@ -137,10 +137,21 @@ activa ni reciente.
 La prueba 256 sustituye la estabilidad de ID por probation geometrica multi-KF
 y usa correccion SE(3) gradual; build y 15/15 GTests pasan. La simulacion falla:
 el cambio GT->ORB es continuo y empieza con error angular cero, pero drone2
-acepta una innovacion de `0.125261 rad`, publica `0.119002 rad` y pierde
-tracking `0.793 s` despues. Sin optimizacion W concurrente, el diagnostico es
-un gate angular demasiado permisivo: repartir un outlier no sustituye su
-confirmacion temporal.
+acepta una innovacion de `0.125261 rad`, registra
+`rotation_step_rad=0.119002` y pierde tracking `0.793 s` despues. Sin
+optimizacion W concurrente, queda una hipotesis local fuerte, pero ese campo no
+es el paso publicado. Falta medir correccion aplicada, pose/omega, error/torque
+y tracking para establecer causalidad; la siguiente iteracion incorpora
+confirmacion temporal e instrumentacion.
+
+La nueva probation pasa 21/21 GTests. La etapa 1 de prueba 258 consigue 11/11
+pasos con GT gobernando y observa perdida ORB solo durante yaw rapido. La etapa
+2 de prueba 259 falla: el hover ORB dura 227 muestras, la oscilacion aparece
+antes del primer pending con un paso publicado de `0.058777 rad`, y despues la
+confirmacion moderada llega a `0.075 rad/paso`, outliers, fallback y tracking 3.
+Por el criterio acordado no se ejecutan etapas 3-8. El siguiente debate debe
+evitar que SMALL crezca con gaps y basar confirmacion en evidencia independiente
+del residual realimentado.
 
 Repeticion visual 212: seis yaw relativos aplicados y compilados, pero no
 alcanzados. Un `LoopTask` fue rechazado por

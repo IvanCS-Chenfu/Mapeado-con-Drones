@@ -6,7 +6,7 @@
 Fase 2: CONSEGUIDA
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 256
+Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 259
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -19,8 +19,8 @@ Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 256
 Subfase actual: 3Q A REVISAR tras mejora conservadora y prueba 220
 Preparacion 3Q: CERRADA; autorizacion ejecutada
 Siguiente punto de entrada: continuar pipeline; reabrir 3Q solo si reaparece el fallo
-Trabajo funcional activo: ninguno; prueba 256 diagnosticada y documentada
-Punto de entrada Fase 5: acordar probation angular temporal, sin tocar optimizador W
+Trabajo funcional activo: ninguno; prueba 259 diagnosticada y etapas 3-8 detenidas
+Punto de entrada Fase 5: debatir SMALL fijo y confirmacion raw/gauge tras 259
 Revision visual de prueba 200: confirmada correcta por el usuario
 Pendiente de Fase 2: ninguno
 Autorizacion 4A+4B: concedida y consumida
@@ -186,9 +186,19 @@ loop tardias rechazadas. La prueba 213 queda como reentrada obligatoria de 3Q.
   ocurren despues de terminar todas las optimizaciones.
 - prueba 256: probation geometrica multi-KF y estimador SE(3), con build y 15/15
   GTests correctos. El handoff GT->ORB tiene salto cero, pero drone2 acepta una
-  innovacion angular de 0.125 rad, publica 0.119 rad y pierde tracking 0.793 s
-  despues. Sin optimizacion W concurrente, queda pendiente una cuarentena
-  temporal de actitud antes de aplicar correcciones moderadas al control.
+  innovacion angular de 0.125 rad, registra un `rotation_step` de 0.119 rad y
+  pierde tracking 0.793 s despues. Ese campo no es el salto publicado; queda
+  pendiente confirmar temporalmente correcciones moderadas e instrumentar el
+  estado realmente consumido, torque y tracking antes de fijar causalidad.
+- nueva iteracion: probation angular temporal, telemetria causal, builds
+  correctos y 21/21 GTests. La etapa 1 de prueba 258 completa 11/11 pasos bajo
+  GT observado y localiza una perdida ORB durante yaw rapido;
+- prueba 259: el hover entra en ORB con salto cero, pero solo dura 227 muestras.
+  Una salida tratada como pequena publica `0.058777 rad` y el control oscila
+  antes del primer pending; despues se confirma un residual creciente, llegan
+  pasos de `0.075 rad`, dos outliers, fallback y tracking 3. Etapas 3-8
+  detenidas. Limitaciones: SMALL aumenta con `dt` y la persistencia del residual
+  no es evidencia independiente de movimiento fisico.
 
 ## Entrega de Fase 2
 

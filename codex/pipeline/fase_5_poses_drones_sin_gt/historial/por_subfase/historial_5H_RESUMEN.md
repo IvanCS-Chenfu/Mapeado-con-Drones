@@ -87,9 +87,27 @@ control de los outliers grandes, pero no consigue una O local ORB sostenida.
 La prueba 256 generaliza la probation a una cadena geometrica multi-KF y usa un
 estimador SE(3) coherente; los builds y 15/15 GTests finales pasan. La
 simulacion queda `NO CONSEGUIDA`: ambos handoffs entran con salto cero y
-`er=ew=0`, pero drone2 acepta una innovacion angular de `0.125261 rad` y publica
-un paso de `0.119002 rad`; pierde tracking `0.793 s` despues. No hubo
-optimizacion global en ese intervalo. El filtro actual reparte el outlier, pero
-lo inyecta antes de verificar su persistencia. El siguiente acuerdo debe
-introducir cuarentena/probation temporal para innovaciones angulares moderadas,
-manteniendo una prediccion corta sin tocar GT, mux, ganancias ni W.
+`er=ew=0`, pero drone2 acepta una innovacion angular de `0.125261 rad` y registra
+`rotation_step_rad=0.119002`; pierde tracking `0.793 s` despues. No hubo
+optimizacion global en ese intervalo. Revision posterior del codigo: ese
+`rotation_step` compara la medida raw con la pose filtrada previa y no es el
+salto publicado. La causalidad sigue siendo una hipotesis hasta instrumentar
+correccion aplicada, pose/omega publicadas, error/torque y tracking. El siguiente
+acuerdo debe introducir confirmacion temporal de innovaciones moderadas y esa
+telemetria, sin tocar GT, mux, ganancias ni W.
+
+La iteracion posterior implementa esa probation y pasa 21/21 GTests. La prueba
+257 no arranca por una ruta YAML relativa y se conserva como fallo de
+infraestructura. La 258 consigue la etapa 1: 11/11 pasos, 7/7 goals y control
+100% GT mientras observa ORB. ORB mantiene tracking en hover/X/Y/Z/yaw lento,
+pero lo pierde durante yaw rapido y lo recupera en epoch 1; no hubo evento
+moderado/excesivo que vincule la probation con esa perdida. La telemetria de
+edad se corrige para no mezclar reloj de imagen y reloj ROS. Etapa 2 pendiente.
+
+La prueba 259 deja la iteracion `NO CONSEGUIDA`: el handoff de hover entra con
+salto cero, pero ORB gobierna solo 227 muestras antes de fallback y tracking 3.
+La oscilacion y el torque crecen antes del primer pending; una medida tratada
+como pequena publica `0.058777 rad`. La probation confirma despues un residual
+creciente, publica hasta `0.075 rad/paso` y precede dos rechazos excesivos. El
+umbral SMALL dinamico dependiente de `dt` y la consistencia basada en residual
+son las limitaciones vigentes. Por acuerdo se detienen etapas 3-8.

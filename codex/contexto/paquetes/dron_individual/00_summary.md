@@ -23,6 +23,11 @@ tracking+anchor consecutivos, no errores frente a GT.
 La prueba 253 demostro que un predictor uniforme en el mux desestabiliza GT; esa
 responsabilidad ya no pertenece a este paquete.
 
+`config/navigation_state.yaml` centraliza la frecuencia, limites SE(3),
+probation angular moderada y gate de reference KF que consume el wrapper. El
+flag `debug_orb_control_state=false`, propagado por los launches, habilita
+telemetria causal en wrapper y controlador sin modificar el control.
+
 Los goals absolutos pueden usar global valida, un frame C_T_W cacheado del mismo
 epoch o el fallback temporal Fase 5. El perfil general conserva fallback
 desactivado; `multi_dron.launch.py` lo activa explicitamente para la validacion.

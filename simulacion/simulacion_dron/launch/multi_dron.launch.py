@@ -120,6 +120,7 @@ def generate_launch_description():
         'debug_open_system_architecture_browser',
         'debug_architecture_telemetry',
         'debug_fiducial_visualization',
+        'debug_orb_control_state',
     ):
         ld.add_action(DeclareLaunchArgument(flag, default_value=debug_default(flag)))
     ld.add_action(DeclareLaunchArgument(
@@ -151,6 +152,8 @@ def generate_launch_description():
         'phase5_global_pose_rviz_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
         'gt_fallback_enabled', default_value='true'))
+    ld.add_action(DeclareLaunchArgument(
+        'orb_qualification_samples', default_value='20'))
 
     architecture_telemetry_enabled = PythonExpression([
         "'", LaunchConfiguration('debug_system_architecture_web'),
@@ -321,8 +324,12 @@ def generate_launch_description():
                         'debug_fiducial_visualization'),
                     'debug_fiducial_display_seconds': LaunchConfiguration(
                         'debug_fiducial_display_seconds'),
+                    'debug_orb_control_state': LaunchConfiguration(
+                        'debug_orb_control_state'),
                     'gt_fallback_enabled': LaunchConfiguration(
                         'gt_fallback_enabled'),
+                    'orb_qualification_samples': LaunchConfiguration(
+                        'orb_qualification_samples'),
                 }.items()),
         ])
         if i == 1:

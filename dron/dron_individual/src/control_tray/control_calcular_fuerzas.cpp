@@ -44,6 +44,7 @@ public:
     this->declare_parameter<double>("control.torque.kw", 0.5);
     this->declare_parameter<double>("navigation_state_timeout_sec", 0.5);
     this->declare_parameter<double>("control.source_handoff_duration_sec", 0.5);
+    this->declare_parameter<bool>("debug_orb_control_state", false);
 
     // Obtener parámetro (decir tipo)
     m = this->get_parameter("fisico.total.masa").as_double();
@@ -57,6 +58,8 @@ public:
       this->get_parameter("navigation_state_timeout_sec").as_double();
     angular_handoff_duration_sec_ = std::max(
       0.05, this->get_parameter("control.source_handoff_duration_sec").as_double());
+    debug_orb_control_state_ =
+      this->get_parameter("debug_orb_control_state").as_bool();
 
     snap_des.setZero();
   }
@@ -65,8 +68,28 @@ private:
   void callback_navigation_state(
     const orbslam3_msgs::msg::NavigationState::SharedPtr msg)
   {
+    last_navigation_stamp_sec_ = rclcpp::Time(msg->header.stamp).seconds();
+    current_pose_source_ = msg->pose_source;
+    current_map_epoch_ = msg->map_epoch;
+    current_reference_keyframe_id_ = msg->reference_keyframe_id;
+    current_tracking_state_ = msg->tracking_state;
+    current_sample_sequence_ = msg->sample_sequence;
     if (!msg->local_valid || !msg->local_continuity_valid || !msg->velocity_valid) {
       state_ready_ = false;
+      if (debug_orb_control_state_) {
+        RCLCPP_WARN_THROTTLE(
+          this->get_logger(), *this->get_clock(), 200,
+          "[F5H-CONTROL-STATE-INVALID] stamp=%.6f source=%u epoch=%lu sample=%lu "
+          "tracking=%d ref_kf=%lu local_valid=%s continuity_valid=%s velocity_valid=%s",
+          last_navigation_stamp_sec_, current_pose_source_,
+          static_cast<unsigned long>(current_map_epoch_),
+          static_cast<unsigned long>(current_sample_sequence_),
+          current_tracking_state_,
+          static_cast<unsigned long>(current_reference_keyframe_id_),
+          msg->local_valid ? "true" : "false",
+          msg->local_continuity_valid ? "true" : "false",
+          msg->velocity_valid ? "true" : "false");
+      }
       return;
     }
     x << msg->o_t_body.position.x, msg->o_t_body.position.y, msg->o_t_body.position.z;
@@ -266,6 +289,28 @@ private:
       Vector3d tau_des = -Kr * er - Kw * ew + J * R_act.transpose() * R_des * Omega_dot_des +
         w_b.cross(J * w_b);                                                                                     // Desde Cuerpo
 
+      if (debug_orb_control_state_) {
+        const double roll = std::atan2(R_act(2, 1), R_act(2, 2));
+        const double pitch = std::asin(std::clamp(-R_act(2, 0), -1.0, 1.0));
+        const double yaw = std::atan2(R_act(1, 0), R_act(0, 0));
+        const double state_age_sec = last_navigation_stamp_sec_ > 0.0 ?
+          std::max(0.0, this->get_clock()->now().seconds() - last_navigation_stamp_sec_) : -1.0;
+        RCLCPP_INFO_THROTTLE(
+          this->get_logger(), *this->get_clock(), 100,
+          "[F5H-CONTROL-DIAG] stamp=%.6f state_stamp=%.6f state_age_sec=%.6f "
+          "source=%u epoch=%lu sample=%lu tracking=%d ref_kf=%lu "
+          "position_error_norm=%.6f velocity_error_norm=%.6f "
+          "attitude_error_norm=%.6f angular_velocity_error_norm=%.6f "
+          "force=%.6f torque_norm=%.6f rpy=(%.6f,%.6f,%.6f) "
+          "omega_body=(%.6f,%.6f,%.6f)",
+          this->get_clock()->now().seconds(), last_navigation_stamp_sec_, state_age_sec,
+          current_pose_source_, static_cast<unsigned long>(current_map_epoch_),
+          static_cast<unsigned long>(current_sample_sequence_), current_tracking_state_,
+          static_cast<unsigned long>(current_reference_keyframe_id_), ep.norm(), ev.norm(),
+          er.norm(), ew.norm(), F_des.z(), tau_des.norm(), roll, pitch, yaw,
+          w_b.x(), w_b.y(), w_b.z());
+      }
+
       if (angular_handoff_active_) {
         const bool log_start = angular_handoff_log_stage_ == 0;
         const bool log_middle =
@@ -329,8 +374,15 @@ private:
   bool angular_handoff_pending_ = false;
   bool angular_handoff_active_ = false;
   bool angular_handoff_first_cycle_ = false;
+  bool debug_orb_control_state_ = false;
   int angular_handoff_log_stage_ = 0;
   uint8_t last_pose_source_ = orbslam3_msgs::msg::NavigationState::POSE_SOURCE_INVALID;
+  uint8_t current_pose_source_ = orbslam3_msgs::msg::NavigationState::POSE_SOURCE_INVALID;
+  uint64_t current_map_epoch_ = 0;
+  uint64_t current_reference_keyframe_id_ = 0;
+  uint64_t current_sample_sequence_ = 0;
+  int8_t current_tracking_state_ = -1;
+  double last_navigation_stamp_sec_{0.0};
   double navigation_state_timeout_sec_{0.5};
   double angular_handoff_duration_sec_{0.5};
   double angular_handoff_alpha_{0.0};

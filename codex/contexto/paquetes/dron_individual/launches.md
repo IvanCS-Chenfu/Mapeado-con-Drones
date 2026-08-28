@@ -14,6 +14,11 @@ Nodos lanzados:
 
 También incluye `orbslam_use.launch.py` si `activar_orbslam=true`.
 
+`config/navigation_state.yaml` se entrega al nodo estereo y concentra el
+predictor ORB, la probation angular y el gate de reference KF.
+`orb_qualification_samples=20` expone el contador ya existente del mux; las
+pruebas de observacion pueden elevarlo sin cambiar la politica normal.
+
 Argumentos:
 
 - `activar_orbslam`;
@@ -45,6 +50,7 @@ Argumentos:
 - `local_map_frame`.
 - `debug_fiducial_visualization`;
 - `debug_fiducial_display_seconds`.
+- `debug_orb_control_state`.
 
 Los nodos mono, estereo y visualizador reciben el entorno saneado. Los nodos
 ORB reciben `MALLOC_ARENA_MAX=2`. El entorno elimina
@@ -116,6 +122,8 @@ Parámetros enviados:
 - `local_map_frame`;
 - `use_corrected_keyframes=true`;
 - `max_nearest_kf_distance_m=2.0`.
+- perfil `config/navigation_state.yaml` y `debug_orb_control_state` para el
+  nodo estereo.
 
 ## Riesgos
 

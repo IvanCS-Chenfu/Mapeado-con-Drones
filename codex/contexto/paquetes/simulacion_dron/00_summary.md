@@ -17,6 +17,15 @@ Los markers no dependen de `global_valid`. Solo se actualizan con una muestra
 local, continua y con velocidad valida; ante una muestra transitoria no
 consumible conservan la ultima pose que tambien conserva el controlador.
 
+`debug_orb_control_state=false` se propaga a cada wrapper y controlador. En las
+pruebas progresivas de 5H permite correlacionar medida, pose/omega publicadas y
+respuesta de control; apagado no emite esa telemetria diagnostica.
+
+Las etapas 1-6 de 5H viven como YAML auxiliares bajo
+`codex/archivos_auxiliares/trayectorias/`; no alteran los escenarios instalados.
+La etapa 1 se consigue en 258 y la etapa 2 falla en 259, por lo que 3-8 no se
+ejecutan.
+
 Paquete de launch, escenarios y observabilidad Gazebo. Integra servidor y, de
 forma configurable, RViz2, `pipeline_flow` y `system_architecture`; tambien
 ofrece replay sin Gazebo ni GT live.

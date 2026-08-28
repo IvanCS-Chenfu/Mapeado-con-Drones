@@ -1,0 +1,30 @@
+name: f5h_etapa_3_rectas_orb
+description: "F5H etapa 3: rectas en varios ejes con un dron gobernado por ORB."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 120.0}
+steps:
+  - {name: espera_spawn, type: wait_for_bool, topic: /fiducial_spawn_ready, expected: true, timeout_sec: 90.0}
+  - {name: espera_tracking, type: wait, seconds: 16.0}
+  - name: llegada_gt_fiducial_2
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: espera_anchor, type: wait, seconds: 8.0}
+  - name: recta_x_orb
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-4.0, -10.0, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - name: recta_y_orb
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-4.0, -6.0, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - name: recta_z_orb
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-4.0, -6.0, 1.4], yaw_deg: 90.0, tx: 8.0, ty: 8.0, tz: 8.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: observacion_final, type: wait, seconds: 5.0}

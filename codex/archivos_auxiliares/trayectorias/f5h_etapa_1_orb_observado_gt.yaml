@@ -1,0 +1,56 @@
+name: f5h_etapa_1_orb_observado_gt
+description: "F5H etapa 1: maniobras separadas con GT gobernando y ORB observado."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 120.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+  - name: espera_tracking
+    type: wait
+    seconds: 16.0
+  - name: posicion_observacion
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - name: hover
+    type: wait
+    seconds: 10.0
+  - name: traslacion_x
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-3.0, -10.0, 1.0], yaw_deg: 90.0, tx: 10.0, ty: 10.0, tz: 10.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - name: traslacion_y
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-3.0, -7.0, 1.0], yaw_deg: 90.0, tx: 10.0, ty: 10.0, tz: 10.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - name: traslacion_z
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-3.0, -7.0, 1.5], yaw_deg: 90.0, tx: 8.0, ty: 8.0, tz: 8.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - name: yaw_lento_90
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-3.0, -7.0, 1.5], yaw_deg: 90.0, tx: 8.0, ty: 8.0, tz: 8.0, tyaw: 12.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: false}
+  - name: yaw_rapido_90
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-3.0, -7.0, 1.5], yaw_deg: 90.0, tx: 8.0, ty: 8.0, tz: 8.0, tyaw: 4.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: false}
+  - name: giro_180
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-3.0, -7.0, 1.5], yaw_deg: 180.0, tx: 8.0, ty: 8.0, tz: 8.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: false}
+  - name: observacion_final
+    type: wait
+    seconds: 5.0

@@ -10,6 +10,13 @@ Sophus::SE3f Translation(float x, float y, float z)
   return Sophus::SE3f(Sophus::SO3f(), Eigen::Vector3f(x, y, z));
 }
 
+Sophus::SE3f RotationZ(float angle_rad)
+{
+  return Sophus::SE3f(
+    Sophus::SO3f::exp(Eigen::Vector3f(0.0f, 0.0f, angle_rad)),
+    Eigen::Vector3f::Zero());
+}
+
 TEST(NavigationStateEstimator, IgnoresRawLocalBaJumpForSameReference)
 {
   orbslam3_ros2::NavigationStateEstimator estimator;
@@ -207,6 +214,7 @@ TEST(OrbPosePredictor, TracksMeasuredOrientationWithCoherentVelocity)
 {
   orbslam3_ros2::OrbPosePredictorConfig config;
   config.orientation_alpha = 1.0f;
+  config.small_rotation_innovation_rad = 0.2f;
   config.max_rotation_innovation_rad = 0.2f;
   config.max_angular_speed_radps = 5.0f;
   orbslam3_ros2::OrbPosePredictor predictor(config);
@@ -229,28 +237,149 @@ TEST(OrbPosePredictor, TracksMeasuredOrientationWithCoherentVelocity)
     1e-5f);
 }
 
-TEST(OrbPosePredictor, SmoothsModerateAngularInnovationWithoutRejecting)
+TEST(OrbPosePredictor, IsolatedModerateAngularInnovationIsDiscarded)
 {
   orbslam3_ros2::OrbPosePredictorConfig config;
-  config.orientation_alpha = 0.5f;
+  config.orientation_alpha = 1.0f;
+  config.small_rotation_innovation_rad = 0.02f;
   config.max_rotation_innovation_rad = 0.35f;
   config.max_angular_speed_radps = 1.5f;
   config.max_angular_acceleration_radps2 = 0.0f;
+  config.moderate_confirmation_frames = 3;
   orbslam3_ros2::OrbPosePredictor predictor(config);
-  const Sophus::SE3f measurement(
-    Sophus::SO3f::exp(Eigen::Vector3f(0.0f, 0.0f, 0.2f)),
-    Eigen::Vector3f::Zero());
 
   predictor.UpdateMeasurement(Sophus::SE3f(), 1.0);
-  const auto corrected = predictor.UpdateMeasurement(measurement, 1.1);
+  const auto pending = predictor.UpdateMeasurement(RotationZ(0.12f), 1.1);
 
   EXPECT_FALSE(predictor.last_orientation_rejected());
-  EXPECT_TRUE(corrected.velocity_valid);
-  EXPECT_NEAR(corrected.angular_velocity.z(), 1.0f, 1e-5f);
-  const Sophus::SO3f expected = Sophus::SO3f::exp(
-    Eigen::Vector3f(0.0f, 0.0f, 0.1f));
+  EXPECT_EQ(
+    predictor.last_diagnostics().classification,
+    orbslam3_ros2::AngularCorrectionClass::ModeratePending);
+  EXPECT_TRUE(pending.velocity_valid);
+  EXPECT_NEAR(pending.angular_velocity.norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR(pending.pose.so3().log().norm(), 0.0f, 1e-6f);
+
+  const auto discarded = predictor.UpdateMeasurement(Sophus::SE3f(), 1.2);
+  EXPECT_EQ(
+    predictor.last_diagnostics().classification,
+    orbslam3_ros2::AngularCorrectionClass::ModerateDiscarded);
+  EXPECT_NEAR(discarded.angular_velocity.norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR(discarded.pose.so3().log().norm(), 0.0f, 1e-6f);
+}
+
+TEST(OrbPosePredictor, PersistentModerateAngularInnovationIsConfirmedGradually)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.orientation_alpha = 0.5f;
+  config.small_rotation_innovation_rad = 0.02f;
+  config.max_rotation_innovation_rad = 0.35f;
+  config.max_angular_speed_radps = 1.5f;
+  config.max_angular_acceleration_radps2 = 0.0f;
+  config.moderate_confirmation_frames = 3;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+
+  predictor.UpdateMeasurement(Sophus::SE3f(), 1.0);
+  predictor.UpdateMeasurement(RotationZ(0.12f), 1.1);
+  predictor.UpdateMeasurement(RotationZ(0.12f), 1.2);
+  const auto confirmed = predictor.UpdateMeasurement(RotationZ(0.12f), 1.3);
+
+  const auto & diagnostics = predictor.last_diagnostics();
+  EXPECT_EQ(
+    diagnostics.classification,
+    orbslam3_ros2::AngularCorrectionClass::ModerateConfirmed);
+  EXPECT_EQ(diagnostics.pending_good_frames, 3U);
+  EXPECT_GT(diagnostics.applied_rotation_correction_rad, 0.0f);
+  EXPECT_LT(diagnostics.applied_rotation_correction_rad, 0.12f);
   EXPECT_NEAR(
-    (corrected.pose.so3().inverse() * expected).log().norm(), 0.0f, 1e-5f);
+    diagnostics.published_pose_rotation_step_rad,
+    confirmed.angular_velocity.norm() * 0.1f,
+    1e-5f);
+}
+
+TEST(OrbPosePredictor, SustainedPhysicalYawDoesNotFreeze)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.orientation_alpha = 1.0f;
+  config.small_rotation_innovation_rad = 0.01f;
+  config.max_rotation_innovation_rad = 0.35f;
+  config.max_angular_speed_radps = 1.5f;
+  config.max_angular_acceleration_radps2 = 4.0f;
+  config.moderate_confirmation_frames = 3;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+
+  predictor.UpdateMeasurement(Sophus::SE3f(), 1.0);
+  predictor.UpdateMeasurement(RotationZ(0.04f), 1.1);
+  predictor.UpdateMeasurement(RotationZ(0.08f), 1.2);
+  const auto confirmed = predictor.UpdateMeasurement(RotationZ(0.12f), 1.3);
+  EXPECT_EQ(
+    predictor.last_diagnostics().classification,
+    orbslam3_ros2::AngularCorrectionClass::ModerateConfirmed);
+  EXPECT_GT(confirmed.angular_velocity.z(), 0.0f);
+  EXPECT_NEAR(confirmed.angular_velocity.z(), 0.4f, 1e-5f);
+
+  const auto followed = predictor.UpdateMeasurement(RotationZ(0.16f), 1.4);
+  EXPECT_TRUE(predictor.healthy());
+  EXPECT_GT(followed.pose.so3().log().z(), confirmed.pose.so3().log().z());
+}
+
+TEST(OrbPosePredictor, FastPlausibleYawHasBoundedLag)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.orientation_alpha = 1.0f;
+  config.small_rotation_innovation_rad = 0.01f;
+  config.max_rotation_innovation_rad = 0.35f;
+  config.max_angular_speed_radps = 1.5f;
+  config.max_angular_acceleration_radps2 = 15.0f;
+  config.moderate_confirmation_frames = 2;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+
+  predictor.UpdateMeasurement(Sophus::SE3f(), 1.0);
+  predictor.UpdateMeasurement(RotationZ(0.10f), 1.1);
+  const auto confirmed = predictor.UpdateMeasurement(RotationZ(0.20f), 1.2);
+  EXPECT_EQ(
+    predictor.last_diagnostics().classification,
+    orbslam3_ros2::AngularCorrectionClass::ModerateConfirmed);
+  EXPECT_LE(confirmed.angular_velocity.norm(), 1.5f + 1e-6f);
+  EXPECT_LT(
+    (confirmed.pose.so3().inverse() * RotationZ(0.20f).so3()).log().norm(),
+    0.11f);
+
+  const auto followed = predictor.UpdateMeasurement(RotationZ(0.30f), 1.3);
+  EXPECT_TRUE(predictor.healthy());
+  EXPECT_LT(
+    (followed.pose.so3().inverse() * RotationZ(0.30f).so3()).log().norm(),
+    0.11f);
+}
+
+TEST(OrbPosePredictor, SameReferenceTcrCorrectionPassesThroughTemporalGate)
+{
+  orbslam3_ros2::NavigationStateEstimator estimator;
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.small_rotation_innovation_rad = 0.02f;
+  config.max_angular_acceleration_radps2 = 0.0f;
+  config.moderate_confirmation_frames = 3;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+
+  const auto initial = estimator.Update(
+    0, true, true, 10, true, Sophus::SE3f(), Sophus::SE3f());
+  predictor.UpdateMeasurement(initial.o_t_camera, 1.0);
+  const auto corrected_raw = estimator.Update(
+    0, true, true, 10, true, RotationZ(0.12f), Sophus::SE3f());
+  ASSERT_TRUE(corrected_raw.measurement_accepted);
+  const auto pending = predictor.UpdateMeasurement(corrected_raw.o_t_camera, 1.1);
+  EXPECT_EQ(
+    predictor.last_diagnostics().classification,
+    orbslam3_ros2::AngularCorrectionClass::ModeratePending);
+  EXPECT_NEAR(pending.pose.so3().log().norm(), 0.0f, 1e-6f);
+
+  const auto returned_raw = estimator.Update(
+    0, true, true, 10, true, Sophus::SE3f(), Sophus::SE3f());
+  const auto discarded = predictor.UpdateMeasurement(returned_raw.o_t_camera, 1.2);
+  EXPECT_EQ(
+    predictor.last_diagnostics().classification,
+    orbslam3_ros2::AngularCorrectionClass::ModerateDiscarded);
+  EXPECT_NEAR(
+    discarded.pose.so3().log().norm(), 0.0f, 1e-6f);
 }
 
 TEST(NavigationStateEstimator, RejectsImplausibleReferenceCandidate)
@@ -346,6 +475,93 @@ TEST(NavigationStateEstimator, ReturningActiveReferenceCancelsCandidate)
   EXPECT_FALSE(active.reference_pending);
   EXPECT_TRUE(active.measurement_accepted);
   EXPECT_EQ(active.active_reference_keyframe_id, 10U);
+}
+
+TEST(OrbPosePredictor, PostReferenceModerateCorrectionNeedsExtraConfirmation)
+{
+  orbslam3_ros2::ReferenceGateConfig reference_config;
+  reference_config.confirmation_frames = 1;
+  orbslam3_ros2::NavigationStateEstimator estimator(reference_config);
+  orbslam3_ros2::OrbPosePredictorConfig predictor_config;
+  predictor_config.small_rotation_innovation_rad = 0.02f;
+  predictor_config.max_angular_acceleration_radps2 = 0.0f;
+  predictor_config.moderate_confirmation_frames = 2;
+  predictor_config.moderate_post_reference_confirmation_frames = 4;
+  predictor_config.post_reference_switch_frames = 5;
+  orbslam3_ros2::OrbPosePredictor predictor(predictor_config);
+
+  const auto initial = estimator.Update(
+    0, true, true, 10, true, Sophus::SE3f(), Sophus::SE3f());
+  predictor.UpdateMeasurement(initial.o_t_camera, 1.0);
+  const auto switched = estimator.Update(
+    0, true, true, 11, true, Sophus::SE3f(), Sophus::SE3f());
+  ASSERT_TRUE(switched.reference_changed);
+  orbslam3_ros2::OrbMeasurementContext switch_context;
+  switch_context.map_epoch = 0;
+  switch_context.tracking_state = 2;
+  switch_context.reference_keyframe_id = 11;
+  switch_context.reference_changed = true;
+  switch_context.frames_since_reference_change = 0;
+  predictor.UpdateMeasurement(switched.o_t_camera, 1.1, switch_context);
+
+  const auto corrected_raw = estimator.Update(
+    0, true, true, 11, true, RotationZ(0.12f), Sophus::SE3f());
+  orbslam3_ros2::OrbMeasurementContext post_switch_context = switch_context;
+  post_switch_context.reference_changed = false;
+  post_switch_context.frames_since_reference_change = 1;
+  const auto pending = predictor.UpdateMeasurement(
+    corrected_raw.o_t_camera, 1.2, post_switch_context);
+  EXPECT_EQ(
+    predictor.last_diagnostics().classification,
+    orbslam3_ros2::AngularCorrectionClass::ModeratePending);
+  EXPECT_NEAR(pending.pose.so3().log().norm(), 0.0f, 1e-6f);
+
+  post_switch_context.frames_since_reference_change = 2;
+  predictor.UpdateMeasurement(corrected_raw.o_t_camera, 1.3, post_switch_context);
+  post_switch_context.frames_since_reference_change = 3;
+  predictor.UpdateMeasurement(corrected_raw.o_t_camera, 1.4, post_switch_context);
+  EXPECT_EQ(
+    predictor.last_diagnostics().classification,
+    orbslam3_ros2::AngularCorrectionClass::ModeratePending);
+  post_switch_context.frames_since_reference_change = 4;
+  predictor.UpdateMeasurement(corrected_raw.o_t_camera, 1.5, post_switch_context);
+  EXPECT_EQ(
+    predictor.last_diagnostics().classification,
+    orbslam3_ros2::AngularCorrectionClass::ModerateConfirmed);
+}
+
+TEST(OrbPosePredictor, PublishedPoseMatchesPublishedVelocities)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.position_alpha = 1.0f;
+  config.orientation_alpha = 1.0f;
+  config.small_rotation_innovation_rad = 0.20f;
+  config.max_linear_speed_mps = 10.0f;
+  config.max_angular_speed_radps = 10.0f;
+  config.max_linear_acceleration_mps2 = 0.0f;
+  config.max_angular_acceleration_radps2 = 0.0f;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+
+  const Sophus::SE3f initial;
+  const Sophus::SE3f measurement(
+    RotationZ(0.05f).so3(), Eigen::Vector3f(0.10f, -0.02f, 0.03f));
+  const auto first = predictor.UpdateMeasurement(initial, 1.0);
+  const auto second = predictor.UpdateMeasurement(measurement, 1.1);
+  ASSERT_TRUE(second.velocity_valid);
+
+  const Sophus::SE3f step = first.pose.inverse() * second.pose;
+  EXPECT_NEAR(
+    step.translation().x(), second.linear_velocity.x() * 0.1f, 1e-6f);
+  EXPECT_NEAR(
+    step.translation().y(), second.linear_velocity.y() * 0.1f, 1e-6f);
+  EXPECT_NEAR(
+    step.translation().z(), second.linear_velocity.z() * 0.1f, 1e-6f);
+  EXPECT_NEAR(
+    step.so3().log().x(), second.angular_velocity.x() * 0.1f, 1e-6f);
+  EXPECT_NEAR(
+    step.so3().log().y(), second.angular_velocity.y() * 0.1f, 1e-6f);
+  EXPECT_NEAR(
+    step.so3().log().z(), second.angular_velocity.z() * 0.1f, 1e-6f);
 }
 
 TEST(OrbPosePredictor, RejectsAngularOutlierWithCoherentPoseAndVelocity)

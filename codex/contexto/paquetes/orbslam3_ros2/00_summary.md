@@ -49,14 +49,23 @@ geometrica aunque cambie el ID del reference KF; `local_t_camera` solo enlaza
 cambios plausibles y Tcr conserva la autoridad local principal.
 `OrbPosePredictor`, dentro del mismo wrapper, publica a 50 Hz un estado SE(3)
 corregido gradualmente con limites de innovacion, velocidad y aceleracion.
-Pose y velocidades proceden exactamente del mismo estado corregido.
+Pose y velocidades proceden exactamente del mismo estado corregido. Las
+innovaciones angulares se clasifican como `SMALL`, `MODERATE_PENDING`,
+`MODERATE_CONFIRMED`, `MODERATE_DISCARDED` o `REJECTED_EXCESSIVE`: una moderada
+no mueve la actitud hasta acumular evidencia temporal coherente y, tras un
+cambio de reference KF, exige una confirmacion reforzada.
 
-La validacion dinamica 256 demuestra una limitacion vigente: el gate duro
-angular de `0.35 rad` permite que una innovacion aislada de `0.125261 rad` se
-convierta en un paso publicado de `0.119002 rad`. El handoff GT->ORB fue
-continuo, pero drone2 perdio tracking `0.793 s` despues. La salida actual no es
-aun apta para control sostenido; falta acordar confirmacion temporal separada
-para innovaciones angulares moderadas.
+El parametro `debug_orb_control_state=false` habilita, solo para diagnostico,
+`[F5H-ORB-MEASUREMENT]` y `[F5H-ORB-PUBLISH]`. Separan medida raw, innovacion,
+correccion aplicada, paso realmente publicado, omega y edad del estado. Los
+umbrales se cargan desde `dron_individual/config/navigation_state.yaml`; GT
+permanece exacto fuera de este predictor.
+
+Validacion vigente: 21/21 GTests pasan, pero el hover ORB de prueba 259 falla
+tras 227 muestras. La oscilacion empieza antes del primer pending: el umbral
+SMALL se expande con `dt` y permite un paso publicado de `0.058777 rad`; luego
+la persistencia del residual confirma una realimentacion creciente. No repetir
+recorridos largos hasta revisar ambos criterios.
 
 Relación: alimentado por `simulacion_dron` (cámaras), usa `ORB_SLAM3`, define mensajes en `orbslam3_msgs` y es consumido por `orbslam3_server`.
 
