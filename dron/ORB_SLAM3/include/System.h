@@ -120,6 +120,11 @@ public:
 
     struct StereoTrackingReceipt
     {
+        int tracking_state = -1;
+        bool reference_keyframe_valid = false;
+        uint64_t reference_keyframe_id = 0;
+        bool tcr_valid = false;
+        Sophus::SE3f Tcr;
         KeyFrameCreationEvent keyframe_event;
         cv::Mat image_left_effective;
         EffectiveCameraModel camera;

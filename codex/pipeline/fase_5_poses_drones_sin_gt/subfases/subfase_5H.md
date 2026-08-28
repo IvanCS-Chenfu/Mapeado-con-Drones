@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer; absorbe la antigua subfase 5I
+preparada; absorbe la antigua subfase 5I
 ```
 
 ## Objetivo
@@ -15,48 +15,65 @@ gen_tray
 control_calcular_fuerzas
 ```
 
-y ejecutar la regresión final multi-dron. Al finalizar, GT no es una entrada
-directa del funcionamiento normal. Solo puede aparecer dentro de la interfaz
-común de estado cuando `pose_source=GT_FALLBACK` según 5G.
+GT deja de ser una entrada directa del funcionamiento normal. Solo aparece en
+la interfaz común con `pose_source=GT_FALLBACK` bajo las condiciones de 5G.
 
 ## Puertas previas
 
 - 5B: `O` y muestra ORB coherentes;
 - 5C/5D: `W_T_KF` versionada y transporte asíncrono;
 - 5E: pose local/global;
-- 5F: calidad de pose aceptada por el usuario;
-- 5G: velocidad/fallback aceptados y excepción GT documentada.
+- 5F: relación pose/KFs y correcciones revisadas visualmente;
+- 5G: velocidad, fallback y excepción GT documentados.
 
 ## Arquitectura
 
 ```text
-ORB-SLAM3 OK --------------------> estado O
-ORB-SLAM3 RECENTLY_LOST -> GT_FALLBACK -> estado O
-                                           |      |
-                                           v      v
-                                       gen_tray  control
+ORB-SLAM3 OK + epoch anclado ------> estado O estimado
+ORB-SLAM3 RECENTLY_LOST/LOST ------> GT_FALLBACK -> estado O
+absoluto sin anchor ----------------> GT_FALLBACK -> estado O
+                                                     |      |
+                                                     v      v
+                                                 gen_tray  control
 ```
 
-El estado incluye pose/velocidad en `O`, timestamp, validez, `pose_source` y
-estado local/global. `gen_tray` y control no duplican ramas ORB/GT.
+El estado incluye pose/velocidad en `O`, timestamp, validez, `pose_source`,
+causa de fallback y estado local/global. `gen_tray` y control no duplican ramas
+ORB/GT ni se suscriben directamente a GT para su funcionamiento normal.
 
 ## Semántica de goals
 
 Relativo: generar en `O`, conservando la semántica vigente de
-`TrayAction`/`lib_tray`.
+`TrayAction`/`lib_tray`. La transformación recibe tests deterministas. La
+primera prueba Gazebo completa con tareas relativas pertenece a Fase 6; si
+revela un defecto propio de esta capa, se reabre 5H.
 
-Absoluto: exigir `W_T_O` válida y convertir al aceptar:
+Absoluto con `W_T_O` válida: convertir al aceptar:
 
 ```text
 O_T_goal = inverse(W_T_O_latest) * W_T_goal
 ```
 
-Después queda congelado en `O`. Una revisión global no cambia el setpoint. Sin
-global se rechaza; una relativa posterior sí puede aceptarse con local válida.
+Después queda congelado en `O`. Una revisión global no cambia el setpoint.
+
+Absoluto sin `W_T_O`: en el perfil temporal de Fase 5 no se rechaza si
+`GT_FALLBACK` está habilitado. Se ejecuta mediante la interfaz común con causa
+`STARTUP_UNANCHORED_ABSOLUTE` o `NEW_EPOCH_UNANCHORED` hasta coincidir ORB `OK`
+y anchor del epoch. Este bypass conserva default desactivado fuera del perfil
+acordado y se elimina en Fase 6.
 
 Una nueva orden sustituye/cancela la anterior según el action server. Auditar
-la cancelación para que no deje velocidad, aceleración o jerk residuales. No
+la cancelación para no dejar velocidad, aceleración o jerk residuales. No
 introducir replanning/recovery de Fase 6.
+
+`gen_tray` coordina explicitamente el comienzo de cada goal con el mux. La
+fuente anterior permanece bloqueada al terminar y durante las esperas. Solo al
+llegar el siguiente goal se abre la frontera, se espera una muestra consumible,
+se bloquea la nueva fuente y se congelan de esa misma muestra pose, velocidad y
+transformacion absoluta. El primer feedback se publica con `t=0`, usando
+`x0/v0/yaw0/yaw_rate0` de la muestra, para que `ep=ev=0`. La unica conmutacion
+permitida dentro de un goal es `ORB -> GT_FALLBACK` por perdida real de
+tracking; despues GT queda bloqueado hasta finalizar.
 
 ## Frecuencia
 
@@ -66,6 +83,7 @@ control puede consumir la última muestra válida dentro de límites acordados.
 ## Ámbitos
 
 ```text
+dron/orbslam3_ros2/src/stereo/**
 dron/dron_individual/src/control_tray/gen_tray.cpp
 dron/dron_individual/src/control_tray/control_calcular_fuerzas.cpp
 dron/dron_individual/config/**
@@ -74,47 +92,121 @@ simulacion/simulacion_dron/**
 instrumentación ya validada
 ```
 
-No cambiar ganancias para ocultar mala estimación, ni algoritmos `lib_tray` sin
-un bug demostrado y nueva autorización. Si falla 5E/5G, reabrir su subfase.
+No cambiar ganancias para ocultar mala estimación ni algoritmos `lib_tray` sin
+un bug demostrado y nueva autorización. No corregir aquí los defectos ya
+identificados del optimizador de Fase 3.
+
+Diagnostico vigente tras 251: la autoridad `W_T_C` fiducial es coherente, pero
+la rotacion configurada como `body_T_camera` es la inversa optica
+`camera_T_body`. La composicion correcta del wrapper deja de ser correcta al
+recibir ese parametro mal orientado y proyecta X world sobre Z control. La
+correccion acordable debe mantener una unica convencion SE(3) completa; no se
+debe compensar en `C_T_W`, el controlador ni las ganancias.
+
+Correccion posterior a 252: `PoseStatePredictor` filtra medidas a 20 Hz y
+publica estado propagado a 50 Hz; `ORB -> GT_FALLBACK` alinea GT contra el O
+activo mediante `ContinuousSourcePose::Update`, sin cambiar el frame del goal.
+El predictor es permanente. Suscripcion, transporte, lock, alineacion y handoff
+GT quedan marcados `TODO FASE 6` para retirarlos con el fallback.
+
+Diagnostico posterior a 253: esa implementacion no esta validada. Aplicar el
+predictor tambien a la orientacion GT retrasa la actitud usada por el lazo de
+torque y lo desestabiliza, aun sin conmutacion de fuente. La siguiente
+correccion debe conservar una actitud de control sin ese retardo y validar por
+separado el suavizado traslacional/velocidad ORB; requiere nuevo acuerdo.
+
+Correccion acordada posterior: predictor y filtros pertenecen al estimador de
+`orbslam3_ros2`, no a `dron_individual`. ORB publica a 50 Hz con traslacion y
+velocidades filtradas, orientacion medida sin low-pass y propagacion angular
+entre frames. El mux solo selecciona/alinea; GT usa `sensor/GT/pose` y
+`sensor/GT/vel` exactos. La primera validacion puede motivar otro ajuste sin
+ocultar el intento actual.
+
+Diagnostico posterior a 254: aislar GT funciona, pero aceptar sin limite cada
+orientacion ORB y limitar solo su velocidad genera estados incompatibles en los
+giros. Los handoffs empiezan con salto cero; despues aparecen pasos de hasta
+unos `0.28 rad/frame`, torque reactivo y perdida. La siguiente iteracion debe
+suavizar o acotar la innovacion angular ORB y derivar de esa misma orientacion
+corregida la velocidad publicada. GT permanece exacto y fuera del predictor.
+
+Correccion acordada tras 255: la probation valida una cadena geometrica aunque
+ORB cambie varias veces el ID del KF candidato. `Tcr` sigue gobernando dentro de
+cada referencia; `local_t_camera` solo enlaza el instante de cambio si su
+incremento es fisicamente plausible y nunca sustituye la pose local principal.
+Tres frames geometricamente coherentes confirman la referencia; solo una
+inconsistencia persistente agota el timeout.
+
+El predictor mantiene un unico estado SE(3) a 50 Hz. Cada medida corrige la
+prediccion de forma gradual, con ganancias y limites configurables de
+innovacion, velocidad y aceleracion separados para traslacion y rotacion. La
+pose se integra desde las mismas velocidades que se publican. Innovaciones
+angulares moderadas se absorben gradualmente; solo las imposibles acumulan
+rechazo. El fallback permanece como proteccion temporal ante perdida real, no
+como mecanismo normal frente a cambios de KF. No se usa IMU.
 
 ## Pruebas de integración
 
-1. relativa con `pose_source=ORB`;
-2. absoluta con `GLOBAL_VALID`, revisión global durante el goal y setpoint O
+1. relativa con `pose_source=ORB`, mediante tests deterministas;
+2. absoluta con autoridad, revisión global durante el goal y setpoint O
    inmutable;
-3. absoluto sin global rechazado y relativa posterior aceptada;
-4. pérdida durante goal: `ORB -> GT_FALLBACK -> ORB` sin salto;
-5. dos drones completan la vuelta representativa al edificio.
+3. absoluto inicial sin global mediante fallback explícito;
+4. perdida durante goal: `ORB -> GT_FALLBACK`, sin retorno a ORB hasta la
+   frontera posterior;
+5. dos drones ejecutan directamente la vuelta típica absoluta al edificio.
 
-La vuelta debe cubrir anchor temprano, varios ref-KF, correcciones globales y
-goals relativos/absolutos. Los eventos que no ocurran naturalmente se validan
-en pruebas específicas separadas.
+La regresión final usa sin modificar:
+
+```text
+codex/archivos_auxiliares/trayectorias/prueba_tipica_rodeo_edificio_dos_fiduciales.yaml
+```
+
+No existe bootstrap relativo. Gazebo GUI y RViz2 permanecen visibles
+simultáneamente para comparar movimiento físico, KFs y poses estimadas. La
+vuelta cubre anchor temprano, varios reference KFs, correcciones globales y
+cambios de fuente.
+
+RViz2 representa para cada dron un sistema XYZ y etiqueta construidos desde
+`NavigationState.o_t_body`, exactamente la pose consumida por
+`control_calcular_fuerzas`. Su visibilidad depende de la validez local de la
+interfaz de control, no de `global_valid` ni de que exista `w_t_body`; la fuente
+ORB/GT queda indicada para diagnosticar fronteras sin parpadeo global.
 
 Métricas por dron:
 
 ```text
 tiempo total/ORB/GT_FALLBACK y ratio ORB
+causa y duración por entrada de fallback
 pérdidas, map_epochs y cambios reference KF
 revisiones globales, error pose/velocidad
 latencia/jitter y resultados de goals
 ```
 
+Los errores frente a GT se conservan como observacion externa de deriva, pero
+no son criterio de conmutacion, perdida ni exito de navegacion estimada.
+
 Patrones iniciales:
 
 ```text
-F5H|GOAL|ACCEPT|REJECT|RESULT|POSE_SOURCE|ORB|GT_FALLBACK|REFERENCE_KF|REVISION|GLOBAL_VALID|LOCAL_ONLY|CONTROL|SUCCESS|ERROR|FATAL|Segmentation fault|Killed
+F5H|GOAL|ACCEPT|REJECT|RESULT|POSE_SOURCE|STARTUP_UNANCHORED_ABSOLUTE|TRACKING_LOST|NEW_EPOCH_UNANCHORED|GT_FALLBACK|REFERENCE_KF|REVISION|ANCHOR|CONTROL|SUCCESS|ERROR|FATAL|Segmentation fault|Killed
 ```
 
 ## Criterio de éxito
 
 Builds correctos; pose/velocidad aceptadas; ausencia de GT directo en
-`gen_tray`/control normal; semántica de goals correcta; revisiones sin salto
-local; transporte de KFs funcional; dos drones completan la vuelta; fallback
-perfectamente identificado y documentación/historial coherentes.
+`gen_tray`/control normal; semántica absoluta correcta; transporte de KFs
+funcional; ejecución de la vuelta; fallback perfectamente identificado y
+documentación/historial coherentes.
 
-`PARCIAL` si la vuelta termina pero GT aparece fuera del fallback o alguna
-transición no es continua. `NO CONSEGUIDA` si hay mezcla de frames,
-inestabilidad, absolutos aceptados sin global o fallo propio de Fase 5.
+Se exige que el primer error de posicion y velocidad sea cero al cambiar fuente
+y comenzar el siguiente goal. La retirada de esta coordinacion temporal junto
+con `GT_FALLBACK` queda como deuda explicita de Fase 6.
+Tambien se exige que la extrinseca cargada sea realmente `B_T_C`; para la camara
+optica frontal actual su rotacion es `RPY=(-90,0,-90)` bajo la composicion
+`yaw*pitch*roll`, no la inversa `RPY=(0,-90,90)`.
+`PARCIAL` si la vuelta termina pero GT aparece fuera del
+fallback. `NO CONSEGUIDA` si hay mezcla silenciosa de fuentes, GT contamina
+mapa/global o un fallo propio de Fase 5 impide ejecutar la trayectoria. Los
+defectos del optimizador de Fase 3 se documentan y no se corrigen aquí.
 
 ## Deuda obligatoria de Fase 6
 
@@ -122,4 +214,8 @@ inestabilidad, absolutos aceptados sin global o fallo propio de Fase 5.
 eliminar GT_FALLBACK
 implementar recovery real
 implementar búsqueda/reanclaje sin GT
+suavizar o eliminar saltos al cambiar de fuente
+filtrar/interpolar el estado de control o consumir velocidad estimada robusta
+retirar source lock, handshake entre goals y hold temporal del controlador
+validar tareas relativas integradas y devolver a 5H cualquier defecto propio
 ```

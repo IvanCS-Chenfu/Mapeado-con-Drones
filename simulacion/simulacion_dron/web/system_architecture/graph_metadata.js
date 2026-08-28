@@ -158,10 +158,10 @@ window.SYSTEM_ARCHITECTURE_METADATA = {
       "data_transferred": "imagenes estereo rectificables"
     },
     "sim_to_dron_gt": {
-      "message_type": "geometry_msgs/msg/PoseStamped + TwistStamped",
-      "namespace": "/dron_X/sensor/GT/{pose,vel}",
-      "qos": "keep last 10",
-      "data_transferred": "pose y velocidad provisionales para control"
+      "message_type": "geometry_msgs/msg/PoseStamped",
+      "namespace": "/dron_X/sensor/GT/pose",
+      "qos": "keep last 20",
+      "data_transferred": "pose exclusiva del modo GT_FALLBACK de Fase 5"
     },
     "sim_to_dron_action": {
       "message_type": "dron_individual/action/TrayAction",

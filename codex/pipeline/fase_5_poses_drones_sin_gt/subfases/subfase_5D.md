@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer; depende de 5B, 5C y del cierre vigente de 3Q
+CONSEGUIDA; servicio/push dirigido validados en prueba 230
 ```
 
 ## Objetivo
@@ -57,6 +57,19 @@ Knew -> async_send_request -> ORB continúa -> callback valida respuesta
 Si el KF todavía no existe, la petición queda pendiente y se resuelve cuando
 se materializa. No introducir polling periódico sin detenerse y debatirlo.
 
+Semántica pending acordada:
+
+```text
+servicio -> respuesta PENDING inmediata
+Servidor -> conserva solo el interés de la reference KF activa por dron
+nuevo reference KF -> sustituye el interés anterior
+materialización/revisión -> push dirigido al wrapper de ese dron
+reference anterior reaparece -> nueva consulta
+```
+
+No se mantiene una FIFO ilimitada de referencias. El push es unitario,
+`reliable` y namespaced por dron; no publica arrays globales a todos los drones.
+
 Una revisión `N+1` del KF conocido se publica automáticamente. Se rechazan
 epoch distinto, revisión antigua y respuesta que ya no corresponda al estado
 activo. Clave completa:
@@ -67,6 +80,10 @@ activo. Clave completa:
 
 No introducir heartbeat de 1 Hz en 5D. La hipótesis de Fase 5 es ausencia de
 pérdida de mensajes y reinicio inesperado del Servidor.
+
+El wrapper puede registrar o cachear una respuesta tardía, pero nunca aplicarla
+al estado activo si ya cambió reference KF. Una consulta posterior siempre
+revalida identidad y revisión con el Servidor.
 
 ## Pruebas acordables
 

@@ -7,6 +7,17 @@ Interfaces definidas (ejemplos): `OrbMap`, `OrbMapPoint`, `OrbKeyFrame`,
 `GetFiducialConfig`. Fase 4E añade `FiducialTagObservation` y
 `FiducialKeyFrameObservations` para transportar un batch visual por KF.
 
+Fase 5B añade `NavigationState`: una muestra por frame con tracking, source,
+epoch/sample, reference KF, `Tcr`, `O_T_B`, campos futuros `W_T_B`/velocidad y
+bits de validez explícitos. En 5B solo local/continuidad pueden ser válidas;
+global y velocidad permanecen inválidas. Las copias Dron/Servidor incluyen el
+mensaje en CMake y deben seguir siendo byte a byte idénticas.
+
+5D añade `GlobalKeyFramePose` y `GetGlobalKeyFramePose` con identidad completa,
+status, `pose_revision` y `W_T_KF`. 5E amplía `NavigationState` con estado
+global `INVALID/PROVISIONAL/AUTHORITATIVE` y revisión. En 5C-5F solo
+`AUTHORITATIVE` activa `global_valid`; los goals absolutos siguen deshabilitados.
+
 Uso: publicadas por `orbslam3_ros2`, consumidas por `orbslam3_server` y `orbslam3_multi`.
 
 Fase 4D usa `FiducialTagConfig` para `tag_id/size_m` y

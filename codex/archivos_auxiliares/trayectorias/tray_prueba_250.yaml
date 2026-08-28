@@ -1,0 +1,80 @@
+name: diagnostico_frame_absoluto_fase_5h
+description: "Captura C_T_W y target transformado en la primera frontera ORB sin ejecutar la trayectoria erronea completa."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: ambos_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+
+  - name: espera_anclaje_fiducial_2
+    type: wait
+    seconds: 8.0
+
+  - name: captura_target_absoluto_orb
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [-10.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 1.0
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [10.0, -10.0, 1.3]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 1.0

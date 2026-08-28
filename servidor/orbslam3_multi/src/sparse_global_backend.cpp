@@ -2363,6 +2363,39 @@ std::optional<GlobalPoseRecord> SparseGlobalBackend::GetGlobalPose(
   return pose_store_.GetPose(id);
 }
 
+GlobalPoseQueryResult SparseGlobalBackend::QueryGlobalPose(
+  const RawKeyFrameId & id) const
+{
+  std::lock_guard<std::mutex> state_lock(state_commit_mutex_);
+  GlobalPoseQueryResult result;
+  result.keyframe_id = id;
+  if (id.drone_id == 0U) {
+    result.status = GlobalPoseQueryStatus::Unknown;
+    return result;
+  }
+
+  const auto latest = last_submap_by_drone_.find(id.drone_id);
+  if (latest == last_submap_by_drone_.end()) {
+    result.status = GlobalPoseQueryStatus::Pending;
+    return result;
+  }
+  if (id.map_epoch < latest->second.map_epoch) {
+    result.status = GlobalPoseQueryStatus::InvalidEpoch;
+    return result;
+  }
+  if (id.map_epoch > latest->second.map_epoch ||
+    !raw_database_.GetKeyFrame(id).has_value())
+  {
+    result.status = GlobalPoseQueryStatus::Pending;
+    return result;
+  }
+
+  result.pose = pose_store_.GetPose(id);
+  result.status = result.pose.has_value() && result.pose->active ?
+    GlobalPoseQueryStatus::Available : GlobalPoseQueryStatus::Pending;
+  return result;
+}
+
 GlobalMapBuildResult SparseGlobalBackend::BuildGlobalMap()
 {
   std::lock_guard<std::mutex> state_lock(state_commit_mutex_);

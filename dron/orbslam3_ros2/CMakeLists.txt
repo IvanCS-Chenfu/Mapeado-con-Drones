@@ -66,6 +66,7 @@ target_link_libraries(rgbd ${OpenCV_LIBS})
 add_executable(stereo
   src/stereo/stereo.cpp
   src/stereo/stereo-slam-node.cpp
+  src/stereo/navigation-state-estimator.cpp
   src/stereo/fiducial-detector.cpp
 )
 # AÑADIDO #
@@ -98,6 +99,13 @@ if(BUILD_TESTING)
   )
   target_include_directories(test_fiducial_detector PRIVATE src/stereo)
   target_link_libraries(test_fiducial_detector ${OpenCV_LIBS})
+
+  ament_add_gtest(test_navigation_state_estimator
+    test/test_navigation_state_estimator.cpp
+    src/stereo/navigation-state-estimator.cpp
+  )
+  target_include_directories(test_navigation_state_estimator PRIVATE src/stereo)
+  target_link_libraries(test_navigation_state_estimator Sophus::Sophus)
 endif()
 
 # Install launch files.

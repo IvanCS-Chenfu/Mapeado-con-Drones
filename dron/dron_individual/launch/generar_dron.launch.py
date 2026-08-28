@@ -65,6 +65,7 @@ def generate_launch_description():
             'debug_fiducial_visualization', default_value='false'),
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
+        DeclareLaunchArgument('gt_fallback_enabled', default_value='false'),
         DeclareLaunchArgument(
             'orb_vocabulary_path',
             default_value=PathJoinSubstitution([
@@ -83,6 +84,7 @@ def generate_launch_description():
         'debug_fiducial_visualization')
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
+    gt_fallback_enabled = LaunchConfiguration('gt_fallback_enabled')
     orb_vocabulary_path = LaunchConfiguration('orb_vocabulary_path')
 
     common_debug = {
@@ -93,6 +95,15 @@ def generate_launch_description():
     }
 
     return LaunchDescription(args + [
+        Node(
+            package='dron_individual',
+            executable='navigation_state_mux',
+            name='navigation_state_mux',
+            parameters=[common_debug, {
+                'gt_fallback_enabled': ParameterValue(
+                    gt_fallback_enabled, value_type=bool),
+            }],
+        ),
         Node(
             package='dron_individual',
             executable='gen_tray',

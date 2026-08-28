@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer; depende de 5B-5D
+CONSEGUIDA tecnicamente; calidad global condicionada por 5F
 ```
 
 ## Objetivo
@@ -48,6 +48,15 @@ map_epoch, reference_kf, pose_revision
 global_valid, pose_source, timestamp
 ```
 
+`NavigationState` se ampliará de forma aditiva con `pose_revision` y un estado
+global explícito:
+
+```text
+INVALID
+PROVISIONAL
+AUTHORITATIVE
+```
+
 ## Matemática y estados
 
 ```text
@@ -60,6 +69,19 @@ Una revisión puede hacer saltar `W_T_B`, nunca `O_T_B`.
 Al cambiar de KF se crea `W_T_Knew` provisional, marcada como
 `PROVISIONAL`; la respuesta válida del Servidor pasa a `AUTHORITATIVE`. Una
 respuesta tardía de un KF que dejó de ser reference no altera el estado activo.
+
+Semántica acordada:
+
+- `W_T_B` provisional puede publicarse para observabilidad;
+- `global_valid=false` mientras el estado sea `INVALID` o `PROVISIONAL`;
+- solo `AUTHORITATIVE` habilita `global_valid=true`;
+- `pose_source=ORB` mientras ORB sea la fuente de la pose continua de control;
+- disponer de W autoritativa no cambia por sí solo `pose_source`.
+
+Los goals absolutos permanecen deshabilitados durante 5C-5F mediante una puerta
+explícita. Aunque exista W autoritativa, la conversión world->O y su habilitación
+pertenecen a 5H. Los goals relativos y el control GT legacy conservan su estado
+vigente durante la validación.
 
 Un cambio de epoch invalida la autoridad global anterior y ofrece una operación
 clara de reset/realign para 5G. Con `RECENTLY_LOST/LOST` no se inventa pose ORB

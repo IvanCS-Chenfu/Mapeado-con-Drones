@@ -10,16 +10,19 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(lib_tray REQUIRED)
+find_package(orbslam3_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
@@ -28,6 +31,15 @@ if(BUILD_TESTING)
   # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
+
+  ament_add_gtest(test_navigation_goal_policy
+    test/test_navigation_goal_policy.cpp)
+  target_include_directories(test_navigation_goal_policy PRIVATE include)
+
+  ament_add_gtest(test_navigation_state_mux
+    test/test_navigation_state_mux.cpp)
+  target_include_directories(test_navigation_state_mux PRIVATE include)
+  ament_target_dependencies(test_navigation_state_mux Eigen3)
 endif()
 
 
@@ -69,14 +81,19 @@ ament_target_dependencies(clock rclcpp)
 
 
 add_executable(gen_tray src/control_tray/gen_tray.cpp)
-ament_target_dependencies(gen_tray rclcpp geometry_msgs std_msgs rclcpp_action lib_tray)
+target_include_directories(gen_tray PRIVATE include)
+ament_target_dependencies(gen_tray rclcpp geometry_msgs std_msgs std_srvs rclcpp_action lib_tray orbslam3_msgs Eigen3)
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(gen_tray "${cpp_typesupport_target}")
+
+add_executable(navigation_state_mux src/control_tray/navigation_state_mux.cpp)
+target_include_directories(navigation_state_mux PRIVATE include)
+ament_target_dependencies(navigation_state_mux rclcpp geometry_msgs std_msgs std_srvs orbslam3_msgs Eigen3)
 
 
 
 add_executable(control_calcular_fuerzas src/control_tray/control_calcular_fuerzas.cpp)
-ament_target_dependencies(control_calcular_fuerzas rclcpp geometry_msgs std_msgs rclcpp_action Eigen3)
+ament_target_dependencies(control_calcular_fuerzas rclcpp geometry_msgs std_msgs rclcpp_action Eigen3 orbslam3_msgs)
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(control_calcular_fuerzas "${cpp_typesupport_target}")
 
@@ -97,12 +114,15 @@ target_link_libraries(control_dron "${cpp_typesupport_target}")
 install(TARGETS
   clock
   gen_tray
+  navigation_state_mux
   control_calcular_fuerzas
   aplicar_fuerzas_dron
   control_dron
 
   DESTINATION lib/${PROJECT_NAME}
 )
+
+install(DIRECTORY include/ DESTINATION include)
 
 
 install(PROGRAMS

@@ -2,14 +2,17 @@
 #include <rclcpp_action/rclcpp_action.hpp>                      // Librería necesaria para crear la acción.
 
 #include "dron_individual/action/tray_action.hpp"               // Añadir interfaz usada en la acción.
+#include "dron_individual/navigation_goal_policy.hpp"
+#include "dron_individual/navigation_state_mux.hpp"
+#include "orbslam3_msgs/msg/navigation_state.hpp"
 #include "lib_tray/gen_tray_pol3.hpp"                           // Librería polinomio cúbico
 #include "lib_tray/gen_tray_veltrap.hpp"                        // Librería velocidad trapezoidal
 #include "lib_tray/gen_tray_elipse.hpp"                         // Librería elipse
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
-#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_srvs/srv/set_bool.hpp>
 
 #include <cmath>
 #include <algorithm>
@@ -19,8 +22,10 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <future>
 #include <exception>
 #include <chrono>
+#include <condition_variable>
 #include <map>
 #include <sstream>
 #include <string>
@@ -35,13 +40,15 @@ public:
   Clase_Servicio_Accion()
   : rclcpp::Node("gen_tray")
   {
-    // Suscripción (siempre activa). En execute solo usamos la primera muestra que llegue.
-    sub_pose_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-      "sensor/GT/pose", rclcpp::QoS(10),
-      std::bind(&Clase_Servicio_Accion::pose_actual_callback, this, std::placeholders::_1));
-    sub_vel_ = this->create_subscription<geometry_msgs::msg::TwistStamped>(
-      "sensor/GT/vel", rclcpp::QoS(10),
-      std::bind(&Clase_Servicio_Accion::vel_actual_callback, this, std::placeholders::_1));
+    sub_navigation_state_ =
+      this->create_subscription<orbslam3_msgs::msg::NavigationState>(
+      "orbslam/navigation_state", rclcpp::QoS(20).reliable(),
+      std::bind(
+        &Clase_Servicio_Accion::navigation_state_callback, this,
+        std::placeholders::_1));
+    trajectory_active_client_ =
+      this->create_client<std_srvs::srv::SetBool>(
+      "control/set_trajectory_active");
 
     // Añadimos al objeto del servidor de la acción el tipo de interfaz a utilizar, el nombre de la acción el cual
     // el cliente de la acción debe llamar para acceder a él, y el nombre de las función callback.
@@ -58,6 +65,8 @@ public:
     this->declare_parameter<double>("crear.tray.t_a", 2.0);
     this->declare_parameter<int64_t>("drone_id", 0);
     this->declare_parameter<bool>("debug_architecture_telemetry", false);
+    this->declare_parameter<double>("navigation_state_timeout_sec", 0.5);
+    this->declare_parameter<double>("trajectory_source_handshake_timeout_sec", 1.0);
 
     drone_id_ = static_cast<uint32_t>(this->get_parameter("drone_id").as_int());
     debug_architecture_telemetry_ =
@@ -72,6 +81,16 @@ public:
     v_max_lin = this->get_parameter("crear.tray.v_max_lin").as_double();
     v_max_ang = this->get_parameter("crear.tray.v_max_ang").as_double();
     t_a = this->get_parameter("crear.tray.t_a").as_double();
+    navigation_state_timeout_sec_ =
+      this->get_parameter("navigation_state_timeout_sec").as_double();
+    if (navigation_state_timeout_sec_ <= 0.0) {
+      navigation_state_timeout_sec_ = 0.5;
+    }
+    trajectory_source_handshake_timeout_sec_ =
+      this->get_parameter("trajectory_source_handshake_timeout_sec").as_double();
+    if (trajectory_source_handshake_timeout_sec_ <= 0.0) {
+      trajectory_source_handshake_timeout_sec_ = 1.0;
+    }
   }
 
 private:
@@ -104,29 +123,125 @@ private:
   }
 
   ///////////////// CALLBACKS /////////////////
-  // Obtener Pose Actual
-  void pose_actual_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+  void navigation_state_callback(
+    const orbslam3_msgs::msg::NavigationState::SharedPtr msg)
   {
-    if (debug_architecture_telemetry_) {
-      EmitArchitectureActivity("sim_to_dron_gt", "sensor/GT/pose", "topic");
+    {
+      std::lock_guard<std::mutex> lock(navigation_state_mtx_);
+      last_navigation_state_ = *msg;
+      navigation_state_received_at_ = std::chrono::steady_clock::now();
+      navigation_state_received_ = true;
+      if (msg->global_valid) {
+        const auto o_t_body = PoseFromMessage(msg->o_t_body);
+        const auto w_t_body = PoseFromMessage(msg->w_t_body);
+        control_t_world_ = dron_individual::Compose(
+          o_t_body, dron_individual::Inverse(w_t_body));
+        control_t_world_valid_ = true;
+        control_t_world_epoch_ = msg->map_epoch;
+      } else if (
+        msg->pose_source ==
+        orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FALLBACK)
+      {
+        // TODO FASE 6: retirar esta composicion cuando desaparezca GT_FALLBACK.
+        // El mux transporta W_T_B de GT con global_valid=false solo para mantener
+        // los goals absolutos en el mismo O durante una perdida.
+        const auto o_t_body = PoseFromMessage(msg->o_t_body);
+        const auto w_t_body = PoseFromMessage(msg->w_t_body);
+        control_t_world_ = dron_individual::Compose(
+          o_t_body, dron_individual::Inverse(w_t_body));
+        control_t_world_valid_ = true;
+        control_t_world_epoch_ = msg->map_epoch;
+      }
     }
-    std::lock_guard<std::mutex> lk(pose_callback_mtx_);
-    if (!bloquear_callback) {
-      last_pose_ = *msg;
-      bloquear_callback = true;
-      RCLCPP_INFO(this->get_logger(), "pose_actualizada (callback)");
+    navigation_state_cv_.notify_all();
+  }
+
+  bool SetTrajectoryActive(bool active, bool wait_for_boundary_state)
+  {
+    const auto timeout = std::chrono::duration<double>(
+      trajectory_source_handshake_timeout_sec_);
+    uint64_t previous_sequence = 0;
+    bool previous_received = false;
+    {
+      std::lock_guard<std::mutex> lock(navigation_state_mtx_);
+      previous_received = navigation_state_received_;
+      previous_sequence = last_navigation_state_.sample_sequence;
+    }
+    if (!trajectory_active_client_->wait_for_service(timeout)) {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[F5H-TRAJECTORY-SOURCE-HANDSHAKE] active=%s success=false reason=service_unavailable",
+        active ? "true" : "false");
+      return false;
+    }
+    auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
+    request->data = active;
+    auto future = trajectory_active_client_->async_send_request(request);
+    if (future.wait_for(timeout) != std::future_status::ready || !future.get()->success) {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[F5H-TRAJECTORY-SOURCE-HANDSHAKE] active=%s success=false reason=request_failed",
+        active ? "true" : "false");
+      return false;
+    }
+    if (wait_for_boundary_state && previous_received) {
+      std::unique_lock<std::mutex> lock(navigation_state_mtx_);
+      if (!navigation_state_cv_.wait_for(
+          lock, timeout,
+          [this, previous_sequence]() {
+            return last_navigation_state_.sample_sequence != previous_sequence &&
+            last_navigation_state_.local_valid &&
+            last_navigation_state_.local_continuity_valid &&
+            last_navigation_state_.velocity_valid;
+          }))
+      {
+        RCLCPP_ERROR(
+          this->get_logger(),
+          "[F5H-TRAJECTORY-SOURCE-HANDSHAKE] active=false success=false "
+          "reason=boundary_state_timeout sample=%lu",
+          static_cast<unsigned long>(previous_sequence));
+        return false;
+      }
+    }
+    RCLCPP_INFO(
+      this->get_logger(),
+      "[F5H-TRAJECTORY-SOURCE-HANDSHAKE] active=%s success=true",
+      active ? "true" : "false");
+    return true;
+  }
+
+  void ReleaseTrajectorySourceIfCurrent(
+    const std::shared_ptr<GoalHandleTrayAction> & goal_handle)
+  {
+    bool current = false;
+    {
+      std::lock_guard<std::mutex> lock(active_mtx_);
+      current = active_goal_ == goal_handle;
+      if (current) {
+        active_goal_.reset();
+      }
+    }
+    if (current) {
+      RCLCPP_INFO(
+        this->get_logger(),
+        "[F5H-SOURCE-RETAINED-BETWEEN-GOALS] waiting_for_next_goal=true");
     }
   }
 
-  // Obtener Vel Actual
-  void vel_actual_callback(const geometry_msgs::msg::TwistStamped::SharedPtr msg)
+  dron_individual::RigidPose PoseFromMessage(const geometry_msgs::msg::Pose & pose) const
   {
-    std::lock_guard<std::mutex> lk(vel_callback_mtx_);
-    if (!bloquear_vel) {
-      last_vel_ = *msg;
-      bloquear_vel = true;
-      RCLCPP_INFO(this->get_logger(), "vel_actualizada (callback)");
+    dron_individual::RigidPose result;
+    result.translation = Eigen::Vector3d(
+      pose.position.x, pose.position.y, pose.position.z);
+    result.rotation = Eigen::Quaterniond(
+      pose.orientation.w, pose.orientation.x,
+      pose.orientation.y, pose.orientation.z);
+    if (result.rotation.norm() < 1e-9) {
+      result.rotation = Eigen::Quaterniond::Identity();
+    } else {
+      result.rotation.normalize();
     }
+    return result;
   }
 
 
@@ -198,7 +313,7 @@ private:
   ///////////////// FUNCIONES ACCIÓN /////////////////
   // Se llama cuando el cliente de la acción realiza la petición
   rclcpp_action::GoalResponse handle_goal(
-    const rclcpp_action::GoalUUID &,
+    const rclcpp_action::GoalUUID & /*uuid*/,
     std::shared_ptr<const TrayAction::Goal> goal)
   {
     if (debug_architecture_telemetry_) {
@@ -209,6 +324,66 @@ private:
       RCLCPP_WARN(this->get_logger(), "tipo_trayectoria no válido: %u", goal->tipo_trayectoria);
       return rclcpp_action::GoalResponse::REJECT;
     }
+
+    dron_individual::NavigationGoalState state;
+    {
+      std::lock_guard<std::mutex> lock(navigation_state_mtx_);
+      state.received = navigation_state_received_;
+      if (navigation_state_received_) {
+        const double age_sec = std::chrono::duration<double>(
+          std::chrono::steady_clock::now() - navigation_state_received_at_).count();
+        state.fresh = age_sec <= navigation_state_timeout_sec_;
+        state.local_valid = last_navigation_state_.local_valid;
+        state.local_continuity_valid =
+          last_navigation_state_.local_continuity_valid;
+        state.global_valid = last_navigation_state_.global_valid;
+        state.absolute_frame_valid = control_t_world_valid_ &&
+          control_t_world_epoch_ == last_navigation_state_.map_epoch;
+        state.velocity_valid = last_navigation_state_.velocity_valid;
+        state.gt_fallback = last_navigation_state_.pose_source ==
+          orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FALLBACK;
+        state.map_epoch = last_navigation_state_.map_epoch;
+        state.sample_sequence = last_navigation_state_.sample_sequence;
+      }
+    }
+
+    const bool requests_absolute =
+      goal->absoluto_x || goal->absoluto_y || goal->absoluto_z ||
+      goal->absoluto_yaw;
+    const auto decision = dron_individual::EvaluateNavigationGoal(requests_absolute, state);
+    if (decision != dron_individual::NavigationGoalDecision::ACCEPT_RELATIVE &&
+      decision != dron_individual::NavigationGoalDecision::ACCEPT_ABSOLUTE)
+    {
+      RCLCPP_WARN(
+        this->get_logger(),
+        "[F5B-GOAL-REJECT] decision=%s absolute=%s state_received=%s "
+        "state_fresh=%s local_valid=%s continuity_valid=%s global_valid=%s "
+        "absolute_frame_valid=%s "
+        "velocity_valid=%s gt_fallback=%s epoch=%lu sample=%lu",
+        dron_individual::NavigationGoalDecisionName(decision),
+        requests_absolute ? "true" : "false",
+        state.received ? "true" : "false",
+        state.fresh ? "true" : "false",
+        state.local_valid ? "true" : "false",
+        state.local_continuity_valid ? "true" : "false",
+        state.global_valid ? "true" : "false",
+        state.absolute_frame_valid ? "true" : "false",
+        state.velocity_valid ? "true" : "false",
+        state.gt_fallback ? "true" : "false",
+        static_cast<unsigned long>(state.map_epoch),
+        static_cast<unsigned long>(state.sample_sequence));
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+
+    RCLCPP_INFO(
+      this->get_logger(),
+      "[F5B-GOAL-ACCEPT] decision=%s absolute=%s snapshot_epoch=%lu "
+      "snapshot_sample=%lu source=%s",
+      dron_individual::NavigationGoalDecisionName(decision),
+      requests_absolute ? "true" : "false",
+      static_cast<unsigned long>(state.map_epoch),
+      static_cast<unsigned long>(state.sample_sequence),
+      state.gt_fallback ? "gt_fallback" : "orb");
 
     // Si devolvemos (ACCEPT_AND_EXECUTE) se llama a la función "handle_accepted" (y se interrumpe la acción anterior)
     // Si devolvemos (ACCEPT_AND_DEFER) se espera a que termine la acción anterior y se llama a "handle_accepted"
@@ -253,43 +428,45 @@ private:
   ///////////////// FUNCIÓN PRINCIPAL /////////////////
   void execute(const std::shared_ptr<GoalHandleTrayAction> goal_handle)
   {
+    auto result = std::make_shared<TrayAction::Result>();
+    if (!SetTrajectoryActive(false, true) || !SetTrajectoryActive(true, false)) {
+      auto failed_result = std::make_shared<TrayAction::Result>();
+      failed_result->success = false;
+      failed_result->t_total = 0.0f;
+      ReleaseTrajectorySourceIfCurrent(goal_handle);
+      goal_handle->abort(failed_result);
+      return;
+    }
+
+    orbslam3_msgs::msg::NavigationState initial_state;
+    dron_individual::RigidPose control_t_world;
+    bool initial_state_valid = false;
+    {
+      std::lock_guard<std::mutex> lock(navigation_state_mtx_);
+      initial_state = last_navigation_state_;
+      control_t_world = control_t_world_;
+      initial_state_valid = navigation_state_received_ &&
+        initial_state.local_valid && initial_state.local_continuity_valid &&
+        initial_state.velocity_valid && control_t_world_valid_ &&
+        control_t_world_epoch_ == initial_state.map_epoch;
+    }
+    if (!initial_state_valid) {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[F5H-ATOMIC-GOAL-START] success=false reason=invalid_boundary_state");
+      result->success = false;
+      result->t_total = 0.0f;
+      ReleaseTrajectorySourceIfCurrent(goal_handle);
+      goal_handle->abort(result);
+      return;
+    }
+
     // Para que cada vez que se llame a la acción se reinicien las variables.
     bool eliminado = false;                 // al declararse aquí, es variable local de cada thread
     bool cancelado = false;                 // necesario para goal_handle->canceled
-    pose_callback_mtx_.lock();
-    bloquear_callback = false;
-    pose_callback_mtx_.unlock();
-    vel_callback_mtx_.lock();
-    bloquear_vel = false;
-    vel_callback_mtx_.unlock();
     double t = 0.0;
 
-    rclcpp::Rate wait_rate(100.0);
-
-    bool pose_ready = false, vel_ready = false;                 // creada para aislarla de la variable global "bloquear_callback"
-
-    while (rclcpp::ok() && !eliminado && (!pose_ready || !vel_ready)) {         // Bloquear hasta que se reciba la pose actual.
-      wait_rate.sleep();            // Esperar para evitar espera activa.
-      if (goal_handle->is_canceling()) {
-        eliminado = true;
-        cancelado = true;
-      }
-      active_mtx_.lock();
-      if (active_goal_ != goal_handle && !eliminado) {
-        eliminado = true;
-      }
-      active_mtx_.unlock();
-
-      pose_callback_mtx_.lock();
-      pose_ready = bloquear_callback;
-      pose_callback_mtx_.unlock();
-      vel_callback_mtx_.lock();
-      vel_ready = bloquear_vel;
-      vel_callback_mtx_.unlock();
-    }
-
     double t_total = 0.0;
-    auto result = std::make_shared<TrayAction::Result>();            // Creamos el objeto de nuestra interfaz que devolveremos al cliente al final del callback.
 
     if (!eliminado) {
       auto feedback_msg = std::make_shared<TrayAction::Feedback>();               // Creamos el objeto de nuestra interfaz que utilizaremos como feedback de la acción
@@ -297,23 +474,94 @@ private:
       // Obtenemos los valores del cliente de la acción para utilizarlos en el bucle
       auto goal = goal_handle->get_goal();
 
+      Eigen::Vector3d absolute_target(
+        goal->target_pose.pose.position.x,
+        goal->target_pose.pose.position.y,
+        goal->target_pose.pose.position.z);
+      const Eigen::Vector3d world_target = absolute_target;
+      if (goal->absoluto_x && goal->absoluto_y && goal->absoluto_z) {
+        absolute_target = control_t_world.translation +
+          control_t_world.rotation * absolute_target;
+      }
+      const double control_yaw = std::atan2(
+        2.0 * (control_t_world.rotation.w() * control_t_world.rotation.z() +
+        control_t_world.rotation.x() * control_t_world.rotation.y()),
+        1.0 - 2.0 * (control_t_world.rotation.y() * control_t_world.rotation.y() +
+        control_t_world.rotation.z() * control_t_world.rotation.z()));
+      const double absolute_yaw = normalizar_angulo(
+        control_yaw + pose2yaw(goal->target_pose));
+
       constexpr std::size_t N_EJES_TRAY = 4;
 
-      // Obtener Pose inicial
-      pose_callback_mtx_.lock();
-      double x0 = last_pose_.pose.position.x;
-      double y0 = last_pose_.pose.position.y;
-      double z0 = last_pose_.pose.position.z;
-      double yaw0 = pose2yaw(last_pose_);
-      pose_callback_mtx_.unlock();
+      geometry_msgs::msg::PoseStamped initial_pose;
+      initial_pose.pose = initial_state.o_t_body;
+      const double x0 = initial_state.o_t_body.position.x;
+      const double y0 = initial_state.o_t_body.position.y;
+      const double z0 = initial_state.o_t_body.position.z;
+      const double yaw0 = pose2yaw(initial_pose);
+      const double vx0 = initial_state.velocity.linear.x;
+      const double vy0 = initial_state.velocity.linear.y;
+      const double vz0 = initial_state.velocity.linear.z;
+      const double vyaw0 = initial_state.velocity.angular.z;
 
-      // Obtener Velocidad inicial
-      vel_callback_mtx_.lock();
-      double vx0 = last_vel_.twist.linear.x;
-      double vy0 = last_vel_.twist.linear.y;
-      double vz0 = last_vel_.twist.linear.z;
-      double vyaw0 = last_vel_.twist.angular.z;
-      vel_callback_mtx_.unlock();
+      if (
+        initial_state.pose_source ==
+        orbslam3_msgs::msg::NavigationState::POSE_SOURCE_ORB &&
+        goal->absoluto_x && goal->absoluto_y && goal->absoluto_z)
+      {
+        const auto o_t_body = PoseFromMessage(initial_state.o_t_body);
+        const auto w_t_body = PoseFromMessage(initial_state.w_t_body);
+        const Eigen::Vector3d world_x_in_control =
+          control_t_world.rotation * Eigen::Vector3d::UnitX();
+        const Eigen::Vector3d world_y_in_control =
+          control_t_world.rotation * Eigen::Vector3d::UnitY();
+        const Eigen::Vector3d world_z_in_control =
+          control_t_world.rotation * Eigen::Vector3d::UnitZ();
+        RCLCPP_WARN(
+          this->get_logger(),
+          "[F5H-ABSOLUTE-FRAME-DIAG] part=poses epoch=%lu sample=%lu "
+          "global_valid=%s global_status=%u "
+          "o_p=(%.6f,%.6f,%.6f) o_q=(%.6f,%.6f,%.6f,%.6f) "
+          "w_p=(%.6f,%.6f,%.6f) w_q=(%.6f,%.6f,%.6f,%.6f)",
+          static_cast<unsigned long>(initial_state.map_epoch),
+          static_cast<unsigned long>(initial_state.sample_sequence),
+          initial_state.global_valid ? "true" : "false",
+          static_cast<unsigned>(initial_state.global_status),
+          o_t_body.translation.x(), o_t_body.translation.y(), o_t_body.translation.z(),
+          o_t_body.rotation.x(), o_t_body.rotation.y(), o_t_body.rotation.z(),
+          o_t_body.rotation.w(),
+          w_t_body.translation.x(), w_t_body.translation.y(), w_t_body.translation.z(),
+          w_t_body.rotation.x(), w_t_body.rotation.y(), w_t_body.rotation.z(),
+          w_t_body.rotation.w());
+        RCLCPP_WARN(
+          this->get_logger(),
+          "[F5H-ABSOLUTE-FRAME-DIAG] part=target_axes epoch=%lu sample=%lu "
+          "world_target=(%.6f,%.6f,%.6f) control_target=(%.6f,%.6f,%.6f) "
+          "c_t_w_p=(%.6f,%.6f,%.6f) c_t_w_q=(%.6f,%.6f,%.6f,%.6f) "
+          "world_x_in_control=(%.6f,%.6f,%.6f) "
+          "world_y_in_control=(%.6f,%.6f,%.6f) "
+          "world_z_in_control=(%.6f,%.6f,%.6f)",
+          static_cast<unsigned long>(initial_state.map_epoch),
+          static_cast<unsigned long>(initial_state.sample_sequence),
+          world_target.x(), world_target.y(), world_target.z(),
+          absolute_target.x(), absolute_target.y(), absolute_target.z(),
+          control_t_world.translation.x(), control_t_world.translation.y(),
+          control_t_world.translation.z(),
+          control_t_world.rotation.x(), control_t_world.rotation.y(),
+          control_t_world.rotation.z(), control_t_world.rotation.w(),
+          world_x_in_control.x(), world_x_in_control.y(), world_x_in_control.z(),
+          world_y_in_control.x(), world_y_in_control.y(), world_y_in_control.z(),
+          world_z_in_control.x(), world_z_in_control.y(), world_z_in_control.z());
+      }
+
+      RCLCPP_WARN(
+        this->get_logger(),
+        "[F5H-ATOMIC-GOAL-START] success=true source=%u epoch=%lu sample=%lu "
+        "x0=(%.6f,%.6f,%.6f) v0=(%.6f,%.6f,%.6f) yaw0=%.6f yaw_rate0=%.6f",
+        static_cast<unsigned>(initial_state.pose_source),
+        static_cast<unsigned long>(initial_state.map_epoch),
+        static_cast<unsigned long>(initial_state.sample_sequence),
+        x0, y0, z0, vx0, vy0, vz0, yaw0, vyaw0);
 
       std::vector<std::array<double, 5>> salida_trayectoria(N_EJES_TRAY);
 
@@ -342,21 +590,21 @@ private:
           double xf, yf, yawf;
 
           if (goal->absoluto_x) {
-            xf = goal->target_pose.pose.position.x;
+            xf = absolute_target.x();
           } else {
             xf = x0 - goal->target_pose.pose.position.y * sin(yaw0) +
               goal->target_pose.pose.position.x * cos(yaw0);
           }
 
           if (goal->absoluto_y) {
-            yf = goal->target_pose.pose.position.y;
+            yf = absolute_target.y();
           } else {
             yf = y0 + goal->target_pose.pose.position.y * cos(yaw0) +
               goal->target_pose.pose.position.x * sin(yaw0);
           }
 
           if (goal->absoluto_yaw) {
-            yawf = pose2yaw(goal->target_pose);
+            yawf = absolute_yaw;
           } else {
             yawf = yaw0 + pose2yaw(goal->target_pose);
             if (yawf > M_PI || yawf < -M_PI) {
@@ -366,7 +614,8 @@ private:
 
           const std::vector<double> posiciones_iniciales = {x0, y0, z0, yaw0};
           const std::vector<double> posiciones_finales =
-          {xf, yf, goal->target_pose.pose.position.z, yawf};
+          {xf, yf, goal->absoluto_z ? absolute_target.z() :
+            goal->target_pose.pose.position.z, yawf};
           const std::vector<double> velocidades_iniciales = {vx0, vy0, vz0, vyaw0};
           const std::vector<double> velocidades_finales = {0.0, 0.0, 0.0, 0.0};
           const std::vector<double> tiempos_finales = {goal->tx, goal->ty, goal->tz, goal->tyaw};
@@ -394,27 +643,27 @@ private:
           double xf, yf, zf_abs, yawf;
 
           if (goal->absoluto_x) {
-            xf = goal->target_pose.pose.position.x;
+            xf = absolute_target.x();
           } else {
             xf = x0 - goal->target_pose.pose.position.y * sin(yaw0) +
               goal->target_pose.pose.position.x * cos(yaw0);
           }
 
           if (goal->absoluto_y) {
-            yf = goal->target_pose.pose.position.y;
+            yf = absolute_target.y();
           } else {
             yf = y0 + goal->target_pose.pose.position.y * cos(yaw0) +
               goal->target_pose.pose.position.x * sin(yaw0);
           }
 
           if (goal->absoluto_z) {
-            zf_abs = goal->target_pose.pose.position.z;
+            zf_abs = absolute_target.z();
           } else {
             zf_abs = z0 + goal->target_pose.pose.position.z;
           }
 
           if (goal->absoluto_yaw) {
-            yawf = pose2yaw(goal->target_pose);
+            yawf = absolute_yaw;
           } else {
             yawf = yaw0 + pose2yaw(goal->target_pose);
             if (yawf > M_PI || yawf < -M_PI) {
@@ -428,7 +677,8 @@ private:
 
           const std::vector<double> posiciones_iniciales = {x0, y0, z0, yaw0};
           const std::vector<double> posiciones_finales =
-          {xf, yf, goal->target_pose.pose.position.z, yawf};
+          {xf, yf, goal->absoluto_z ? absolute_target.z() :
+            goal->target_pose.pose.position.z, yawf};
           const std::vector<double> velocidades_iniciales = {vx0, vy0, vz0, vyaw0};
           const std::vector<double> velocidades_finales = {0.0, 0.0, 0.0, 0.0};
           const std::vector<double> velocidades_maximas = {vmax_x, vmax_y, vmax_z, v_max_ang};
@@ -469,21 +719,21 @@ private:
           const double tiempo_vuelta = static_cast<double>(goal->tyaw);
 
           if (goal->absoluto_x) {
-            xc = goal->target_pose.pose.position.x;
+            xc = absolute_target.x();
           } else {
             xc = x0 - goal->target_pose.pose.position.y * sin(yaw0) +
               goal->target_pose.pose.position.x * cos(yaw0);
           }
 
           if (goal->absoluto_y) {
-            yc = goal->target_pose.pose.position.y;
+            yc = absolute_target.y();
           } else {
             yc = y0 + goal->target_pose.pose.position.y * cos(yaw0) +
               goal->target_pose.pose.position.x * sin(yaw0);
           }
 
           if (goal->absoluto_z) {
-            zc = goal->target_pose.pose.position.z;
+            zc = absolute_target.z();
           } else {
             zc = z0 + goal->target_pose.pose.position.z;
           }
@@ -498,7 +748,7 @@ private:
 
           if (goal->absoluto_yaw) {
             // Yaw fijo absoluto durante toda la vuelta
-            yaw_ref = pose2yaw(goal->target_pose);
+            yaw_ref = absolute_yaw;
           } else {
             // Offset respecto al yaw necesario para mirar al centro.
             // Si yaw_ref = 0, el dron mira siempre al centro.
@@ -534,6 +784,7 @@ private:
 
         result->success = false;
         result->t_total = 0.0f;
+        ReleaseTrajectorySourceIfCurrent(goal_handle);
         goal_handle->abort(result);
 
         return;
@@ -543,6 +794,7 @@ private:
 
       auto t0 = this->get_clock()->now();
       RCLCPP_INFO(this->get_logger(), "t=%.6f", t0.seconds());
+      bool first_feedback = true;
 
       while (rclcpp::ok() && !eliminado && t <= t_total) {
         active_mtx_.lock();
@@ -552,7 +804,8 @@ private:
         active_mtx_.unlock();
 
         if (!goal_handle->is_canceling()) {
-          t = (this->get_clock()->now() - t0).seconds();
+          t = first_feedback ? 0.0 : (this->get_clock()->now() - t0).seconds();
+          first_feedback = false;
 
           evaluar_trayectoria(t, salida_trayectoria);
 
@@ -585,6 +838,7 @@ private:
       }
     }
 
+    ReleaseTrajectorySourceIfCurrent(goal_handle);
     if (eliminado) {
       result->success = false;
       result->t_total = 0.0f;
@@ -601,23 +855,26 @@ private:
   }
 
   rclcpp_action::Server<TrayAction>::SharedPtr objeto_servicio_accion;           // Creamos el objeto del servicio de la acción
-  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr sub_pose_;
-  rclcpp::Subscription<geometry_msgs::msg::TwistStamped>::SharedPtr sub_vel_;
-
-  bool bloquear_callback = false;
-  bool bloquear_vel = false;
-
-  geometry_msgs::msg::PoseStamped last_pose_;
-  geometry_msgs::msg::TwistStamped last_vel_;
+  rclcpp::Subscription<orbslam3_msgs::msg::NavigationState>::SharedPtr
+    sub_navigation_state_;
+  rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr trajectory_active_client_;
 
   std::mutex active_mtx_;
-  std::mutex pose_callback_mtx_;
-  std::mutex vel_callback_mtx_;
+  std::mutex navigation_state_mtx_;
+  std::condition_variable navigation_state_cv_;
   std::shared_ptr<GoalHandleTrayAction> active_goal_;        // goal que consideramos "activo"
 
   double v_max_lin;
   double v_max_ang;
   double t_a;
+  double navigation_state_timeout_sec_{0.5};
+  double trajectory_source_handshake_timeout_sec_{1.0};
+  bool navigation_state_received_{false};
+  orbslam3_msgs::msg::NavigationState last_navigation_state_;
+  std::chrono::steady_clock::time_point navigation_state_received_at_;
+  bool control_t_world_valid_{false};
+  uint64_t control_t_world_epoch_{0};
+  dron_individual::RigidPose control_t_world_;
 
   bool debug_architecture_telemetry_{false};
   uint32_t drone_id_{0};

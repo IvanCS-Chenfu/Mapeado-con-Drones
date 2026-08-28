@@ -4,9 +4,11 @@
 
 ```text
 5A: CONSEGUIDA (auditoría y reconciliación documental)
-5B-5H: sin hacer
+5B: CONSEGUIDA (estado local coherente, `O_T_B` y gate)
+5C-5E: CONSEGUIDAS; 5F PARCIAL
+5G-5H: PARCIAL; diagnostico 251 completo, extrinseca optica pendiente
 5I: absorbida en 5H; no ejecutar de forma independiente
-Fase 5 funcional: sin hacer
+Fase 5 funcional: en curso
 ```
 
 ## Objetivo
@@ -186,6 +188,12 @@ del control.
 - 5G exige reconciliar el ADR de GT antes de implementar el fallback.
 - 5H absorbe la integración/regresión que antes pertenecía a 5I.
 - Cada subfase requiere preparación y autorización propias.
+
+Para el bloque 5C+5D+5E+5F se acuerda un servicio inicial más push dirigido,
+un único pending de reference KF por dron, estado global
+`INVALID/PROVISIONAL/AUTHORITATIVE` y `global_valid` solo autoritativa. Los
+goals absolutos permanecen deshabilitados hasta 5H. 5F entrega métricas y
+gráficas O/W/GT y se detiene en puerta humana.
 
 ## Prueba final
 

@@ -22,6 +22,12 @@ aunque el publicador lo haya emitido antes de arrancar el escenario. Marcadores:
 [SCENARIO-RUNNER-READY-TIMEOUT]
 ```
 
+Fase 5B añade `expect_rejected` por goal. Un rechazo esperado se registra con
+`[SCENARIO-RUNNER-GOAL-REJECTED-EXPECTED]` y permite continuar; una aceptación
+inesperada cancela/falla el escenario. Funciona en envío secuencial y
+simultáneo y permite validar que un absoluto sin global sea rechazado antes de
+los goals relativos.
+
 Topic:
 
 ```text

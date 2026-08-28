@@ -96,12 +96,18 @@ timestamp, copia de `imLeftToFeed`, `K`, distorsion y dimensiones efectivas.
 El wrapper ya no sondea estado persistente ni asocia por proximidad temporal.
 Las dos consultas de preprocessing permiten rechazar doble rectificacion.
 
+Fase 5B amplía aditivamente el mismo recibo con `tracking_state`, reference KF
+real e ID, y `Tcr = C_T_Kref`. Los campos se capturan inmediatamente después
+del `TrackStereo` que produjo la pose, usando
+`Tracking::mCurrentFrame.mpReferenceKF`; por tanto no mezclan consultas de
+frames distintos. No se modifica mapa, tracking ni optimización del core.
+
 Referencias:
 
 ```text
 ORB_SLAM3/include/System.h -> StereoTrackingReceipt, TrackStereo
 ORB_SLAM3/src/System.cc -> System::TrackStereo
-rg "StereoTrackingReceipt|ConsumeLastCreatedKeyFrameEvent|imLeftToFeed"
+rg "StereoTrackingReceipt|reference_keyframe|Tcr|ConsumeLastCreatedKeyFrameEvent"
 aproximadamente lineas 100-150 y 249-355
 ```
 

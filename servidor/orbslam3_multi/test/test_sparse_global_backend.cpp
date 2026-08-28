@@ -266,6 +266,41 @@ TEST(SparseGlobalBackend, RoutesOnlyPoseRelevantKeyFrameChanges)
   EXPECT_NEAR(backend.GetGlobalPose({1, 0, 8})->world_pose.position.x, 14.0, 1e-9);
 }
 
+TEST(SparseGlobalBackend, ClassifiesGlobalPoseQueriesWithoutCreatingAuthority)
+{
+  SparseGlobalBackend backend;
+  EXPECT_EQ(
+    backend.QueryGlobalPose({0, 0, 1}).status,
+    orbslam3_multi::GlobalPoseQueryStatus::Unknown);
+  EXPECT_EQ(
+    backend.QueryGlobalPose({1, 0, 1}).status,
+    orbslam3_multi::GlobalPoseQueryStatus::Pending);
+
+  auto map = MakeMap(1, 2);
+  auto & keyframe = map->keyframes.emplace_back();
+  keyframe.id = 8;
+  keyframe.pose = MakePose(1.0);
+  backend.InsertDelta(1, map);
+  EXPECT_EQ(
+    backend.QueryGlobalPose({1, 1, 8}).status,
+    orbslam3_multi::GlobalPoseQueryStatus::InvalidEpoch);
+  EXPECT_EQ(
+    backend.QueryGlobalPose({1, 2, 9}).status,
+    orbslam3_multi::GlobalPoseQueryStatus::Pending);
+  EXPECT_EQ(
+    backend.QueryGlobalPose({1, 2, 8}).status,
+    orbslam3_multi::GlobalPoseQueryStatus::Pending);
+
+  ASSERT_EQ(
+    backend.CommitAnchor({1, 2}, MakePose(10.0), 2).status,
+    PoseCommitStatus::Applied);
+  const auto available = backend.QueryGlobalPose({1, 2, 8});
+  ASSERT_EQ(available.status, orbslam3_multi::GlobalPoseQueryStatus::Available);
+  ASSERT_TRUE(available.pose.has_value());
+  EXPECT_EQ(available.pose->pose_revision, 1U);
+  EXPECT_NEAR(available.pose->world_pose.position.x, 11.0, 1e-9);
+}
+
 TEST(SparseGlobalBackend, FirstFiducialAnchorsAndHighErrorRevisitCreatesTask)
 {
   SparseGlobalBackend backend;

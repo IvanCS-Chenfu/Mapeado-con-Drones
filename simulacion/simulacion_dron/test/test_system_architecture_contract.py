@@ -180,6 +180,10 @@ def test_runtime_evidence_is_emitted_by_real_producers_or_consumers():
     gen_tray = (
         SRC_ROOT / 'dron/dron_individual/src/control_tray/gen_tray.cpp'
     ).read_text(encoding='utf-8')
+    navigation_mux = (
+        SRC_ROOT /
+        'dron/dron_individual/src/control_tray/navigation_state_mux.cpp'
+    ).read_text(encoding='utf-8')
     motors = (
         SRC_ROOT / 'dron/dron_individual/src/control_tray/aplicar_fuerzas_dron.cpp'
     ).read_text(encoding='utf-8')
@@ -201,7 +205,8 @@ def test_runtime_evidence_is_emitted_by_real_producers_or_consumers():
     assert 'fiducial_config_server_to_wrapper' in config_server
     assert 'wrapper_to_server_fiducial_observations' in wrapper
     assert 'wrapper_to_server_fiducial_observations' in server
-    assert 'sim_to_dron_gt' in gen_tray
+    assert 'sim_to_dron_gt' in navigation_mux
+    assert 'sensor/GT/pose' not in gen_tray
     assert 'sim_to_dron_action' in gen_tray
     assert 'dron_to_sim_motors' in motors
 
@@ -218,3 +223,14 @@ def test_master_web_flag_gates_architecture_producers():
     assert "'.lower() == 'true' and '" in launch
     assert "executable='system_architecture_bridge.py'" in launch
     assert "executable='system_architecture_browser.py'" in launch
+
+
+def test_phase5_profile_enables_explicit_gt_fallback_switch():
+    multi_launch = (
+        PACKAGE_ROOT / 'launch/multi_dron.launch.py'
+    ).read_text(encoding='utf-8')
+    drone_launch = (
+        SRC_ROOT / 'dron/dron_individual/launch/generar_dron.launch.py'
+    ).read_text(encoding='utf-8')
+    assert "'gt_fallback_enabled', default_value='true'" in multi_launch
+    assert "'gt_fallback_enabled', default_value='false'" in drone_launch

@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer; no preparar backend fuerte hasta verificar el cierre vigente de 3Q
+CONSEGUIDA; API y estados validados en tests y prueba 230
 ```
 
 ## Objetivo
@@ -19,6 +19,9 @@ Crear o reutilizar una API del Servidor que resuelva:
 
 El Dron usará el reference KF exacto y `Tcr`; 5C no diseña `C_KF`, nearest-KF
 ni selección por cercanía.
+
+La implementación acordada reutiliza `SparseGlobalBackend::GetGlobalPose()` y
+`GlobalPoseRecord::pose_revision`. No crea otra base de datos ni otra revisión.
 
 ## Contexto y ámbitos
 
@@ -47,6 +50,18 @@ No tocar Dron, ORB core, GT ni sobrescribir raw.
   `UNKNOWN/INVALID_EPOCH`;
 - punto inequívoco para detectar cambios de pose/revisión que 5D deba publicar.
 
+Clasificación acordada:
+
+```text
+AVAILABLE          -> registro world activo y versionado
+PENDING            -> KF/epoch aún no materializado o todavía sin autoridad
+UNKNOWN            -> identidad de dron/KF no admisible
+INVALID_EPOCH      -> epoch incompatible con el estado conocido del dron
+```
+
+Una ausencia que pueda explicarse por carrera wrapper->Servidor se conserva
+como `PENDING`; no se convierte prematuramente en error definitivo.
+
 No publicar arrays completos a todos los drones ni crear otra autoridad global.
 
 ## Pruebas acordables
@@ -67,3 +82,6 @@ F5C|KF_GLOBAL_QUERY|POSE_REVISION|PENDING|INVALID_EPOCH|RAW|ERROR|FATAL
 
 Identidad completa, pose autoritativa, revisión correcta, cambios detectables,
 raw intacto y builds/tests acordados correctos.
+
+5C se valida como checkpoint interno del bloque; no se considera cierre del
+bloque sin transporte 5D, estimador 5E y métricas 5F.

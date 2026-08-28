@@ -6,6 +6,13 @@ Interpreta un `SynchronizedFiducialBatch` ya asociado al KF raw exacto. Carga
 `fiducial_objects.yaml` con `yaml-cpp`, resuelve `tag_id -> object_id`, deriva
 `object_T_tag` por cara y produce candidatos `world_T_camera`.
 
+La base de cada tag coincide con OpenCV/IPPE: X horizontal, Y hacia arriba en
+la textura y Z normal saliente. `FaceTransform()` expresa esa base en el objeto
+y `Interpret()` compone
+`camera_T_object=camera_T_tag*inverse(object_T_tag)` y despues
+`world_T_camera=world_T_object*inverse(camera_T_object)`. Por tanto su salida es
+la pose de la camara optica; no convierte a body ni usa `body_T_camera`.
+
 Por objeto aplica:
 
 - rango inclusivo configurable por cada `camera_T_tag`; un tag fuera de rango
@@ -26,7 +33,7 @@ include/orbslam3_server/fiducial_object_interpreter.hpp
   -> FiducialObjectInterpreter, VisitState
 src/fiducial_object_interpreter.cpp
   -> Load, Interpret, AssignVisitLocked
-  -> rg -n "FaceTransform|Interpret\(|AssignVisitLocked"
+  -> rg -n "FaceTransform|camera_T_object|Interpret\(|AssignVisitLocked"
 test/test_fiducial_object_interpreter.cpp
   -> configuracion, rango, fusion robusta, orden temporal y FIFO
 ```

@@ -106,6 +106,7 @@ public:
   GlobalPoseStoreStats GetPoseStats() const;
   LandmarkScoreStats GetScoreStats() const;
   std::optional<GlobalPoseRecord> GetGlobalPose(const RawKeyFrameId & id) const;
+  GlobalPoseQueryResult QueryGlobalPose(const RawKeyFrameId & id) const;
   GlobalMapBuildResult BuildGlobalMap();
   bool StartRawRecord(
     const std::string & path, std::string * error_message = nullptr);

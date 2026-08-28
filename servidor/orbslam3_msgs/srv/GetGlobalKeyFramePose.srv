@@ -1,0 +1,5 @@
+uint32 drone_id
+uint64 map_epoch
+uint64 keyframe_id
+---
+orbslam3_msgs/GlobalKeyFramePose result

@@ -50,6 +50,10 @@ Rol:
 - genera trayectorias elípticas alrededor de un centro o punto inicial;
 - útil para rodear zonas/edificios;
 - calcula posición, velocidad y derivadas en función del tiempo.
+- usa radios positivos (`abs(rx)`, `abs(ry)`) y avanza `theta` de `theta0` a
+  `theta0 + 2*pi`; la API actual no permite elegir el sentido de giro;
+- el punto inicial debe estar sobre la elipse para evitar un salto inicial de
+  referencia, porque `theta0` se proyecta sobre la curva definida.
 
 Uso típico dentro del proyecto:
 - mover drones alrededor de un edificio para mapearlo.

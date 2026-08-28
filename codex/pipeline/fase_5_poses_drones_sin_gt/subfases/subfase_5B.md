@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer; pendiente de preparación conversada
+CONSEGUIDA el 2026-08-26; validación integrada final en prueba 225
 ```
 
 ## Objetivo
@@ -36,8 +36,10 @@ simulacion/simulacion_dron/**        # instrumentación y pruebas
 ```
 
 No tocar `servidor/orbslam3_multi`, `servidor/orbslam3_server`, fallback ni
-control de fuerzas salvo instrumentación expresamente acordada. Si hace falta
-modificar `dron/ORB_SLAM3`, suspender y pedir autorización específica.
+control de fuerzas salvo instrumentación expresamente acordada. Se permite el
+cambio mínimo y aditivo ya acordado en `dron/ORB_SLAM3` para ampliar
+`StereoTrackingReceipt` con el estado coherente del mismo `TrackStereo`, la
+reference KF real y `Tcr`; no se permiten otros cambios funcionales del core.
 
 ## Contrato requerido
 
@@ -70,7 +72,14 @@ absoluto + W_T_O inválida    -> rechazar
 ```
 
 No cambiar flags ni reinterpretar valores world como relativos. Preparar la
-capa de trayectoria para congelar frame y objetivo al aceptar la acción.
+capa de trayectoria para congelar frame, `map_epoch` y objetivo al aceptar la
+acción. La interfaz ROS será coherente y ampliable para estado local/global
+futuro; en 5B los campos globales y de velocidad quedarán explícitamente
+inválidos.
+
+La continuidad exigida en 5B es intra-epoch. No se fingirá continuidad entre
+epochs ni durante una pérdida; esa recuperación corresponde a 5G mediante el
+`GT_FALLBACK` temporal acordado.
 
 ## Prohibiciones
 
@@ -80,12 +89,24 @@ capa de trayectoria para congelar frame y objetivo al aceptar la acción.
 - GT para decidir tracking;
 - timeout como sustituto de estado ORB real.
 
-## Pruebas acordables
+## Pruebas acordadas
 
-1. recorrido corto con ORB sano y frecuencia/estado medidos;
-2. recorrido largo con cambios de KF/Local BA y saltos de `O_T_B` medidos;
-3. absoluto sin global rechazado y relativo posterior aceptado;
-4. detección inequívoca e inmediata de `RECENTLY_LOST`.
+1. tests deterministas del recibo coherente, transformaciones, tracking,
+   continuidad sintética y política de goals;
+2. builds aislados de los paquetes afectados;
+3. simulación integrada multi-dron con recorrido relativo, cambios de
+   reference KF/Local BA y saltos de `O_T_B` medidos;
+4. goal absoluto sin global rechazado y goal relativo posterior aceptado;
+5. llegada al fiducial, anclaje confirmado y giro relativo de yaw de 180
+   grados respecto a la pose normal de la trayectoria; la cámara queda mirando
+   hacia la zona sin texturas para provocar la pérdida completa;
+6. detección inequívoca e inmediata de `RECENTLY_LOST` y, si progresa, `LOST`,
+   usando el estado ORB real del mismo frame y no la ausencia de publicación.
+
+La maniobra de 180 grados es el mecanismo acordado para provocar la pérdida;
+no se añadirá blackout visual artificial. GT solo podrá conservar el control
+legacy de esta subfase y actuar como métrica externa: nunca construirá `O` ni
+decidirá el estado de tracking.
 
 Patrones iniciales:
 
@@ -97,7 +118,8 @@ F5B|TRACKING|RECENTLY_LOST|LOST|REFERENCE_KF|MAP_EPOCH|O_CONTINUITY|GOAL_REJECT|
 
 Muestra ORB coherente, epoch/ref-KF/`Tcr` inequívocos, continuidad `O_T_B`
 demostrada, cambio de ref-KF sin salto inaceptable, absoluto sin global
-rechazado, relativo funcional y pérdida detectada por estado real.
+rechazado, relativo funcional y pérdida detectada por estado real tras la
+secuencia fiducial-anclaje-giro de 180 grados.
 
 `PARCIAL` si el estado funciona pero falta continuidad. `BLOQUEADA` si la API
 exige un cambio no autorizado del core ORB.

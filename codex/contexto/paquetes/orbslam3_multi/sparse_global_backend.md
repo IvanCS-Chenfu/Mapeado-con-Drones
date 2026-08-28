@@ -15,6 +15,22 @@ fusion: LoopPipeline -> prepare privado -> commit tracks/covis/score -> dirty
 opt loop: OptimizationEvidence -> graph/solve/validate -> commit -> fusion
 publicacion: BuildGlobalMap, solo desde PrimaryWorker
 sync 4F: Configure/Submit fiducial batch -> match raw exacto
+consulta 5C: QueryGlobalPose -> status + world pose + pose_revision
+```
+
+## Consulta global 5C
+
+`QueryGlobalPose()` serializa la lectura con el estado del backend y reutiliza
+`GlobalPoseStore`. Devuelve `UNKNOWN` para un dron inexistente, `PENDING` para
+un KF conocido aun no materializado/anclado, `INVALID_EPOCH` para una epoca
+anterior a la activa y `AVAILABLE` con pose/revision para autoridad vigente.
+No crea threads, intereses ni callbacks ROS.
+
+```text
+include/orbslam3_multi/global_pose_types.hpp -> GlobalPoseQueryStatus/Result
+include/orbslam3_multi/sparse_global_backend.hpp -> QueryGlobalPose
+src/sparse_global_backend.cpp -> rg "QueryGlobalPose"
+test/test_sparse_global_backend.cpp -> rg "GlobalPoseQuery"
 ```
 
 ## Operaciones 3H-3L

@@ -26,6 +26,23 @@ Usa parámetros procedentes de:
 - `dron_individual/config/hardware.yaml`;
 - `simulacion_dron/config/sim_dron.yaml`.
 
+Las camaras estereo se fijan a `cuerpo` con `rpy="0 0 0"`, desplazadas hacia
+`+X` y a ambos lados en Y; fisicamente miran hacia el frente del body. Las
+imagenes procesadas por OpenCV/ORB usan frame optico (X derecha, Y abajo, Z
+frente). La extrinseca optica `B_T_C` correspondiente tiene rotacion
+`RPY=(-90,0,-90)` bajo `Rz*Ry*Rx`, que es la configuracion vigente en las tres
+copias `calibration*.yaml`. La rotacion historica `RPY=(0,-90,90)` era su
+inversa; el flag `use_camera_optical_frame_convention=true` no cambia por si
+solo el wrapper.
+
+Referencia:
+
+```text
+simulacion/simulacion_dron/urdf/dron_plugins.xacro
+  -> joint_camara_mono / joint_camara_estereo
+  -> rg -n "joint_camara_(mono|estereo)|origin xyz"
+```
+
 ## Generación/spawn
 
 ### `src/fiducials/fiducial_spawner.py`
@@ -60,6 +77,12 @@ Rol:
 - ejecuta/genera descripción URDF/Xacro;
 - llama al servicio `/spawn_entity` de Gazebo;
 - spawnea el dron en el mundo.
+
+Para pruebas dirigidas declara `dron.spawn_override_enabled` (default false),
+`dron.spawn_x`, `dron.spawn_y` y `dron.spawn_yaw_deg`. Si el override está
+desactivado conserva el spawn aleatorio del `spawn_box`; 5B lo usa para
+inicializar ambos drones frente al fiducial y provocar después una pérdida por
+giro real, sin blackout ni cambios en tracking.
 
 ## Plugins Gazebo
 

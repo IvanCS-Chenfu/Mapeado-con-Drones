@@ -55,6 +55,8 @@ def generate_launch_description():
     default_yaml_stereo = PathJoinSubstitution([
         FindPackageShare('dron_individual'),
         'config', 'orbslam', 'orbslam_stereo.yaml'])
+    calibration_params = PathJoinSubstitution([
+        FindPackageShare('dron_individual'), 'config', 'calibration.yaml'])
 
     args = [
         DeclareLaunchArgument('vocab', default_value=default_vocab),
@@ -96,6 +98,10 @@ def generate_launch_description():
         'drone_id': ParameterValue(drone_id, value_type=int),
         'drone_name': ParameterValue(drone_name, value_type=str),
         'local_map_frame': ParameterValue(local_map_frame, value_type=str),
+        'odom_frame': ParameterValue(
+            [drone_name, '_odom'], value_type=str),
+        'body_frame': ParameterValue(
+            [drone_name, '/base_link'], value_type=str),
         'use_corrected_keyframes': ParameterValue(True, value_type=bool),
         'max_nearest_kf_distance_m': ParameterValue(2.0, value_type=float),
     }
@@ -116,10 +122,13 @@ def generate_launch_description():
         condition=IfCondition(usar_estereo),
         package='orbslam3', executable='stereo', name='orbslam3_stereo',
         output='screen', additional_env=orbslam_environment,
-        arguments=[vocab, yaml_stereo, rectify], parameters=[stereo_params],
+        arguments=[vocab, yaml_stereo, rectify],
+        parameters=[stereo_params, calibration_params],
         remappings=[
             ('camera/left', 'sensor/camara_izq/image_raw'),
             ('camera/right', 'sensor/camara_der/image_raw'),
+            ('orbslam/navigation_state',
+             'orbslam/navigation_state_orb'),
         ])
 
     fiducial_visualizer_node = Node(

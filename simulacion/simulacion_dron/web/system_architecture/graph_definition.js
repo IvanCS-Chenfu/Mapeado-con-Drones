@@ -338,7 +338,7 @@ window.SYSTEM_ARCHITECTURE = {
         "activity_mode": "direct",
         "interface_kind": "topic",
         "producer": "plugin_sensor_groundtrurh",
-        "consumer": "gen_tray/control_calcular_fuerzas",
+        "consumer": "navigation_state_mux",
         "status": "provisional_phase5",
         "ttl_ms": 650
       }

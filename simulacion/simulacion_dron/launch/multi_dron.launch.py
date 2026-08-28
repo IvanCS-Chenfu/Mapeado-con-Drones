@@ -105,6 +105,11 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('spawn_fiducials', default_value='true'))
     ld.add_action(DeclareLaunchArgument('drone_start_stagger_sec', default_value='8.0'))
     ld.add_action(DeclareLaunchArgument(
+        'dron_spawn_override_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument('dron_spawn_y', default_value='-10.8'))
+    ld.add_action(DeclareLaunchArgument(
+        'dron_spawn_yaw_deg', default_value='90.0'))
+    ld.add_action(DeclareLaunchArgument(
         'orb_vocabulary_path', default_value=full_orb_vocabulary))
     for flag in (
         'debug_sparse_global_rviz',
@@ -138,6 +143,14 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('rawdb_record_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
         'rawdb_record_path', default_value='/tmp/f3c_raw.record'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase5_pose_metrics_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase5_pose_metrics_output_dir', default_value='/tmp/fase5_pose_metrics'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase5_global_pose_rviz_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'gt_fallback_enabled', default_value='true'))
 
     architecture_telemetry_enabled = PythonExpression([
         "'", LaunchConfiguration('debug_system_architecture_web'),
@@ -172,6 +185,33 @@ def generate_launch_description():
         }],
         output='screen',
         condition=IfCondition(LaunchConfiguration('spawn_fiducials'))))
+
+    ld.add_action(Node(
+        package='simulacion_dron',
+        executable='pose_metrics_node.py',
+        name='phase5_pose_metrics',
+        parameters=[{
+            'use_sim_time': True,
+            'drone_count': default_n,
+            'namespace_base': default_namespace_base,
+            'output_dir': LaunchConfiguration('phase5_pose_metrics_output_dir'),
+        }],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('phase5_pose_metrics_enabled'))))
+
+    ld.add_action(Node(
+        package='simulacion_dron',
+        executable='global_drone_pose_visualizer.py',
+        name='global_drone_pose_visualizer',
+        parameters=[{
+            'use_sim_time': True,
+            'drone_count': default_n,
+            'namespace_base': default_namespace_base,
+            'global_frame': 'world',
+        }],
+        output='screen',
+        condition=IfCondition(
+            LaunchConfiguration('phase5_global_pose_rviz_enabled'))))
 
     ld.add_action(Node(
         package='simulacion_dron',
@@ -252,7 +292,21 @@ def generate_launch_description():
                     params_actuators_replica,
                     params_simulated_sensors,
                     params_sim,
-                    {'use_sim_time': True, 'drone_id': i, 'drone_name': drone_name},
+                    {
+                        'use_sim_time': True,
+                        'drone_id': i,
+                        'drone_name': drone_name,
+                        'dron.spawn_override_enabled': ParameterValue(
+                            LaunchConfiguration('dron_spawn_override_enabled'),
+                            value_type=bool),
+                        'dron.spawn_x': -1.0 if i % 2 == 1 else 1.0,
+                        'dron.spawn_y': ParameterValue(
+                            LaunchConfiguration('dron_spawn_y'),
+                            value_type=float),
+                        'dron.spawn_yaw_deg': ParameterValue(
+                            LaunchConfiguration('dron_spawn_yaw_deg'),
+                            value_type=float),
+                    },
                 ]),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(single_launch_path),
@@ -267,6 +321,8 @@ def generate_launch_description():
                         'debug_fiducial_visualization'),
                     'debug_fiducial_display_seconds': LaunchConfiguration(
                         'debug_fiducial_display_seconds'),
+                    'gt_fallback_enabled': LaunchConfiguration(
+                        'gt_fallback_enabled'),
                 }.items()),
         ])
         if i == 1:

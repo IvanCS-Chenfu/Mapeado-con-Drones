@@ -17,6 +17,8 @@ find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(dron_individual REQUIRED)
+find_package(orbslam3_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -51,6 +53,16 @@ if(BUILD_TESTING)
     fiducial_contract
     test/test_fiducial_contract.py
     TIMEOUT 60
+  )
+  ament_add_pytest_test(
+    pose_metrics_contract
+    test/test_pose_metrics.py
+    TIMEOUT 30
+  )
+  ament_add_pytest_test(
+    global_drone_pose_visualizer_contract
+    test/test_global_drone_pose_visualizer.py
+    TIMEOUT 30
   )
 endif()
 
@@ -133,6 +145,8 @@ install(PROGRAMS
   src/visualizer/system_architecture_bridge.py
   src/visualizer/system_architecture_browser.py
   src/fiducials/fiducial_spawner.py
+  src/graficar/pose_metrics_node.py
+  src/visualizer/global_drone_pose_visualizer.py
 
   DESTINATION lib/${PROJECT_NAME}
 )

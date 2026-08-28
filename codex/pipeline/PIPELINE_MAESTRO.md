@@ -100,7 +100,7 @@ Solo con la puerta cerrada, usar el contrato `subfase_*.md` y seguir:
 | 2 | `conseguida` | Separación servidor/dron/simulación | Separación, configuración, visualizadores, guardas y validación final completas. |
 | 3 | `actual` | Mapa sparse global multi-dron | Reabierta solo en 3Q para corregir optimizaciones observadas en la prueba 213. |
 | 4 | `realizado` | Fiducial real sin ground truth funcional | Cerrada con 4A-4H; 4I queda aplazada como regresión opcional. |
-| 5 | `preparada` | Pose global de cada dron sin ground truth | 5A cerró arquitectura/documentación; 5B-5H siguen sin hacer. |
+| 5 | `en curso` | Pose global de cada dron sin ground truth | 5A-5E conseguidas; 5F parcial; 5G-5H parciales pendientes de revisión visual. |
 | 6 | `sin hacer` | Tareas y trayectorias de mapeo | Generará misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |
 | 7 | `sin hacer` | GUI 3D propia de operación | GUI C++/Qt/OpenGL independiente de RViz2 y del visualizador web entregado en Fase 3. |
 | 8 | `sin hacer` | Nube densa global multi-dron | Reconstrucción dense en servidor a partir de estéreo, poses globales y sparse. |
@@ -110,7 +110,10 @@ La numeracion refleja el pipeline nuevo completo. Las Fases 2 y 4 están
 conseguidas. El cierre previo de Fase 3 se reabre únicamente en 3Q para resolver
 los errores de optimización observados en la prueba 213. Fase 4 permanece
 cerrada con 4A-4H; 4I queda aplazada. Por petición explícita, 5A se completó
-documentalmente en paralelo; antes de 5C/5D se verificará el cierre de 3Q.
+documentalmente en paralelo y 5B quedó validada en la prueba 225. El bloque
+5C-5E quedan conseguidas y 5F permanece parcial. 5G-5H ya estan implementadas:
+la prueba 243 completa la trayectoria tipica y valida bloqueo de fuente y
+handshakes; falta la revision visual humana de Gazebo/RViz2 para cerrarlas.
 
 Los archivos específicos de pipeline de fases futuras son contratos
 preparatorios, no autorización de ejecución. Codex debe tratarlos como no
@@ -213,10 +216,12 @@ Usar ORB-SLAM3 local, correcciones globales de KFs y un estimador embarcado
 ligero para publicar pose y velocidad sin `sensor/GT/pose` ni `sensor/GT/vel`
 como entradas funcionales del control.
 
-5A queda conseguida documentalmente. El contrato separa `O_T_B` continuo de
+5A queda conseguida documentalmente. 5B implementa y valida el recibo ORB
+coherente, `NavigationState`, continuidad `O_T_B` intra-epoch y gate de goals.
+El contrato separa `O_T_B` continuo de
 `W_T_B` corregible y conserva `GT_FALLBACK` temporal, visible y aislado de
-mapa/global hasta que Fase 6 implemente recovery real. 5B es la primera subfase
-funcional; la antigua 5I está absorbida en 5H.
+mapa/global hasta que Fase 6 implemente recovery real. La antigua 5I está
+absorbida en 5H.
 
 No ejecutar 5C/5D contra un backend 3Q inestable: verificar primero el cierre
 vigente de 3Q. Cada subfase funcional requiere preparación y autorización.

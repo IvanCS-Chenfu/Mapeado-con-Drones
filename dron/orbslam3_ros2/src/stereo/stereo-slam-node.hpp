@@ -17,15 +17,20 @@
 
 #include "utility.hpp"
 #include "fiducial-detector.hpp"
+#include "navigation-state-estimator.hpp"
 
 /* AÑADIDO */
 #include "orbslam3_msgs/msg/orb_map.hpp"
 #include "orbslam3_msgs/msg/fiducial_key_frame_observations.hpp"
+#include "orbslam3_msgs/msg/navigation_state.hpp"
+#include "orbslam3_msgs/msg/global_key_frame_pose.hpp"
 #include "orbslam3_msgs/srv/get_orb_map.hpp"
 #include "orbslam3_msgs/srv/get_fiducial_config.hpp"
+#include "orbslam3_msgs/srv/get_global_key_frame_pose.hpp"
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/twist.hpp"
 #include "std_msgs/msg/string.hpp"
 
 #include "MapPoint.h"
@@ -82,6 +87,8 @@ class StereoSlamNode : public rclcpp::Node
             orbslam3_msgs::msg::FiducialKeyFrameObservations>::SharedPtr
             fiducial_observations_pub_;
         rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_local_pub_;
+        rclcpp::Publisher<orbslam3_msgs::msg::NavigationState>::SharedPtr
+            navigation_state_pub_;
         rclcpp::Publisher<std_msgs::msg::String>::SharedPtr architecture_activity_pub_;
         bool debug_architecture_telemetry_ = false;
         std::unordered_map<std::string, std::chrono::steady_clock::time_point>
@@ -152,6 +159,30 @@ class StereoSlamNode : public rclcpp::Node
         uint32_t drone_id_;
         std::string drone_name_;
         std::string local_map_frame_;
+        std::string odom_frame_;
+        std::string body_frame_;
+        Sophus::SE3f body_t_camera_;
+        orbslam3_ros2::NavigationStateEstimator navigation_state_estimator_;
+        orbslam3_ros2::OrbPosePredictor orb_pose_predictor_;
+        rclcpp::TimerBase::SharedPtr navigation_state_timer_;
+        orbslam3_msgs::msg::NavigationState latest_navigation_state_;
+        bool navigation_state_ready_ = false;
+        bool o_t_world_valid_ = false;
+        Sophus::SE3f o_t_world_;
+        uint64_t navigation_sample_sequence_ = 0;
+        uint64_t orb_measurement_count_ = 0;
+        uint64_t orb_prediction_count_ = 0;
+        uint64_t orb_limited_measurement_count_ = 0;
+        double orb_state_publish_rate_hz_ = 50.0;
+        int last_navigation_tracking_state_ = -999;
+        rclcpp::Client<orbslam3_msgs::srv::GetGlobalKeyFramePose>::SharedPtr
+            global_pose_client_;
+        rclcpp::Subscription<orbslam3_msgs::msg::GlobalKeyFramePose>::SharedPtr
+            global_pose_subscription_;
+        bool global_pose_request_valid_ = false;
+        uint64_t global_pose_request_generation_ = 0;
+        uint64_t requested_global_epoch_ = 0;
+        uint64_t requested_global_keyframe_id_ = 0;
 
         uint64_t map_sequence_ = 0;
         uint64_t frame_counter_ = 0;
@@ -162,6 +193,23 @@ class StereoSlamNode : public rclcpp::Node
         std::unordered_map<uint64_t, std::size_t> sent_keyframe_hashes_;
 
         void PublishLocalPose(const builtin_interfaces::msg::Time& stamp, const Sophus::SE3f& Tcw);
+        void PublishNavigationState(
+            const builtin_interfaces::msg::Time& stamp,
+            const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
+            const Sophus::SE3f& Tcw);
+        void PublishPredictedNavigationState();
+        void RequestGlobalPose(uint64_t map_epoch, uint64_t keyframe_id);
+        void HandleGlobalPoseResponse(
+            uint64_t generation,
+            uint64_t map_epoch,
+            uint64_t keyframe_id,
+            rclcpp::Client<orbslam3_msgs::srv::GetGlobalKeyFramePose>::SharedFuture
+                future);
+        void HandleGlobalPosePush(
+            orbslam3_msgs::msg::GlobalKeyFramePose::ConstSharedPtr message);
+        void ApplyGlobalPoseMessage(
+            const orbslam3_msgs::msg::GlobalKeyFramePose& message,
+            const char* source);
 
         void PublishOrbMapDelta();
 
@@ -178,6 +226,7 @@ class StereoSlamNode : public rclcpp::Node
             orbslam3_msgs::msg::OrbKeyFrame& kf_msg);
 
         geometry_msgs::msg::Pose SophusToPoseMsg(const Sophus::SE3f& T);
+        Sophus::SE3f PoseMsgToSophus(const geometry_msgs::msg::Pose& pose);
 
         std::size_t HashMapPoint(ORB_SLAM3::MapPoint* pMP);
         std::size_t HashKeyFrame(ORB_SLAM3::KeyFrame* pKF);

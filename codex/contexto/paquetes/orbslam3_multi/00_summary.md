@@ -19,6 +19,10 @@ SparseGlobalBackend
 `- GlobalMapBuilder
 ```
 
+Desde 5C, `SparseGlobalBackend::QueryGlobalPose()` consulta esa misma autoridad
+sin crear otro store y devuelve `AVAILABLE`, `PENDING`, `UNKNOWN` o
+`INVALID_EPOCH` para un KF identificado por `(drone_id,map_epoch,kf_id)`.
+
 El flujo principal de 3G permanece incremental. Un full snapshot reconcilia
 autoridades y deja dirty para el siguiente delta; no publica. El flujo
 secundario 3H-3L captura snapshots acotados, calcula fuera de locks y termina

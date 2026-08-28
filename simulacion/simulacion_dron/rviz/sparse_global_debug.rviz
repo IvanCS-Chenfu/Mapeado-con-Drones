@@ -48,6 +48,18 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /global_keyframes
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Estimated Drone Poses
+      Namespaces:
+        {}
+      Queue Size: 10
+      Topic:
+        Depth: 10
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /global_drone_poses
     - Class: rviz_default_plugins/TF
       Enabled: true
       Frame Timeout: 15

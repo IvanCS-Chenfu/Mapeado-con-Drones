@@ -1,5 +1,9 @@
 # Launches de `simulacion_dron`
 
+`multi_dron.launch.py` expone `phase5_pose_metrics_enabled` y
+`phase5_pose_metrics_output_dir`. Al activarlos lanza `phase5_pose_metrics` con
+`use_sim_time=true`, numero/namespaces de drones y salida de artefactos propia.
+
 ## `multi_dron.launch.py`
 
 Arranca Gazebo, el numero de drones definido en `config/sim_dron.yaml`,
@@ -72,7 +76,14 @@ launch_mission_gui=true
 spawn_fiducials=true
 drone_start_stagger_sec=8.0
 orb_vocabulary_path=<ORBvoc.txt completo>
+dron_spawn_override_enabled=false
+dron_spawn_y=-10.8
+dron_spawn_yaw_deg=90.0
 ```
+
+El override de spawn de 5B está desactivado por defecto. Cuando se habilita,
+`multi_dron.launch.py` coloca X en `-1/+1` según dron y pasa Y/yaw al
+`generador_URDF`; se limita a escenarios dirigidos.
 
 En la prueba 201 se mantuvieron Gazebo GUI y RViz2, mientras
 `pipeline_flow`, `system_architecture`, navegadores y telemetria arquitectonica

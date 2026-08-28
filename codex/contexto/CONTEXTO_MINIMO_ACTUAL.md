@@ -9,7 +9,7 @@ archivo y reconciliarlo con la peticion mas reciente.
 Fase 2: CONSEGUIDA el 2026-08-24
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: 5A CONSEGUIDA documentalmente; implementación funcional sin iniciar
+Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 256
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -22,7 +22,7 @@ Fase 5: 5A CONSEGUIDA documentalmente; implementación funcional sin iniciar
 Subfase actual: 3Q A REVISAR tras correccion y prueba 220
 Preparacion 3Q: cerrada; ejecucion autorizada ya realizada
 Siguiente punto de entrada: aclarar la esquina visual ambigua y decidir cierre
-Punto de entrada paralelo Fase 5: preparar 5B; antes de 5C/5D verificar 3Q
+Punto de entrada Fase 5: acordar probation temporal de actitud ORB tras 256
 Revision visual humana de prueba 200: confirmada correcta
 Cierre de Fase 2: completo
 ```
@@ -96,7 +96,51 @@ Fase 5A reconcilia el pipeline con la arquitectura `O_T_B` continua y
 reference KF real + `Tcr` sustituyen nearest-KF y smoothing no es obligatorio.
 `GT_FALLBACK` se mantiene temporalmente durante Fase 5 para completar misiones
 ante `RECENTLY_LOST`, aislado de mapa/global y con retirada obligatoria en Fase
-6. La implementación funcional comienza en 5B y aún no está autorizada.
+6. 5B queda conseguida: estado local coherente, `O_T_B` intra-epoch y gate.
+
+Prueba 225: ambos submapas reciben anchor hard, los cambios de reference KF no
+introducen salto, el absoluto sin global se rechaza y los relativos congelan
+epoch/muestra. Tras girar 180 grados ambos ORB pasan 2->3->0->1 con local y
+continuidad inválidas. Siguiente bloque: 5C+5D+5E+5F.
+
+Bloque 5C-5F ejecutado: consulta backend, servicio/push dirigido y composicion
+O/W pasan builds y tests. La prueba 230 termina `success=true` con anchors,
+loops y revisiones naturales. 5F queda PARCIAL. Por acuerdo posterior, la
+diferencia GT-pose estimada no se usa para decidir fuente ni validez debido a
+la deriva acumulada.
+
+Bloque 5G-5H ejecutado: mux ORB/`GT_FALLBACK`, velocidad comun, goals absolutos
+y ejes RViz2 desde la `O_T_B` exacta del controlador. La fuente se congela por
+goal; solo la perdida ORB permite pasar inmediatamente a GT, que se mantiene
+hasta terminarlo. Tras corregir el handshake detectado en 242, la prueba 243
+completa 17/17 pasos, 22/22 goals y 44/44 handshakes, sin ningun `GT -> ORB`
+dentro de goals. 249 descarta un impulso angular y 250/251 localizan la
+extrinseca inversa. La 252 corrige `B_T_C` y completa 17/17 pasos y 22/22 goals.
+Quedan tirones por derivadas ORB sin filtrar (20 Hz frente a control 50 Hz) y
+movimientos bruscos cuando una perdida hace `ResetToSource` hacia GT dentro de
+una trayectoria congelada en O. Estado PARCIAL.
+
+La prueba 254 deja GT exacto y publica ORB predicho a 50 Hz desde el wrapper.
+Los handoffs empiezan con salto cero, pero la vuelta se interrumpe tras 13/17
+pasos: en giros, la pose acepta saltos ORB de hasta unos `0.28 rad/frame`
+mientras la velocidad angular queda limitada. El estado angular incoherente
+desestabiliza el control y precede las perdidas de tracking.
+
+La prueba 255 pone references KFs en probation y rechaza outliers angulares de
+forma coherente. Build y 13/13 tests finales correctos. Antes de interrumpirse
+completa 7/17 pasos; evita publicar los saltos graves, pero registra 10 timeouts
+y pasa a GT frecuentemente. La revision visual confirma inestabilidad tras unos
+segundos en ORB. La cronologia descarta los commits globales: los tres episodios
+siguen churn de referencias/outliers locales y dos suceden sin optimizacion
+activa ni reciente.
+
+La prueba 256 sustituye la estabilidad de ID por probation geometrica multi-KF
+y usa correccion SE(3) gradual; build y 15/15 GTests pasan. La simulacion falla:
+el cambio GT->ORB es continuo y empieza con error angular cero, pero drone2
+acepta una innovacion de `0.125261 rad`, publica `0.119002 rad` y pierde
+tracking `0.793 s` despues. Sin optimizacion W concurrente, el diagnostico es
+un gate angular demasiado permisivo: repartir un outlier no sustituye su
+confirmacion temporal.
 
 Repeticion visual 212: seis yaw relativos aplicados y compilados, pero no
 alcanzados. Un `LoopTask` fue rechazado por

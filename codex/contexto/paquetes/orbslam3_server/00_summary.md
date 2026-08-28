@@ -30,6 +30,9 @@ La fuente fiducial live es exclusivamente visual. `FiducialObjectInterpreter`
 asigna visitas por intervalos temporales de `(drone_id,map_epoch,object_id)`;
 admite batches fuera de orden dentro del gap configurable. Replay solo reinyecta
 observaciones `source=visual_fiducial`; las grabaciones GT legacy se rechazan.
+La replica `config/calibration_dron.yaml` conserva el mismo `B_T_C` optico
+frontal de Dron (`RPY=-90,0,-90`); la ruta fiducial visual trabaja en camara y
+no consume esta extrinseca.
 
 El primer KF observado reserva la candidatura de control de la visita. Los
 eventos `secondary_task_lifecycle` delimitan visualmente cada tarea desde
@@ -44,6 +47,12 @@ Un anchor/commit solo marca dirty: el siguiente principal publica.
 `SecondaryWorkerLoop()` contiene una barrera de excepciones por tarea. Una
 excepcion inesperada se registra como `[F3H-SECONDARY-EXCEPTION]`, completa la
 tarea y activa fallo bloqueante, en vez de abortar el proceso del servidor.
+
+Desde 5D, `/global_mapping/get_global_keyframe_pose` responde inmediatamente
+con el estado 5C y conserva un unico interes por dron. Los commits principal y
+secundario publican revisiones nuevas por
+`/dron_X/orbslam/global_keyframe_pose` con QoS reliable/volatile; no hay polling
+ni heartbeat.
 
 Las BAJAS se coalescen por huellas semanticas y se revalidan con geometria
 exacta al dequeue. Un hijo loop blando sigue rigidamente al KF de apoyo; su

@@ -6,7 +6,7 @@
 Fase 2: CONSEGUIDA
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: 5A CONSEGUIDA documentalmente; 5B-5H sin hacer
+Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 256
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -19,8 +19,8 @@ Fase 5: 5A CONSEGUIDA documentalmente; 5B-5H sin hacer
 Subfase actual: 3Q A REVISAR tras mejora conservadora y prueba 220
 Preparacion 3Q: CERRADA; autorizacion ejecutada
 Siguiente punto de entrada: continuar pipeline; reabrir 3Q solo si reaparece el fallo
-Trabajo funcional activo: ninguno
-Punto de entrada paralelo Fase 5: preparar 5B
+Trabajo funcional activo: ninguno; prueba 256 diagnosticada y documentada
+Punto de entrada Fase 5: acordar probation angular temporal, sin tocar optimizador W
 Revision visual de prueba 200: confirmada correcta por el usuario
 Pendiente de Fase 2: ninguno
 Autorizacion 4A+4B: concedida y consumida
@@ -117,6 +117,78 @@ loop tardias rechazadas. La prueba 213 queda como reentrada obligatoria de 3Q.
 - `GT_FALLBACK` temporal visible hasta recovery real en Fase 6;
 - smoothing no obligatorio y antigua 5I absorbida en 5H;
 - sin cambios funcionales, builds, tests o simulaciones.
+
+## Fase 5B
+
+- `StereoTrackingReceipt` coherente con tracking, ref-KF real y `Tcr`;
+- `NavigationState` y `O_T_B` continuos dentro del epoch, sin continuidad falsa
+  durante pérdida;
+- absolutos sin global rechazados; relativos frescos aceptados con snapshot;
+- builds seleccionados correctos y tests nuevos funcionales correctos;
+- prueba 225: dos anchors hard, cambios ref-KF con paso cero, 7/7 pasos y
+  pérdida 2->3->0->1 de ambos drones tras giro de 180 grados;
+- conclusión: CONSEGUIDA; siguiente bloque 5C+5D+5E+5F.
+
+## Bloque 5C+5D+5E+5F
+
+- 5C-5E CONSEGUIDAS y 5F PARCIAL tras la prueba 230;
+- autoridad existente en `GlobalPoseStore`, sin base global paralela;
+- servicio asíncrono, pending de referencia activa y push dirigido por dron;
+- W provisional observable pero inválida; solo autoritativa habilita global;
+- goals absolutos deshabilitados hasta la conversión world->O de 5H;
+- 5F entrega métricas numéricas y gráficas O/W/GT; el error frente a GT no
+  gobierna la selección de fuente por la deriva acumulada.
+
+## Bloque 5G+5H
+
+- mux ORB/`GT_FALLBACK`, velocidad común y goals absolutos integrados;
+- fuente congelada por trayectoria: no existe `GT -> ORB` dentro de un goal;
+- una pérdida ORB permite `ORB -> GT` inmediato y mantiene GT hasta la frontera;
+- el error GT-pose estimada es solo una métrica externa, nunca una guarda;
+- RViz2 representa la `O_T_B` exacta consumida por el controlador y etiqueta
+  cada dron con `[ORB]` o `[GT]`;
+- prueba 242 fallida por handshake no consumible, conservada en historial;
+- prueba 243: 17/17 pasos, 22/22 goals, 44/44 handshakes, cero `GT -> ORB`
+  dentro de goals y ejecución `success=true`;
+- prueba 246: revisión visual NO CONSEGUIDA; `GT -> ORB` entre goals deja la
+  última consigna GT activa frente a una pose ORB;
+- prueba 247: el reset hizo `ep=0`, pero no `ev=0` y cambió fuente durante una
+  espera; no demuestra un defecto de ORB ni de ganancias;
+- prueba 248: la conmutacion atomica arranca con pose/velocidad y frame global
+  coherentes, pero ambos drones pierden tracking en menos de 1.7 s y divergen;
+- prueba 249: handoff angular inicia con `er=ew=0`, hover y torque cero; no es la
+  causa del movimiento;
+- pruebas 250/251: X world se proyecta casi exactamente sobre Z control. La
+  autoridad `W_T_C` es correcta y el YAML denominado `body_T_camera` contiene
+  la rotacion inversa `camera_T_body`; el wrapper la invierte otra vez;
+- prueba 252: `B_T_C` corregido, 17/17 pasos, 22/22 goals y exit 0. Desaparece
+  el fallo de ejes, pero persisten tirones y maniobras alocadas;
+- causa vigente: velocidad ORB por diferencia finita sin filtro a 20 Hz frente
+  a control 50 Hz, mas `ORB -> GT` dentro del goal mediante `ResetToSource`
+  mientras el feedback conserva la trayectoria del O anterior;
+- prueba 253: intento de predictor SE(3) a 50 Hz interrumpido a los 103 s. No
+  hubo cambio de fuente; ambos drones seguian en GT. El filtro angular retrasó
+  la actitud consumida por el control y desestabilizó el lazo de torque;
+- los ejes muestran `o_t_body` de control y los KFs viven en W optimizado; una
+  discrepancia aislada entre ambos no demuestra un KF incorrecto;
+- conclusión: PARCIAL; extrinseca conseguida, calidad dinamica pendiente.
+- prueba 254: predictor trasladado al wrapper, GT exacto y 3/3 tests focales
+  correctos; simulacion interrumpida tras 13/17 pasos por divergencia en giros
+  ORB. El handoff tiene salto cero, pero orientacion y velocidad angular quedan
+  incoherentes ante pasos de hasta unos `0.28 rad/frame`;
+- siguiente correccion: limitar/suavizar solo innovacion angular ORB y derivar
+  de ella pose y velocidad coherentes. No tocar GT, ganancias ni optimizador.
+- prueba 255: builds y 13/13 GTests finales correctos; gate de referencias y
+  outliers evita publicar las innovaciones angulares graves y conmuta a GT con
+  salto cero. Interrumpida tras 7/17 pasos, con 10 timeouts y ORB poco
+  sostenido. La revision visual y los timestamps descartan optimizacion global:
+  churn de reference KF/outliers locales preceden los tres episodios y dos
+  ocurren despues de terminar todas las optimizaciones.
+- prueba 256: probation geometrica multi-KF y estimador SE(3), con build y 15/15
+  GTests correctos. El handoff GT->ORB tiene salto cero, pero drone2 acepta una
+  innovacion angular de 0.125 rad, publica 0.119 rad y pierde tracking 0.793 s
+  despues. Sin optimizacion W concurrente, queda pendiente una cuarentena
+  temporal de actitud antes de aplicar correcciones moderadas al control.
 
 ## Entrega de Fase 2
 

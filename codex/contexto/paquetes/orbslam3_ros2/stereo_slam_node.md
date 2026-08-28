@@ -45,6 +45,7 @@ Responsabilidades:
 3. Crea publishers:
    - `orbslam/orb_map_delta`;
    - `orbslam/pose_local`;
+   - `orbslam/navigation_state`;
    - `orbslam/fiducial_keyframe_observations`, reliable/volatile
      KeepLast(32);
    - `orbslam/fiducial_debug/image`, solo con debug activo, con
@@ -91,6 +92,112 @@ geometria; solo con configuracion `READY` mueve la copia efectiva a una cola de
 capacidad cuatro. Si se llena elimina el trabajo mas antiguo. No hay sondeo de
 `GetLastKeyFrameInfo`, buffer pre-READY ni deteccion en el callback.
 
+Desde 5B, `StereoTrackingReceipt` incluye `tracking_state`, reference KF real y
+`Tcr` del mismo frame. `NavigationStateEstimator` fija `O_T_Kref` y compone
+`O_T_B` mediante la extrínseca `body_T_camera`; un cambio de reference KF
+reancla su relación sin salto discreto. Un epoch nuevo reinicia la continuidad
+y `RECENTLY_LOST`/`LOST` publican local/continuidad inválidas, sin prolongar la
+última pose como si siguiera siendo válida. Global y velocidad quedan
+explícitamente inválidas hasta subfases posteriores.
+
+Desde 5D-5E, el wrapper solicita la pose global de la reference KF activa al
+servicio compartido y escucha el push dirigido reliable. Un cambio de reference
+KF reemplaza la solicitud; respuestas tardias, epoch distinto y revisiones no
+crecientes se descartan. `NavigationStateEstimator` conserva `O_T_B` intacta,
+publica W provisional al cambiar referencia y solo marca
+`AUTHORITATIVE/global_valid=true` al aceptar autoridad del backend. La
+composicion es `W_T_C = W_T_Kref * inverse(Tcr)` y
+`W_T_B = W_T_C * inverse(body_T_camera)`.
+
+Tras la regresion 253, el suavizado pertenece exclusivamente a este wrapper.
+`OrbPosePredictor` recibe `O_T_B` de cada frame ORB, aplica alpha-beta a
+traslacion y propaga el estado a 50 Hz desde un timer de `StereoSlamNode`.
+Cada medida corrige gradualmente una prediccion SE(3). La salida queda limitada
+por velocidad y aceleracion lineal/angular, y la pose se integra desde esas
+mismas velocidades publicadas. Una innovacion angular moderada se reparte en el
+tiempo; una innovacion superior al gate duro conserva la prediccion y acumula
+rechazo. Tres rechazos duros consecutivos invalidan ORB. Tracking invalido
+reinicia el predictor y sigue publicando estado invalido a 50 Hz para que el
+mux pueda activar fallback sin perder cadencia.
+
+`NavigationStateEstimator` separa reference KF reportada, candidata y activa.
+La probation acumula una cadena de incrementos plausibles aunque cambie el ID
+candidato. Dentro del mismo KF usa `Tcr`; al cambiar de ID, el incremento de
+`local_t_camera` solo enlaza la cadena si es fisicamente plausible y un salto BA
+se trata como incremento cero. Tres frames geometricos confirman la referencia.
+Durante probation se publica prediccion, se conserva metadata/autoridad activa
+y no se solicita W para la candidata. Volver a la activa cancela probation si
+la cadena es coherente; una inconsistencia persistente agota seis frames y
+fuerza invalidez. Marcador: `[F5H-REFERENCE-GATE]`.
+
+Parametros: `orb_state_publish_rate_hz`; `orb_state_filter.position_alpha`,
+`orientation_alpha`, `max_position_innovation_m`,
+`max_rotation_innovation_rad`, `max_linear_speed_mps`,
+`max_angular_speed_radps`, `max_linear_acceleration_mps2`,
+`max_angular_acceleration_radps2`, `max_consecutive_angular_rejections` y
+`max_extrapolation_sec`; `orb_reference_gate.confirmation_frames`,
+`max_pending_frames`, `max_step_translation_m` y `max_step_rotation_rad`.
+Marcadores: `[F5H-ORB-STATE-PREDICTOR]` y `[F5H-ORB-STATE-FILTER]`.
+
+La prueba 254 demostro la antigua incoherencia: la orientacion aceptaba pasos de
+unos `0.28 rad/frame` mientras la velocidad se limitaba. En 255 el gate evita
+publicar ese par, pero exige estabilidad del ID y provoca 10 timeouts. La
+implementacion vigente incorpora continuidad geometrica multi-KF y correccion
+SE(3) gradual, pero la prueba 256 no la valida para control: una innovacion
+aislada de `0.125261 rad` queda por debajo del gate duro de `0.35 rad` y produce
+un paso publicado de `0.119002 rad`; drone2 pierde tracking `0.793 s` despues.
+El handoff fue continuo y no hubo optimizacion W concurrente. La limitacion
+vigente es que una correccion moderada se aplica antes de confirmar persistencia
+temporal; resolverla requiere nuevo acuerdo funcional. La degradacion no
+pertenece a la autoridad W.
+
+El marcador diagnostico temporal `[F5H-WRAPPER-FRAME-DIAG]`, limitado a pose
+global autoritativa y con throttle de un segundo, separa `part=inputs`
+(`O_T_C`, `W_T_C`, `B_T_C`) y `part=outputs` (`O_T_B`, `W_T_B`, `Tcr`). Ambas
+lineas comparten dron, epoch, reference KF y raw sample. Permite comprobar si
+la autoridad ya llega con una extrinseca adicional o si el error aparece al
+convertir camara a cuerpo, sin alterar ningun mensaje publicado.
+
+El diagnostico 251 localizo que la antigua rotacion `RPY=(0,-90,90)` era
+`C_T_B` y se invertia otra vez. La calibracion vigente ya carga un `B_T_C`
+completo: `RPY=(-90,0,-90)` en la misma convencion `yaw*pitch*roll` y la
+traslacion de la camara expresada en body. Por tanto la composicion existente
+`W_T_C * inverse(body_T_camera)` convierte de camara optica a cuerpo sin
+permutar los ejes. El parametro YAML `use_camera_optical_frame_convention` no
+se declara ni consume en este nodo; la convencion queda materializada en el
+propio SE(3).
+
+```text
+dron/orbslam3_ros2/src/stereo/navigation-state-estimator.cpp
+  -> Update / ApplyAuthoritativeGlobalPose / InvalidateGlobalPose
+dron/orbslam3_ros2/src/stereo/stereo-slam-node.cpp
+  -> RequestGlobalPose / ApplyGlobalPoseMessage / PublishNavigationState
+rg "F5D-KF-REQUEST|F5E-GLOBAL-AUTHORITY|F5E-POSE-STATE"
+```
+
+Referencias de este limite vigente:
+
+```text
+dron/ORB_SLAM3/include/System.h
+  -> ORB_SLAM3::System::StereoTrackingReceipt
+  -> rg "struct StereoTrackingReceipt"
+dron/ORB_SLAM3/src/System.cc
+  -> ORB_SLAM3::System::TrackStereo
+  -> rg "System::TrackStereo|ConsumeLastCreatedKeyFrameEvent"
+dron/ORB_SLAM3/src/Tracking.cc
+  -> almacenamiento de Tcr por frame
+  -> rg "Tcr_|mlRelativeFramePoses"
+dron/orbslam3_ros2/src/stereo/navigation-state-estimator.cpp
+  -> NavigationStateEstimator::Update
+  -> rg "reference_keyframe_id|continuity_valid|Reset"
+```
+
+`NavigationStateEstimator::Update` calcula `step_translation_m` y
+`step_rotation_rad` entre estados consecutivos procesados. El log
+`[F5B-O-CONTINUITY]` esta limitado a una linea cada dos segundos, pero los
+valores que muestra corresponden al ultimo paso entre frames, no al intervalo
+completo entre dos lineas de log.
+
 `ManageFiducialConfig()` reintenta cada segundo y declara timeout a los dos
 segundos. Config vacia deja el componente `DISABLED`. `FiducialWorkerLoop()`
 ejecuta `FiducialDetector` con APRILTAG_36H11, SUBPIX e IPPE_SQUARE; conserva
@@ -120,7 +227,7 @@ Referencias:
 ```text
 dron/orbslam3_ros2/src/stereo/stereo-slam-node.cpp
   -> StereoSlamNode::GrabStereo
-  -> rg "StereoTrackingReceipt|FiducialWorkerLoop|PublishFiducialObservations|TimestampToRosTime"
+  -> rg "StereoTrackingReceipt|navigation_state|F5B-TRACKING|FiducialWorkerLoop"
   -> aproximadamente lineas 250-720
 dron/orbslam3_ros2/src/stereo/fiducial-detector.cpp
   -> FiducialDetector::Configure / FiducialDetector::Detect

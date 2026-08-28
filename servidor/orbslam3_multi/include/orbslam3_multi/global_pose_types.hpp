@@ -35,6 +35,14 @@ enum class PoseCommitStatus
   AtomicBatchConflict,
 };
 
+enum class GlobalPoseQueryStatus
+{
+  Available,
+  Pending,
+  Unknown,
+  InvalidEpoch,
+};
+
 struct GlobalPoseRecord
 {
   RawKeyFrameId keyframe_id;
@@ -49,6 +57,13 @@ struct GlobalPoseRecord
   uint64_t parent_commit_id = 0;
   uint64_t base_raw_revision = 0;
   bool hard_fiducial = false;
+};
+
+struct GlobalPoseQueryResult
+{
+  GlobalPoseQueryStatus status = GlobalPoseQueryStatus::Pending;
+  RawKeyFrameId keyframe_id;
+  std::optional<GlobalPoseRecord> pose;
 };
 
 struct AcceptedPoseUpdate

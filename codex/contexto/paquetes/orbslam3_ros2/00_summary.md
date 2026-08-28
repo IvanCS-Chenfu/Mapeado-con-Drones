@@ -1,6 +1,7 @@
-# 00_summary — orbslam3_ros2
+# 00_summary - orbslam3_ros2
 
-Resumen: Wrapper ROS 2 para ORB-SLAM3; publica `pose_local`, `orb_map_delta` y ofrece `GetOrbMap`.
+Resumen: Wrapper ROS 2 para ORB-SLAM3; publica `pose_local`,
+`navigation_state`, `orb_map_delta` y ofrece `GetOrbMap`.
 
 Estado del fuente: el arbol completo vuelve a estar disponible en
 `orbslam3_ros2/`. Se recupero el snapshot base del commit
@@ -37,6 +38,25 @@ Fase 2 añade `debug_architecture_telemetry=false`. Cuando Simulacion activa el
 master de `system_architecture`, el wrapper emite eventos ligeros y muestreados
 en `/system_architecture/activity` al consumir el par estereo; no publica ni
 serializa esa telemetria con el debug apagado.
+
+Fase 5B añade `NavigationStateEstimator`: compone `O_T_B` intra-epoch con
+reference KF real/`Tcr`, reancla cambios de referencia sin salto y marca
+local/continuidad inválidas al perder tracking. 5D-5E añaden cliente de
+`GetGlobalKeyFramePose`, push dirigido y W
+`INVALID/PROVISIONAL/AUTHORITATIVE` con revisión; stale y epoch mismatch se
+descartan y W nunca mueve O. `NavigationStateEstimator` confirma una cadena
+geometrica aunque cambie el ID del reference KF; `local_t_camera` solo enlaza
+cambios plausibles y Tcr conserva la autoridad local principal.
+`OrbPosePredictor`, dentro del mismo wrapper, publica a 50 Hz un estado SE(3)
+corregido gradualmente con limites de innovacion, velocidad y aceleracion.
+Pose y velocidades proceden exactamente del mismo estado corregido.
+
+La validacion dinamica 256 demuestra una limitacion vigente: el gate duro
+angular de `0.35 rad` permite que una innovacion aislada de `0.125261 rad` se
+convierta en un paso publicado de `0.119002 rad`. El handoff GT->ORB fue
+continuo, pero drone2 perdio tracking `0.793 s` despues. La salida actual no es
+aun apta para control sostenido; falta acordar confirmacion temporal separada
+para innovaciones angulares moderadas.
 
 Relación: alimentado por `simulacion_dron` (cámaras), usa `ORB_SLAM3`, define mensajes en `orbslam3_msgs` y es consumido por `orbslam3_server`.
 

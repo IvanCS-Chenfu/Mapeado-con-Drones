@@ -9,6 +9,7 @@
 
 #include <random>               // Para la aparición del dron
 #include <algorithm>
+#include <cmath>
 
 #include <chrono>
 using namespace std::chrono_literals;
@@ -65,6 +66,10 @@ public:
 
     this->declare_parameter<int>("dron.numero", 1);
     this->declare_parameter<std::vector<double>>("dron.spawn_box", {-10.0, 10.0, -10.0, 10.0});
+    this->declare_parameter<bool>("dron.spawn_override_enabled", false);
+    this->declare_parameter<double>("dron.spawn_x", 0.0);
+    this->declare_parameter<double>("dron.spawn_y", 0.0);
+    this->declare_parameter<double>("dron.spawn_yaw_deg", 0.0);
 
     // Obtener parámetro (decir tipo)
     fisico_cuerpo_dim = this->get_parameter("fisico.cuerpo.dim").as_double_array();
@@ -109,6 +114,12 @@ public:
 
     dron_numero = this->get_parameter("dron.numero").as_int();
     dron_spawn_box = this->get_parameter("dron.spawn_box").as_double_array();
+    dron_spawn_override_enabled =
+      this->get_parameter("dron.spawn_override_enabled").as_bool();
+    dron_spawn_x = this->get_parameter("dron.spawn_x").as_double();
+    dron_spawn_y = this->get_parameter("dron.spawn_y").as_double();
+    dron_spawn_yaw_deg =
+      this->get_parameter("dron.spawn_yaw_deg").as_double();
 
     // Namespace dado en multi_dron
     name_space = this->get_namespace();
@@ -151,9 +162,14 @@ public:
       std::uniform_real_distribution<double> dist_x(x1, x2);
       std::uniform_real_distribution<double> dist_y(y1, y2);
 
-      request->initial_pose.position.x = dist_x(rng_);
-      request->initial_pose.position.y = dist_y(rng_);
+      request->initial_pose.position.x =
+        dron_spawn_override_enabled ? dron_spawn_x : dist_x(rng_);
+      request->initial_pose.position.y =
+        dron_spawn_override_enabled ? dron_spawn_y : dist_y(rng_);
       request->initial_pose.position.z = 0.15;
+      const double spawn_yaw_rad = dron_spawn_yaw_deg * M_PI / 180.0;
+      request->initial_pose.orientation.z = std::sin(spawn_yaw_rad / 2.0);
+      request->initial_pose.orientation.w = std::cos(spawn_yaw_rad / 2.0);
 
 
       auto future_result = objeto_cliente->async_send_request(request);             // Enviamos los valores al servicio
@@ -284,6 +300,10 @@ private:
 
   int dron_numero;
   std::vector<double> dron_spawn_box;
+  bool dron_spawn_override_enabled;
+  double dron_spawn_x;
+  double dron_spawn_y;
+  double dron_spawn_yaw_deg;
 };
 
 int main(int argc, char * argv[])

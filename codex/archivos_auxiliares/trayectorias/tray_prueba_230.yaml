@@ -1,0 +1,46 @@
+name: f5c_f5f_tramo_largo_dirigido_dos_drones
+description: "F5C-F: anclaje y tramo largo ya aceptado para observar O/W/GT."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 240.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 20.0
+
+  - name: ambos_al_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.8, 0.0, 0.85], yaw_deg: 0.0,
+         tx: 12.0, ty: 12.0, tz: 20.0, tyaw: 4.0,
+         absoluto_x: false, absoluto_y: false, absoluto_z: false, absoluto_yaw: false}
+      - {drone_id: 2, tipo_trayectoria: 0, target: [0.8, 0.0, 1.15], yaw_deg: 0.0,
+         tx: 12.0, ty: 12.0, tz: 20.0, tyaw: 4.0,
+         absoluto_x: false, absoluto_y: false, absoluto_z: false, absoluto_yaw: false}
+
+  - name: espera_anchors
+    type: wait
+    seconds: 12.0
+
+  - name: separacion_lateral_larga
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-9.8, 0.0, 0.0], yaw_deg: 0.0,
+         tx: 60.0, ty: 60.0, tz: 8.0, tyaw: 4.0,
+         absoluto_x: false, absoluto_y: false, absoluto_z: false, absoluto_yaw: false}
+      - {drone_id: 2, tipo_trayectoria: 0, target: [8.2, 0.0, 0.0], yaw_deg: 0.0,
+         tx: 60.0, ty: 60.0, tz: 8.0, tyaw: 4.0,
+         absoluto_x: false, absoluto_y: false, absoluto_z: false, absoluto_yaw: false}
+
+  - name: espera_revision_y_reporte_final
+    type: wait
+    seconds: 25.0

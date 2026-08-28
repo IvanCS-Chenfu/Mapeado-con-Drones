@@ -1,12 +1,13 @@
 #include "rclcpp/rclcpp.hpp"
 #include "dron_individual/action/tray_action.hpp"
+#include "orbslam3_msgs/msg/navigation_state.hpp"
 
 #include <std_msgs/msg/float64.hpp>
-#include <geometry_msgs/msg/pose_stamped.hpp>
-#include <geometry_msgs/msg/twist_stamped.hpp>
 #include <geometry_msgs/msg/vector3_stamped.hpp>
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Geometry>
 
+#include <algorithm>
 #include <chrono>
 using namespace Eigen;
 using namespace std::chrono_literals;
@@ -23,11 +24,10 @@ public:
     pub_fuerza_ = this->create_publisher<std_msgs::msg::Float64>("control/tray/fuerza", 10);
     objeto_timer = this->create_wall_timer(20ms, std::bind(&Clase_Publisher::enviar_fuerzas, this));
 
-    sub_pose_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-      "sensor/GT/pose", 10,
-      std::bind(&Clase_Publisher::callback_pose, this, std::placeholders::_1));
-    sub_vel_ = this->create_subscription<geometry_msgs::msg::TwistStamped>(
-      "sensor/GT/vel", 10, std::bind(&Clase_Publisher::callback_vel, this, std::placeholders::_1));
+    sub_navigation_state_ =
+      this->create_subscription<orbslam3_msgs::msg::NavigationState>(
+      "orbslam/navigation_state", rclcpp::QoS(20).reliable(),
+      std::bind(&Clase_Publisher::callback_navigation_state, this, std::placeholders::_1));
     sub_fb_ = this->create_subscription<dron_individual::action::TrayAction_FeedbackMessage>(
       "AccionTrayectoria/_action/feedback", 10,
       std::bind(&Clase_Publisher::callback_feedback, this, std::placeholders::_1));
@@ -42,6 +42,8 @@ public:
     this->declare_parameter<double>("control.fuerza.kv", 5.0);
     this->declare_parameter<double>("control.torque.kr", 0.5);
     this->declare_parameter<double>("control.torque.kw", 0.5);
+    this->declare_parameter<double>("navigation_state_timeout_sec", 0.5);
+    this->declare_parameter<double>("control.source_handoff_duration_sec", 0.5);
 
     // Obtener parámetro (decir tipo)
     m = this->get_parameter("fisico.total.masa").as_double();
@@ -51,32 +53,76 @@ public:
     Kv = this->get_parameter("control.fuerza.kv").as_double();
     Kr = this->get_parameter("control.torque.kr").as_double();
     Kw = this->get_parameter("control.torque.kw").as_double();
+    navigation_state_timeout_sec_ =
+      this->get_parameter("navigation_state_timeout_sec").as_double();
+    angular_handoff_duration_sec_ = std::max(
+      0.05, this->get_parameter("control.source_handoff_duration_sec").as_double());
 
     snap_des.setZero();
   }
 
 private:
-  void callback_pose(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
+  void callback_navigation_state(
+    const orbslam3_msgs::msg::NavigationState::SharedPtr msg)
   {
-    x << msg->pose.position.x, msg->pose.position.y, msg->pose.position.z;
+    if (!msg->local_valid || !msg->local_continuity_valid || !msg->velocity_valid) {
+      state_ready_ = false;
+      return;
+    }
+    x << msg->o_t_body.position.x, msg->o_t_body.position.y, msg->o_t_body.position.z;
 
-    double x = msg->pose.orientation.x;
-    double y = msg->pose.orientation.y;
-    double z = msg->pose.orientation.z;
-    double w = msg->pose.orientation.w;
+    double x = msg->o_t_body.orientation.x;
+    double y = msg->o_t_body.orientation.y;
+    double z = msg->o_t_body.orientation.z;
+    double w = msg->o_t_body.orientation.w;
 
     R_act << 1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y),
       2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x),
       2 * (x * z - w * y), 2 * (z * y + w * x), 1 - 2 * (x * x + y * y);
-  }
+    x_dot << msg->velocity.linear.x, msg->velocity.linear.y, msg->velocity.linear.z;
 
-  void callback_vel(const geometry_msgs::msg::TwistStamped::SharedPtr msg)
-  {
-    x_dot << msg->twist.linear.x, msg->twist.linear.y, msg->twist.linear.z;
-
-    // Pasar la velocidad del sistema "world" al sistema "body"
-    Vector3d w_world(msg->twist.angular.x, msg->twist.angular.y, msg->twist.angular.z);
+    // La velocidad angular llega expresada en el frame local continuo.
+    Vector3d w_world(msg->velocity.angular.x, msg->velocity.angular.y, msg->velocity.angular.z);
     w_b = R_act.transpose() * w_world;
+
+    const auto current_pose_source = msg->pose_source;
+    if (!pose_source_initialized_) {
+      last_pose_source_ = current_pose_source;
+      pose_source_initialized_ = true;
+    } else if (current_pose_source != last_pose_source_) {
+      // TODO FASE 6: retirar hold/handoff al eliminar GT_FALLBACK y su source lock.
+      const bool entering_orb_from_fallback =
+        last_pose_source_ ==
+        orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FALLBACK &&
+        current_pose_source == orbslam3_msgs::msg::NavigationState::POSE_SOURCE_ORB;
+      if (entering_orb_from_fallback) {
+        angular_handoff_pending_ = true;
+        angular_handoff_active_ = false;
+      } else {
+        angular_handoff_pending_ = false;
+        angular_handoff_active_ = false;
+      }
+      if (feedback_activado) {
+        x_des = this->x;
+        x_dot_des = x_dot;
+        x_ddot_des.setZero();
+        yaw_des = std::atan2(R_act(1, 0), R_act(0, 0));
+        yaw_dot_des = w_world.z();
+        yaw_ddot_des = 0.0;
+        jerk_des.setZero();
+        snap_des.setZero();
+      }
+      RCLCPP_WARN(
+        this->get_logger(),
+        "[F5H-CONTROL-SOURCE-HOLD] previous=%u current=%u feedback_active=%s",
+        static_cast<unsigned>(last_pose_source_),
+        static_cast<unsigned>(current_pose_source),
+        feedback_activado ? "true" : "false");
+      last_pose_source_ = current_pose_source;
+    }
+
+    state_received_at_ = std::chrono::steady_clock::now();
+    state_ready_ = true;
   }
 
   void callback_feedback(const dron_individual::action::TrayAction_FeedbackMessage::SharedPtr msg)
@@ -90,6 +136,16 @@ private:
     yaw_ddot_des = msg->feedback.yaw.data[2];
 
     jerk_des << msg->feedback.x.data[3], msg->feedback.y.data[3], msg->feedback.z.data[3];
+
+    if (angular_handoff_pending_ && state_ready_) {
+      angular_handoff_rotation_ = R_act;
+      angular_handoff_omega_body_ = w_b;
+      angular_handoff_started_at_ = std::chrono::steady_clock::now();
+      angular_handoff_pending_ = false;
+      angular_handoff_active_ = true;
+      angular_handoff_first_cycle_ = true;
+      angular_handoff_log_stage_ = 0;
+    }
 
     feedback_activado = true;
   }
@@ -108,7 +164,10 @@ private:
 
   void enviar_fuerzas()
   {
-    if (feedback_activado) {
+    const bool state_fresh = state_ready_ && std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - state_received_at_).count() <=
+      navigation_state_timeout_sec_;
+    if (feedback_activado && state_fresh) {
       // Fuerzas
       Vector3d ep = x - x_des;
       Vector3d ev = x_dot - x_dot_des;
@@ -163,6 +222,35 @@ private:
 
 
       Vector3d Omega_des = vee(R_des.transpose() * R_dot_des);
+      if (angular_handoff_active_) {
+        double linear_alpha = std::chrono::duration<double>(
+          std::chrono::steady_clock::now() - angular_handoff_started_at_).count() /
+          angular_handoff_duration_sec_;
+        if (angular_handoff_first_cycle_) {
+          linear_alpha = 0.0;
+          angular_handoff_started_at_ = std::chrono::steady_clock::now();
+          angular_handoff_first_cycle_ = false;
+        }
+        linear_alpha = std::clamp(linear_alpha, 0.0, 1.0);
+        angular_handoff_alpha_ =
+          linear_alpha * linear_alpha * (3.0 - 2.0 * linear_alpha);
+
+        const Matrix3d nominal_rotation = R_des;
+        const Vector3d nominal_omega_world = nominal_rotation * Omega_des;
+        const Vector3d initial_omega_world =
+          angular_handoff_rotation_ * angular_handoff_omega_body_;
+        Quaterniond initial_quaternion(angular_handoff_rotation_);
+        Quaterniond nominal_quaternion(nominal_rotation);
+        if (initial_quaternion.dot(nominal_quaternion) < 0.0) {
+          nominal_quaternion.coeffs() *= -1.0;
+        }
+        R_des = initial_quaternion.slerp(
+          angular_handoff_alpha_, nominal_quaternion).normalized().toRotationMatrix();
+        const Vector3d blended_omega_world =
+          (1.0 - angular_handoff_alpha_) * initial_omega_world +
+          angular_handoff_alpha_ * nominal_omega_world;
+        Omega_des = R_des.transpose() * blended_omega_world;
+      }
       //Vector3d Omega_dot_des = vee(R_des.transpose()*R_ddot_des-(R_des.transpose()*R_dot_des)*(R_des.transpose()*R_dot_des));
       Vector3d Omega_dot_des(0, 0, 0);
 
@@ -177,6 +265,26 @@ private:
 
       Vector3d tau_des = -Kr * er - Kw * ew + J * R_act.transpose() * R_des * Omega_dot_des +
         w_b.cross(J * w_b);                                                                                     // Desde Cuerpo
+
+      if (angular_handoff_active_) {
+        const bool log_start = angular_handoff_log_stage_ == 0;
+        const bool log_middle =
+          angular_handoff_log_stage_ == 1 && angular_handoff_alpha_ >= 0.5;
+        const bool log_end =
+          angular_handoff_log_stage_ == 2 && angular_handoff_alpha_ >= 1.0;
+        if (log_start || log_middle || log_end) {
+          const char * event = log_start ? "start" : (log_middle ? "middle" : "end");
+          RCLCPP_WARN(
+            this->get_logger(),
+            "[F5H-ANGULAR-HANDOFF] event=%s alpha=%.6f er_norm=%.6f "
+            "ew_norm=%.6f force=%.6f torque_norm=%.6f",
+            event, angular_handoff_alpha_, er.norm(), ew.norm(), F_des.z(), tau_des.norm());
+          ++angular_handoff_log_stage_;
+        }
+        if (angular_handoff_alpha_ >= 1.0) {
+          angular_handoff_active_ = false;
+        }
+      }
 
 
       // Enviar Fuerza y Torque
@@ -198,8 +306,8 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr pub_fuerza_;
   rclcpp::TimerBase::SharedPtr objeto_timer;
 
-  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr sub_pose_;
-  rclcpp::Subscription<geometry_msgs::msg::TwistStamped>::SharedPtr sub_vel_;
+  rclcpp::Subscription<orbslam3_msgs::msg::NavigationState>::SharedPtr
+    sub_navigation_state_;
   rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr sub_fuerza_;
   rclcpp::Subscription<dron_individual::action::TrayAction_FeedbackMessage>::SharedPtr sub_fb_;
 
@@ -216,6 +324,20 @@ private:
   Vector3d x_ddot_des;
 
   bool feedback_activado = false;
+  bool state_ready_ = false;
+  bool pose_source_initialized_ = false;
+  bool angular_handoff_pending_ = false;
+  bool angular_handoff_active_ = false;
+  bool angular_handoff_first_cycle_ = false;
+  int angular_handoff_log_stage_ = 0;
+  uint8_t last_pose_source_ = orbslam3_msgs::msg::NavigationState::POSE_SOURCE_INVALID;
+  double navigation_state_timeout_sec_{0.5};
+  double angular_handoff_duration_sec_{0.5};
+  double angular_handoff_alpha_{0.0};
+  std::chrono::steady_clock::time_point state_received_at_;
+  std::chrono::steady_clock::time_point angular_handoff_started_at_;
+  Matrix3d angular_handoff_rotation_{Matrix3d::Identity()};
+  Vector3d angular_handoff_omega_body_{Vector3d::Zero()};
 
   double yaw_des;
   double yaw_dot_des;

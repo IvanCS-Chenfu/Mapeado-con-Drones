@@ -1,5 +1,22 @@
 # 00_summary - simulacion_dron
 
+5F incorpora `pose_metrics_node.py`, activable desde `multi_dron.launch.py`,
+para generar CSV/JSON/PNG O/W/GT por dron con emparejamiento temporal y
+alineacion O fija por epoch. La prueba 230 valida su ejecucion y deja la calidad
+W como no aceptada.
+
+La integracion 5H usa `global_drone_pose_visualizer.py`. Consume los
+`NavigationState` de cada dron y publica `/global_drone_poses` como
+`MarkerArray`: ejes XYZ desde `o_t_body`, exactamente la pose de control, y
+etiqueta `[ORB]/[GT]`. El
+launch expone `phase5_global_pose_rviz_enabled=false` y el modo de prueba
+`use_legacy_gt_goal_policy_for_simulation=false`; este último gobierna solo el
+control legacy GT y no alimenta las poses estimadas.
+
+Los markers no dependen de `global_valid`. Solo se actualizan con una muestra
+local, continua y con velocidad valida; ante una muestra transitoria no
+consumible conservan la ultima pose que tambien conserva el controlador.
+
 Paquete de launch, escenarios y observabilidad Gazebo. Integra servidor y, de
 forma configurable, RViz2, `pipeline_flow` y `system_architecture`; tambien
 ofrece replay sin Gazebo ni GT live.
@@ -38,6 +55,8 @@ Desde 4G+4H, `fiducials.yaml` expone rango, consistencia, gap y FIFO visuales;
 Fase 2 separa configuracion propia de modelo/sensores en `physical_dron.yaml`
 y `simulated_sensors.yaml`. `actuators_dron.yaml` es una replica parcial
 declarada de Dron. Simulacion no abre YAML operacionales de otro grupo.
+`calibration_dron.yaml` replica el `B_T_C` optico frontal de Dron con
+`RPY=(-90,0,-90)` para las guardas de despliegue.
 
 ## Launches
 
@@ -60,6 +79,11 @@ se colocan a ±8.5 m; los escenarios de Fase 4 conservan la ruta a ±10 m.
 - `fase3_debug.yaml`: RViz2, grafo, navegador y logs `[F3*]` independientes;
 - `drone_start_stagger_sec=8.0`: arranque 0/8/16... s por defecto;
 - `orb_vocabulary_path`: `ORBvoc.txt` completo por defecto; L5 solo por override.
+
+Fase 5B añade un override de spawn desactivado por defecto y el escenario
+`f5b_fiducial_giro_180.yaml`. `scenario_runner_node` admite rechazos esperados
+para validar el gate sin detener la secuencia. La prueba 225 confirma anchors,
+continuidad/ref-KF y pérdida real de ambos drones tras el giro.
 
 El perfil visual completo se usa con dos drones. Para tres o mas drones y para
 fases dense se usa headless y se habilitan solo las vistas necesarias.

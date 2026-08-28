@@ -53,6 +53,12 @@ Antes de modificar código, Codex debe leer también el MD vigente de cada paque
 - La cancelación de action sigue funcionando y detiene la trayectoria completa.
 - Los modos legacy siguen disponibles.
 - No usar GT como condición inicial; tomar pose/velocidad de la fuente Fase 5.
+- Al sustituir los goals externos por una trayectoria multi-waypoint, eliminar
+  el mecanismo temporal Fase 5 de `GT_FALLBACK`, source lock entre goals,
+  handshake de frontera, hold y handoff angular SO(3) por cambio de fuente. No
+  dejar ramas muertas.
+- Mantener el contrato útil: condición inicial atómica de una sola muestra,
+  con primer setpoint `x0/v0/yaw0/yaw_rate0` y `ep=ev=er=ew=0`.
 
 ## Archivos permitidos a modificar
 

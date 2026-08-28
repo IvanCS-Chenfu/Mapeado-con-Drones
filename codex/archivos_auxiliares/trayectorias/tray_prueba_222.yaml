@@ -1,0 +1,100 @@
+name: f5b_fiducial_giro_180
+description: "F5B: continuidad local, gate absoluto y perdida tras anclaje fiducial y giro de 180 grados."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 180.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 20.0
+
+  - name: absoluto_sin_global_rechazado
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, 0.0, 1.0]
+        yaw_deg: 0.0
+        tx: 4.0
+        ty: 4.0
+        tz: 4.0
+        tyaw: 4.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        expect_rejected: true
+
+  - name: ambos_al_fiducial_2_relativo
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.8, 0.0, 0.85]
+        yaw_deg: 0.0
+        tx: 12.0
+        ty: 12.0
+        tz: 20.0
+        tyaw: 4.0
+        absoluto_x: false
+        absoluto_y: false
+        absoluto_z: false
+        absoluto_yaw: false
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.8, 0.0, 1.15]
+        yaw_deg: 0.0
+        tx: 12.0
+        ty: 12.0
+        tz: 20.0
+        tyaw: 4.0
+        absoluto_x: false
+        absoluto_y: false
+        absoluto_z: false
+        absoluto_yaw: false
+
+  - name: espera_anclaje_fiducial_2
+    type: wait
+    seconds: 12.0
+
+  - name: ambos_giran_180_hacia_zona_sin_textura
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        tipo_trayectoria: 0
+        target: [0.0, 0.0, 0.0]
+        yaw_deg: 180.0
+        tx: 4.0
+        ty: 4.0
+        tz: 4.0
+        tyaw: 4.0
+        absoluto_x: false
+        absoluto_y: false
+        absoluto_z: false
+        absoluto_yaw: false
+      - drone_id: 2
+        tipo_trayectoria: 0
+        target: [0.0, 0.0, 0.0]
+        yaw_deg: 180.0
+        tx: 4.0
+        ty: 4.0
+        tz: 4.0
+        tyaw: 4.0
+        absoluto_x: false
+        absoluto_y: false
+        absoluto_z: false
+        absoluto_yaw: false
+
+  - name: observa_perdida_completa
+    type: wait
+    seconds: 12.0

@@ -44,6 +44,12 @@ A partir de `tarea_principal.yaml`, el servidor debe generar y repartir una misi
 - `ANCHOR_SUBMAP`: búsqueda local conservadora de fiducial/loop sin perder tracking ni usar GT.
 - `GO_TO(x,y,z,yaw)`: máxima prioridad pendiente, **no** interrumpe una tarea `RUNNING`; usa el mismo planner/reservas.
 - Fase 6 no implementa nube densa global. Fase 8 reutilizará/mejorará las fuentes depth y la planificación perceptiva.
+- Deuda temporal heredada de Fase 5: retirar `GT_FALLBACK`, el source lock entre
+  goals, el handshake de frontera, el hold y el handoff angular SO(3) de
+  `control_calcular_fuerzas`. Las
+  tareas/recovery de Fase 6 deben proporcionar continuidad real sin dejar ese
+  codigo residual. Conservar como invariante que toda trayectoria comienza con
+  pose y velocidad de una misma muestra y con `ep=ev=er=ew=0`.
 
 ## Secuencia
 

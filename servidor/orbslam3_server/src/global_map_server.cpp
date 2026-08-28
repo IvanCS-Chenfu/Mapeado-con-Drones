@@ -5,7 +5,9 @@
 
 #include "orbslam3_multi/sparse_global_backend.hpp"
 #include "orbslam3_msgs/msg/fiducial_key_frame_observations.hpp"
+#include "orbslam3_msgs/msg/global_key_frame_pose.hpp"
 #include "orbslam3_msgs/msg/orb_map.hpp"
+#include "orbslam3_msgs/srv/get_global_key_frame_pose.hpp"
 #include "orbslam3_msgs/srv/get_orb_map.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp/executors/multi_threaded_executor.hpp"
@@ -391,6 +393,25 @@ public:
     keyframes_publisher_ = create_publisher<visualization_msgs::msg::MarkerArray>(
       "/global_keyframes", map_qos);
 
+    global_pose_service_ = create_service<orbslam3_msgs::srv::GetGlobalKeyFramePose>(
+      "/global_mapping/get_global_keyframe_pose",
+      [this](
+        const std::shared_ptr<orbslam3_msgs::srv::GetGlobalKeyFramePose::Request> request,
+        std::shared_ptr<orbslam3_msgs::srv::GetGlobalKeyFramePose::Response> response)
+      {
+        HandleGlobalPoseQuery(*request, response.get());
+      });
+    for (int64_t drone_id = 1; drone_id <= drone_count; ++drone_id) {
+      const std::string topic = "/" + namespace_base + "_" +
+        std::to_string(drone_id) + "/orbslam/global_keyframe_pose";
+      global_pose_publishers_[static_cast<uint32_t>(drone_id)] =
+        create_publisher<orbslam3_msgs::msg::GlobalKeyFramePose>(
+        topic, rclcpp::QoS(rclcpp::KeepLast(8)).reliable().durability_volatile());
+      RCLCPP_INFO(
+        get_logger(), "[F5D-KF-PUSH-READY] drone_id=%ld topic=%s",
+        drone_id, topic.c_str());
+    }
+
     worker_ = std::thread(&GlobalMapServer::WorkerLoop, this);
     secondary_worker_ = std::thread(&GlobalMapServer::SecondaryWorkerLoop, this);
 
@@ -586,6 +607,121 @@ public:
   }
 
 private:
+  struct GlobalPoseInterest
+  {
+    orbslam3_multi::RawKeyFrameId keyframe_id;
+    uint64_t delivered_revision = 0;
+    uint8_t delivered_status = orbslam3_msgs::msg::GlobalKeyFramePose::STATUS_PENDING;
+  };
+
+  static uint8_t ToGlobalPoseMessageStatus(
+    orbslam3_multi::GlobalPoseQueryStatus status)
+  {
+    using Message = orbslam3_msgs::msg::GlobalKeyFramePose;
+    switch (status) {
+      case orbslam3_multi::GlobalPoseQueryStatus::Available:
+        return Message::STATUS_AVAILABLE;
+      case orbslam3_multi::GlobalPoseQueryStatus::Unknown:
+        return Message::STATUS_UNKNOWN;
+      case orbslam3_multi::GlobalPoseQueryStatus::InvalidEpoch:
+        return Message::STATUS_INVALID_EPOCH;
+      case orbslam3_multi::GlobalPoseQueryStatus::Pending:
+      default:
+        return Message::STATUS_PENDING;
+    }
+  }
+
+  orbslam3_msgs::msg::GlobalKeyFramePose BuildGlobalPoseMessage(
+    const orbslam3_multi::GlobalPoseQueryResult & query)
+  {
+    orbslam3_msgs::msg::GlobalKeyFramePose message;
+    message.header.stamp = now();
+    message.header.frame_id = "world";
+    message.drone_id = query.keyframe_id.drone_id;
+    message.map_epoch = query.keyframe_id.map_epoch;
+    message.keyframe_id = query.keyframe_id.local_kf_id;
+    message.status = ToGlobalPoseMessageStatus(query.status);
+    message.w_t_keyframe.orientation.w = 1.0;
+    if (query.pose.has_value()) {
+      message.pose_revision = query.pose->pose_revision;
+      message.w_t_keyframe = query.pose->world_pose;
+    }
+    return message;
+  }
+
+  void HandleGlobalPoseQuery(
+    const orbslam3_msgs::srv::GetGlobalKeyFramePose::Request & request,
+    orbslam3_msgs::srv::GetGlobalKeyFramePose::Response * response)
+  {
+    const orbslam3_multi::RawKeyFrameId id{
+      request.drone_id, request.map_epoch, request.keyframe_id};
+    orbslam3_multi::GlobalPoseQueryResult query;
+    query.keyframe_id = id;
+    if (global_pose_publishers_.count(request.drone_id) == 0U) {
+      query.status = orbslam3_multi::GlobalPoseQueryStatus::Unknown;
+    } else {
+      query = backend_.QueryGlobalPose(id);
+    }
+    response->result = BuildGlobalPoseMessage(query);
+    {
+      std::lock_guard<std::mutex> lock(global_pose_interest_mutex_);
+      if (global_pose_publishers_.count(request.drone_id) != 0U) {
+        global_pose_interests_[request.drone_id] = GlobalPoseInterest{
+          id, response->result.pose_revision, response->result.status};
+      }
+    }
+    RCLCPP_INFO(
+      get_logger(),
+      "[F5C-KF-GLOBAL-QUERY] drone_id=%u epoch=%lu kf=%lu status=%u revision=%lu",
+      request.drone_id, request.map_epoch, request.keyframe_id,
+      response->result.status, response->result.pose_revision);
+  }
+
+  void PublishActiveGlobalPoseUpdates(const char * cause)
+  {
+    std::vector<GlobalPoseInterest> interests;
+    {
+      std::lock_guard<std::mutex> lock(global_pose_interest_mutex_);
+      for (const auto & item : global_pose_interests_) {
+        interests.push_back(item.second);
+      }
+    }
+    for (const auto & snapshot : interests) {
+      const auto query = backend_.QueryGlobalPose(snapshot.keyframe_id);
+      const auto message = BuildGlobalPoseMessage(query);
+      bool publish = false;
+      {
+        std::lock_guard<std::mutex> lock(global_pose_interest_mutex_);
+        const auto current = global_pose_interests_.find(snapshot.keyframe_id.drone_id);
+        if (current == global_pose_interests_.end() ||
+          !(current->second.keyframe_id == snapshot.keyframe_id))
+        {
+          continue;
+        }
+        if (message.status == orbslam3_msgs::msg::GlobalKeyFramePose::STATUS_AVAILABLE &&
+          message.pose_revision > current->second.delivered_revision)
+        {
+          current->second.delivered_revision = message.pose_revision;
+          current->second.delivered_status = message.status;
+          publish = true;
+        }
+      }
+      if (!publish) {
+        continue;
+      }
+      const auto publisher = global_pose_publishers_.find(message.drone_id);
+      if (publisher == global_pose_publishers_.end()) {
+        continue;
+      }
+      publisher->second->publish(message);
+      RCLCPP_WARN(
+        get_logger(),
+        "[F5D-KF-REVISION-PUSH] drone_id=%u epoch=%lu kf=%lu revision=%lu cause=%s",
+        message.drone_id, message.map_epoch, message.keyframe_id,
+        message.pose_revision, cause);
+    }
+  }
+
   void RequestAllSnapshots(const std::string & reason)
   {
     for (const auto & [drone_id, client] : snapshot_clients_) {
@@ -1361,6 +1497,7 @@ private:
         }
 
         EnqueueSecondaryWork(raw, ToString(input.source));
+        PublishActiveGlobalPoseUpdates("primary_commit");
 
         if (input.kind == PrimaryInputKind::FullSnapshot) {
           if (!raw.has_material_changes) {
@@ -2003,6 +2140,8 @@ private:
           get_logger(), "[F3H-SECONDARY-EXCEPTION] task=%lu kind=%s error=unknown",
           queued.task_id, ToString(queued.kind));
       }
+
+      PublishActiveGlobalPoseUpdates("secondary_commit");
 
       if (stale) {
         ++secondary_stale_;
@@ -2910,6 +3049,13 @@ private:
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr backpressure_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr sparse_cloud_publisher_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr keyframes_publisher_;
+  rclcpp::Service<orbslam3_msgs::srv::GetGlobalKeyFramePose>::SharedPtr
+    global_pose_service_;
+  std::map<uint32_t,
+    rclcpp::Publisher<orbslam3_msgs::msg::GlobalKeyFramePose>::SharedPtr>
+  global_pose_publishers_;
+  std::mutex global_pose_interest_mutex_;
+  std::map<uint32_t, GlobalPoseInterest> global_pose_interests_;
   std::map<uint32_t, rclcpp::Client<orbslam3_msgs::srv::GetOrbMap>::SharedPtr>
   snapshot_clients_;
   std::map<uint32_t, std::string> snapshot_services_;

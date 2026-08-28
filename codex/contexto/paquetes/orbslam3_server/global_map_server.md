@@ -1,5 +1,20 @@
 # `global_map_server.cpp`
 
+## Transporte de pose global 5D
+
+El servicio compartido `/global_mapping/get_global_keyframe_pose` delega en
+`SparseGlobalBackend::QueryGlobalPose()` y responde sin bloquear. Cada llamada
+reemplaza el interes activo anterior del dron. Tras commits principal o
+secundario, `PublishActiveGlobalPoseUpdates()` publica solo revisiones
+`AVAILABLE` nuevas en `/dron_X/orbslam/global_keyframe_pose`, con QoS
+reliable/volatile y sin polling ni heartbeat.
+
+```text
+src/global_map_server.cpp -> HandleGlobalPoseQuery
+src/global_map_server.cpp -> PublishActiveGlobalPoseUpdates
+rg "F5C-KF-GLOBAL-QUERY|F5D-KF-REVISION-PUSH|GlobalPoseInterest"
+```
+
 ## Observabilidad opcional de Fase 2
 
 `debug_pipeline_flow_events=false` evita crear el publisher de

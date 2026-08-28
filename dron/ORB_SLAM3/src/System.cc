@@ -329,6 +329,20 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight,
 
     Tracking::KeyFrameCreationEvent trackingEvent =
         mpTracker->ConsumeLastCreatedKeyFrameEvent();
+    if(receipt)
+    {
+        receipt->tracking_state = mpTracker->mState;
+        KeyFrame* referenceKeyFrame = mpTracker->mCurrentFrame.mpReferenceKF;
+        if(referenceKeyFrame && mpTracker->mCurrentFrame.isSet())
+        {
+            receipt->reference_keyframe_valid = true;
+            receipt->reference_keyframe_id = referenceKeyFrame->mnId;
+            receipt->Tcr =
+                mpTracker->mCurrentFrame.GetPose() *
+                referenceKeyFrame->GetPoseInverse();
+            receipt->tcr_valid = true;
+        }
+    }
     if(receipt && trackingEvent.created)
     {
         receipt->keyframe_event.created = true;

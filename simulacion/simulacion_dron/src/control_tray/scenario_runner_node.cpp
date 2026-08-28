@@ -222,6 +222,7 @@ private:
     bool absoluto_y = true;
     bool absoluto_z = true;
     bool absoluto_yaw = true;
+    bool expect_rejected = false;
 
     double timeout_sec = 120.0;
   };
@@ -506,6 +507,9 @@ private:
     spec.absoluto_yaw =
       YamlGet<bool>(goal_node, "absoluto_yaw", true);
 
+    spec.expect_rejected =
+      YamlGet<bool>(goal_node, "expect_rejected", false);
+
     spec.timeout_sec =
       YamlGet<double>(
       goal_node,
@@ -675,11 +679,29 @@ private:
       }
       active.goal_handle = active.goal_handle_future.get();
       if (!active.goal_handle) {
+        if (active.spec.expect_rejected) {
+          active.completed = true;
+          RCLCPP_INFO(
+            this->get_logger(),
+            "[SCENARIO-RUNNER-GOAL-REJECTED-EXPECTED] action='%s' phase=%s",
+            active.spec.action_full_name.c_str(),
+            phase.c_str());
+          continue;
+        }
         RCLCPP_ERROR(
           this->get_logger(),
           "[SCENARIO-RUNNER-GOAL-REJECTED] action='%s' phase=%s",
           active.spec.action_full_name.c_str(),
           phase.c_str());
+        return false;
+      }
+      if (active.spec.expect_rejected) {
+        RCLCPP_ERROR(
+          this->get_logger(),
+          "[SCENARIO-RUNNER-GOAL-ACCEPTED-UNEXPECTED] action='%s' phase=%s",
+          active.spec.action_full_name.c_str(),
+          phase.c_str());
+        active.client->async_cancel_goal(active.goal_handle);
         return false;
       }
       active.result_future =
@@ -903,11 +925,27 @@ private:
       goal_handle_future.get();
 
     if (!goal_handle) {
+      if (spec.expect_rejected) {
+        RCLCPP_INFO(
+          this->get_logger(),
+          "[SCENARIO-RUNNER-GOAL-REJECTED-EXPECTED] action='%s' mode=sequential",
+          spec.action_full_name.c_str());
+        return true;
+      }
       RCLCPP_ERROR(
         this->get_logger(),
         "[SCENARIO-RUNNER-GOAL-REJECTED] action='%s'",
         spec.action_full_name.c_str());
 
+      return false;
+    }
+
+    if (spec.expect_rejected) {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[SCENARIO-RUNNER-GOAL-ACCEPTED-UNEXPECTED] action='%s' mode=sequential",
+        spec.action_full_name.c_str());
+      client->async_cancel_goal(goal_handle);
       return false;
     }
 
