@@ -1,24 +1,26 @@
 # 00 - Contexto de compactacion
 
-## Checkpoint vigente 2026-08-28 - publicacion Git cierre 5H
+## Checkpoint vigente 2026-08-28 - cierre Git Fase 5H publicado
 
 ```text
-Estado: Fase 5H PARCIAL; implementacion, builds, tests, simulaciones y cierre
-documental completados. El usuario autoriza expresamente commit y push.
+Estado: Fase 5H PARCIAL; implementacion, builds, tests, simulaciones, cierre
+documental y publicacion Git completados.
 Preparacion: CERRADA
 Acuerdo cerrado: si
 Autorizacion funcional: CONCEDIDA
 Prueba acordada: pruebas 257-259 ya ejecutadas y documentadas.
 Dudas abiertas: ninguna.
-Alcance Git: codigo, configuracion, launches, tests, seis escenarios F5H y
-documentacion vigente de la iteracion de estabilizacion ORB.
+Commit principal publicado: `51b0895` (`Estabiliza el control ORB con
+probation temporal`) en `origin/main`.
+Alcance publicado: codigo, configuracion, launches, tests, seis escenarios F5H
+y documentacion vigente de la iteracion de estabilizacion ORB.
 Exclusiones: documento fuente del usuario, logs/metricas generados y cambios
 ajenos bajo `servidor/multidron_gui*`.
 Rama/remoto: `main` -> `origin/main` en
-`IvanCS-Chenfu/Mapeado-con-Drones`.
-Trabajo activo: preparar indice, verificarlo, crear commit y publicarlo.
-Siguiente accion exacta: añadir al indice exclusivamente las rutas del alcance
-F5H y validar `git diff --cached --check` antes del commit.
+`IvanCS-Chenfu/Mapeado-con-Drones`; push correcto `206e568..51b0895`.
+Trabajo activo: no; solo publicar este cierre documental minimo.
+Siguiente accion exacta: crear y subir el commit de checkpoint, comprobar la
+sincronizacion con `origin/main` y cerrar sin tocar las exclusiones.
 ```
 
 ## Checkpoint vigente 2026-08-28 - reanudacion implementacion probation ORB
