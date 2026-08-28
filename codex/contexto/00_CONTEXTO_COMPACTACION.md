@@ -21,10 +21,13 @@ Push intentado a `origin/main`, pero bloqueado por la revision de permisos: se
 requiere confirmacion explicita del repositorio externo concreto
 `https://github.com/IvanCS-Chenfu/Mapeado-con-Drones.git` y de la rama `main`.
 Confirmacion explicita recibida del usuario para ese repositorio y rama.
-Trabajo activo: incluir este checkpoint mediante amend y ejecutar el push
-autorizado.
-Siguiente accion exacta: `git commit --amend --no-edit` y despues
-`git push origin main`.
+Commit funcional final: `e9fcb23`, mensaje
+`Integra poses de control ORB para la fase 5`.
+Push completado: `origin/main` avanzo de `ff1e80a` a `e9fcb23`.
+Trabajo activo: no; solo queda publicar este cierre documental minimo para no
+dejar cambios pendientes en el workspace.
+Siguiente accion exacta: crear y subir un commit documental de checkpoint;
+despues verificar que HEAD y `origin/main` coinciden.
 ```
 
 ## Checkpoint vigente 2026-08-28 - diagnostico prueba 256 tras compactacion
