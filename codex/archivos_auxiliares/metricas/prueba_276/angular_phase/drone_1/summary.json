@@ -1,0 +1,145 @@
+{
+  "angular_error": {
+    "control_vs_gt": {
+      "direction_mismatch_ratio": 0.0425531914893617,
+      "direction_samples": 94,
+      "direction_threshold_radps": 0.01,
+      "mae_radps": 0.0007483589848744363,
+      "max_error_radps": 0.06610393776450833,
+      "rmse_radps": 0.003737636847253011
+    },
+    "motion_vs_gt": {
+      "direction_mismatch_ratio": 0.0425531914893617,
+      "direction_samples": 94,
+      "direction_threshold_radps": 0.01,
+      "mae_radps": 0.0007443395676934737,
+      "max_error_radps": 0.06610393752016046,
+      "rmse_radps": 0.0037344885123284763
+    }
+  },
+  "base_update_applied_ratio": 1.0,
+  "base_update_counts": {
+    "SMALL_ANCHOR": 906
+  },
+  "chronology_sec_from_orb": {
+    "fallback": null,
+    "first_ew_growth": 0.09991884231567383,
+    "first_gt_growth": 0.019949913024902344,
+    "first_motion_growth": 0.09991884231567383,
+    "first_positive_damping_power": 0.15993475914001465,
+    "first_raw_growth": 0.09991884231567383,
+    "first_raw_rejected": null,
+    "first_tau_ew_growth": 0.09991884231567383,
+    "orb_start": 0.0,
+    "tracking_not_ok": null
+  },
+  "common_window_samples": 0,
+  "common_window_sec": null,
+  "cross_correlation": {
+    "x": {
+      "control": {
+        "correlation": 0.9936121171173895,
+        "lag_sec": 0.059998512268066406,
+        "phase_deg": 7.949944792050055
+      },
+      "motion": {
+        "correlation": 0.9936201208419941,
+        "lag_sec": 0.03999900817871094,
+        "phase_deg": 5.2999631947000365
+      },
+      "raw": {
+        "correlation": 0.9984953948766834,
+        "lag_sec": 0.07999801635742188,
+        "phase_deg": 10.599926389400073
+      }
+    },
+    "y": {
+      "control": {
+        "correlation": 0.8815094726055903,
+        "lag_sec": 0.07999801635742188,
+        "phase_deg": 10.599926389400073
+      },
+      "motion": {
+        "correlation": 0.8808500243278834,
+        "lag_sec": 0.07999801635742188,
+        "phase_deg": 10.599926389400073
+      },
+      "raw": {
+        "correlation": 0.9556026146819073,
+        "lag_sec": 0.07999801635742188,
+        "phase_deg": 10.599926389400073
+      }
+    },
+    "z": {
+      "control": {
+        "correlation": 0.9289910849834653,
+        "lag_sec": 0.059998512268066406,
+        "phase_deg": 7.949944792050055
+      },
+      "motion": {
+        "correlation": 0.9215810068213731,
+        "lag_sec": 0.059998512268066406,
+        "phase_deg": 7.949944792050055
+      },
+      "raw": {
+        "correlation": 0.946277038317575,
+        "lag_sec": 0.059998512268066406,
+        "phase_deg": 7.949944792050055
+      }
+    }
+  },
+  "dominant_axis": "y",
+  "dominant_frequency_hz": 0.3680621259282518,
+  "longest_positive_damping_interval_sec": 0.05991506576538086,
+  "max_control_omega_radps": 0.07446188186298593,
+  "max_er_rad": 0.013679966626883927,
+  "max_ew_radps": 0.07504904700756612,
+  "max_gt_omega_radps": 0.05349369787852945,
+  "max_local_visual_age_sec": 0.070818901,
+  "max_tau_ew": 0.007504904509475787,
+  "max_visual_base_error_after_rad": 0.0,
+  "max_visual_base_error_before_rad": 0.002105052,
+  "max_visual_base_error_rad": 4.2146848510894035e-08,
+  "mean_local_visual_age_sec": 0.03401573616709606,
+  "mean_prediction_horizon_sec": 0.03401573616709606,
+  "mean_visual_base_error_after_rad": 0.0,
+  "mean_visual_base_error_before_rad": 2.272598013245033e-05,
+  "orb_duration_sec": 54.41994071006775,
+  "orb_samples": 2717,
+  "positive_damping_power_ratio": 0.020242914979757085,
+  "prediction_clamped_ratio": 0.0,
+  "status": "MEDIDO_PENDIENTE_INTERPRETACION",
+  "tau_er_work_common_window": null,
+  "tau_er_work_post_handoff": {
+    "duration_sec": 53.799986600875854,
+    "mean_power_w": 1.5806884087602223e-06,
+    "negative_energy_j": -3.3554671554062615e-09,
+    "net_energy_j": 8.486454739249397e-05,
+    "net_energy_per_sec_jps": 1.5774083369588124e-06,
+    "positive_energy_j": 8.486790285964939e-05,
+    "positive_work_ratio": 0.9858525688756515
+  },
+  "tau_ew_ideal_alignment_mean": 0.9508308810648534,
+  "tau_ew_ideal_alignment_negative_ratio": 0.021140052850132124,
+  "tau_ew_work_common_window": null,
+  "tau_ew_work_post_handoff": {
+    "duration_sec": 53.799986600875854,
+    "mean_power_w": -1.6610249081228617e-06,
+    "negative_energy_j": -8.928229342620562e-05,
+    "net_energy_j": -8.928143373586178e-05,
+    "net_energy_per_sec_jps": -1.6595066165761516e-06,
+    "positive_energy_j": 8.596903438713071e-10,
+    "positive_work_ratio": 0.017498138495904692
+  },
+  "tau_total_work_common_window": null,
+  "tau_total_work_post_handoff": {
+    "duration_sec": 53.799986600875854,
+    "mean_power_w": -8.033650819768681e-08,
+    "negative_energy_j": -8.83152074590673e-06,
+    "net_energy_j": -4.416886839878894e-06,
+    "net_energy_per_sec_jps": -8.20982888461721e-08,
+    "positive_energy_j": 4.414633906027864e-06,
+    "positive_work_ratio": 0.45755770662695455
+  },
+  "unique_orb_measurements": 906
+}

@@ -9,7 +9,7 @@
 5D: CONSEGUIDA
 5E: CONSEGUIDA tecnicamente
 5F: PARCIAL; puerta humana no aceptada
-5G-5H: PARCIAL; hover ORB 259 falla tras 227 muestras
+5G-5H: PARCIAL; 268 valida gate raw y descarta anclaje moderate completo
 5I: absorbida en 5H
 Fase 5 funcional: en curso
 ```
@@ -150,3 +150,84 @@ la cadena moderada posterior llega a `0.075 rad/paso`, aparecen dos rechazos
 excesivos, fallback y tracking 3. Se detienen las etapas 3-8. El umbral SMALL
 dependiente de `dt` y la confirmacion basada en residual quedan como siguiente
 problema de diseno.
+
+La iteracion raw/bias posterior fija SMALL y separa movimiento entre medidas de
+correccion absoluta. Pasa 27/27 GTests y la prueba 260 calibra correctamente
+hover y yaw bajo GT. La prueba 261 entra en ORB con salto y primer error cero,
+pero solo lo mantiene unos 3.82 s: el bias responde desde SMALL, el movimiento
+fisico realimentado se acepta como raw plausible y termina dominando la salida.
+Tres rechazos excesivos invalidan el estimador antes de que tracking se pierda.
+No se ejecuta etapa 3; el siguiente acuerdo debe romper esta realimentacion sin
+tocar GT, mux, ganancias ni W.
+
+La correccion posterior añade deadband/histeresis y confirmacion al bias,
+supresion durante movimiento raw y decay continuo de raw rechazado. Pasa 37/37
+GTests. En 262 `omega_bias` permanece a cero y el decay funciona; ORB mejora a
+unos 5.92 s, pero `omega_motion` oscila hasta unos `0.617 rad/s` y vuelve a
+forzar fallback antes de tracking 2->3. La etapa 3 sigue detenida. El siguiente
+diagnostico debe medir latencia/fase del canal angular visual respecto al lazo
+de control.
+
+La prueba diagnóstica 263 conserva exactamente el comportamiento de 262 y
+captura los vectores previstos, pero no puede sincronizar GT: su header usa
+tiempo Gazebo y receive/control usan tiempo ROS. Queda `DATOS INSUFICIENTES`,
+sin confirmar ni descartar fase/latencia. Se añadió `gt_receive_stamp` y el
+analizador dual-clock quedó compilado.
+
+La prueba 264 repite el hover con ese puente: raw sigue al GT con `~0.08 s`,
+pero la pose/control angular queda fuera de fase. `tau_ew` es
+anti-amortiguante de forma intermitente, mientras `tau_er` realiza trabajo
+positivo en `80.9 %` del tramo post-handoff e inyecta `+0.005173 J` al
+reprocesar con el analizador de 265. El
+diagnostico temporal queda conseguido, pero el hover sigue `NO CONSEGUIDO` y
+5H `PARCIAL`. No ejecutar etapa 3; el siguiente cambio debe tratar la fase de
+orientacion, no GT, mux ni una simple recalibracion raw.
+
+La prueba 265 corrige solo la semantica temporal: el wrapper usa la edad local
+desde el ingreso del callback y extrapola una unica vez con horizonte medio
+`43.2 ms`, en vez de saturar siempre a `0.10 s`. Builds, 40/40 GTests y 5/5
+tests del analizador pasan. Funcionalmente empeora: ORB dura `5.56 s`,
+`tau_er` inyecta `+0.160266 J` y el torque total `+0.145081 J`. La distancia
+`visual_q -> base_q` llega a `0.339 rad`, muy por encima del paso añadido por
+la prediccion. La causa dominante queda en `pose_` base integrada; el horizonte
+fijo anterior compensaba parcialmente ese retraso. 265 queda
+`NO CONSEGUIDA`, 5H `PARCIAL` y etapa 3 detenida. Debe acordarse la fusion o
+anclaje visual de la orientacion base antes de otro cambio funcional.
+
+La prueba 266 reancla la pose base a cada medida SMALL/plausible y limita a
+`0.015 rad` las correcciones MODERATE_CONFIRMED, sin convertirlas en omega.
+Pasa tres builds, 44/44 GTests y 7/7 tests del analizador. En ventana comun de
+`5.56 s`, `tau_er` baja de `+0.153559` a `+0.002067 J` y el torque total pasa
+de `+0.138374` a `-0.001945 J`; ORB se extiende hasta `8.06 s`. No completa el
+hover: la fase moderate deja residual, alterna con PREDICT_ONLY, raw se rechaza
+a `+7.50 s` y fallback llega a `+8.08 s`, antes de tracking 3. Resultado
+`NO CONSEGUIDA` con mejora sustancial; 5H sigue `PARCIAL`, etapa 3 detenida y
+politica moderate pendiente de nuevo acuerdo.
+
+La prueba 267 sustituye el limite moderate por anclaje completo. Sus cuatro
+anclas dejan error after cero, pero ORB cae a `5.56 s`; en ventana comun
+`tau_er=+0.030448 J` y total `+0.015622 J`, peores que 266. Tras el primer
+anclaje se alcanza casi la misma energia de fallo que en 266, pero en `1.22 s`
+en vez de `2.06 s`. Una confirmacion anclo con raw rechazado; el gate raw final
+se corrige mecanicamente, pasa build y 46/46 GTests, pero aun no tiene
+simulacion. No se ejecutan 268 ni etapa 3; 5H sigue `PARCIAL`.
+
+La prueba 268 valida el gate raw final sin otros cambios: el unico anclaje
+moderate es plausible y no hay confirmed anchors con raw rechazado. Aun asi,
+tras corregir `0.057317 rad`, el torque total acumula `+0.046416 J` en
+`0.88 s`; ORB dura `5.72 s` y cae a fallback. El bug raw de 267 no era la
+causa principal. No se ejecutan 269 ni etapa 3; el residual gradual
+`Delta_target` queda pendiente de autorizacion.
+
+La bateria 269-272 cambia el diagnostico siguiente: GT normal 50 Hz es estable,
+pero GT perfecto a 20 Hz atravesando el `OrbPosePredictor` ya produce giro y
+energia positiva; añadir 80 ms o el timing realista de 268 provoca fallo antes
+del segundo hover. La geometria ORB deja de ser necesaria para reproducir el
+problema. Antes de `Delta_target` debe corregirse la semantica temporal 20->50
+Hz y la coherencia de pose/omega. El laboratorio GT queda apagado por defecto.
+
+Las pruebas 273-275 afinan esa causa: E estabiliza la arquitectura actual al
+sustituir solo `omega_motion` por omega GT; F con hold y G con extrapolacion
+directa tambien son estables y disipativas. Se selecciona la opcion A del
+diagnostico: derivacion/filtrado de `omega_motion`. La siguiente correccion
+debe actuar sobre esa estimacion ORB, no sobre gains, hold o SO(3).

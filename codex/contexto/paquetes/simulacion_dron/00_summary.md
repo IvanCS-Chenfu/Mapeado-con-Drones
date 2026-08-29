@@ -5,6 +5,24 @@ para generar CSV/JSON/PNG O/W/GT por dron con emparejamiento temporal y
 alineacion O fija por epoch. La prueba 230 valida su ejecucion y deja la calidad
 W como no aceptada.
 
+Para el diagnóstico angular 5H guarda además
+`drone_N_gt_angular.csv`: orientación GT, omega world/body, stamp físico Gazebo
+y stamp ROS de recepción. Este par permite mapear ambos relojes offline sin
+usar GT en estimación o control. `analyze_f5h_angular_phase.py` produce timeline,
+lags, frecuencia/fase, potencias y comparación `tau_ew` real/ideal.
+La prueba 264 valida el puente con 323 ciclos ORB sincronizados y permite
+separar latencia raw (`~0.08 s`) de la inyeccion de energia del lazo angular.
+El analizador de 265 añade trabajo/energia de `tau_er`, `tau_ew` y torque total,
+edad local, horizonte/clamp y separación visual/base/predicha.
+En 265 la captura confirma horizonte medio `43.2 ms`, pero localiza el desfase
+dominante en `visual_q -> base_q`; el hover falla antes que 264 y no se avanza
+a etapa 3.
+Para 266 el analizador separa error visual-base before/after, cuenta tipos de
+reanclaje y añade potencia media, energia por segundo y ventana comun de
+comparacion con 265.
+La captura 266 deduplica 157 medidas ORB, confirma 118 SMALL_ANCHOR y muestra
+la transicion tardia moderate/predict-only/rejected antes del fallback.
+
 La integracion 5H usa `global_drone_pose_visualizer.py`. Consume los
 `NavigationState` de cada dron y publica `/global_drone_poses` como
 `MarkerArray`: ejes XYZ desde `o_t_body`, exactamente la pose de control, y
@@ -163,3 +181,8 @@ residual documentado en su historial.
 
 Detalle: `launches.md`, `scenario_runner_node.md` y
 `pipeline_flow_visualizer.md`.
+
+Las pruebas diagnósticas 269-272 usan cuatro YAML equivalentes y el argumento
+`f5h_gt_timing_mode` de `multi_dron.launch.py`. `pose_metrics_node.py` conserva
+GT angular dual-clock y el analizador existente compara energía y fase sin
+introducir GT en el control normal.

@@ -4,8 +4,8 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.conditions import IfCondition, UnlessCondition
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -78,6 +78,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
         DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
+        DeclareLaunchArgument('f5h_gt_timing_mode', default_value='off'),
     ]
 
     vocab = LaunchConfiguration('vocab')
@@ -96,6 +97,7 @@ def generate_launch_description():
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
     debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
+    f5h_gt_timing_mode = LaunchConfiguration('f5h_gt_timing_mode')
 
     common_params = {
         'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
@@ -118,14 +120,20 @@ def generate_launch_description():
         debug_orb_control_state, value_type=bool)
 
     mono_node = Node(
-        condition=UnlessCondition(usar_estereo),
+        condition=IfCondition(PythonExpression([
+            "'", usar_estereo, "'.lower() != 'true' and '",
+            f5h_gt_timing_mode, "'.lower() == 'off'",
+        ])),
         package='orbslam3', executable='mono', name='orbslam3_mono',
         output='screen', additional_env=orbslam_environment,
         arguments=[vocab, yaml_mono], parameters=[common_params],
         remappings=[('camera', 'sensor/camara_mono/image_raw')])
 
     stereo_node = Node(
-        condition=IfCondition(usar_estereo),
+        condition=IfCondition(PythonExpression([
+            "'", usar_estereo, "'.lower() == 'true' and '",
+            f5h_gt_timing_mode, "'.lower() == 'off'",
+        ])),
         package='orbslam3', executable='stereo', name='orbslam3_stereo',
         output='screen', additional_env=orbslam_environment,
         arguments=[vocab, yaml_stereo, rectify],
@@ -136,6 +144,19 @@ def generate_launch_description():
             ('orbslam/navigation_state',
              'orbslam/navigation_state_orb'),
         ])
+
+    gt_timing_diagnostic_node = Node(
+        condition=IfCondition(PythonExpression([
+            "'", f5h_gt_timing_mode, "'.lower() != 'off'",
+        ])),
+        package='orbslam3', executable='gt_timing_diagnostic',
+        name='f5h_gt_timing_diagnostic', output='screen',
+        parameters=[navigation_state_params, {
+            'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+            'mode': ParameterValue(f5h_gt_timing_mode, value_type=str),
+            'drone_id': ParameterValue(drone_id, value_type=int),
+            'body_frame': ParameterValue([drone_name, '/base_link'], value_type=str),
+        }])
 
     fiducial_visualizer_node = Node(
         condition=IfCondition(debug_fiducial_visualization),
@@ -151,4 +172,5 @@ def generate_launch_description():
         }])
 
     return LaunchDescription(
-        args + [mono_node, stereo_node, fiducial_visualizer_node])
+        args + [mono_node, stereo_node, gt_timing_diagnostic_node,
+                fiducial_visualizer_node])

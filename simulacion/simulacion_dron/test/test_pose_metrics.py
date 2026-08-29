@@ -53,6 +53,13 @@ def test_rotation_error_and_wrapping_are_bounded():
         MODULE.wrapped_angle(math.radians(358.0)), math.radians(-2.0), abs_tol=1e-7)
 
 
+def test_angular_velocity_is_transformed_from_world_to_body():
+    pose = make_pose(0.0, 0.0, 0.0, math.pi * 0.5)
+    twist = SimpleNamespace(angular=SimpleNamespace(x=1.0, y=0.0, z=0.0))
+    omega_body = MODULE.angular_velocity_body(pose, twist)
+    assert MODULE.np.allclose(omega_body, [0.0, -1.0, 0.0], atol=1e-9)
+
+
 def test_node_constructs_without_shadowing_rclpy_properties(tmp_path):
     MODULE.rclpy.init()
     node = None

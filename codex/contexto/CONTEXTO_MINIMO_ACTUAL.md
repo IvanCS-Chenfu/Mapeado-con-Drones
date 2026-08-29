@@ -9,7 +9,7 @@ archivo y reconciliarlo con la peticion mas reciente.
 Fase 2: CONSEGUIDA el 2026-08-24
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 259
+Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras pruebas 273-275
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -19,10 +19,10 @@ Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 259
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA como regresion opcional futura
-Subfase actual: 3Q A REVISAR tras correccion y prueba 220
-Preparacion 3Q: cerrada; ejecucion autorizada ya realizada
-Siguiente punto de entrada: aclarar la esquina visual ambigua y decidir cierre
-Punto de entrada Fase 5: debatir SMALL fijo y confirmacion raw/gauge tras 259
+Subfase actual: 5H PARCIAL; causa principal aislada en `omega_motion`
+Preparacion 5H: cerrada; autorizacion E/F/G consumida
+Siguiente punto de entrada: corregir derivacion/filtrado de omega ORB
+Punto de entrada Fase 5: evitar inyeccion de energia por `tau_er` sin GT
 Revision visual humana de prueba 200: confirmada correcta
 Cierre de Fase 2: completo
 ```
@@ -152,6 +152,54 @@ confirmacion moderada llega a `0.075 rad/paso`, outliers, fallback y tracking 3.
 Por el criterio acordado no se ejecutan etapas 3-8. El siguiente debate debe
 evitar que SMALL crezca con gaps y basar confirmacion en evidencia independiente
 del residual realimentado.
+
+La correccion 262 añade deadband/histeresis y confirmacion del bias, supresion
+por movimiento y decay de raw rechazado. Pasa 37/37 GTests. En hover,
+`omega_bias=0` y el decay funciona, pero `omega_motion` oscila hasta
+~`0.617 rad/s`; ORB dura ~`5.92 s` y el fallback precede ~`0.54 s` a tracking
+2->3. No se ejecuta etapa 3. Siguiente diagnostico: timestamps y fase de
+`omega_raw -> omega_motion -> control omega -> ew -> torque`, sin tocar GT,
+mux, ganancias ni W.
+
+La prueba 263 ejecuta el mismo hover y captura ORB/control, pero queda
+`DATOS_INSUFICIENTES`: GT usa header Gazebo y control reloj ROS, así que no se
+calculan correlaciones ni potencias falsas. `gt_receive_stamp` y el analizador
+dual-clock ya están implementados, probados y compilados.
+
+La prueba 264 usa ese puente y sincroniza 323 ciclos ORB durante `6.44 s`.
+Raw sigue al GT con correlacion `~0.98` y lag `~0.08 s`; tracking permanece en
+2 hasta fallback. El termino `tau_ew` es contrario al torque ideal en `34.0 %`
+de los ciclos, aunque netamente disipativo. `tau_er` es la evidencia dominante:
+inyecta `+0.005173 J` y hace trabajo positivo en `80.9 %` del tramo
+post-handoff. Diagnostico temporal conseguido, hover no conseguido. No hay
+cambio funcional ni etapa 3; el siguiente acuerdo debe corregir la fase de la
+pose angular usada por control.
+
+La prueba 265 corrige el horizonte saturado: usa edad local media `51.5 ms`,
+horizonte medio `43.2 ms`, clamp `10.4 %` y una unica propagacion. Pasa 40/40
+GTests y 5/5 tests del analizador, pero el hover queda `NO CONSEGUIDO`: ORB dura
+`5.56 s`, `tau_er` inyecta `+0.160266 J` y el torque total `+0.145081 J`.
+`visual_q -> base_q` alcanza `0.339 rad`, mientras la prediccion añade poco;
+el desfase dominante vive en `pose_` base integrada. 5H sigue `PARCIAL`, sin
+etapa 3. La autorizacion anterior no cubre la siguiente fusion/anclaje visual.
+
+La prueba 266 aplica ese reanclaje: SMALL/plausible deja error after cero y la
+correccion de pose no se convierte en omega. Pasa 44/44 GTests y 7/7 tests del
+analizador. ORB mejora de `5.56` a `8.06 s`; en ventana comun `tau_er` cae de
+`+0.153559` a `+0.002067 J` y el torque total pasa a `-0.001945 J`. No completa
+el hover: MODERATE_CONFIRMED limitado a `0.015 rad` deja residual, aparecen
+tramos PREDICT_ONLY, raw se rechaza y llega fallback antes de tracking 3. 5H
+sigue `PARCIAL`, sin etapa 3; siguiente debate limitado a politica moderate.
+
+La prueba 267 aplica anclaje moderate completo y vuelve a fallar a `5.56 s`.
+Tras el primer anclaje la energia dañina crece mas deprisa que en 266. Un
+confirmed anchor uso raw rechazado; el codigo final exige raw plausible y pasa
+46/46 GTests, pero no se ha simulado. No ejecutar 268 ni etapa 3 sin acuerdo.
+
+La prueba 268 valida ya ese gate: el unico anclaje moderate es plausible y
+deja error after cero, pero acumula `+0.046416 J` hasta fallback en `0.88 s`.
+ORB dura `5.72 s`; no se ejecutan 269 ni etapa 3. El siguiente diseño propuesto
+es `Delta_target` propagable a `0.30 rad/s`, aun no autorizado para codigo.
 
 Repeticion visual 212: seis yaw relativos aplicados y compilados, pero no
 alcanzados. Un `LoopTask` fue rechazado por

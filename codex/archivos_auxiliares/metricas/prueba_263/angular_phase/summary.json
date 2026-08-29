@@ -1,0 +1,13 @@
+{
+  "drones": {
+    "1": {
+      "orb_samples": 0,
+      "status": "DATOS_INSUFICIENTES"
+    },
+    "2": {
+      "orb_samples": 0,
+      "status": "DATOS_INSUFICIENTES"
+    }
+  },
+  "source_log": "codex/archivos_auxiliares/logs/prueba_263.log"
+}

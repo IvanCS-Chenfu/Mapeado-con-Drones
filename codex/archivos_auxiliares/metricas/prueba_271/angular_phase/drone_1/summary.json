@@ -1,0 +1,130 @@
+{
+  "base_update_applied_ratio": 0.5526315789473685,
+  "base_update_counts": {
+    "MODERATE_PENDING": 2,
+    "PREDICT_ONLY": 4,
+    "REJECTED": 11,
+    "SMALL_ANCHOR": 21
+  },
+  "chronology_sec_from_orb": {
+    "fallback": null,
+    "first_ew_growth": 0.30002379417419434,
+    "first_gt_growth": 0.03999495506286621,
+    "first_motion_growth": 0.28003764152526855,
+    "first_positive_damping_power": 0.0,
+    "first_raw_growth": 0.21999812126159668,
+    "first_raw_rejected": 1.400005578994751,
+    "first_tau_ew_growth": 0.30002379417419434,
+    "orb_start": 0.0,
+    "tracking_not_ok": null
+  },
+  "common_window_samples": 0,
+  "common_window_sec": null,
+  "cross_correlation": {
+    "x": {
+      "control": {
+        "correlation": -0.7747414175492668,
+        "lag_sec": -0.260021448135376,
+        "phase_deg": -85.0909090909091
+      },
+      "motion": {
+        "correlation": -0.7949544885653458,
+        "lag_sec": -0.28002309799194336,
+        "phase_deg": -91.63636363636364
+      },
+      "raw": {
+        "correlation": 0.98647522032195,
+        "lag_sec": 0.14001154899597168,
+        "phase_deg": 45.81818181818182
+      }
+    },
+    "y": {
+      "control": {
+        "correlation": 0.6559531048786983,
+        "lag_sec": 0.2200181484222412,
+        "phase_deg": 72.0
+      },
+      "motion": {
+        "correlation": 0.6182089296865129,
+        "lag_sec": 0.2200181484222412,
+        "phase_deg": 72.0
+      },
+      "raw": {
+        "correlation": 0.9562169793213208,
+        "lag_sec": 0.16001319885253906,
+        "phase_deg": 52.36363636363637
+      }
+    },
+    "z": {
+      "control": {
+        "correlation": -0.41934719182200714,
+        "lag_sec": -0.2400197982788086,
+        "phase_deg": -78.54545454545455
+      },
+      "motion": {
+        "correlation": 0.7881791577613437,
+        "lag_sec": 0.2200181484222412,
+        "phase_deg": 72.0
+      },
+      "raw": {
+        "correlation": 0.9909889904061223,
+        "lag_sec": 0.16001319885253906,
+        "phase_deg": 52.36363636363637
+      }
+    }
+  },
+  "dominant_axis": "x",
+  "dominant_frequency_hz": 0.9090159217964875,
+  "longest_positive_damping_interval_sec": 0.5600147247314453,
+  "max_control_omega_radps": 0.44058621541991727,
+  "max_er_rad": 0.22765330243004742,
+  "max_ew_radps": 0.44632817176313416,
+  "max_gt_omega_radps": 1.3960311595519967,
+  "max_local_visual_age_sec": 0.140004396,
+  "max_tau_ew": 0.044632816822949464,
+  "max_visual_base_error_after_rad": 0.450258762,
+  "max_visual_base_error_before_rad": 0.450258762,
+  "max_visual_base_error_rad": 0.38300799580540357,
+  "mean_local_visual_age_sec": 0.11110675562727272,
+  "mean_prediction_horizon_sec": 0.09709235275454545,
+  "mean_visual_base_error_after_rad": 0.13603793392105262,
+  "mean_visual_base_error_before_rad": 0.1394559014210526,
+  "orb_duration_sec": 2.180008888244629,
+  "orb_samples": 110,
+  "positive_damping_power_ratio": 0.4727272727272727,
+  "prediction_clamped_ratio": 0.7454545454545455,
+  "status": "MEDIDO_PENDIENTE_INTERPRETACION",
+  "tau_er_work_common_window": null,
+  "tau_er_work_post_handoff": {
+    "duration_sec": 1.5799896717071533,
+    "mean_power_w": 0.006428044565519797,
+    "negative_energy_j": -4.413206663574572e-06,
+    "net_energy_j": 0.01025616024719038,
+    "net_energy_per_sec_jps": 0.006491283095609583,
+    "positive_energy_j": 0.010260573453853953,
+    "positive_work_ratio": 0.975
+  },
+  "tau_ew_ideal_alignment_mean": 0.11551758215729159,
+  "tau_ew_ideal_alignment_negative_ratio": 0.4636363636363636,
+  "tau_ew_work_common_window": null,
+  "tau_ew_work_post_handoff": {
+    "duration_sec": 1.5799896717071533,
+    "mean_power_w": -0.0009585094711680005,
+    "negative_energy_j": -0.004969924019940275,
+    "net_energy_j": -0.0015174685237119426,
+    "net_energy_per_sec_jps": -0.0009604293944987263,
+    "positive_energy_j": 0.0034524554962283324,
+    "positive_work_ratio": 0.6375
+  },
+  "tau_total_work_common_window": null,
+  "tau_total_work_post_handoff": {
+    "duration_sec": 1.5799896717071533,
+    "mean_power_w": 0.005469535122243018,
+    "negative_energy_j": -0.0017910852755574293,
+    "net_energy_j": 0.008738691762129918,
+    "net_energy_per_sec_jps": 0.00553085372557398,
+    "positive_energy_j": 0.010529777037687349,
+    "positive_work_ratio": 0.8
+  },
+  "unique_orb_measurements": 38
+}

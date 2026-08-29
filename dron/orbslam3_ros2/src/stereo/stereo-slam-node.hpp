@@ -178,6 +178,7 @@ class StereoSlamNode : public rclcpp::Node
         uint32_t frames_since_reference_change_ = 0xFFFFFFFFU;
         double latest_orb_measurement_stamp_sec_ = 0.0;
         double latest_orb_measurement_input_stamp_sec_ = 0.0;
+        double latest_orb_measurement_arrival_stamp_sec_ = 0.0;
         double orb_diagnostic_window_until_sec_ = 0.0;
         bool last_published_orb_pose_valid_ = false;
         Sophus::SE3f last_published_orb_pose_;
@@ -203,7 +204,8 @@ class StereoSlamNode : public rclcpp::Node
         void PublishNavigationState(
             const builtin_interfaces::msg::Time& stamp,
             const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
-            const Sophus::SE3f& Tcw);
+            const Sophus::SE3f& Tcw,
+            double callback_arrival_stamp_sec);
         void PublishPredictedNavigationState();
         void LogOrbMeasurementDiagnostics(
             const orbslam3_ros2::OrbPosePredictorDiagnostics& diagnostics);

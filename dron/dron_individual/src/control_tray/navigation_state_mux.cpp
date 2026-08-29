@@ -61,6 +61,7 @@ public:
     declare_parameter<int64_t>("orb_qualification_samples", 20);
     declare_parameter<bool>("debug_architecture_telemetry", false);
     declare_parameter<int64_t>("drone_id", 0);
+    declare_parameter<std::string>("f5h_diagnostic_force_source", "normal");
     gt_timeout_sec_ = get_parameter("gt_timeout_sec").as_double();
     gt_fallback_enabled_ = get_parameter("gt_fallback_enabled").as_bool();
     orb_qualification_samples_ = static_cast<std::size_t>(std::max<int64_t>(
@@ -71,6 +72,8 @@ public:
     debug_architecture_telemetry_ =
       get_parameter("debug_architecture_telemetry").as_bool();
     drone_id_ = static_cast<uint32_t>(get_parameter("drone_id").as_int());
+    diagnostic_force_source_ =
+      get_parameter("f5h_diagnostic_force_source").as_string();
     if (debug_architecture_telemetry_) {
       architecture_activity_pub_ = create_publisher<std_msgs::msg::String>(
         "/system_architecture/activity", rclcpp::QoS(64).best_effort());
@@ -172,6 +175,13 @@ private:
     }
 
     decision = goal_source_lock_.Apply(decision);
+
+    // TODO FASE 6: retirar esta seleccion junto con el laboratorio temporal F5H.
+    if (diagnostic_force_source_ == "gt") {
+      decision = {NavigationSource::GT_FALLBACK, FallbackReason::NONE};
+    } else if (diagnostic_force_source_ == "orb") {
+      decision = {NavigationSource::ORB, FallbackReason::NONE};
+    }
 
     RigidPose source_pose;
     if (decision.source == NavigationSource::ORB) {
@@ -330,6 +340,7 @@ private:
   uint64_t fallback_samples_{0};
   uint32_t drone_id_{0};
   bool debug_architecture_telemetry_{false};
+  std::string diagnostic_force_source_{"normal"};
   NavigationSource last_source_{NavigationSource::INVALID};
   FallbackReason last_fallback_reason_{FallbackReason::NONE};
   dron_individual::EpochAnchorLatch anchor_latch_;

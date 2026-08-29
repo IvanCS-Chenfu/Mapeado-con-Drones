@@ -100,7 +100,7 @@ Solo con la puerta cerrada, usar el contrato `subfase_*.md` y seguir:
 | 2 | `conseguida` | Separación servidor/dron/simulación | Separación, configuración, visualizadores, guardas y validación final completas. |
 | 3 | `actual` | Mapa sparse global multi-dron | Reabierta solo en 3Q para corregir optimizaciones observadas en la prueba 213. |
 | 4 | `realizado` | Fiducial real sin ground truth funcional | Cerrada con 4A-4H; 4I queda aplazada como regresión opcional. |
-| 5 | `en curso` | Pose global de cada dron sin ground truth | 5A-5E conseguidas; 5F parcial; 5G-5H parciales pendientes de revisión visual. |
+| 5 | `en curso` | Pose global de cada dron sin ground truth | 5A-5E conseguidas; 5F parcial; 5G-5H parciales; 273-275 aislan `omega_motion`. |
 | 6 | `sin hacer` | Tareas y trayectorias de mapeo | Generará misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |
 | 7 | `sin hacer` | GUI 3D propia de operación | GUI C++/Qt/OpenGL independiente de RViz2 y del visualizador web entregado en Fase 3. |
 | 8 | `sin hacer` | Nube densa global multi-dron | Reconstrucción dense en servidor a partir de estéreo, poses globales y sparse. |
@@ -111,9 +111,18 @@ conseguidas. El cierre previo de Fase 3 se reabre únicamente en 3Q para resolve
 los errores de optimización observados en la prueba 213. Fase 4 permanece
 cerrada con 4A-4H; 4I queda aplazada. Por petición explícita, 5A se completó
 documentalmente en paralelo y 5B quedó validada en la prueba 225. El bloque
-5C-5E quedan conseguidas y 5F permanece parcial. 5G-5H ya estan implementadas:
-la prueba 243 completa la trayectoria tipica y valida bloqueo de fuente y
-handshakes; falta la revision visual humana de Gazebo/RViz2 para cerrarlas.
+5C-5E quedan conseguidas y 5F permanece parcial. 5G-5H ya estan implementadas;
+la prueba 266 valida el reanclaje visual SMALL y reduce fuertemente la energia
+angular. La 267 prueba anclaje moderate completo, pero vuelve a caer a
+`5.56 s` y acumula energia mas deprisa tras el primer anclaje. El gate raw
+posterior pasa 46/46 GTests. La prueba 268 valida ese gate, pero un anclaje
+moderate plausible dispara `+0.046416 J` y fallback en `0.88 s`. La bateria
+269-272 demuestra despues que GT perfecto ya falla al atravesar el predictor
+20->50 Hz; 80 ms y el timing realista de 268 lo agravan. La siguiente decision
+debe corregir coherencia temporal pose/omega antes de `Delta_target`. E/F/G
+273-275 completan y son disipativas al usar omega GT exacta; funcionan tanto
+el hold como la extrapolacion SO(3). La causa principal queda aislada en la
+derivacion/filtrado de `omega_motion`.
 
 Los archivos específicos de pipeline de fases futuras son contratos
 preparatorios, no autorización de ejecución. Codex debe tratarlos como no

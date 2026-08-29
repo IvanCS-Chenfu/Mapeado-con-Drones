@@ -57,6 +57,13 @@ def wrapped_angle(value):
     return math.atan2(math.sin(value), math.cos(value))
 
 
+def angular_velocity_body(pose, twist):
+    rotation = pose_matrix(pose)[:3, :3]
+    omega_world = np.array([
+        twist.angular.x, twist.angular.y, twist.angular.z], dtype=float)
+    return rotation.T @ omega_world
+
+
 def metric_summary(values):
     finite = np.asarray([value for value in values if math.isfinite(value)], dtype=float)
     if finite.size == 0:
@@ -88,6 +95,7 @@ class DroneMetrics:
     def __init__(self):
         self.gt = deque(maxlen=400)
         self.gt_velocity = deque(maxlen=400)
+        self.gt_angular_rows = []
         self.rows = []
         self.alignments = {}
         self.last_stamp = None
@@ -136,8 +144,35 @@ class PoseMetricsNode(Node):
         self.data[drone].gt.append((stamp_seconds(message.header.stamp), message.pose))
 
     def on_gt_velocity(self, drone, message):
-        self.data[drone].gt_velocity.append((
-            stamp_seconds(message.header.stamp), message.twist))
+        state = self.data[drone]
+        velocity_stamp = stamp_seconds(message.header.stamp)
+        receive_stamp = self.get_clock().now().nanoseconds * 1e-9
+        state.gt_velocity.append((velocity_stamp, message.twist))
+        if not state.gt:
+            return
+        pose_stamp, pose = min(
+            state.gt, key=lambda sample: abs(sample[0] - velocity_stamp))
+        pose_skew = abs(pose_stamp - velocity_stamp)
+        if pose_skew > self.max_skew:
+            return
+        omega_body = angular_velocity_body(pose, message.twist)
+        state.gt_angular_rows.append({
+            'gt_stamp': velocity_stamp,
+            'gt_receive_stamp': receive_stamp,
+            'pose_stamp': pose_stamp,
+            'pose_skew_sec': pose_skew,
+            'frame_id': message.header.frame_id,
+            'gt_q_x': pose.orientation.x,
+            'gt_q_y': pose.orientation.y,
+            'gt_q_z': pose.orientation.z,
+            'gt_q_w': pose.orientation.w,
+            'gt_omega_world_x': message.twist.angular.x,
+            'gt_omega_world_y': message.twist.angular.y,
+            'gt_omega_world_z': message.twist.angular.z,
+            'gt_omega_body_x': float(omega_body[0]),
+            'gt_omega_body_y': float(omega_body[1]),
+            'gt_omega_body_z': float(omega_body[2]),
+        })
 
     def on_navigation(self, drone, message):
         state = self.data[drone]
@@ -251,6 +286,7 @@ class PoseMetricsNode(Node):
         return {
             'drone_id': drone,
             'paired_samples': len(rows), 'unpaired_samples': state.unpaired,
+            'gt_angular_samples': len(state.gt_angular_rows),
             'epochs_aligned': sorted(state.alignments.keys()),
             'reference_switches': state.reference_switches,
             'revision_changes': state.revision_changes,
@@ -320,6 +356,13 @@ class PoseMetricsNode(Node):
     def write_reports(self):
         summaries = []
         for drone, state in self.data.items():
+            if state.gt_angular_rows:
+                gt_path = self.output_dir / f'drone_{drone}_gt_angular.csv'
+                with gt_path.open('w', newline='', encoding='utf-8') as stream:
+                    writer = csv.DictWriter(
+                        stream, fieldnames=state.gt_angular_rows[0].keys())
+                    writer.writeheader()
+                    writer.writerows(state.gt_angular_rows)
             if state.rows:
                 csv_path = self.output_dir / f'drone_{drone}_samples.csv'
                 with csv_path.open('w', newline='', encoding='utf-8') as stream:

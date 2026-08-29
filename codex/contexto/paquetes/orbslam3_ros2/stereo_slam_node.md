@@ -112,17 +112,17 @@ composicion es `W_T_C = W_T_Kref * inverse(Tcr)` y
 Tras la regresion 253, el suavizado pertenece exclusivamente a este wrapper.
 `OrbPosePredictor` recibe `O_T_B` de cada frame ORB, aplica alpha-beta a
 traslacion y propaga el estado a 50 Hz desde un timer de `StereoSlamNode`.
-Cada medida corrige gradualmente una prediccion SE(3). La salida queda limitada
-por velocidad y aceleracion lineal/angular, y la pose se integra desde esas
-mismas velocidades publicadas. Una innovacion angular pequena se aplica; una
-moderada conserva la prediccion hasta confirmarse por direccion, magnitud y
-plausibilidad dinamica durante tres frames, o cuatro en la ventana posterior a
-un cambio de reference KF. Al confirmarse se absorbe gradualmente; si vuelve la
-trayectoria previa, expira o pierde coherencia se descarta. Una innovacion
-superior al gate duro conserva la prediccion y acumula rechazo. Tres rechazos
-duros consecutivos invalidan ORB. Tracking invalido reinicia el predictor y
-sigue publicando estado invalido a 50 Hz para que el mux pueda activar fallback
-sin perder cadencia.
+En rotacion calcula `DeltaR_raw`, `omega_raw` y `alpha_raw` respecto a la medida
+raw anterior. Su calidad temporal y plausibilidad alimentan `omega_motion` con
+un filtro separado. El residual absoluto medida-prediccion mantiene la
+probation temporal y alimenta una `omega_bias` acotada; la pose publicada se
+integra desde `omega_total=omega_motion+omega_bias`. SMALL es fijo.
+`omega_bias` usa `BiasCorrectionState` (`OFF/PENDING/ACTIVE/DECAY`), deadband
+con histeresis y confirmacion temporal; el movimiento raw significativo
+suprime el bias. Raw `SUSPICIOUS/REJECTED` lleva `omega_motion` gradualmente a
+cero. Una innovacion excesiva acumula rechazo y tres rechazos invalidan ORB. Tracking
+invalido reinicia el predictor y publica estado invalido a 50 Hz para que el
+mux pueda activar fallback sin perder cadencia.
 
 `NavigationStateEstimator` separa reference KF reportada, candidata y activa.
 La probation acumula una cadena de incrementos plausibles aunque cambie el ID
@@ -149,6 +149,16 @@ Parametros: `orb_state_publish_rate_hz`; `orb_state_filter.position_alpha`,
 La configuracion de despliegue vive en
 `dron/dron_individual/config/navigation_state.yaml`.
 
+El canal raw añade `raw_dt_max_good_sec`, `raw_dt_max_degraded_sec`,
+`max_raw_rotation_step_rad`, `max_raw_angular_speed_radps`,
+`max_raw_angular_acceleration_radps2` y `raw_motion_filter_alpha`. El bias usa
+`max_orientation_bias_correction_rate_radps` y
+`max_orientation_bias_correction_acceleration_radps2`. La politica adicional
+usa `bias_deadband_enter_rad=0.005`, `bias_deadband_exit_rad=0.002`,
+confirmacion `3/4`, supresion por movimiento `0.10/0.05 rad/s` y decay raw
+`4 rad/s2`. Los limites raw calibrados en 260 permanecen en `0.075/0.20 s`,
+`0.12 rad`, `1.0 rad/s`, `10 rad/s2` y alpha `0.35`.
+
 Con `debug_orb_control_state=true`, `[F5H-ORB-MEASUREMENT]` conserva contexto,
 raw step, innovacion vectorial, clasificacion, id/contadores pending,
 consistencia, correccion aplicada, velocidades limitadas y salud.
@@ -159,15 +169,126 @@ ventana detallada de dos segundos; fuera de ella la publicacion se muestrea.
 Marcadores generales: `[F5H-ORB-STATE-PREDICTOR]` y
 `[F5H-ORB-STATE-FILTER]`.
 
-La prueba 256 motivo esta iteracion: una innovacion de `0.125261 rad` y el
-campo raw ambiguo `rotation_step_rad=0.119002` precedieron la perdida sin probar
-causalidad. La telemetria nueva ya separa medida y paso publicado y pasa 21/21
-GTests, pero la prueba 259 falla en hover. Antes del primer pending, la
-expansion SMALL `base + 0.5*max_angular_acceleration*dt^2` acepta durante gaps
-correcciones mucho mayores que `0.015 rad` y llega a publicar `0.058777 rad`.
-Despues la direccion persistente del residual confirma una oscilacion
-realimentada y alcanza el limite de `0.075 rad/paso`. La proxima iteracion debe
-debatir SMALL fijo y evidencia raw/gauge; la degradacion no pertenece a W.
+Para análisis de fase, `[F5H-PHASE-MEASUREMENT]` emite cada medida con
+orientación raw y vectores `omega_raw`, target/motion, bias y total;
+`[F5H-PHASE-PUBLISH]` emite cada tick de 50 Hz con sample, pose y omega. El
+input usa reloj Gazebo y receive/publish reloj ROS, por lo que se declaran como
+dominios distintos y la edad visual se reconstruye offline mediante GT
+dual-clock.
+
+El laboratorio temporal F5H vive en
+`src/stereo/gt-timing-diagnostic-node.cpp` -> `GtTimingDiagnosticNode`
+(`rg -n "F5H-GT-TIMING|TracePeriods|DeliveryDelay"`). Alimenta el mismo
+`OrbPosePredictor` con pose GT perfecta, conserva el timestamp fisico y publica
+`NavigationState` a 50 Hz con telemetria compatible. Sus modos son `gt_50`,
+`gt_20`, `gt_20_delay` y `gt_orb_timing`; esta apagado por defecto y debe
+retirarse tras el diagnostico.
+
+E/F/G añaden los modos `gt_20_exact_omega`,
+`gt_20_exact_omega_hold` y `gt_20_exact_omega_extrapolate`. La omega GT world/O
+se sincroniza con la ultima muestra cuyo timestamp no es futuro. E llama a
+`OrbPosePredictor::OverrideAngularVelocityForDiagnostics`; F/G sustituyen solo
+la rama angular y conservan la traslacion del predictor. La API y estos modos
+son instrumentacion temporal marcada para retirar, no arquitectura final.
+
+La prueba 262 valida el nuevo deadband, supresion y decay con 37/37 GTests y en
+lazo cerrado: `omega_bias=0` durante ORB y raw rechazado decae sin corte. Aun
+asi el hover falla porque `omega_motion` empieza a oscilar mientras raw todavia
+es plausible y alcanza unos `0.617 rad/s`. ORB dura unos 5.92 s y el fallback
+precede en ~0.54 s a tracking 2->3. El siguiente diagnostico debe correlacionar
+timestamps y fase de `omega_raw -> omega_motion -> control omega -> ew ->
+torque`; no corresponde tocar W, GT, mux ni ganancias.
+
+La prueba 264 completa ese diagnostico con 323 ciclos ORB sincronizados. Raw
+sigue al GT en x/y con correlacion `0.984/0.982` y lag `~0.08 s`, mientras el
+estado angular usado por control queda fuera de fase y acaba en rechazo/fallback
+con tracking aun en 2. La siguiente modificacion debe tratar la coherencia de
+fase de la orientacion publicada; no se justifica aumentar filtros o retocar
+umbrales raw por latencia de transporte.
+
+Semantica temporal comprobada tras 264:
+
+- `PublishNavigationState` llama a `UpdateMeasurement(raw_o_t_body,
+  RosTimeToSeconds(image.header.stamp), ...)`; por tanto `stamp_sec_` usa el
+  tiempo de imagen, no el instante de finalizacion de ORB;
+- al terminar una actualizacion, `pose_` y `angular_velocity_` representan el
+  estado integrado al stamp de imagen. `pose_` no se sustituye por la
+  orientacion raw: avanza desde el estado anterior con
+  `omega_motion + omega_bias`;
+- el timer llama `Predict(now.seconds())`; en la captura 264 ese `now` esta en
+  reloj ROS epoch y `stamp_sec_` en Gazebo, de modo que el horizonte se satura
+  siempre en `max_extrapolation_sec=0.10` en vez de usar la edad visual real;
+- `Predict` no muta `pose_`, por lo que no acumula dos propagaciones, pero su
+  unica extrapolacion usa actualmente un horizonte incorrecto;
+- `latest_orb_measurement_stamp_sec_` se toma despues de `TrackStereo`, no al
+  entrar la imagen al callback. El puente Gazebo/ROS de la prueba 264 vive en
+  metricas offline y usa GT; no es una entrada valida para el predictor;
+- `orientation_alpha` se declara y carga, pero la ruta angular vigente no lo
+  consume. Durante movimiento con bias suprimido, la orientacion depende de la
+  integracion de `omega_motion` y no recibe una fusion directa con la
+  orientacion raw.
+
+Correccion temporal para 265:
+
+- `GrabStereo` captura `callback_arrival_stamp_sec` antes de conversion,
+  rectificacion y `TrackStereo`, y lo pasa explicitamente a
+  `PublishNavigationState`;
+- `ComputeOrbPredictionTiming` calcula la edad local no negativa entre ese
+  ingreso y el tick actual, y la suma al stamp visual. Asi `Predict` recibe un
+  target del mismo dominio que `stamp_sec_`, sin GT ni resta Gazebo/ROS;
+- `Predict` sigue siendo `const` y realiza una unica propagacion desde `pose_`;
+  informa `prediction_horizon_sec` y `prediction_clamped`, reutilizando
+  `max_extrapolation_sec=0.10`;
+- la publicacion diagnostica separa `visual_q`, `base_q` y `predicted_q`, junto
+  con ingreso, final de procesamiento, edad local, horizonte y clamp. No hay
+  fusion nueva con la orientacion raw.
+
+Resultado 265: la correccion usa edad local media `51.5 ms`, horizonte medio
+`43.2 ms` y clamp `10.4 %`, por lo que elimina la saturacion fija y conserva
+una unica propagacion. Sin embargo, `visual_q -> base_q` llega a `0.339 rad`,
+mientras `base_q -> predicted_q` solo aporta `0.0093 rad` medio tras 4 s. El
+hover empeora y `tau_er` inyecta `+0.160266 J`; el problema dominante esta en
+la orientacion base integrada de `pose_`, no en el horizonte del timer. No se
+ha añadido fusion raw.
+
+Reanclaje angular vigente tras 267:
+
+- `pose_` representa el mejor estado base en el timestamp visual actual;
+- SMALL con raw plausible adopta directamente la orientacion `O_T_B` visual
+  continua entregada por `NavigationStateEstimator`;
+- MODERATE_CONFIRMED solo con raw plausible adopta tambien por completo la
+  orientacion visual; una confirmacion con raw rechazado queda PREDICT_ONLY;
+- MODERATE_PENDING, MODERATE_DISCARDED y REJECTED conservan PREDICT_ONLY;
+- `omega_motion` sigue describiendo el movimiento entre observaciones y
+  `Predict` conserva la unica extrapolacion desde `t_visual`;
+- diagnostics distinguen predicted-before/base-after, tipo de update,
+  correccion y error visual-base before/after.
+
+Resultado 266: 118/157 medidas ORB son `SMALL_ANCHOR` y dejan error after
+exactamente cero. En ventana comun `tau_er` baja de `+0.153559` a
+`+0.002067 J`; ORB dura `8.06 s`. Desde `+5.90 s`, moderate confirmado deja
+`0.040 rad` medio tras corregir, alterna con PREDICT_ONLY y raw se rechaza a
+`+7.50 s`; fallback llega a `+8.08 s`. El anclaje SMALL se conserva y la
+recuperacion moderate sigue abierta.
+
+Resultado 267: cuatro `MODERATE_CONFIRMED_ANCHOR` dejan error after cero, pero
+ORB dura `5.56 s`; desde el primer anclaje hasta fallback `tau_er` acumula
+`+0.029136 J` y el total `+0.018489 J` en `1.22 s`, frente a `2.06 s` para una
+energia total casi identica en 266. Un anclaje se aplico con raw rechazado;
+despues de la prueba se añade el gate raw y una regresion, alcanzando 46/46
+GTests. Esta version final no se ha simulado y no se ejecuta 268 sin acuerdo.
+
+Resultado 268: el gate raw final queda validado en simulacion. El unico
+`MODERATE_CONFIRMED_ANCHOR` es PLAUSIBLE, corrige `0.057317 rad` y deja error
+after cero; aun asi, desde ese instante hasta fallback se acumulan
+`tau_er=+0.043934 J` y total `+0.046416 J` en `0.88 s`. No hay 269. El
+anclaje completo no debe repetirse; `Delta_target` gradual a `0.30 rad/s` esta
+acordado conceptualmente, pero no implementado ni autorizado todavia.
+
+Referencias: `src/stereo/stereo-slam-node.cpp` -> `PublishNavigationState` y
+`PublishPredictedNavigationState` -> `rg "UpdateMeasurement|Predict\(now"`;
+`src/stereo/navigation-state-estimator.cpp` -> `OrbPosePredictor::UpdateMeasurement`,
+`Predict` y `Propagate` -> `rg "stamp_sec_|angular_prediction|Propagate"`.
 
 El marcador diagnostico temporal `[F5H-WRAPPER-FRAME-DIAG]`, limitado a pose
 global autoritativa y con throttle de un segundo, separa `part=inputs`

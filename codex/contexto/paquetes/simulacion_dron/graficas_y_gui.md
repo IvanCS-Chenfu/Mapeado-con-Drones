@@ -40,9 +40,28 @@ MAE, p95 y maximo de posicion/orientacion/yaw, frecuencia, inter-arrival,
 jitter, latencia relativa al primer sample del epoch, cambios de reference KF
 y revisiones. GT es exclusivamente metrica externa.
 
+En diagnóstico 5H, `on_gt_velocity` escribe también
+`drone_N_gt_angular.csv` con omega world/body y dos timestamps:
+`gt_stamp` del tiempo físico Gazebo y `gt_receive_stamp` del reloj ROS. No deben
+restarse directamente stamps de dominios distintos; la herramienta
+`codex/herramientas/analyze_f5h_angular_phase.py` usa el par para sincronizar
+medida visual, publicación y tick de control y genera CSV/JSON/PNG derivados.
+La prueba 264 valida esta reconstruccion: produce timeline para 323 ticks ORB
+y metricas finitas de correlacion, potencia y torque ideal. El dron 2 no
+participa en el YAML de hover y queda correctamente como datos insuficientes.
+Desde 265 el analizador integra por separado trabajo y energia de `tau_er`,
+`tau_ew` y torque total, y mide edad local, horizonte/clamp y distancias
+`visual_q -> base_q -> predicted_q`. Esta captura localiza el desfase dominante
+en la pose base integrada, no en la extrapolacion del timer.
+Para 266 registra tambien error visual-base antes/despues del update, conteos
+de `SMALL_ANCHOR`/pending/confirmed/rejected y una ventana comun configurable
+para comparar energia sin sesgo por distinta duracion ORB.
+Los conteos se deduplican por `measurement_receive_stamp`, evitando ponderar
+una observacion varias veces por los ticks de control de 50 Hz.
+
 ```text
-src/graficar/pose_metrics_node.py -> PoseMetricsNode / build_summary
-test/test_pose_metrics.py -> rg "alignment|temporal|shutdown"
+src/graficar/pose_metrics_node.py -> PoseMetricsNode / on_gt_velocity / build_summary
+test/test_pose_metrics.py -> rg "alignment|angular_velocity|temporal|shutdown"
 launch/multi_dron.launch.py -> phase5_pose_metrics_enabled/output_dir
 ```
 
@@ -68,3 +87,8 @@ src/visualizer/global_drone_pose_visualizer.py
 test/test_global_drone_pose_visualizer.py
   -> rg "fallback_pose|source_label|provisional"
 ```
+
+En 269-272, `pose_metrics_node.py` registra el GT angular de laboratorio y
+`analyze_f5h_angular_phase.py` consume los marcadores compatibles emitidos por
+`gt_timing_diagnostic`. Los resultados separan A-D en directorios
+`metricas/prueba_269` a `metricas/prueba_272`.

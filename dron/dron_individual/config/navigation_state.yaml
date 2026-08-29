@@ -19,6 +19,23 @@
     orb_state_filter.moderate_magnitude_ratio: 0.50
     orb_state_filter.moderate_timeout_sec: 0.35
     orb_state_filter.post_reference_switch_frames: 5
+    orb_state_filter.raw_dt_max_good_sec: 0.075
+    orb_state_filter.raw_dt_max_degraded_sec: 0.20
+    orb_state_filter.max_raw_rotation_step_rad: 0.12
+    orb_state_filter.max_raw_angular_speed_radps: 1.0
+    orb_state_filter.max_raw_angular_acceleration_radps2: 10.0
+    orb_state_filter.raw_reversal_noise_step_rad: 0.005
+    # Fase 5: valor <= 0 deshabilita omega_motion solo para tests aislados.
+    orb_state_filter.raw_motion_filter_alpha: 0.35
+    orb_state_filter.max_orientation_bias_correction_rate_radps: 0.08
+    orb_state_filter.max_orientation_bias_correction_acceleration_radps2: 0.8
+    orb_state_filter.bias_deadband_enter_rad: 0.005
+    orb_state_filter.bias_deadband_exit_rad: 0.002
+    orb_state_filter.bias_confirmation_frames: 3
+    orb_state_filter.bias_post_reference_confirmation_frames: 4
+    orb_state_filter.motion_bias_suppression_enter_radps: 0.10
+    orb_state_filter.motion_bias_suppression_exit_radps: 0.05
+    orb_state_filter.rejected_motion_decay_acceleration_radps2: 4.0
     orb_reference_gate.confirmation_frames: 3
     orb_reference_gate.max_pending_frames: 6
     orb_reference_gate.max_step_translation_m: 0.10

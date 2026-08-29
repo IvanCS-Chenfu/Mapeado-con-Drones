@@ -69,6 +69,7 @@ private:
     const orbslam3_msgs::msg::NavigationState::SharedPtr msg)
   {
     last_navigation_stamp_sec_ = rclcpp::Time(msg->header.stamp).seconds();
+    last_navigation_receive_stamp_sec_ = this->get_clock()->now().seconds();
     current_pose_source_ = msg->pose_source;
     current_map_epoch_ = msg->map_epoch;
     current_reference_keyframe_id_ = msg->reference_keyframe_id;
@@ -105,8 +106,8 @@ private:
     x_dot << msg->velocity.linear.x, msg->velocity.linear.y, msg->velocity.linear.z;
 
     // La velocidad angular llega expresada en el frame local continuo.
-    Vector3d w_world(msg->velocity.angular.x, msg->velocity.angular.y, msg->velocity.angular.z);
-    w_b = R_act.transpose() * w_world;
+    w_world_ << msg->velocity.angular.x, msg->velocity.angular.y, msg->velocity.angular.z;
+    w_b = R_act.transpose() * w_world_;
 
     const auto current_pose_source = msg->pose_source;
     if (!pose_source_initialized_) {
@@ -130,7 +131,7 @@ private:
         x_dot_des = x_dot;
         x_ddot_des.setZero();
         yaw_des = std::atan2(R_act(1, 0), R_act(0, 0));
-        yaw_dot_des = w_world.z();
+        yaw_dot_des = w_world_.z();
         yaw_ddot_des = 0.0;
         jerk_des.setZero();
         snap_des.setZero();
@@ -286,8 +287,43 @@ private:
         inercia[3], inercia[1], inercia[5],
         inercia[4], inercia[5], inercia[2];
 
-      Vector3d tau_des = -Kr * er - Kw * ew + J * R_act.transpose() * R_des * Omega_dot_des +
-        w_b.cross(J * w_b);                                                                                     // Desde Cuerpo
+      const Vector3d tau_er = -Kr * er;
+      const Vector3d tau_ew = -Kw * ew;
+      const Vector3d tau_feedforward = J * R_act.transpose() * R_des * Omega_dot_des;
+      const Vector3d tau_gyro = w_b.cross(J * w_b);
+      const Vector3d tau_des = tau_er + tau_ew + tau_feedforward + tau_gyro;
+
+      if (debug_orb_control_state_) {
+        const double control_stamp = this->get_clock()->now().seconds();
+        const Quaterniond q_act(R_act);
+        const Quaterniond q_des(R_des);
+        RCLCPP_INFO(
+          this->get_logger(),
+          "[F5H-PHASE-CONTROL] namespace=%s control_stamp=%.9f "
+          "state_stamp=%.9f state_receive_stamp=%.9f source=%u epoch=%lu "
+          "sample=%lu tracking=%d ref_kf=%lu "
+          "r_act_q=(%.9f,%.9f,%.9f,%.9f) r_des_q=(%.9f,%.9f,%.9f,%.9f) "
+          "omega_o=(%.9f,%.9f,%.9f) omega_body=(%.9f,%.9f,%.9f) "
+          "omega_des_body=(%.9f,%.9f,%.9f) er=(%.9f,%.9f,%.9f) "
+          "ew=(%.9f,%.9f,%.9f) tau_er=(%.9f,%.9f,%.9f) "
+          "tau_ew=(%.9f,%.9f,%.9f) tau_feedforward=(%.9f,%.9f,%.9f) "
+          "tau_gyro=(%.9f,%.9f,%.9f) tau_total=(%.9f,%.9f,%.9f) "
+          "kr=%.9f kw=%.9f force=%.9f",
+          this->get_namespace(), control_stamp, last_navigation_stamp_sec_,
+          last_navigation_receive_stamp_sec_, current_pose_source_,
+          static_cast<unsigned long>(current_map_epoch_),
+          static_cast<unsigned long>(current_sample_sequence_),
+          current_tracking_state_,
+          static_cast<unsigned long>(current_reference_keyframe_id_),
+          q_act.x(), q_act.y(), q_act.z(), q_act.w(), q_des.x(), q_des.y(),
+          q_des.z(), q_des.w(), w_world_.x(), w_world_.y(), w_world_.z(),
+          w_b.x(), w_b.y(), w_b.z(), Omega_des.x(), Omega_des.y(),
+          Omega_des.z(), er.x(), er.y(), er.z(), ew.x(), ew.y(), ew.z(),
+          tau_er.x(), tau_er.y(), tau_er.z(), tau_ew.x(), tau_ew.y(),
+          tau_ew.z(), tau_feedforward.x(), tau_feedforward.y(),
+          tau_feedforward.z(), tau_gyro.x(), tau_gyro.y(), tau_gyro.z(),
+          tau_des.x(), tau_des.y(), tau_des.z(), Kr, Kw, F_des.z());
+      }
 
       if (debug_orb_control_state_) {
         const double roll = std::atan2(R_act(2, 1), R_act(2, 2));
@@ -360,6 +396,7 @@ private:
   Vector3d jerk_des;
   Vector3d snap_des;
   Vector3d w_b;
+  Vector3d w_world_{Vector3d::Zero()};
   Vector3d f;
   Vector3d x;
   Vector3d x_dot;
@@ -383,6 +420,7 @@ private:
   uint64_t current_sample_sequence_ = 0;
   int8_t current_tracking_state_ = -1;
   double last_navigation_stamp_sec_{0.0};
+  double last_navigation_receive_stamp_sec_{0.0};
   double navigation_state_timeout_sec_{0.5};
   double angular_handoff_duration_sec_{0.5};
   double angular_handoff_alpha_{0.0};

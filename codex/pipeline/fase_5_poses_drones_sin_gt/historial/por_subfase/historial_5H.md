@@ -389,3 +389,344 @@
   hover real. 5H permanece `PARCIAL`; una siguiente iteracion debe debatir
   SMALL fijo y confirmacion basada en incrementos raw/correccion de gauge antes
   de modificar otra vez.
+
+## 2026-08-28 - Prueba 260 / calibracion de movimiento angular raw
+
+- objetivo: instrumentar `dt_raw`, `DeltaR_raw`, `omega_raw` y `alpha_raw` sin
+  cambiar la salida, y repetir las maniobras de etapa 1 con GT gobernando;
+- validacion previa: build `orbslam3` correcto y 22/22 GTests;
+- ejecucion: `success=true`, 11/11 pasos y 7/7 goals; recursos sanos. ORB se
+  observa sin gobernar el control;
+- drone1: maximos step/omega/alpha de `0.00448/0.0878/0.823` en hover,
+  `0.02976/0.2247/4.496` en yaw lento, `0.04693/0.4386/7.728` en yaw rapido y
+  `0.09243/0.6206/6.708` en 180 grados. Drone2 quieto llega a
+  `0.00221/0.04334/0.65684`;
+- tracking: drone1 pierde 2 durante yaw rapido y recupera 2 en epoch 1; no se
+  atribuye esa perdida al predictor porque GT gobierna;
+- decision calibrada: raw step `0.12 rad`, speed `1.0 rad/s`, alpha
+  `10 rad/s2`; dt GOOD `0.075 s`, DEGRADED `0.20 s`;
+- conclusion: `CONSEGUIDA` como calibracion. No valida control ORB.
+
+## 2026-08-28 - Redisenio raw/bias y prueba 261 / hover ORB
+
+- implementacion: SMALL fijo; `omega_motion` filtrada desde movimiento raw
+  plausible y `omega_bias` desde residual absoluto con limites propios;
+  `omega_total` se limita e integra para conservar pose/velocidad coherentes;
+- validacion: builds `orbslam3`, `dron_individual` y `simulacion_dron`
+  correctos; 27/27 GTests, incluidos hover, offset persistente, raw estable,
+  gap de dt y yaw acelerado;
+- ejecucion 261: runner exit 0, scenario formal completo, recursos sanos. El
+  criterio funcional falla y por acuerdo no se ejecuta etapa 3;
+- handoff: `GT_FALLBACK -> ORB` con salto SE(3) y primer error de control cero;
+- cronologia: ORB gobierna desde `1787952753.236` hasta `1787952757.053`, unos
+  `3.82 s`. El primer pending aparece a los `2.56 s`, el primer confirmed a los
+  `2.66 s` y el primer excesivo a los `3.71 s`;
+- fallback: tres `REJECTED_EXCESSIVE` hacen no saludable al estimador mientras
+  tracking sigue en 2. La perdida 2->3 llega unos `10.25 s` despues, por lo
+  que no causa el fallback inicial;
+- magnitudes: maximos aproximados `omega_motion=0.629 rad/s`,
+  `omega_bias=0.080 rad/s`, `omega_total=0.669 rad/s`, residual `0.699 rad` y
+  error angular de control `0.391 rad`;
+- diagnostico: el bias actua tambien en SMALL y empieza a oscilar antes de la
+  probation. El movimiento fisico que genera el lazo se observa como raw
+  plausible y pasa a dominar la salida. Cuando llegan los outliers, retener el
+  ultimo `omega_motion` alto mantiene unos `0.56 rad/s` durante los rechazos;
+- conclusion: `NO CONSEGUIDA`. La separacion conceptual y los unitarios no
+  bastan para estabilidad en lazo cerrado. 5H queda `PARCIAL`; antes de otra
+  simulacion debe acordarse como amortiguar raw rechazado y evitar que el bias
+  SMALL excite movimiento realimentado, sin tocar GT, mux, ganancias ni W.
+
+## 2026-08-29 - Deadband/decay y prueba 262 / hover ORB
+
+- implementacion: `BiasCorrectionState` `OFF/PENDING/ACTIVE/DECAY`, deadband
+  `0.005/0.002 rad`, confirmacion 3 frames y 4 post-reference, supresion del
+  bias por movimiento `0.10/0.05 rad/s` y decay raw continuo a `4 rad/s2`;
+- validacion: builds `orbslam3`, `dron_individual` y `simulacion_dron`
+  correctos; 37/37 GTests, conservando los 27 anteriores y añadiendo diez
+  contratos dirigidos;
+- ejecucion 262: runner exit 0, scenario formal completo y recursos sanos. Se
+  repite exactamente el hover 261 y no se avanza a etapa 3;
+- handoff: `GT_FALLBACK -> ORB` con salto de traslacion y rotacion cero; primer
+  diagnostico de control `ep=0.001086`, `ev=0.001355`, `er=0.000041` y
+  `ew=0.000083`;
+- cronologia: ORB gobierna unos `5.92 s`; fallback ocurre por estimador no sano
+  y tracking 2->3 llega unos `0.54 s` despues;
+- evidencia angular durante ORB: `omega_bias` permanece exactamente en cero
+  (`OFF` en 67/69 muestras y `PENDING` en dos), por lo que deadband,
+  confirmacion y supresion cumplen su objetivo. Raw rechazado reduce
+  `omega_motion` gradualmente hasta cero con el decay configurado;
+- magnitudes: maximos aproximados `omega_motion=0.617 rad/s`, residual
+  `0.517 rad`, paso publicado `0.0309 rad`, `er=0.267 rad`, `ew=0.604 rad/s` y
+  torque `0.0656`. Mejoran respecto a 261, pero no satisfacen hover estable;
+- diagnostico: la oscilacion nace en `omega_motion` mientras las medidas raw
+  aun son dinamicamente plausibles. El gate no puede descartarlas porque el
+  dron ya se mueve fisicamente; al final llegan tres residuos excesivos y se
+  activa fallback;
+- conclusion: `NO CONSEGUIDA`. Los dos defectos concretos de 261 quedan
+  corregidos, pero 5H sigue `PARCIAL`. La siguiente investigacion debe medir
+  latencia/fase de `omega_raw -> omega_motion -> control omega -> ew -> torque`
+  antes de proponer otro filtro o cambiar umbrales.
+
+## 2026-08-29 - Instrumentacion temporal y prueba 263
+
+- objetivo: confirmar o descartar anti-damping por latencia/fase sin cambiar
+  predictor, filtros, thresholds, ganancias, mux, GT ni misión;
+- instrumentacion: marcadores por medida/publicación/control con vectores y
+  timestamps; GT angular world/body externo; analizador reproducible para
+  timeline, correlación, frecuencia/fase, potencia y torque ideal;
+- validación: builds `orbslam3`, `dron_individual` y `simulacion_dron`
+  correctos; 37/37 GTests, analizador 3/3 y pose metrics 8/8;
+- ejecución 263: mismo `f5h_etapa_2_hover_orb.yaml`, runner exit 0,
+  `success=true`, 91 s, guard de recursos inactivo y mínimo 4694.6 MiB;
+- captura: drone1 genera 443 medidas ORB, 3922 publicaciones y 2740 ticks de
+  control, 355 con source ORB. Drone2 no participa en este YAML;
+- evidencia ausente: el CSV original guardó GT con stamp Gazebo (`0.x...`),
+  mientras receive/publish/control usan reloj ROS epoch (`178799...`). El
+  analizador obtuvo cero filas sincronizables y no calculó lags ni potencias;
+- conclusión de prueba: `DATOS_INSUFICIENTES`. 263 no confirma ni descarta la
+  hipótesis y no debe reinterpretarse como fallo funcional del estimador;
+- corrección posterior sin nueva ejecución: GT guarda también
+  `gt_receive_stamp`; el analizador usa el par Gazebo/ROS para mapear input y el
+  wrapper etiqueta ambos dominios. Rebuilds y tests focales correctos;
+- siguiente paso: acordar una nueva ejecución del mismo hover con la captura
+  dual-clock. No ejecutar etapa 3 ni modificar comportamiento.
+
+## 2026-08-29 - Prueba 264 / diagnostico dual-clock de fase angular
+
+- objetivo: repetir exactamente el hover de 262/263 con el puente dual-clock
+  ya validado y confirmar o descartar latencia/fase y anti-damping;
+- cambios funcionales: ninguno. Se conserva predictor, filtros, umbrales,
+  ganancias, mux, GT, W y mision; no se ejecuta etapa 3;
+- ejecucion: runner exit 0, `success=true`, 92 s, guard de recursos inactivo y
+  minimo 4671.4 MiB disponibles;
+- captura: 323 ciclos sincronizados con source ORB durante `6.44 s`; tracking
+  permanece en 2. Raw pasa a rechazado a `+6.16 s` y fallback llega a
+  `+6.46 s`, sin perdida previa de tracking;
+- transporte visual: raw frente a GT alcanza correlacion `0.984/0.982` en
+  x/y con lag aproximado de `0.08 s`; la edad visual habitual es
+  `0.04-0.07 s`. No aparece una latencia de transporte cercana a medio segundo;
+- fase de control: en x, el canal angular consumido por control presenta una
+  correlacion extrema `-0.836` a `+0.50 s`. `tau_ew` realiza trabajo
+  anti-amortiguante en `35.9 %` de los ciclos y se opone al torque ideal en
+  `34.0 %`, aunque su energia neta post-handoff es disipativa (`-0.005913 J`);
+- termino dominante: reprocesando 264 con el analizador de 265, `tau_er`
+  inyecta `+0.005173 J` y realiza trabajo positivo
+  en `80.9 %` de los ciclos post-handoff. El error de orientacion supera `0.05`
+  a `+4.50 s` y llega a `0.161`, casi anulando el damping de velocidad;
+- artefactos: reducido 264 y
+  `metricas/prueba_264/angular_phase/{summary.json,drone_1/timeline.csv,drone_1/*.png}`.
+  El log completo se conserva y no se lee directamente;
+- conclusion diagnostica: `CONSEGUIDA`. Se confirma un desfase angular del
+  estado usado por control: el problema dominante es la pose angular estimada
+  y su termino proporcional `tau_er`, acompañado por damping intermitentemente
+  contrario. No lo explican tracking loss, GT, mux ni una simple latencia de
+  publicacion;
+- conclusion funcional: `NO CONSEGUIDA`; 5H permanece `PARCIAL`. Antes de otra
+  modificacion debe acordarse como corregir la fase de orientacion sin ocultar
+  movimiento real ni depender de GT.
+
+## 2026-08-29 - Correccion del horizonte temporal y prueba 265
+
+- objetivo intentado: sustituir el horizonte fijo saturado a `0.10 s` por una
+  unica propagacion con la edad visual local real, aislando ese defecto sin
+  fusionar directamente la orientacion raw;
+- archivos modificados: predictor y wrapper de `orbslam3_ros2`, sus tests y
+  `codex/herramientas/analyze_f5h_angular_phase.py` con tests focales;
+- implementacion: el ingreso local se captura antes de `TrackStereo`, se
+  construye un target en el dominio visual y `Predict` informa horizonte y
+  clamp. La telemetria separa `visual_q`, `base_q` y `predicted_q`;
+- build: el primer intento de `orbslam3` detecta un argumento fuera de scope y
+  se corrige mecanicamente. Builds finales de `orbslam3`, `dron_individual` y
+  `simulacion_dron` correctos;
+- tests: primer pase 39/40 por una tolerancia de double de 76 ns; tras ajustar
+  solo la tolerancia, 40/40 GTests y 5/5 tests del analizador correctos;
+- prueba Gazebo: 265 usa el mismo `f5h_etapa_2_hover_orb.yaml`; runner exit 0,
+  `success=true`, 93 s y recursos sanos. No se ejecuta etapa 3 ni se dispone de
+  una validacion visual humana adicional;
+- patrones de reduccion: `SCENARIO|F5H-PHASE|F5H-ORB|F5H-CONTROL|F5B-TRACKING|SOURCE|SIM-DONE|ERROR|FATAL`;
+- evidencia positiva: la correccion temporal cumple su contrato. Edad local
+  media `51.5 ms`, horizonte medio `43.2 ms`, clamp `10.4 %` y una sola
+  extrapolacion; el paso `base_q -> predicted_q` queda acotado;
+- evidencia negativa: ORB dura `5.56 s`, raw se rechaza desde `+4.30 s` y
+  fallback llega a `+5.58 s` con tracking todavia en 2. Maximos:
+  `omega_motion/ew=0.727 rad/s`, `er=0.666 rad` y GT fisico `6.24 rad/s`;
+- comparacion causal: `tau_er` pasa de `+0.005173 J` en 264 a
+  `+0.160266 J` en 265 y realiza trabajo positivo en `89.16 %`; `tau_ew`
+  conserva energia disipativa (`-0.015185 J`), pero el total pasa a
+  `+0.145081 J`;
+- diagnostico: `visual_q -> base_q` crece de `0.0159 rad` de media antes de
+  4 s a `0.1680 rad` despues, con maximo `0.339 rad`. En cambio
+  `base_q -> predicted_q` aporta solo `0.0093 rad` medio despues de 4 s. El
+  desfase dominante vive en `pose_` base integrada; el antiguo `0.10 s` fijo
+  lo compensaba parcialmente de forma accidental;
+- conclusion: iteracion funcional `NO CONSEGUIDA`; la correccion temporal se
+  conserva porque arregla la semantica del reloj, pero no estabiliza el hover.
+  Fase 5H permanece `PARCIAL` y las etapas 3-8 siguen detenidas;
+- siguiente paso recomendado: debatir una fusion o anclaje causal de `pose_`
+  con la orientacion visual raw, manteniendo una unica propagacion temporal y
+  sin GT. No aplicar ese cambio sin un nuevo acuerdo.
+
+## 2026-08-29 - Reanclaje visual de pose base y prueba 266
+
+- objetivo intentado: usar la orientacion visual `O_T_B` aceptada como ancla
+  absoluta en `t_visual`, separando correccion de pose y movimiento fisico;
+- implementacion: SMALL con raw plausible aplica `SMALL_ANCHOR` completo;
+  MODERATE_CONFIRMED corrige geodesicamente hasta `0.015 rad`; pending,
+  discarded y rejected avanzan como PREDICT_ONLY. `omega_motion` conserva
+  velocidad y extrapolacion, sin recibir la correccion de pose;
+- telemetria/analizador: predicted-before, base-after, tipo de update, error
+  visual-base before/after, conteos deduplicados, energia por segundo y ventana
+  comun configurable;
+- validacion: builds `orbslam3`, `dron_individual` y `simulacion_dron`
+  correctos; 44/44 GTests y 7/7 tests del analizador. El primer pase GTest fue
+  36/44 por precondiciones legacy incompatibles con la nueva separacion; se
+  aislaron mecanicamente los contratos de bias/decay sin cambiar produccion;
+- prueba: 266 repite exactamente `f5h_etapa_2_hover_orb.yaml`; runner exit 0,
+  `success=true`, 92 s y recursos sanos. Gazebo exit 255 ocurre tras el SIGINT
+  de cleanup. No se ejecuta etapa 3 ni hay validacion visual humana adicional;
+- reduccion: `SCENARIO|F5H-PHASE|F5H-ORB|F5H-CONTROL|F5B-TRACKING|SOURCE|SIM-DONE|ERROR|FATAL`;
+- duracion: ORB gobierna `8.06 s` frente a `5.56 s` en 265 (`+45 %`);
+  fallback llega a `+8.08 s` y tracking 2->3 a `+8.68 s`, por lo que el
+  estimador vuelve a invalidarse antes de perder tracking;
+- ventana comun 5.56 s: `tau_er=+0.002067 J` frente a `+0.153559 J`
+  (`-98.7 %`); `tau_ew=-0.004013 J`; torque total `-0.001945 J` frente a
+  `+0.138374 J`, pasando a disipativo;
+- tramo ORB completo 266: `tau_er=+0.036697 J`, `tau_ew=-0.020684 J` y total
+  `+0.016013 J`. La energia por segundo de `tau_er` baja ~`84.8 %` y la total
+  ~`92.7 %` respecto a 265;
+- maximos: `er=0.264 rad` frente a `0.666`, GT omega `2.65 rad/s` frente a
+  `6.24`; control/ew queda parecido, `0.739 rad/s` frente a `0.727`;
+- anclas deduplicadas: 157 medidas ORB, 118 SMALL_ANCHOR, 15
+  MODERATE_CONFIRMED, seis pending, 15 PREDICT_ONLY y tres rejected; update
+  aplicado en `84.7 %`. SMALL deja error after exactamente cero;
+- fallo tardio: desde `+5.90 s` aparecen ciclos moderate/discarded. La
+  correccion confirmada resta `0.015 rad`, pero deja `0.040 rad` medio. El
+  residual crece durante PREDICT_ONLY, raw se rechaza a `+7.50 s` y termina en
+  fallback;
+- conclusion: `NO CONSEGUIDA` funcionalmente, con mejora causal sustancial. El
+  reanclaje SMALL valida la hipotesis y se conserva, pero no completa el hover.
+  Fase 5H sigue `PARCIAL` y etapa 3 permanece detenida;
+- siguiente paso recomendado: debatir la politica moderada para recuperar fase
+  mas deprisa (reanclaje completo o correccion mayor/ligera fusion), sin tocar
+  gains, GT, mux ni omega hasta medir esa decision.
+
+## 2026-08-29 - Anclaje moderate completo y prueba 267
+
+- objetivo intentado: hacer que una medida `MODERATE_CONFIRMED` fiable reanclase
+  completamente `R_base` a la orientacion visual, sin convertir la correccion
+  de pose en omega;
+- implementacion ejecutada: SMALL conserva anclaje completo; pending,
+  discarded y rejected quedan predict-only; confirmed adopta la medida y la
+  telemetria informa `MODERATE_CONFIRMED_ANCHOR`;
+- validacion previa: builds `orbslam3`, `dron_individual` y
+  `simulacion_dron` correctos; 45/45 GTests y 7/7 tests del analizador;
+- prueba: 267 repite `f5h_etapa_2_hover_orb.yaml`; runner exit 0,
+  `success=true`, 93 s, recursos sanos, minimo 4503.1 MiB y sin observacion
+  visual humana adicional;
+- resultado funcional: `NO CONSEGUIDA`. ORB dura `5.560105 s`, fallback llega
+  a `+5.580026 s` y tracking no OK a `+6.120019 s`; por el criterio acordado
+  no se ejecuta 268 ni etapa 3;
+- anclas: 106 medidas ORB unicas, 89 SMALL_ANCHOR, cuatro
+  MODERATE_CONFIRMED_ANCHOR, seis pending, cinco predict-only y dos rejected.
+  Las cuatro confirmadas dejan error visual-base after cero;
+- energia en ventana comun: `tau_er=+0.030448 J`,
+  `tau_ew=-0.014826 J` y total `+0.015622 J`. Es mejor que 265, pero peor que
+  266 (`+0.002067/-0.004013/-0.001945 J`);
+- cronologia causal: antes del primer anclaje moderate, 267 acumula solo
+  `tau_er=+0.002268 J` y total `-0.001488 J`. Desde ese anclaje hasta fallback
+  acumula `+0.029136/+0.018489 J` en `1.22 s`; 266 tarda `2.06 s` en alcanzar
+  casi la misma energia total. El anclaje completo acelera el episodio, aunque
+  una sola ejecucion no aisla por completo la variabilidad;
+- defecto contractual descubierto: una de las cuatro confirmaciones ancla con
+  `raw_class=REJECTED`. Confirmacion angular y gate raw eran independientes;
+- reparacion posterior no simulada: el anclaje confirmado exige tambien
+  `raw_motion_plausible`; se adapta el test de omega y se añade
+  `ConfirmedModerateWithRejectedRawRemainsPredictOnly`. Build final correcto y
+  46/46 GTests;
+- conclusion: 5H permanece `PARCIAL`. 267 no valida el anclaje moderate
+  completo como solucion; la version final con gate raw esta comprobada solo
+  unitariamente. No repetir ni elegir fusion/ganancia sin nuevo acuerdo.
+
+## 2026-08-29 - Validacion del gate raw final y prueba 268
+
+- objetivo: repetir el hover sin otros cambios y determinar si el anclaje con
+  raw rechazado de 267 explicaba el fallo;
+- codigo: version final posterior a 267, donde MODERATE_CONFIRMED solo ancla
+  con `raw_motion_plausible`; build previo correcto y 46/46 GTests;
+- ejecucion: mismo `f5h_etapa_2_hover_orb.yaml`, runner exit 0,
+  `success=true`, 92 s, recursos sanos, minimo 4372.7 MiB y sin revision visual
+  humana adicional;
+- resultado funcional: `NO CONSEGUIDA`. ORB dura `5.720050 s`, fallback llega
+  a `+5.740012 s` y tracking no OK a `+5.920002 s`; no se ejecutan 269 ni
+  etapa 3;
+- updates: 107 medidas ORB unicas, 95 SMALL_ANCHOR, un
+  MODERATE_CONFIRMED_ANCHOR, tres pending, seis predict-only y dos rejected;
+- gate validado: el unico anclaje moderate usa raw plausible, corrige
+  `0.057317 rad` y deja error visual-base after cero. No hay anclajes confirmed
+  con raw rechazado;
+- ventana comun: `tau_er=+0.039126 J`, `tau_ew=-0.001529 J` y total
+  `+0.037597 J`, peores que 267 y 266;
+- cronologia causal: durante los `4.84 s` anteriores al anclaje,
+  `tau_er=+0.002147 J` y total `-0.001356 J`. Desde el anclaje hasta fallback,
+  en solo `0.88 s`, se acumulan `+0.043934/+0.046416 J`; raw empieza a
+  rechazarse unos `0.24 s` despues;
+- conclusion: el bug raw de 267 no era la causa principal. Un anclaje completo
+  inmediato y plausible basta para disparar el crecimiento angular. Esto
+  refuerza el diseño condicional de residual `Delta_target` persistente y
+  gradual, pero no lo autoriza ni implementa automaticamente. 5H sigue
+  `PARCIAL` y la ejecucion se detiene como se acordo.
+
+## 2026-08-29 - Bateria diagnostica GT A/B/C/D, pruebas 269-272
+
+- objetivo: aislar si el fallo angular procede de la geometria ORB o de la
+  frecuencia, latencia y jitter del pipeline visual;
+- cambios: nodo `gt_timing_diagnostic` que introduce GT perfecto en el
+  `OrbPosePredictor` real; fuente fija de laboratorio en el mux; launch
+  `f5h_gt_timing_mode`; cuatro YAML equivalentes. Defaults apagados y marcados
+  para retirar. No se tocaron gains, thresholds, GT normal ni `Delta_target`;
+- builds: `orbslam3`, `dron_individual` y `simulacion_dron`, todos codigo 0;
+- 269/A, GT normal 50 Hz: runner 0, escenario completo, GT 100 %. Ultimos 25 s:
+  omega GT media `0.000063`, p95 `0.000244`, maxima `0.000370 rad/s`. Estable;
+- 270/B, GT perfecto 20 Hz por predictor/publicacion 50 Hz: runner 0 y sin
+  fallback, pero queda girando a ~`0.1059 rad/s`. 399 medidas, 1197 estados en
+  23.94 s; `tau_er=+0.03893 J`, `tau_ew=-0.02805 J`, total `+0.01088 J`;
+- 271/C, B +80 ms: runner 1; completa llegada, pero rechaza el segundo goal.
+  Edad media/max `0.111/0.140 s`, clamp `74.5 %`; total `+0.00874 J` en 1.58 s;
+- 272/D, traza determinista 268: dos reintentos por muerte temprana de Gazebo;
+  el intento 2 completa llegada y rechaza el segundo goal. Edad media/max
+  `0.115/0.200 s`, clamp `68.8 %`, `er` max `0.586 rad`, omega control max
+  `0.673 rad/s`; total `+0.02532 J` en 1.62 s;
+- conclusion: `PARCIAL` para 5H y diagnostico causal `CONSEGUIDO`. GT perfecto
+  reproduce el fallo ya en B; latencia y jitter lo agravan. La causa principal
+  esta en la semantica 20->50 Hz y la dinamica del predictor/publicacion, no en
+  la calidad geometrica ORB. No implementar aun la solucion sin nuevo acuerdo.
+
+## 2026-08-29 - Bateria E/F/G, pruebas 273-275
+
+- objetivo: separar derivacion/filtrado de `omega_motion`, hold angular 20 Hz
+  y extrapolacion SO(3), siempre con pose y omega GT perfectas;
+- implementacion diagnostica: E usa el predictor actual y sustituye solo
+  `omega_motion`; F conserva la ultima orientacion GT; G propaga
+  `exp(omega_GT*age)*R_GT`. F/G conservan la rama lineal del predictor y la
+  sincronizacion usa la ultima omega no futura. No se tocaron gains, thresholds,
+  `Delta_target`, estimator retardado ni etapa 3;
+- validacion: build `orbslam3` codigo 0 y CTest 2/2;
+
+| Metrica | E / 273 | F / 274 | G / 275 |
+|---|---:|---:|---:|
+| Scenario success | si | si | si |
+| max `er` rad | 0.0784 | 0.0974 | 0.0960 |
+| max `ew` rad/s | 0.1087 | 0.1016 | 0.1226 |
+| max `omega_control` rad/s | 0.1087 | 0.0964 | 0.1226 |
+| energia `tau_er` J | +0.002225 | +0.003074 | +0.003336 |
+| energia `tau_ew` J | -0.002291 | -0.003150 | -0.003430 |
+| energia total J | -0.000066 | -0.000076 | -0.000093 |
+| mismatch direccion GT/control | 0.41 % | 0.29 % | 0.094 % |
+| horizonte medio s | 0.0332 | 0 | 0.0293 |
+| oscilacion creciente | no | no | no |
+
+- conclusion: diagnostico `CONSEGUIDO`, opcion A. Sustituir solo la omega
+  derivada por omega GT estabiliza E; F descarta que el hold a 20 Hz sea
+  insuficiente y G valida la extrapolacion SO(3) con pose/omega coherentes. La
+  causa principal es la derivacion/filtrado de `omega_motion`. 5H sigue
+  `PARCIAL`; falta diseñar la correccion con medidas ORB reales.

@@ -154,6 +154,8 @@ def generate_launch_description():
         'gt_fallback_enabled', default_value='true'))
     ld.add_action(DeclareLaunchArgument(
         'orb_qualification_samples', default_value='20'))
+    ld.add_action(DeclareLaunchArgument(
+        'f5h_gt_timing_mode', default_value='off'))
 
     architecture_telemetry_enabled = PythonExpression([
         "'", LaunchConfiguration('debug_system_architecture_web'),
@@ -330,6 +332,8 @@ def generate_launch_description():
                         'gt_fallback_enabled'),
                     'orb_qualification_samples': LaunchConfiguration(
                         'orb_qualification_samples'),
+                    'f5h_gt_timing_mode': LaunchConfiguration(
+                        'f5h_gt_timing_mode'),
                 }.items()),
         ])
         if i == 1:

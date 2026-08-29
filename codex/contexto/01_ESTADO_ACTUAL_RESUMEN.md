@@ -6,7 +6,7 @@
 Fase 2: CONSEGUIDA
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 259
+Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras pruebas 273-275
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -16,11 +16,11 @@ Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 259
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA; regresion opcional futura
-Subfase actual: 3Q A REVISAR tras mejora conservadora y prueba 220
-Preparacion 3Q: CERRADA; autorizacion ejecutada
-Siguiente punto de entrada: continuar pipeline; reabrir 3Q solo si reaparece el fallo
-Trabajo funcional activo: ninguno; prueba 259 diagnosticada y etapas 3-8 detenidas
-Punto de entrada Fase 5: debatir SMALL fijo y confirmacion raw/gauge tras 259
+Subfase actual: 5H PARCIAL; 273-275 aislan derivacion/filtrado de `omega_motion`
+Preparacion 5H: CERRADA; autorizacion E/F/G consumida
+Siguiente punto de entrada: diseñar estimacion de omega ORB coherente
+Trabajo funcional activo: ninguno; baterias A-D y E-G cerradas, etapa 3 detenida
+Punto de entrada Fase 5: evitar inyeccion de energia por `tau_er` sin GT
 Revision visual de prueba 200: confirmada correcta por el usuario
 Pendiente de Fase 2: ninguno
 Autorizacion 4A+4B: concedida y consumida
@@ -199,6 +199,57 @@ loop tardias rechazadas. La prueba 213 queda como reentrada obligatoria de 3Q.
   pasos de `0.075 rad`, dos outliers, fallback y tracking 3. Etapas 3-8
   detenidas. Limitaciones: SMALL aumenta con `dt` y la persistencia del residual
   no es evidencia independiente de movimiento fisico.
+- redisenio raw/bias: SMALL fijo, canales `omega_motion`/`omega_bias`, builds
+  correctos y 27/27 GTests;
+- prueba 260: 11/11 pasos y 7/7 goals bajo GT; calibracion raw conseguida;
+- prueba 261: handoff y primer error cero, pero ORB dura unos 3.82 s. El bias
+  actua desde SMALL, el movimiento realimentado se acepta como raw plausible y
+  domina la salida. Tres rechazos invalidan el estimador antes de tracking 3;
+- correccion 262: bias con deadband/confirmacion/supresion y decay raw; builds
+  correctos y 37/37 GTests;
+- prueba 262: `omega_bias=0` y decay correcto, pero `omega_motion` alcanza
+  ~`0.617 rad/s`; ORB dura ~`5.92 s` y fallback precede ~`0.54 s` a tracking
+  2->3;
+- conclusion vigente: `PARCIAL`; no ejecutar etapa 3. El siguiente diagnostico
+  debe medir latencia/fase del canal angular visual y el lazo de control.
+- prueba 263: ejecución técnica correcta, pero `DATOS_INSUFICIENTES` porque GT
+  y control quedaron en relojes Gazebo/ROS sin puente en esa captura;
+- estado preparado: `gt_receive_stamp`, telemetría vectorial y analizador
+  dual-clock pasan builds y tests;
+- prueba 264: 323 ciclos ORB sincronizados durante `6.44 s`; raw sigue al GT
+  con `~0.08 s`, pero la pose/control queda fuera de fase. `tau_er` hace trabajo
+  positivo en `80.9 %` del tramo post-handoff e inyecta `+0.005173 J`, casi
+  anulando el damping neto de `tau_ew`;
+- conclusion vigente: diagnostico temporal `CONSEGUIDO`, hover
+  `NO CONSEGUIDO`, 5H `PARCIAL`. No ejecutar etapa 3.
+- prueba 265: corrige el horizonte con edad local real y una unica propagacion;
+  40/40 GTests y 5/5 tests del analizador pasan. ORB dura `5.56 s`, `tau_er`
+  inyecta `+0.160266 J` y el torque total `+0.145081 J`;
+- diagnostico 265: `visual_q -> base_q` llega a `0.339 rad`, muy por encima de
+  `base_q -> predicted_q`; el desfase dominante vive en `pose_` base integrada
+  y el antiguo horizonte fijo lo compensaba parcialmente;
+- conclusion vigente: 265 `NO CONSEGUIDA`, 5H `PARCIAL`; etapa 3 detenida y
+  fusion/anclaje visual pendiente de nuevo acuerdo.
+- prueba 266: SMALL/plausible reancla la pose y moderate corrige hasta
+  `0.015 rad`; tres builds, 44/44 GTests y 7/7 tests del analizador correctos;
+- comparacion comun: ORB `8.06 s` frente a `5.56`; `tau_er=+0.002067 J` frente
+  a `+0.153559 J`; torque total `-0.001945 J` frente a `+0.138374 J`;
+- fallo 266: desde `+5.90 s` moderate deja residual, alterna PREDICT_ONLY y raw
+  se rechaza a `+7.50 s`; fallback `+8.08 s`, tracking 3 `+8.68 s`;
+- conclusion vigente: principio SMALL validado, prueba funcional
+  `NO CONSEGUIDA`, 5H `PARCIAL`; no etapa 3, politica moderate por acordar.
+- prueba 267: cuatro anclas moderate completas dejan error after cero, pero ORB
+  cae a `5.56 s`; `tau_er=+0.030448 J` y total `+0.015622 J` en ventana comun;
+- diagnostico 267: antes del primer anclaje el total era disipativo; despues la
+  energia de fallo se acumula en `1.22 s`, mas deprisa que en 266;
+- correccion posterior: confirmed solo ancla con raw plausible; build y 46/46
+  GTests correctos, sin nueva simulacion. No ejecutar 268 ni etapa 3.
+- prueba 268: el unico anclaje moderate es raw plausible, corrige
+  `0.057317 rad` y deja error after cero; gate raw validado;
+- fallo 268: antes del anclaje el total es `-0.001356 J`; despues acumula
+  `+0.046416 J` en `0.88 s`, ORB dura `5.72 s` y cae a fallback;
+- conclusion: anclaje completo contraindicado, no 269 ni etapa 3;
+  `Delta_target` gradual a `0.30 rad/s` queda pendiente de autorizacion.
 
 ## Entrega de Fase 2
 

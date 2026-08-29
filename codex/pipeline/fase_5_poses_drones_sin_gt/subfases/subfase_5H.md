@@ -159,11 +159,55 @@ raw, innovacion, correccion aplicada y paso realmente publicado, y
 correlacionarlos con pose/omega, edad del estado, errores y torque del
 controlador. No se usa un unico `rotation_step` ambiguo para inferir causalidad.
 
-Limitacion vigente tras la etapa 2: esta politica no supera hover ORB. SMALL no
-puede expandirse con gaps hasta aceptar correcciones muy superiores al umbral
-base, y la persistencia del residual no basta como evidencia independiente de
-movimiento fisico. Cualquier sustitucion por SMALL fijo o confirmacion basada
-en incrementos raw/gauge requiere nuevo acuerdo antes de otra ejecucion.
+Limitacion vigente tras la prueba 267: SMALL/plausible ya reancla `pose_` a la
+orientacion visual en `t_visual`; la correccion de pose no entra en omega y se
+conserva una unica propagacion. Esto reduce `tau_er` un `98.7 %` en ventana
+comun en 266 y valida el principio. El anclaje completo de
+MODERATE_CONFIRMED ensayado en 267 deja error after cero, pero acelera el tramo
+de energia positiva y ORB cae a `5.56 s`. El codigo final exige ademas raw
+plausible porque la ejecucion descubrio un anclaje con raw rechazado; esta
+reparacion pasa 46/46 GTests y aun no tiene simulacion. No ejecutar 268 ni
+etapas 3-8 sin nuevo acuerdo mientras falle el hover.
+
+Acuerdo posterior para 268: repetir primero el mismo hover sin ningun otro
+cambio funcional y validar exclusivamente el gate raw final. Si 268 falla, se
+detiene la ejecucion antes de implementar otra arquitectura. El paso B ya
+debatido, pero condicionado a una autorizacion posterior, no perseguira una
+orientacion visual antigua: conservara un residual SO(3) propagable
+`Delta_target = R_visual(t_visual) * inverse(R_pred(t_visual))` y lo aplicara
+gradualmente sobre la trayectoria angular actual. La velocidad inicial
+acordada es `0.30 rad/s` a 50 Hz, sin limite de aceleracion en la primera
+version. SMALL anclara y cancelara el target; pending conservara el residual;
+raw rejected, epoch incompatible o discontinuidad lo invalidaran. La
+correccion no entrara en omega fisica.
+
+Resultado 268: `NO CONSEGUIDA`. El gate raw final funciona y el unico anclaje
+moderate es plausible, pero tras corregir `0.057317 rad` el lazo acumula
+`+0.046416 J` en `0.88 s` y cae a fallback. No se ejecutan 269 ni etapa 3. El
+paso B con `Delta_target` queda como siguiente propuesta ya debatida, no como
+codigo autorizado bajo la ejecucion consumida.
+
+Resultado diagnostico 269-272: A con GT normal 50 Hz es estable. B, usando GT
+perfecto a 20 Hz a traves del mismo `OrbPosePredictor` y publicando a 50 Hz,
+reproduce deriva angular y energia positiva sin fallback. C (+80 ms) y D
+(timing/jitter de 268) agravan el fallo hasta rechazar el segundo goal. Por
+tanto, antes de retomar `Delta_target`, la siguiente correccion debe tratar la
+semantica temporal 20->50 Hz y la coherencia pose/omega del predictor. El nodo
+GT diagnostico no es arquitectura final y debe retirarse al cerrar el estudio.
+
+Resultado E/F/G 273-275: las tres variantes con omega GT exacta completan y
+son disipativas. E conserva el predictor actual, F hace hold angular y G
+propaga SO(3) directamente. Esto selecciona la causa A: el problema principal
+esta en la derivacion/filtrado de `omega_motion`. El hold a 20 Hz y la
+extrapolacion izquierda son viables con pose/omega coherentes. La siguiente
+modificacion debe corregir la estimacion de omega desde ORB, no retocar gains
+ni añadir `Delta_target` prematuramente.
+
+Las pruebas diagnósticas 263-267 conservan el mismo hover. La
+telemetría separa input Gazebo de receive/publish/control ROS, transforma todas
+las omegas a body y compara `tau_ew` con
+`tau_ew_ideal=-Kw*ew_GT`. Si una ejecución no contiene el puente dual-clock,
+su conclusión es `DATOS_INSUFICIENTES` y no se repite automáticamente.
 
 ## Pruebas de integración
 

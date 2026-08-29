@@ -1,0 +1,9 @@
+[
+  "codex/herramientas/tests/test_analyze_f5h_angular_phase.py::test_boolean_parser_accepts_only_explicit_true",
+  "codex/herramientas/tests/test_analyze_f5h_angular_phase.py::test_cross_correlation_reports_positive_signal_delay",
+  "codex/herramientas/tests/test_analyze_f5h_angular_phase.py::test_log_parser_separates_drone_and_stream",
+  "codex/herramientas/tests/test_analyze_f5h_angular_phase.py::test_power_summary_integrates_post_handoff_energy",
+  "codex/herramientas/tests/test_analyze_f5h_angular_phase.py::test_quaternion_distance_reports_relative_rotation",
+  "codex/herramientas/tests/test_analyze_f5h_angular_phase.py::test_quaternion_matrix_uses_xyzw_convention",
+  "codex/herramientas/tests/test_analyze_f5h_angular_phase.py::test_unique_measurement_rows_deduplicates_control_reuse"
+]

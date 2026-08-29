@@ -24,9 +24,27 @@ La prueba 253 demostro que un predictor uniforme en el mux desestabiliza GT; esa
 responsabilidad ya no pertenece a este paquete.
 
 `config/navigation_state.yaml` centraliza la frecuencia, limites SE(3),
-probation angular moderada y gate de reference KF que consume el wrapper. El
+probation angular moderada, calidad/plausibilidad raw, limites del bias y gate
+de reference KF que consume el wrapper. Incluye tambien deadband/confirmacion
+del bias, supresion por movimiento raw y aceleracion de decay de
+`omega_motion`; el controlador no implementa esos filtros. El
 flag `debug_orb_control_state=false`, propagado por los launches, habilita
 telemetria causal en wrapper y controlador sin modificar el control.
+
+Con ese flag, `[F5H-PHASE-CONTROL]` registra cada tick de 50 Hz: sample y
+timestamps de recepción, `R_act/R_des`, omega O/body, `Omega_des`, `er/ew` y
+los vectores `tau_er/tau_ew/tau_feedforward/tau_gyro/tau_total`. Es
+observabilidad únicamente; publicaciones, ganancias y ecuaciones permanecen.
+La prueba 264 muestra que `tau_er` inyecta energia en `80.9 %` del tramo
+post-handoff y domina el fallo, mientras `tau_ew` conserva damping neto. En
+265 el controlador permanece intacto y consume el `NavigationState`
+extrapolado con la edad visual local corregida en `orbslam3_ros2`; el torque
+total inyecta `+0.145081 J`, confirmando que el consumidor no debe compensar
+la fase y que la correccion pendiente pertenece al estimador ORB.
+Para 266 el controlador sigue intacto: consume la pose visual reanclada y la
+omega de movimiento publicadas por `orbslam3_ros2`, sin filtros compensatorios.
+La ventana comun 266 deja torque total disipativo (`-0.001945 J`), aunque el
+ciclo tardio moderate vuelve a crecer y fuerza fallback; no se cambian gains.
 
 Los goals absolutos pueden usar global valida, un frame C_T_W cacheado del mismo
 epoch o el fallback temporal Fase 5. El perfil general conserva fallback
@@ -61,3 +79,8 @@ frontal usa traslacion `(0.10,0.03,0.03) m` en body y
 `W_T_C * inverse(B_T_C)` sin permutar los ejes world/control.
 
 Detalles en `launches.md`, `control.md` y archivos de config del paquete.
+
+Para las pruebas 269-272, `f5h_gt_timing_mode` propaga el modo de laboratorio.
+El mux admite `f5h_diagnostic_force_source=gt|orb` solo para fijar una fuente
+durante cada ensayo y evitar handoffs. Ambos valores quedan `off/normal` por
+defecto y están marcados para retirar; GT normal no se remuestrea ni filtra.

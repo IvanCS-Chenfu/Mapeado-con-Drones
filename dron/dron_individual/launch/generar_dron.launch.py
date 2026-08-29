@@ -6,7 +6,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -66,6 +66,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
         DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
+        DeclareLaunchArgument('f5h_gt_timing_mode', default_value='off'),
         DeclareLaunchArgument('gt_fallback_enabled', default_value='false'),
         DeclareLaunchArgument('orb_qualification_samples', default_value='20'),
         DeclareLaunchArgument(
@@ -87,6 +88,7 @@ def generate_launch_description():
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
     debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
+    f5h_gt_timing_mode = LaunchConfiguration('f5h_gt_timing_mode')
     gt_fallback_enabled = LaunchConfiguration('gt_fallback_enabled')
     orb_qualification_samples = LaunchConfiguration('orb_qualification_samples')
     orb_vocabulary_path = LaunchConfiguration('orb_vocabulary_path')
@@ -108,6 +110,13 @@ def generate_launch_description():
                     gt_fallback_enabled, value_type=bool),
                 'orb_qualification_samples': ParameterValue(
                     orb_qualification_samples, value_type=int),
+                'f5h_diagnostic_force_source': ParameterValue(
+                    PythonExpression([
+                        "'gt' if '", f5h_gt_timing_mode,
+                        "'.lower() == 'gt_50' else ('orb' if '",
+                        f5h_gt_timing_mode,
+                        "'.lower() != 'off' else 'normal')",
+                    ]), value_type=str),
             }],
         ),
         Node(
@@ -150,6 +159,7 @@ def generate_launch_description():
                 'debug_fiducial_display_seconds':
                     debug_fiducial_display_seconds,
                 'debug_orb_control_state': debug_orb_control_state,
+                'f5h_gt_timing_mode': f5h_gt_timing_mode,
                 'vocab': orb_vocabulary_path,
             }.items(),
         ),

@@ -1,0 +1,164 @@
+{
+  "drones": [
+    {
+      "authoritative_samples": 0,
+      "drone_id": 1,
+      "epochs_aligned": [
+        0
+      ],
+      "frequency_hz": 19.381738818854036,
+      "gt_fallback_ratio": 1.0,
+      "gt_fallback_samples": 596,
+      "interarrival_sec": {
+        "count": 595,
+        "mae": 0.051594957983193274,
+        "max": 0.5,
+        "p95": 0.05100000000000193,
+        "rmse": 0.057836992029831766
+      },
+      "jitter_sec": {
+        "count": 595,
+        "mae": 0.0020756302521013903,
+        "max": 0.4499999999999993,
+        "p95": 0.0019999999999988916,
+        "rmse": 0.026184381771191263
+      },
+      "latency_definition": "relative_to_first_sample_per_epoch",
+      "latency_sec": {
+        "count": 596,
+        "mae": 0.2834795149380729,
+        "max": 1.300978660583496,
+        "p95": 0.30107516050338745,
+        "rmse": 0.32860382998344484
+      },
+      "max_skew_sec": 0.09000000000000341,
+      "o_angle_rad": {
+        "count": 596,
+        "mae": 6.800034106122794e-05,
+        "max": 0.0004361868209042615,
+        "p95": 0.00017835088119282642,
+        "rmse": 8.47938295993376e-05
+      },
+      "o_position_m": {
+        "count": 596,
+        "mae": 6.897651998819693e-06,
+        "max": 7.06043498256411e-05,
+        "p95": 1.658614665992406e-05,
+        "rmse": 9.212708914502992e-06
+      },
+      "o_yaw_rad": {
+        "count": 596,
+        "mae": 7.016200214090528e-06,
+        "max": 0.0001947751494026928,
+        "p95": 3.905869424536412e-05,
+        "rmse": 1.8671412534576078e-05
+      },
+      "orb_samples": 0,
+      "paired_samples": 596,
+      "reference_switches": 0,
+      "revision_changes": 0,
+      "unpaired_samples": 19,
+      "w_angle_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_position_m": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_yaw_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      }
+    },
+    {
+      "authoritative_samples": 0,
+      "drone_id": 2,
+      "epochs_aligned": [
+        0
+      ],
+      "frequency_hz": 18.99226580019221,
+      "gt_fallback_ratio": 1.0,
+      "gt_fallback_samples": 416,
+      "interarrival_sec": {
+        "count": 415,
+        "mae": 0.052653012048192775,
+        "max": 0.5509999999999984,
+        "p95": 0.05100000000000193,
+        "rmse": 0.062377301246874774
+      },
+      "jitter_sec": {
+        "count": 415,
+        "mae": 0.0031253012048197237,
+        "max": 0.5009999999999977,
+        "p95": 0.0019999999999988916,
+        "rmse": 0.03355035776298195
+      },
+      "latency_definition": "relative_to_first_sample_per_epoch",
+      "latency_sec": {
+        "count": 416,
+        "mae": 0.047277417893593125,
+        "max": 1.0399832725524902,
+        "p95": 0.032292962074279785,
+        "rmse": 0.16827972120158768
+      },
+      "max_skew_sec": 0.08900000000000574,
+      "o_angle_rad": {
+        "count": 416,
+        "mae": 0.00018429228105317494,
+        "max": 0.0006893050330483904,
+        "p95": 0.0004460085921287399,
+        "rmse": 0.00021947659746961637
+      },
+      "o_position_m": {
+        "count": 416,
+        "mae": 1.6500128000390067e-05,
+        "max": 5.941676461698333e-05,
+        "p95": 3.064782141879965e-05,
+        "rmse": 1.7940375401860267e-05
+      },
+      "o_yaw_rad": {
+        "count": 416,
+        "mae": 8.263606670785957e-05,
+        "max": 0.0003218983880535209,
+        "p95": 0.00018606193415710015,
+        "rmse": 9.670188410492844e-05
+      },
+      "orb_samples": 0,
+      "paired_samples": 416,
+      "reference_switches": 0,
+      "revision_changes": 0,
+      "unpaired_samples": 22,
+      "w_angle_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_position_m": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_yaw_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      }
+    }
+  ]
+}

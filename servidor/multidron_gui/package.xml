@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>multidron_gui</name>
+  <version>0.1.0</version>
+  <description>Proceso Qt/OpenGL independiente para observar y operar el sistema multi-dron de Fase 7.</description>
+  <maintainer email="ivancalvosantos2003@uma.es">Ivan Calvo Santos</maintainer>
+  <license>GPL-3.0-only</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>multidron_gui_lib</depend>
+
+  <build_depend>qtbase5-dev</build_depend>
+  <build_depend>libqt5opengl5-dev</build_depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>orbslam3_server</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

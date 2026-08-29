@@ -119,6 +119,29 @@ StereoSlamNode::StereoSlamNode(
     this->declare_parameter<double>("orb_state_filter.moderate_magnitude_ratio", 0.50);
     this->declare_parameter<double>("orb_state_filter.moderate_timeout_sec", 0.35);
     this->declare_parameter<int>("orb_state_filter.post_reference_switch_frames", 5);
+    this->declare_parameter<double>("orb_state_filter.raw_dt_max_good_sec", 0.075);
+    this->declare_parameter<double>("orb_state_filter.raw_dt_max_degraded_sec", 0.20);
+    this->declare_parameter<double>("orb_state_filter.max_raw_rotation_step_rad", 0.12);
+    this->declare_parameter<double>("orb_state_filter.max_raw_angular_speed_radps", 1.0);
+    this->declare_parameter<double>(
+        "orb_state_filter.max_raw_angular_acceleration_radps2", 10.0);
+    this->declare_parameter<double>("orb_state_filter.raw_reversal_noise_step_rad", 0.005);
+    this->declare_parameter<double>("orb_state_filter.raw_motion_filter_alpha", 0.35);
+    this->declare_parameter<double>(
+        "orb_state_filter.max_orientation_bias_correction_rate_radps", 0.08);
+    this->declare_parameter<double>(
+        "orb_state_filter.max_orientation_bias_correction_acceleration_radps2", 0.8);
+    this->declare_parameter<double>("orb_state_filter.bias_deadband_enter_rad", 0.005);
+    this->declare_parameter<double>("orb_state_filter.bias_deadband_exit_rad", 0.002);
+    this->declare_parameter<int>("orb_state_filter.bias_confirmation_frames", 3);
+    this->declare_parameter<int>(
+        "orb_state_filter.bias_post_reference_confirmation_frames", 4);
+    this->declare_parameter<double>(
+        "orb_state_filter.motion_bias_suppression_enter_radps", 0.10);
+    this->declare_parameter<double>(
+        "orb_state_filter.motion_bias_suppression_exit_radps", 0.05);
+    this->declare_parameter<double>(
+        "orb_state_filter.rejected_motion_decay_acceleration_radps2", 4.0);
     this->declare_parameter<bool>("debug_orb_control_state", false);
     this->declare_parameter<int>("orb_reference_gate.confirmation_frames", 3);
     this->declare_parameter<int>("orb_reference_gate.max_pending_frames", 6);
@@ -203,6 +226,47 @@ StereoSlamNode::StereoSlamNode(
     predictor_config.post_reference_switch_frames = static_cast<uint32_t>(
         std::max<int64_t>(0, this->get_parameter(
             "orb_state_filter.post_reference_switch_frames").as_int()));
+    predictor_config.raw_dt_max_good_sec =
+        this->get_parameter("orb_state_filter.raw_dt_max_good_sec").as_double();
+    predictor_config.raw_dt_max_degraded_sec =
+        this->get_parameter("orb_state_filter.raw_dt_max_degraded_sec").as_double();
+    predictor_config.max_raw_rotation_step_rad = static_cast<float>(
+        this->get_parameter("orb_state_filter.max_raw_rotation_step_rad").as_double());
+    predictor_config.max_raw_angular_speed_radps = static_cast<float>(
+        this->get_parameter("orb_state_filter.max_raw_angular_speed_radps").as_double());
+    predictor_config.max_raw_angular_acceleration_radps2 = static_cast<float>(
+        this->get_parameter(
+            "orb_state_filter.max_raw_angular_acceleration_radps2").as_double());
+    predictor_config.raw_reversal_noise_step_rad = static_cast<float>(
+        this->get_parameter("orb_state_filter.raw_reversal_noise_step_rad").as_double());
+    predictor_config.raw_motion_filter_alpha = static_cast<float>(
+        this->get_parameter("orb_state_filter.raw_motion_filter_alpha").as_double());
+    predictor_config.max_orientation_bias_correction_rate_radps = static_cast<float>(
+        this->get_parameter(
+            "orb_state_filter.max_orientation_bias_correction_rate_radps").as_double());
+    predictor_config.max_orientation_bias_correction_acceleration_radps2 =
+        static_cast<float>(this->get_parameter(
+            "orb_state_filter.max_orientation_bias_correction_acceleration_radps2")
+            .as_double());
+    predictor_config.bias_deadband_enter_rad = static_cast<float>(
+        this->get_parameter("orb_state_filter.bias_deadband_enter_rad").as_double());
+    predictor_config.bias_deadband_exit_rad = static_cast<float>(
+        this->get_parameter("orb_state_filter.bias_deadband_exit_rad").as_double());
+    predictor_config.bias_confirmation_frames = static_cast<uint32_t>(
+        std::max<int64_t>(1, this->get_parameter(
+            "orb_state_filter.bias_confirmation_frames").as_int()));
+    predictor_config.bias_post_reference_confirmation_frames =
+        static_cast<uint32_t>(std::max<int64_t>(1, this->get_parameter(
+            "orb_state_filter.bias_post_reference_confirmation_frames").as_int()));
+    predictor_config.motion_bias_suppression_enter_radps = static_cast<float>(
+        this->get_parameter(
+            "orb_state_filter.motion_bias_suppression_enter_radps").as_double());
+    predictor_config.motion_bias_suppression_exit_radps = static_cast<float>(
+        this->get_parameter(
+            "orb_state_filter.motion_bias_suppression_exit_radps").as_double());
+    predictor_config.rejected_motion_decay_acceleration_radps2 =
+        static_cast<float>(this->get_parameter(
+            "orb_state_filter.rejected_motion_decay_acceleration_radps2").as_double());
     orb_pose_predictor_ = orbslam3_ros2::OrbPosePredictor(predictor_config);
     orbslam3_ros2::ReferenceGateConfig reference_gate_config;
     reference_gate_config.confirmation_frames = static_cast<uint32_t>(
@@ -903,6 +967,8 @@ void StereoSlamNode::GrabStereo(
     const ImageMsg::SharedPtr msgLeft,
     const ImageMsg::SharedPtr msgRight)
 {
+    const double stereo_callback_arrival_stamp_sec =
+        this->get_clock()->now().seconds();
     try
     {
         cv_ptrLeft = cv_bridge::toCvShare(msgLeft);
@@ -1053,7 +1119,11 @@ void StereoSlamNode::GrabStereo(
         tracking_receipt.tracking_state,
         input_timestamp);
 
-    PublishNavigationState(msgLeft->header.stamp, tracking_receipt, Tcw);
+    PublishNavigationState(
+        msgLeft->header.stamp,
+        tracking_receipt,
+        Tcw,
+        stereo_callback_arrival_stamp_sec);
 
     // Publicación legacy de cámara; el estado de navegación publica O_T_B.
     if (tracking_receipt.tracking_state == ORB_SLAM3::Tracking::OK)
@@ -1127,7 +1197,8 @@ void StereoSlamNode::PublishLocalPose(
 void StereoSlamNode::PublishNavigationState(
     const builtin_interfaces::msg::Time& stamp,
     const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
-    const Sophus::SE3f& Tcw)
+    const Sophus::SE3f& Tcw,
+    double callback_arrival_stamp_sec)
 {
     const bool tracking_valid =
         receipt.tracking_state == ORB_SLAM3::Tracking::OK;
@@ -1215,6 +1286,8 @@ void StereoSlamNode::PublishNavigationState(
             predicted = orb_pose_predictor_.UpdateMeasurement(
                 raw_o_t_body, RosTimeToSeconds(stamp), measurement_context);
             latest_orb_measurement_input_stamp_sec_ = RosTimeToSeconds(stamp);
+            latest_orb_measurement_arrival_stamp_sec_ =
+                callback_arrival_stamp_sec;
             latest_orb_measurement_stamp_sec_ = this->get_clock()->now().seconds();
             ++orb_measurement_count_;
             LogOrbMeasurementDiagnostics(orb_pose_predictor_.last_diagnostics());
@@ -1426,6 +1499,51 @@ void StereoSlamNode::LogOrbMeasurementDiagnostics(
         return;
     }
 
+    const auto& raw_q = diagnostics.measurement_orientation;
+    const auto& predicted_before_q =
+        diagnostics.predicted_orientation_before_measurement;
+    const auto& base_after_q = diagnostics.base_orientation_after_measurement;
+    RCLCPP_INFO(
+        this->get_logger(),
+        "[F5H-PHASE-MEASUREMENT] drone_id=%u input_stamp=%.9f "
+        "receive_stamp=%.9f epoch=%lu tracking=%d ref_kf=%lu "
+        "raw_q=(%.9f,%.9f,%.9f,%.9f) base_stamp=%.9f "
+        "pred_before_q=(%.9f,%.9f,%.9f,%.9f) "
+        "base_after_q=(%.9f,%.9f,%.9f,%.9f) "
+        "base_update_applied=%s base_update_type=%s "
+        "base_correction_rad=%.9f visual_base_error_before=%.9f "
+        "visual_base_error_after=%.9f raw_omega_o=(%.9f,%.9f,%.9f) "
+        "motion_target_o=(%.9f,%.9f,%.9f) motion_o=(%.9f,%.9f,%.9f) "
+        "bias_o=(%.9f,%.9f,%.9f) total_o=(%.9f,%.9f,%.9f) "
+        "raw_class=%s correction_class=%s",
+        drone_id_, diagnostics.measurement_stamp_sec,
+        latest_orb_measurement_stamp_sec_,
+        static_cast<unsigned long>(diagnostics.context.map_epoch),
+        diagnostics.context.tracking_state,
+        static_cast<unsigned long>(diagnostics.context.reference_keyframe_id),
+        raw_q.x(), raw_q.y(), raw_q.z(), raw_q.w(),
+        diagnostics.base_stamp_sec,
+        predicted_before_q.x(), predicted_before_q.y(), predicted_before_q.z(),
+        predicted_before_q.w(), base_after_q.x(), base_after_q.y(),
+        base_after_q.z(), base_after_q.w(),
+        diagnostics.base_update_applied ? "true" : "false",
+        orbslam3_ros2::AngularBaseUpdateTypeName(diagnostics.base_update_type),
+        diagnostics.base_rotation_correction_rad,
+        diagnostics.visual_base_error_before_rad,
+        diagnostics.visual_base_error_after_rad,
+        diagnostics.implied_angular_velocity.x(),
+        diagnostics.implied_angular_velocity.y(),
+        diagnostics.implied_angular_velocity.z(),
+        diagnostics.omega_motion_target.x(), diagnostics.omega_motion_target.y(),
+        diagnostics.omega_motion_target.z(), diagnostics.omega_motion.x(),
+        diagnostics.omega_motion.y(), diagnostics.omega_motion.z(),
+        diagnostics.omega_bias.x(), diagnostics.omega_bias.y(),
+        diagnostics.omega_bias.z(), diagnostics.omega_total_after_limits.x(),
+        diagnostics.omega_total_after_limits.y(),
+        diagnostics.omega_total_after_limits.z(),
+        orbslam3_ros2::RawMotionClassName(diagnostics.raw_motion_class),
+        orbslam3_ros2::AngularCorrectionClassName(diagnostics.classification));
+
     const bool relevant =
         diagnostics.classification !=
             orbslam3_ros2::AngularCorrectionClass::Small &&
@@ -1436,17 +1554,42 @@ void StereoSlamNode::LogOrbMeasurementDiagnostics(
         RCLCPP_INFO_THROTTLE(
             this->get_logger(), *this->get_clock(), 200,
             "[F5H-ORB-MEASUREMENT] classification=%s stamp=%.6f dt=%.6f "
+            "raw_dt=%.6f dt_quality=%s raw_motion_class=%s "
+            "bias_state=%s bias_pending=%u bias_active=%s "
+            "motion_indicator_radps=%.6f motion_suppressed=%s "
+            "motion_decay_active=%s motion_decay_rate=%.6f "
             "drone_id=%u epoch=%lu tracking=%d ref_kf=%lu "
             "raw_step_rotation_rad=%.6f rotation_innovation_rad=%.6f "
+            "omega_raw=(%.6f,%.6f,%.6f) alpha_raw=(%.6f,%.6f,%.6f) "
+            "omega_motion=(%.6f,%.6f,%.6f) omega_bias=(%.6f,%.6f,%.6f) "
             "published_pose_rotation_step_rad=%.6f "
             "omega=(%.6f,%.6f,%.6f)",
             orbslam3_ros2::AngularCorrectionClassName(diagnostics.classification),
-            diagnostics.measurement_stamp_sec, diagnostics.dt_sec, drone_id_,
+            diagnostics.measurement_stamp_sec, diagnostics.dt_sec,
+            diagnostics.raw_dt_sec,
+            orbslam3_ros2::RawDtQualityName(diagnostics.raw_dt_quality),
+            orbslam3_ros2::RawMotionClassName(diagnostics.raw_motion_class),
+            orbslam3_ros2::BiasCorrectionStateName(diagnostics.bias_state),
+            diagnostics.bias_pending_frames,
+            diagnostics.bias_active ? "true" : "false",
+            diagnostics.motion_indicator_radps,
+            diagnostics.motion_bias_suppressed ? "true" : "false",
+            diagnostics.motion_decay_active ? "true" : "false",
+            diagnostics.motion_decay_rate_radps2, drone_id_,
             static_cast<unsigned long>(diagnostics.context.map_epoch),
             diagnostics.context.tracking_state,
             static_cast<unsigned long>(diagnostics.context.reference_keyframe_id),
             diagnostics.raw_step_rotation_rad,
             diagnostics.rotation_innovation_rad,
+            diagnostics.implied_angular_velocity.x(),
+            diagnostics.implied_angular_velocity.y(),
+            diagnostics.implied_angular_velocity.z(),
+            diagnostics.implied_angular_acceleration.x(),
+            diagnostics.implied_angular_acceleration.y(),
+            diagnostics.implied_angular_acceleration.z(),
+            diagnostics.omega_motion.x(), diagnostics.omega_motion.y(),
+            diagnostics.omega_motion.z(), diagnostics.omega_bias.x(),
+            diagnostics.omega_bias.y(), diagnostics.omega_bias.z(),
             diagnostics.published_pose_rotation_step_rad,
             diagnostics.angular_velocity_after_limits.x(),
             diagnostics.angular_velocity_after_limits.y(),
@@ -1459,6 +1602,11 @@ void StereoSlamNode::LogOrbMeasurementDiagnostics(
     RCLCPP_WARN(
         this->get_logger(),
         "[F5H-ORB-MEASUREMENT] classification=%s stamp=%.6f dt=%.6f "
+        "raw_dt=%.6f dt_quality=%s raw_motion_class=%s "
+        "bias_state=%s bias_deadband_enter=%.6f bias_deadband_exit=%.6f "
+        "bias_pending=%u bias_active=%s motion_indicator_radps=%.6f "
+        "motion_suppressed=%s raw_rejected=%s motion_decay_active=%s "
+        "motion_decay_rate=%.6f "
         "drone_id=%u epoch=%lu tracking=%d ref_kf=%lu reference_changed=%s "
         "frames_since_reference_change=%u post_reference_switch=%s "
         "raw_step_translation_m=%.6f raw_step_rotation_rad=%.6f "
@@ -1466,16 +1614,33 @@ void StereoSlamNode::LogOrbMeasurementDiagnostics(
         "rotation_innovation_vector=(%.6f,%.6f,%.6f) "
         "rotation_innovation_rad=%.6f small_limit_rad=%.6f "
         "previous_v=(%.6f,%.6f,%.6f) previous_omega=(%.6f,%.6f,%.6f) "
+        "previous_raw_omega=(%.6f,%.6f,%.6f) "
         "implied_omega=(%.6f,%.6f,%.6f) implied_alpha=(%.6f,%.6f,%.6f) "
         "pending_id=%lu pending_good=%u pending_total=%u "
         "consistency_cosine=%.6f magnitude_ratio=%.6f "
         "correction_fraction=%.6f applied_rotation_correction_rad=%.6f "
+        "omega_motion_target=(%.6f,%.6f,%.6f) "
+        "omega_motion=(%.6f,%.6f,%.6f) omega_bias=(%.6f,%.6f,%.6f) "
+        "omega_bias_target=(%.6f,%.6f,%.6f) "
+        "omega_total_before=(%.6f,%.6f,%.6f) "
         "published_pose_translation_step_m=%.6f "
         "published_pose_rotation_step_rad=%.6f "
         "linear_velocity=(%.6f,%.6f,%.6f) "
         "angular_velocity=(%.6f,%.6f,%.6f) healthy=%s rejections=%u",
         orbslam3_ros2::AngularCorrectionClassName(diagnostics.classification),
-        diagnostics.measurement_stamp_sec, diagnostics.dt_sec, drone_id_,
+        diagnostics.measurement_stamp_sec, diagnostics.dt_sec,
+        diagnostics.raw_dt_sec,
+        orbslam3_ros2::RawDtQualityName(diagnostics.raw_dt_quality),
+        orbslam3_ros2::RawMotionClassName(diagnostics.raw_motion_class),
+        orbslam3_ros2::BiasCorrectionStateName(diagnostics.bias_state),
+        diagnostics.bias_deadband_enter_rad, diagnostics.bias_deadband_exit_rad,
+        diagnostics.bias_pending_frames,
+        diagnostics.bias_active ? "true" : "false",
+        diagnostics.motion_indicator_radps,
+        diagnostics.motion_bias_suppressed ? "true" : "false",
+        diagnostics.raw_rejected ? "true" : "false",
+        diagnostics.motion_decay_active ? "true" : "false",
+        diagnostics.motion_decay_rate_radps2, drone_id_,
         static_cast<unsigned long>(diagnostics.context.map_epoch),
         diagnostics.context.tracking_state,
         static_cast<unsigned long>(diagnostics.context.reference_keyframe_id),
@@ -1493,6 +1658,9 @@ void StereoSlamNode::LogOrbMeasurementDiagnostics(
         diagnostics.previous_angular_velocity.x(),
         diagnostics.previous_angular_velocity.y(),
         diagnostics.previous_angular_velocity.z(),
+        diagnostics.previous_raw_angular_velocity.x(),
+        diagnostics.previous_raw_angular_velocity.y(),
+        diagnostics.previous_raw_angular_velocity.z(),
         diagnostics.implied_angular_velocity.x(),
         diagnostics.implied_angular_velocity.y(),
         diagnostics.implied_angular_velocity.z(),
@@ -1504,6 +1672,17 @@ void StereoSlamNode::LogOrbMeasurementDiagnostics(
         diagnostics.consistency_cosine, diagnostics.magnitude_ratio,
         diagnostics.correction_fraction_applied,
         diagnostics.applied_rotation_correction_rad,
+        diagnostics.omega_motion_target.x(),
+        diagnostics.omega_motion_target.y(),
+        diagnostics.omega_motion_target.z(),
+        diagnostics.omega_motion.x(), diagnostics.omega_motion.y(),
+        diagnostics.omega_motion.z(), diagnostics.omega_bias.x(),
+        diagnostics.omega_bias.y(), diagnostics.omega_bias.z(),
+        diagnostics.omega_bias_target.x(), diagnostics.omega_bias_target.y(),
+        diagnostics.omega_bias_target.z(),
+        diagnostics.omega_total_before_limits.x(),
+        diagnostics.omega_total_before_limits.y(),
+        diagnostics.omega_total_before_limits.z(),
         diagnostics.published_pose_translation_step_m,
         diagnostics.published_pose_rotation_step_rad,
         diagnostics.linear_velocity_after_limits.x(),
@@ -1527,11 +1706,21 @@ void StereoSlamNode::PublishPredictedNavigationState()
     const rclcpp::Time now = this->get_clock()->now();
     float published_translation_step_m = 0.0f;
     float published_rotation_step_rad = 0.0f;
+    orbslam3_ros2::OrbPredictionTiming prediction_timing;
+    orbslam3_ros2::PredictedOrbPoseState base_state;
+    orbslam3_ros2::PredictedOrbPoseState predicted;
     message.header.stamp = now;
     message.sample_sequence = navigation_sample_sequence_++;
     if (message.local_valid)
     {
-        const auto predicted = orb_pose_predictor_.Predict(now.seconds());
+        prediction_timing = orbslam3_ros2::ComputeOrbPredictionTiming(
+            latest_orb_measurement_input_stamp_sec_,
+            latest_orb_measurement_arrival_stamp_sec_,
+            now.seconds());
+        base_state = orb_pose_predictor_.Predict(
+            latest_orb_measurement_input_stamp_sec_);
+        predicted = orb_pose_predictor_.Predict(
+            prediction_timing.target_measurement_stamp_sec);
         if (!predicted.valid)
         {
             return;
@@ -1577,8 +1766,44 @@ void StereoSlamNode::PublishPredictedNavigationState()
     ++orb_prediction_count_;
     if (debug_orb_control_state_)
     {
-        const double state_age_sec = latest_orb_measurement_stamp_sec_ > 0.0 ?
+        const double receive_age_sec = latest_orb_measurement_stamp_sec_ > 0.0 ?
             std::max(0.0, now.seconds() - latest_orb_measurement_stamp_sec_) : -1.0;
+        const auto& predictor_diagnostics = orb_pose_predictor_.last_diagnostics();
+        const auto& visual_q = predictor_diagnostics.measurement_orientation;
+        const auto base_q = base_state.valid ?
+            base_state.pose.unit_quaternion() : Eigen::Quaternionf::Identity();
+        const auto predicted_q = predicted.valid ?
+            predicted.pose.unit_quaternion() : Eigen::Quaternionf::Identity();
+        RCLCPP_INFO(
+            this->get_logger(),
+            "[F5H-PHASE-PUBLISH] drone_id=%u publish_stamp=%.9f "
+            "input_stamp=%.9f arrival_stamp=%.9f receive_stamp=%.9f "
+            "visual_age_local=%.9f prediction_horizon=%.9f "
+            "prediction_clamped=%s input_clock=gazebo_sim receive_clock=ros "
+            "receive_age=%.9f "
+            "sample=%lu source=%u epoch=%lu tracking=%d "
+            "ref_kf=%lu local_valid=%s velocity_valid=%s "
+            "visual_q=(%.9f,%.9f,%.9f,%.9f) "
+            "base_q=(%.9f,%.9f,%.9f,%.9f) "
+            "predicted_q=(%.9f,%.9f,%.9f,%.9f) "
+            "pose_q=(%.9f,%.9f,%.9f,%.9f) omega_o=(%.9f,%.9f,%.9f)",
+            drone_id_, now.seconds(), latest_orb_measurement_input_stamp_sec_,
+            latest_orb_measurement_arrival_stamp_sec_,
+            latest_orb_measurement_stamp_sec_, prediction_timing.visual_age_sec,
+            predicted.prediction_horizon_sec,
+            predicted.prediction_clamped ? "true" : "false", receive_age_sec,
+            static_cast<unsigned long>(message.sample_sequence), message.pose_source,
+            static_cast<unsigned long>(message.map_epoch), message.tracking_state,
+            static_cast<unsigned long>(message.reference_keyframe_id),
+            message.local_valid ? "true" : "false",
+            message.velocity_valid ? "true" : "false",
+            visual_q.x(), visual_q.y(), visual_q.z(), visual_q.w(),
+            base_q.x(), base_q.y(), base_q.z(), base_q.w(),
+            predicted_q.x(), predicted_q.y(), predicted_q.z(), predicted_q.w(),
+            message.o_t_body.orientation.x, message.o_t_body.orientation.y,
+            message.o_t_body.orientation.z, message.o_t_body.orientation.w,
+            message.velocity.angular.x, message.velocity.angular.y,
+            message.velocity.angular.z);
         const bool diagnostic_window =
             now.seconds() <= orb_diagnostic_window_until_sec_;
         if (diagnostic_window)
@@ -1586,8 +1811,10 @@ void StereoSlamNode::PublishPredictedNavigationState()
             RCLCPP_WARN(
                 this->get_logger(),
                 "[F5H-ORB-PUBLISH] publish_stamp=%.6f measurement_input_stamp=%.6f "
-                "measurement_receive_stamp=%.6f "
-                "state_age_sec=%.6f drone_id=%u sample=%lu source=%u "
+                "measurement_arrival_stamp=%.6f measurement_receive_stamp=%.6f "
+                "state_age_sec=%.6f visual_age_local_sec=%.6f "
+                "prediction_horizon_sec=%.6f prediction_clamped=%s "
+                "drone_id=%u sample=%lu source=%u "
                 "local_valid=%s continuity_valid=%s velocity_valid=%s "
                 "epoch=%lu ref_kf=%lu tracking=%d "
                 "pose_p=(%.6f,%.6f,%.6f) pose_q=(%.6f,%.6f,%.6f,%.6f) "
@@ -1595,7 +1822,11 @@ void StereoSlamNode::PublishPredictedNavigationState()
                 "published_translation_step_m=%.6f "
                 "published_rotation_step_rad=%.6f",
                 now.seconds(), latest_orb_measurement_input_stamp_sec_,
-                latest_orb_measurement_stamp_sec_, state_age_sec,
+                latest_orb_measurement_arrival_stamp_sec_,
+                latest_orb_measurement_stamp_sec_, receive_age_sec,
+                prediction_timing.visual_age_sec,
+                predicted.prediction_horizon_sec,
+                predicted.prediction_clamped ? "true" : "false",
                 drone_id_, static_cast<unsigned long>(message.sample_sequence),
                 message.pose_source, message.local_valid ? "true" : "false",
                 message.local_continuity_valid ? "true" : "false",
@@ -1617,12 +1848,18 @@ void StereoSlamNode::PublishPredictedNavigationState()
             RCLCPP_INFO_THROTTLE(
                 this->get_logger(), *this->get_clock(), 200,
                 "[F5H-ORB-PUBLISH] publish_stamp=%.6f measurement_input_stamp=%.6f "
-                "measurement_receive_stamp=%.6f "
-                "state_age_sec=%.6f drone_id=%u source=%u local_valid=%s "
+                "measurement_arrival_stamp=%.6f measurement_receive_stamp=%.6f "
+                "state_age_sec=%.6f visual_age_local_sec=%.6f "
+                "prediction_horizon_sec=%.6f prediction_clamped=%s "
+                "drone_id=%u source=%u local_valid=%s "
                 "velocity_valid=%s epoch=%lu ref_kf=%lu tracking=%d "
                 "published_rotation_step_rad=%.6f omega=(%.6f,%.6f,%.6f)",
                 now.seconds(), latest_orb_measurement_input_stamp_sec_,
-                latest_orb_measurement_stamp_sec_, state_age_sec,
+                latest_orb_measurement_arrival_stamp_sec_,
+                latest_orb_measurement_stamp_sec_, receive_age_sec,
+                prediction_timing.visual_age_sec,
+                predicted.prediction_horizon_sec,
+                predicted.prediction_clamped ? "true" : "false",
                 drone_id_, message.pose_source,
                 message.local_valid ? "true" : "false",
                 message.velocity_valid ? "true" : "false",

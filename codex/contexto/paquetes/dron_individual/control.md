@@ -168,6 +168,34 @@ mediante `[F5H-CONTROL-STATE-INVALID]` y el lazo emite a 10 Hz
 `ep/ev/er/ew`, fuerza, torque, RPY y omega corporal. Las formulas y ganancias
 del controlador no cambian; el flag queda desactivado por defecto.
 
+El predictor angular raw/bias no vive en este nodo. Sus parametros se alojan
+en `config/navigation_state.yaml`, pero los declara y consume
+`orbslam3_ros2::StereoSlamNode`; control recibe directamente pose y velocidades
+ya preparadas. La configuracion vigente añade deadband/confirmacion del bias,
+supresion por movimiento y decay raw, pero todo ello se ejecuta en
+`orbslam3_ros2`. La prueba 262 confirma que ganancias, formulas y camino GT
+permanecen intactos mientras se diagnostica la oscilacion de `omega_motion`.
+
+La instrumentacion 263 añade `[F5H-PHASE-CONTROL]` sin throttle cuando el debug
+está activo. Conserva los vectores exactos usados en el tick: `R_act`, `R_des`,
+omega recibida O y transformada a body, `Omega_des`, `er`, `ew`, términos de
+torque separados, torque total, `Kr/Kw`, sample y timestamps. La suma de
+términos es algebraicamente la misma ecuación previa y no altera el control.
+
+La prueba 264 demuestra que el termino proporcional es decisivo: tras el
+handoff, `tau_er` realiza trabajo positivo respecto a la omega GT en `80.9 %`
+de los ciclos e inyecta `+0.005173 J` al reprocesar con el analizador de 265.
+`tau_ew` es anti-amortiguante de forma
+intermitente, pero netamente disipativo. Las ganancias y ecuaciones no se
+modifican todavia; esta evidencia exige corregir primero la fase de la pose
+angular que recibe el controlador.
+
+En 266 el controlador permanece idéntico mientras `orbslam3_ros2` reancla la
+pose visual. En la ventana comun, `tau_er` baja a `+0.002067 J` y el torque
+total resulta disipativo (`-0.001945 J`), confirmando que la mejora procede del
+estado de entrada y no de gains. El fallo tardio moderate conserva los gains
+fuera del siguiente ajuste.
+
 Al cambiar `NavigationState.pose_source`, el callback sustituye cualquier
 consigna retenida del frame anterior por un hold en la nueva `o_t_body`:
 posición, velocidad, yaw y yaw rate actuales, con aceleración, jerk y yaw
@@ -255,6 +283,12 @@ Rol:
 No es parte central del pipeline actual de sparse global multi-dron.
 
 ## Riesgos
+
+Laboratorio F5H: `navigation_state_mux.cpp` declara
+`f5h_diagnostic_force_source`; `rg -n "f5h_diagnostic_force_source"` localiza
+la selección forzada `gt|orb`. Solo se usa en 269-272, después de calcular la
+decisión normal, para eliminar conmutaciones de la comparación. El default
+`normal` conserva intacta la política runtime y el bloque debe retirarse.
 
 - El fallback Fase 5 depende de GT, visible y desactivado por defecto.
 - GT no puede alimentar estimacion, mapa, anchors ni pose global.

@@ -47,13 +47,20 @@ local/continuidad inválidas al perder tracking. 5D-5E añaden cliente de
 descartan y W nunca mueve O. `NavigationStateEstimator` confirma una cadena
 geometrica aunque cambie el ID del reference KF; `local_t_camera` solo enlaza
 cambios plausibles y Tcr conserva la autoridad local principal.
-`OrbPosePredictor`, dentro del mismo wrapper, publica a 50 Hz un estado SE(3)
-corregido gradualmente con limites de innovacion, velocidad y aceleracion.
-Pose y velocidades proceden exactamente del mismo estado corregido. Las
-innovaciones angulares se clasifican como `SMALL`, `MODERATE_PENDING`,
-`MODERATE_CONFIRMED`, `MODERATE_DISCARDED` o `REJECTED_EXCESSIVE`: una moderada
-no mueve la actitud hasta acumular evidencia temporal coherente y, tras un
-cambio de reference KF, exige una confirmacion reforzada.
+`OrbPosePredictor`, dentro del mismo wrapper, publica a 50 Hz un estado SE(3).
+En rotacion separa la orientacion absoluta visual aceptada del movimiento entre
+medidas (`omega_motion`): SMALL/plausible reancla `pose_` en `t_visual`,
+MODERATE_CONFIRMED con raw plausible reancla tambien por completo y el resto
+avanza como PREDICT_ONLY. La correccion de pose no se convierte en velocidad
+fisica; `omega_motion + omega_bias` queda para velocidad y una unica
+propagacion temporal. El dt raw se
+clasifica `GOOD/DEGRADED/INVALID`, el movimiento
+`PLAUSIBLE/DEGRADED_DT/SUSPICIOUS/REJECTED` y el residual absoluto conserva
+`SMALL/MODERATE_PENDING/MODERATE_CONFIRMED/MODERATE_DISCARDED/REJECTED_EXCESSIVE`.
+SMALL es fijo. La correccion de bias usa deadband con histeresis, confirmacion
+temporal y estados `OFF/PENDING/ACTIVE/DECAY`; durante movimiento raw
+significativo se lleva hacia cero. Si raw pasa a `SUSPICIOUS/REJECTED`,
+`omega_motion` decae de forma continua en vez de conservarse o cortarse.
 
 El parametro `debug_orb_control_state=false` habilita, solo para diagnostico,
 `[F5H-ORB-MEASUREMENT]` y `[F5H-ORB-PUBLISH]`. Separan medida raw, innovacion,
@@ -61,11 +68,51 @@ correccion aplicada, paso realmente publicado, omega y edad del estado. Los
 umbrales se cargan desde `dron_individual/config/navigation_state.yaml`; GT
 permanece exacto fuera de este predictor.
 
-Validacion vigente: 21/21 GTests pasan, pero el hover ORB de prueba 259 falla
-tras 227 muestras. La oscilacion empieza antes del primer pending: el umbral
-SMALL se expande con `dt` y permite un paso publicado de `0.058777 rad`; luego
-la persistencia del residual confirma una realimentacion creciente. No repetir
-recorridos largos hasta revisar ambos criterios.
+El mismo flag añade los marcadores sin throttle
+`[F5H-PHASE-MEASUREMENT]` y `[F5H-PHASE-PUBLISH]`: orientación raw,
+`omega_raw/motion/bias/total`, input Gazebo, recepción ROS, publicación y
+sample. Los dominios de reloj se etiquetan explícitamente; el wrapper no resta
+input Gazebo de tiempo ROS.
+
+Validacion vigente: builds de los tres consumidores correctos, 46/46 GTests y
+7/7 tests del analizador.
+La prueba 262 repite el hover ORB: `omega_bias` permanece en cero y el decay raw
+actua, pero `omega_motion` oscila hasta unos `0.617 rad/s`; ORB gobierna unos
+5.92 s y el estimador fuerza fallback unos 0.54 s antes de tracking 2->3. La
+prueba 263 descubre el doble reloj y queda sin diagnostico. La 264 usa el
+puente corregido: raw sigue al GT con unos 80 ms, pero la pose/control angular
+queda fuera de fase y el termino proporcional de orientacion inyecta energia.
+La correccion aplicada en 265 usa la edad local desde el ingreso del
+callback para construir un target en reloj visual y extrapolar una sola vez;
+reutiliza el clamp de 0.10 s y no fusiona directamente la orientacion raw.
+Cumple su contrato temporal, pero no estabiliza el hover: `visual_q -> base_q`
+crece hasta `0.339 rad`, muy por encima del paso de prediccion, y `tau_er`
+inyecta `+0.160266 J`.
+La prueba 266 valida el reanclaje visual SMALL: reduce `tau_er` un `98.7 %` en
+ventana comun y extiende ORB a `8.06 s`. Aun falla porque la correccion moderate
+de `0.015 rad` deja residual y termina en predict-only/rechazo/fallback. La
+prueba 267 ensaya el anclaje moderate completo: el error after queda a cero,
+pero ORB vuelve a `5.56 s` y la energia dañina se acumula mas deprisa tras el
+primer anclaje. Un caso confirmado con raw rechazado revelo que ambos gates
+eran independientes; el codigo vigente exige ahora raw plausible y pasa
+46/46 GTests, pero esa reparacion posterior aun no tiene simulacion.
+La prueba 268 valida ya ese gate: no hay confirmed anchors con raw rechazado,
+pero el unico anclaje plausible de `0.057317 rad` precede `+0.046416 J` en
+`0.88 s` y fallback. El anclaje completo queda descartado como politica
+moderate; el siguiente diseño acordable es un residual SO(3) persistente y
+gradual, aun no implementado.
+Las pruebas 269-272 añaden temporalmente el ejecutable de laboratorio
+`gt_timing_diagnostic`: reutiliza el `OrbPosePredictor` con pose GT perfecta y
+modos 50 Hz, 20 Hz, 20 Hz +80 ms y traza determinista de 268. A es estable;
+B ya falla sin error geometrico ORB y C/D lo agravan. Esto localiza la causa
+principal en el pipeline temporal/predictor. El modo queda `off` por defecto y
+marcado para retirar.
+La bateria E/F/G 273-275 extiende ese laboratorio con omega GT sincronizada.
+Las tres variantes completan y son disipativas: predictor actual con omega GT,
+hold angular y extrapolacion SO(3) directa. Queda aislada como causa principal
+la derivacion/filtrado de `omega_motion`; no fallan el hold ni la formula de
+propagacion cuando pose y omega son coherentes.
+No ejecutar recorridos largos mientras falle el hover.
 
 Relación: alimentado por `simulacion_dron` (cámaras), usa `ORB_SLAM3`, define mensajes en `orbslam3_msgs` y es consumido por `orbslam3_server`.
 

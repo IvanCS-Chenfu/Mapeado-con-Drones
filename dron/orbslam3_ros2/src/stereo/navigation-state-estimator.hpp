@@ -27,6 +27,59 @@ enum class AngularCorrectionClass : uint8_t
 
 const char * AngularCorrectionClassName(AngularCorrectionClass value);
 
+enum class AngularBaseUpdateType : uint8_t
+{
+  Initializing = 0,
+  SmallAnchor = 1,
+  ModeratePending = 2,
+  ModerateConfirmed = 3,
+  Rejected = 4,
+  PredictOnly = 5,
+};
+
+const char * AngularBaseUpdateTypeName(AngularBaseUpdateType value);
+
+enum class RawDtQuality : uint8_t
+{
+  Invalid = 0,
+  Good = 1,
+  Degraded = 2,
+};
+
+const char * RawDtQualityName(RawDtQuality value);
+
+enum class RawMotionClass : uint8_t
+{
+  Initializing = 0,
+  Plausible = 1,
+  DegradedDt = 2,
+  Suspicious = 3,
+  Rejected = 4,
+};
+
+const char * RawMotionClassName(RawMotionClass value);
+
+enum class AngularMotionEstimatorMode : uint8_t
+{
+  Init = 0,
+  TwoSample = 1,
+  ThreeSamplePredicted = 2,
+  DegradedDt = 3,
+  Rejected = 4,
+};
+
+const char * AngularMotionEstimatorModeName(AngularMotionEstimatorMode value);
+
+enum class BiasCorrectionState : uint8_t
+{
+  Off = 0,
+  Pending = 1,
+  Active = 2,
+  Decay = 3,
+};
+
+const char * BiasCorrectionStateName(BiasCorrectionState value);
+
 struct ContinuousPoseResult
 {
   bool local_valid = false;
@@ -69,6 +122,23 @@ struct OrbPosePredictorConfig
   float moderate_magnitude_ratio = 0.50f;
   double moderate_timeout_sec = 0.35;
   uint32_t post_reference_switch_frames = 5;
+  double raw_dt_max_good_sec = 0.075;
+  double raw_dt_max_degraded_sec = 0.20;
+  float max_raw_rotation_step_rad = 0.12f;
+  float max_raw_angular_speed_radps = 1.0f;
+  float max_raw_angular_acceleration_radps2 = 10.0f;
+  float raw_reversal_noise_step_rad = 0.005f;
+  // Legacy/test kill switch. Positive values no longer control a low-pass filter.
+  float raw_motion_filter_alpha = 0.35f;
+  float max_orientation_bias_correction_rate_radps = 0.08f;
+  float max_orientation_bias_correction_acceleration_radps2 = 0.8f;
+  float bias_deadband_enter_rad = 0.005f;
+  float bias_deadband_exit_rad = 0.002f;
+  uint32_t bias_confirmation_frames = 3;
+  uint32_t bias_post_reference_confirmation_frames = 4;
+  float motion_bias_suppression_enter_radps = 0.10f;
+  float motion_bias_suppression_exit_radps = 0.05f;
+  float rejected_motion_decay_acceleration_radps2 = 4.0f;
 };
 
 struct OrbMeasurementContext
@@ -84,7 +154,21 @@ struct OrbPosePredictorDiagnostics
 {
   bool measurement_processed = false;
   double measurement_stamp_sec = 0.0;
+  Eigen::Quaternionf measurement_orientation = Eigen::Quaternionf::Identity();
+  Eigen::Quaternionf predicted_orientation_before_measurement =
+    Eigen::Quaternionf::Identity();
+  Eigen::Quaternionf base_orientation_after_measurement =
+    Eigen::Quaternionf::Identity();
+  double base_stamp_sec = 0.0;
+  AngularBaseUpdateType base_update_type = AngularBaseUpdateType::Initializing;
+  bool base_update_applied = false;
+  float base_rotation_correction_rad = 0.0f;
+  float visual_base_error_before_rad = 0.0f;
+  float visual_base_error_after_rad = 0.0f;
   double dt_sec = 0.0;
+  double raw_dt_sec = 0.0;
+  RawDtQuality raw_dt_quality = RawDtQuality::Invalid;
+  RawMotionClass raw_motion_class = RawMotionClass::Initializing;
   OrbMeasurementContext context;
   AngularCorrectionClass classification = AngularCorrectionClass::Initializing;
   bool post_reference_switch = false;
@@ -100,6 +184,30 @@ struct OrbPosePredictorDiagnostics
   Eigen::Vector3f previous_angular_velocity = Eigen::Vector3f::Zero();
   Eigen::Vector3f implied_angular_velocity = Eigen::Vector3f::Zero();
   Eigen::Vector3f implied_angular_acceleration = Eigen::Vector3f::Zero();
+  Eigen::Vector3f previous_raw_angular_velocity = Eigen::Vector3f::Zero();
+  double previous_interval_mid_stamp_sec = 0.0;
+  double current_interval_mid_stamp_sec = 0.0;
+  Eigen::Vector3f causal_angular_acceleration = Eigen::Vector3f::Zero();
+  Eigen::Vector3f omega_hat_at_measurement = Eigen::Vector3f::Zero();
+  double omega_prediction_horizon_sec = 0.0;
+  AngularMotionEstimatorMode omega_estimator_mode = AngularMotionEstimatorMode::Init;
+  Eigen::Vector3f omega_motion = Eigen::Vector3f::Zero();
+  Eigen::Vector3f omega_bias = Eigen::Vector3f::Zero();
+  Eigen::Vector3f omega_motion_target = Eigen::Vector3f::Zero();
+  Eigen::Vector3f omega_bias_target = Eigen::Vector3f::Zero();
+  Eigen::Vector3f omega_total_before_limits = Eigen::Vector3f::Zero();
+  Eigen::Vector3f omega_total_after_limits = Eigen::Vector3f::Zero();
+  BiasCorrectionState bias_state = BiasCorrectionState::Off;
+  float bias_deadband_enter_rad = 0.0f;
+  float bias_deadband_exit_rad = 0.0f;
+  uint32_t bias_pending_frames = 0;
+  bool bias_active = false;
+  bool raw_rejected = false;
+  bool motion_decay_active = false;
+  float motion_decay_rate_radps2 = 0.0f;
+  float motion_indicator_radps = 0.0f;
+  bool motion_bias_suppressed = false;
+  float bias_correction_step_rad = 0.0f;
   uint64_t pending_correction_id = 0;
   uint32_t pending_good_frames = 0;
   uint32_t pending_total_frames = 0;
@@ -127,10 +235,23 @@ struct PredictedOrbPoseState
 {
   bool valid = false;
   bool velocity_valid = false;
+  double prediction_horizon_sec = 0.0;
+  bool prediction_clamped = false;
   Sophus::SE3f pose;
   Eigen::Vector3f linear_velocity = Eigen::Vector3f::Zero();
   Eigen::Vector3f angular_velocity = Eigen::Vector3f::Zero();
 };
+
+struct OrbPredictionTiming
+{
+  double target_measurement_stamp_sec = 0.0;
+  double visual_age_sec = 0.0;
+};
+
+OrbPredictionTiming ComputeOrbPredictionTiming(
+  double measurement_stamp_sec,
+  double measurement_arrival_local_sec,
+  double target_local_sec);
 
 class OrbPosePredictor
 {
@@ -145,6 +266,9 @@ public:
     double stamp_sec,
     const OrbMeasurementContext & context);
   PredictedOrbPoseState Predict(double stamp_sec) const;
+  // Laboratorio F5H: retirar junto con gt_timing_diagnostic.
+  void OverrideAngularVelocityForDiagnostics(
+    const Eigen::Vector3f & angular_velocity);
   void Reset();
 
   bool last_update_limited() const;
@@ -168,6 +292,12 @@ private:
     const OrbMeasurementContext & context,
     bool post_reference_switch);
   void ClearModerateState();
+  void StartBiasPending(
+    const Eigen::Vector3f & innovation,
+    double stamp_sec,
+    const OrbMeasurementContext & context,
+    bool post_reference_switch);
+  void ClearBiasPending();
 
   OrbPosePredictorConfig config_;
   bool valid_ = false;
@@ -176,6 +306,10 @@ private:
   Sophus::SE3f pose_;
   Eigen::Vector3f linear_velocity_ = Eigen::Vector3f::Zero();
   Eigen::Vector3f angular_velocity_ = Eigen::Vector3f::Zero();
+  Eigen::Vector3f omega_motion_ = Eigen::Vector3f::Zero();
+  Eigen::Vector3f omega_bias_ = Eigen::Vector3f::Zero();
+  BiasCorrectionState bias_state_ = BiasCorrectionState::Off;
+  bool motion_bias_suppressed_ = false;
   bool last_update_limited_ = false;
   bool last_orientation_rejected_ = false;
   uint32_t consecutive_angular_rejections_ = 0;
@@ -185,6 +319,12 @@ private:
   bool raw_measurement_valid_ = false;
   Sophus::SE3f last_raw_measurement_;
   double last_raw_stamp_sec_ = 0.0;
+  bool raw_angular_velocity_valid_ = false;
+  Eigen::Vector3f previous_raw_angular_velocity_ = Eigen::Vector3f::Zero();
+  double previous_raw_interval_mid_stamp_sec_ = 0.0;
+  RawDtQuality previous_raw_interval_dt_quality_ = RawDtQuality::Invalid;
+  bool angular_history_epoch_valid_ = false;
+  uint64_t angular_history_map_epoch_ = 0;
   uint64_t next_pending_correction_id_ = 1;
   bool moderate_pending_valid_ = false;
   bool moderate_confirmed_active_ = false;
@@ -197,6 +337,14 @@ private:
   uint64_t pending_map_epoch_ = 0;
   uint64_t pending_reference_keyframe_id_ = 0;
   bool pending_post_reference_switch_ = false;
+  bool bias_pending_valid_ = false;
+  double bias_pending_started_stamp_sec_ = 0.0;
+  Eigen::Vector3f bias_pending_innovation_ = Eigen::Vector3f::Zero();
+  uint32_t bias_pending_good_frames_ = 0;
+  uint32_t bias_pending_total_frames_ = 0;
+  uint64_t bias_pending_map_epoch_ = 0;
+  uint64_t bias_pending_reference_keyframe_id_ = 0;
+  bool bias_pending_post_reference_switch_ = false;
   OrbPosePredictorDiagnostics last_diagnostics_;
 };
 
