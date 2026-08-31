@@ -369,6 +369,11 @@ simulacion.
   solicitada. No incluye metricas crudas ni cambios `pytest-of-chenfu` ajenos.
   `git diff --cached --check` correcto. Siguiente accion: reanadir este
   checkpoint, revisar nombres staged, crear el commit final y subirlo.
+- Cierre Git completado: commit principal `ea43d1d`
+  (`feat(fase5): consolidar cierre definitivo`) creado y subido a
+  `origin/main`. Los cambios temporales de pytest y las metricas crudas siguen
+  fuera del commit. Trabajo activo: ninguno. Siguiente accion exacta: esperar
+  revision del usuario o preparar Fase 6.
 
 ## Preparacion integracion productiva post-317
 
