@@ -374,6 +374,14 @@ simulacion.
   `origin/main`. Los cambios temporales de pytest y las metricas crudas siguen
   fuera del commit. Trabajo activo: ninguno. Siguiente accion exacta: esperar
   revision del usuario o preparar Fase 6.
+- Limpieza adicional autorizada: eliminar `pytest-of-chenfu/`, `.pytest_cache/`
+  y `log/` dentro de `src`, todos artefactos regenerables. Conservar intactos
+  `codex/archivos_auxiliares/logs/` y las evidencias oficiales. Despues validar,
+  crear commit de limpieza y subirlo a `origin/main`.
+- Limpieza adicional completada: las tres carpetas regenerables fueron
+  eliminadas; `codex/archivos_auxiliares/logs/` permanece intacto y
+  `git diff --check` es correcto. El commit incluira solo este checkpoint y la
+  retirada de seis entradas pytest antes versionadas; metricas crudas fuera.
 
 ## Preparacion integracion productiva post-317
 
