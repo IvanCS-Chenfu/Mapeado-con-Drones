@@ -125,6 +125,10 @@ Parámetros enviados:
 - perfil `config/navigation_state.yaml` y `debug_orb_control_state` para el
   nodo estereo.
 
+`generar_dron.launch.py` propaga al mux los argumentos temporales de Fase 5
+`f5h_orb_shadow_mode` y `f5h_orb_control_override`. El segundo vale `normal`
+por defecto y solo se usa en la bateria diagnostica 321 para aislar p/v.
+
 ## Riesgos
 
 - El paquete ejecutable del wrapper se llama `orbslam3`, no `orbslam3_ros2` en este launch.

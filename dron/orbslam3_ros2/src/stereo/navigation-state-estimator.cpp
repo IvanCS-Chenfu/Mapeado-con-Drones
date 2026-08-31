@@ -1,9 +1,513 @@
 #include "navigation-state-estimator.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <iterator>
 
 namespace orbslam3_ros2
 {
+
+const char * ActuationCoverageStatusName(ActuationCoverageStatus value)
+{
+  switch (value) {
+    case ActuationCoverageStatus::Empty:
+      return "EMPTY";
+    case ActuationCoverageStatus::MissingPrefix:
+      return "MISSING_PREFIX";
+    case ActuationCoverageStatus::Full:
+      return "FULL";
+  }
+  return "UNKNOWN";
+}
+
+BodyTorqueDynamicPredictor::BodyTorqueDynamicPredictor(
+  const Eigen::Matrix3f & inertia_body,
+  double max_history_sec)
+: max_history_sec_(std::max(0.05, max_history_sec))
+{
+  SetInertia(inertia_body);
+}
+
+void BodyTorqueDynamicPredictor::SetInertia(const Eigen::Matrix3f & inertia_body)
+{
+  inertia_body_ = inertia_body;
+  inertia_body_inverse_ = inertia_body_.inverse();
+}
+
+void BodyTorqueDynamicPredictor::AddTorque(
+  double stamp_sec,
+  const Eigen::Vector3f & torque_body)
+{
+  if (!std::isfinite(stamp_sec) || !torque_body.allFinite()) {
+    return;
+  }
+  if (!torques_.empty() && stamp_sec + 1e-9 < torques_.back().stamp_sec) {
+    return;
+  }
+  if (!torques_.empty() && std::abs(stamp_sec - torques_.back().stamp_sec) <= 1e-9) {
+    torques_.back().torque_body = torque_body;
+  } else {
+    torques_.push_back({stamp_sec, torque_body});
+  }
+  const double cutoff_stamp_sec = stamp_sec - max_history_sec_;
+  while (torques_.size() > 1U && torques_[1].stamp_sec <= cutoff_stamp_sec) {
+    torques_.pop_front();
+  }
+}
+
+ActuationCoverage BodyTorqueDynamicPredictor::CoverInterval(
+  double start_stamp_sec,
+  double end_stamp_sec) const
+{
+  ActuationCoverage result;
+  result.interval_start_sec = start_stamp_sec;
+  result.interval_end_sec = end_stamp_sec;
+  if (torques_.empty()) {
+    return result;
+  }
+  result.oldest_stamp_sec = torques_.front().stamp_sec;
+  result.newest_stamp_sec = torques_.back().stamp_sec;
+  if (!std::isfinite(start_stamp_sec) || !std::isfinite(end_stamp_sec) ||
+    end_stamp_sec < start_stamp_sec || result.oldest_stamp_sec > start_stamp_sec + 1e-9)
+  {
+    result.status = ActuationCoverageStatus::MissingPrefix;
+    result.missing_prefix_sec = std::max(
+      0.0, std::min(end_stamp_sec, result.oldest_stamp_sec) - start_stamp_sec);
+    return result;
+  }
+  result.status = ActuationCoverageStatus::Full;
+  return result;
+}
+
+DynamicAngularPrediction BodyTorqueDynamicPredictor::Predict(
+  const Sophus::SO3f & orientation_world_body,
+  const Eigen::Vector3f & angular_velocity_world,
+  double state_stamp_sec,
+  double target_stamp_sec) const
+{
+  DynamicAngularPrediction result;
+  result.orientation = orientation_world_body;
+  result.torque_coverage = CoverInterval(state_stamp_sec, target_stamp_sec);
+  if (!std::isfinite(state_stamp_sec) || !std::isfinite(target_stamp_sec) ||
+    target_stamp_sec < state_stamp_sec ||
+    result.torque_coverage.status != ActuationCoverageStatus::Full)
+  {
+    result.missing_torque_interval = true;
+    return result;
+  }
+
+  auto active = torques_.end();
+  for (auto it = torques_.begin(); it != torques_.end() && it->stamp_sec <= state_stamp_sec; ++it) {
+    active = it;
+  }
+  if (active == torques_.end()) {
+    result.missing_torque_interval = true;
+    return result;
+  }
+
+  Sophus::SO3f orientation = orientation_world_body;
+  Eigen::Vector3f omega_body = orientation.inverse() * angular_velocity_world;
+  double cursor = state_stamp_sec;
+  auto next = std::next(active);
+  while (cursor < target_stamp_sec - 1e-9) {
+    const double boundary = next != torques_.end() ?
+      std::min(target_stamp_sec, next->stamp_sec) : target_stamp_sec;
+    const double dt = boundary - cursor;
+    if (dt > 0.0) {
+      const Eigen::Vector3f angular_acceleration = inertia_body_inverse_ *
+        (active->torque_body - omega_body.cross(inertia_body_ * omega_body));
+      omega_body += angular_acceleration * static_cast<float>(dt);
+      orientation = orientation * Sophus::SO3f::exp(omega_body * static_cast<float>(dt));
+      ++result.integration_steps;
+      ++result.torque_samples_used;
+      cursor = boundary;
+    }
+    if (next != torques_.end() && next->stamp_sec <= cursor + 1e-9) {
+      active = next;
+      ++next;
+    } else if (dt <= 0.0) {
+      result.missing_torque_interval = true;
+      return result;
+    }
+  }
+
+  result.valid = true;
+  result.horizon_sec = target_stamp_sec - state_stamp_sec;
+  result.orientation = orientation;
+  result.angular_velocity_body = omega_body;
+  result.angular_velocity_world = orientation * omega_body;
+  return result;
+}
+
+void BodyTorqueDynamicPredictor::Reset()
+{
+  torques_.clear();
+}
+
+std::size_t BodyTorqueDynamicPredictor::torque_buffer_size() const
+{
+  return torques_.size();
+}
+
+EpochGravityState::EpochGravityState(float gravity_mps2)
+: gravity_mps2_(std::abs(gravity_mps2))
+{
+}
+
+void EpochGravityState::ObserveEpoch(uint64_t map_epoch)
+{
+  if (!epoch_observed_ || map_epoch != map_epoch_) {
+    epoch_observed_ = true;
+    map_epoch_ = map_epoch;
+    valid_ = false;
+    gravity_o_.setZero();
+  }
+}
+
+bool EpochGravityState::Initialize(uint64_t map_epoch, const Sophus::SO3f & o_r_world)
+{
+  ObserveEpoch(map_epoch);
+  if (valid_) {
+    return false;
+  }
+  gravity_o_ = o_r_world * Eigen::Vector3f(0.0f, 0.0f, -gravity_mps2_);
+  valid_ = gravity_o_.allFinite();
+  return valid_;
+}
+
+bool EpochGravityState::valid() const {return valid_;}
+uint64_t EpochGravityState::map_epoch() const {return map_epoch_;}
+const Eigen::Vector3f & EpochGravityState::gravity_o() const {return gravity_o_;}
+
+BodyThrustDynamicPredictor::BodyThrustDynamicPredictor(
+  float mass_kg,
+  const Eigen::Vector3f & gravity_world,
+  double max_history_sec)
+: max_history_sec_(std::max(0.05, max_history_sec))
+{
+  SetMass(mass_kg);
+  SetGravity(gravity_world);
+}
+
+void BodyThrustDynamicPredictor::SetMass(float mass_kg)
+{
+  mass_kg_ = std::max(1e-6f, mass_kg);
+}
+
+void BodyThrustDynamicPredictor::SetGravity(const Eigen::Vector3f & gravity_world)
+{
+  gravity_world_ = gravity_world;
+}
+
+void BodyThrustDynamicPredictor::AddThrust(double stamp_sec, float thrust_newton)
+{
+  if (!std::isfinite(stamp_sec) || !std::isfinite(thrust_newton)) {
+    return;
+  }
+  if (!thrusts_.empty() && stamp_sec + 1e-9 < thrusts_.back().stamp_sec) {
+    return;
+  }
+  if (!thrusts_.empty() && std::abs(stamp_sec - thrusts_.back().stamp_sec) <= 1e-9) {
+    thrusts_.back().thrust_newton = thrust_newton;
+  } else {
+    thrusts_.push_back({stamp_sec, thrust_newton});
+  }
+  const double cutoff_stamp_sec = stamp_sec - max_history_sec_;
+  while (thrusts_.size() > 1U && thrusts_[1].stamp_sec <= cutoff_stamp_sec) {
+    thrusts_.pop_front();
+  }
+}
+
+ActuationCoverage BodyThrustDynamicPredictor::CoverInterval(
+  double start_stamp_sec,
+  double end_stamp_sec) const
+{
+  ActuationCoverage result;
+  result.interval_start_sec = start_stamp_sec;
+  result.interval_end_sec = end_stamp_sec;
+  if (thrusts_.empty()) {
+    return result;
+  }
+  result.oldest_stamp_sec = thrusts_.front().stamp_sec;
+  result.newest_stamp_sec = thrusts_.back().stamp_sec;
+  if (!std::isfinite(start_stamp_sec) || !std::isfinite(end_stamp_sec) ||
+    end_stamp_sec < start_stamp_sec || result.oldest_stamp_sec > start_stamp_sec + 1e-9)
+  {
+    result.status = ActuationCoverageStatus::MissingPrefix;
+    result.missing_prefix_sec = std::max(
+      0.0, std::min(end_stamp_sec, result.oldest_stamp_sec) - start_stamp_sec);
+    return result;
+  }
+  result.status = ActuationCoverageStatus::Full;
+  return result;
+}
+
+DynamicTranslationalPrediction BodyThrustDynamicPredictor::Predict(
+  const Eigen::Vector3f & position_world,
+  const Eigen::Vector3f & linear_velocity_world,
+  const Sophus::SO3f & orientation_world_body,
+  const Eigen::Vector3f & angular_velocity_world,
+  double state_stamp_sec,
+  double target_stamp_sec,
+  const BodyTorqueDynamicPredictor & angular_predictor) const
+{
+  DynamicTranslationalPrediction result;
+  result.position_world = position_world;
+  result.linear_velocity_world = linear_velocity_world;
+  result.thrust_coverage = CoverInterval(state_stamp_sec, target_stamp_sec);
+  if (!std::isfinite(state_stamp_sec) || !std::isfinite(target_stamp_sec) ||
+    target_stamp_sec < state_stamp_sec ||
+    result.thrust_coverage.status != ActuationCoverageStatus::Full)
+  {
+    result.missing_force_interval = true;
+    return result;
+  }
+  auto active = thrusts_.end();
+  for (auto it = thrusts_.begin(); it != thrusts_.end() && it->stamp_sec <= state_stamp_sec; ++it) {
+    active = it;
+  }
+  if (active == thrusts_.end()) {
+    result.missing_force_interval = true;
+    return result;
+  }
+
+  double cursor = state_stamp_sec;
+  auto next = std::next(active);
+  while (cursor < target_stamp_sec - 1e-9) {
+    const double boundary = next != thrusts_.end() ?
+      std::min(target_stamp_sec, next->stamp_sec) : target_stamp_sec;
+    const double dt = boundary - cursor;
+    if (dt > 0.0) {
+      const double midpoint = cursor + 0.5 * dt;
+      const auto angular = angular_predictor.Predict(
+        orientation_world_body, angular_velocity_world, state_stamp_sec, midpoint);
+      if (!angular.valid) {
+        result.missing_orientation_interval = true;
+        return result;
+      }
+      const Eigen::Vector3f force_body(0.0f, 0.0f, active->thrust_newton);
+      result.thrust_newton = active->thrust_newton;
+      result.thrust_acceleration_world = angular.orientation * force_body / mass_kg_;
+      result.gravity_world = gravity_world_;
+      result.acceleration_world = result.thrust_acceleration_world + result.gravity_world;
+      const Eigen::Vector3f previous_velocity = result.linear_velocity_world;
+      result.linear_velocity_world += result.acceleration_world * static_cast<float>(dt);
+      result.position_world += 0.5f *
+        (previous_velocity + result.linear_velocity_world) * static_cast<float>(dt);
+      ++result.integration_steps;
+      ++result.force_samples_used;
+      cursor = boundary;
+    }
+    if (next != thrusts_.end() && next->stamp_sec <= cursor + 1e-9) {
+      active = next;
+      ++next;
+    } else if (dt <= 0.0) {
+      result.missing_force_interval = true;
+      return result;
+    }
+  }
+  result.valid = true;
+  result.horizon_sec = target_stamp_sec - state_stamp_sec;
+  return result;
+}
+
+void BodyThrustDynamicPredictor::Reset()
+{
+  thrusts_.clear();
+}
+
+std::size_t BodyThrustDynamicPredictor::thrust_buffer_size() const
+{
+  return thrusts_.size();
+}
+
+const char * LinearVelocityEstimatorModeName(LinearVelocityEstimatorMode value)
+{
+  switch (value) {
+    case LinearVelocityEstimatorMode::Init:
+      return "INIT";
+    case LinearVelocityEstimatorMode::TwoSample:
+      return "TWO_SAMPLE";
+    case LinearVelocityEstimatorMode::ThreeSamplePredicted:
+      return "THREE_SAMPLE_PREDICTED";
+    case LinearVelocityEstimatorMode::DegradedDt:
+      return "DEGRADED_DT";
+    case LinearVelocityEstimatorMode::InvalidDt:
+      return "INVALID_DT";
+    case LinearVelocityEstimatorMode::Rejected:
+      return "REJECTED";
+  }
+  return "UNKNOWN";
+}
+
+CausalLinearVelocityEstimator::CausalLinearVelocityEstimator(
+  double max_good_dt_sec,
+  double max_degraded_dt_sec,
+  float max_speed_mps,
+  float max_acceleration_mps2)
+: max_good_dt_sec_(std::max(1e-6, max_good_dt_sec)),
+  max_degraded_dt_sec_(std::max(max_good_dt_sec_, max_degraded_dt_sec)),
+  max_speed_mps_(std::max(1e-6f, max_speed_mps)),
+  max_acceleration_mps2_(std::max(1e-6f, max_acceleration_mps2))
+{
+}
+
+CausalLinearVelocityEstimate CausalLinearVelocityEstimator::AddSample(
+  const Eigen::Vector3f & position,
+  double stamp_sec,
+  uint64_t map_epoch,
+  bool accepted)
+{
+  CausalLinearVelocityEstimate result;
+  if (!accepted || !position.allFinite() || !std::isfinite(stamp_sec)) {
+    result.mode = LinearVelocityEstimatorMode::Rejected;
+    return result;
+  }
+  if (epoch_valid_ && map_epoch != map_epoch_) {
+    Reset();
+  }
+  epoch_valid_ = true;
+  map_epoch_ = map_epoch;
+  if (!samples_.empty() && stamp_sec <= samples_.back().stamp_sec + 1e-9) {
+    result.mode = LinearVelocityEstimatorMode::InvalidDt;
+    return result;
+  }
+  samples_.push_back({position, stamp_sec});
+  while (samples_.size() > 3U) {
+    samples_.pop_front();
+  }
+  result.sample_accepted = true;
+  result.p_k = samples_.back().position;
+  if (samples_.size() == 1U) {
+    result.mode = LinearVelocityEstimatorMode::Init;
+    return result;
+  }
+
+  const auto & current = samples_.back();
+  const auto & previous = samples_[samples_.size() - 2U];
+  const double dt_current = current.stamp_sec - previous.stamp_sec;
+  result.dt_current_sec = dt_current;
+  result.p_k1 = previous.position;
+  if (dt_current <= 1e-9 || dt_current > max_degraded_dt_sec_) {
+    result.mode = LinearVelocityEstimatorMode::InvalidDt;
+    return result;
+  }
+  result.current_mid_velocity =
+    (current.position - previous.position) / static_cast<float>(dt_current);
+  result.current_mid_stamp_sec = 0.5 * (current.stamp_sec + previous.stamp_sec);
+  result.prediction_horizon_sec = current.stamp_sec - result.current_mid_stamp_sec;
+  Eigen::Vector3f velocity_at_sample = result.current_mid_velocity;
+  result.mode = dt_current <= max_good_dt_sec_ ?
+    LinearVelocityEstimatorMode::TwoSample : LinearVelocityEstimatorMode::DegradedDt;
+
+  if (samples_.size() == 3U) {
+    const auto & oldest = samples_.front();
+    const double dt_previous = previous.stamp_sec - oldest.stamp_sec;
+    result.dt_previous_sec = dt_previous;
+    result.p_k2 = oldest.position;
+    if (dt_previous > 1e-9 && dt_previous <= max_good_dt_sec_ &&
+      dt_current <= max_good_dt_sec_)
+    {
+      result.previous_mid_velocity =
+        (previous.position - oldest.position) / static_cast<float>(dt_previous);
+      result.previous_mid_stamp_sec = 0.5 * (previous.stamp_sec + oldest.stamp_sec);
+      const double midpoint_dt = result.current_mid_stamp_sec - result.previous_mid_stamp_sec;
+      if (midpoint_dt > 1e-9) {
+        result.acceleration =
+          (result.current_mid_velocity - result.previous_mid_velocity) /
+          static_cast<float>(midpoint_dt);
+        const float acceleration_norm = result.acceleration.norm();
+        if (acceleration_norm > max_acceleration_mps2_) {
+          result.acceleration *= max_acceleration_mps2_ / acceleration_norm;
+        }
+        velocity_at_sample +=
+          result.acceleration * static_cast<float>(result.prediction_horizon_sec);
+        result.mode = LinearVelocityEstimatorMode::ThreeSamplePredicted;
+      }
+    } else {
+      result.mode = LinearVelocityEstimatorMode::DegradedDt;
+    }
+  }
+  const float speed = velocity_at_sample.norm();
+  if (speed > max_speed_mps_) {
+    velocity_at_sample *= max_speed_mps_ / speed;
+  }
+  result.velocity_at_sample = velocity_at_sample;
+  result.valid = true;
+  return result;
+}
+
+void CausalLinearVelocityEstimator::Reset()
+{
+  samples_.clear();
+  epoch_valid_ = false;
+  map_epoch_ = 0;
+}
+
+MidpointDynamicVelocityEstimate PredictMidpointDynamicVelocity(
+  const CausalLinearVelocityEstimate & linear_estimate,
+  const Sophus::SO3f & previous_orientation,
+  const Sophus::SO3f & current_orientation,
+  double previous_image_stamp_sec,
+  double current_image_stamp_sec,
+  double current_arrival_stamp_sec,
+  const BodyTorqueDynamicPredictor & angular_predictor,
+  const BodyThrustDynamicPredictor & thrust_predictor)
+{
+  MidpointDynamicVelocityEstimate result;
+  if (!linear_estimate.valid || !linear_estimate.current_mid_velocity.allFinite() ||
+    !std::isfinite(previous_image_stamp_sec) || !std::isfinite(current_image_stamp_sec) ||
+    !std::isfinite(current_arrival_stamp_sec))
+  {
+    return result;
+  }
+  const double image_dt = current_image_stamp_sec - previous_image_stamp_sec;
+  if (image_dt <= 1e-9 ||
+    std::abs(linear_estimate.current_mid_stamp_sec -
+    0.5 * (previous_image_stamp_sec + current_image_stamp_sec)) > 1e-6)
+  {
+    return result;
+  }
+
+  result.image_mid_stamp_sec = linear_estimate.current_mid_stamp_sec;
+  result.horizon_sec = current_image_stamp_sec - result.image_mid_stamp_sec;
+  result.ros_sample_stamp_sec = current_arrival_stamp_sec;
+  result.ros_mid_stamp_sec = current_arrival_stamp_sec - result.horizon_sec;
+  result.velocity_mid = linear_estimate.current_mid_velocity;
+
+  const Eigen::Vector3f relative_body =
+    (previous_orientation.inverse() * current_orientation).log();
+  result.orientation_mid = previous_orientation * Sophus::SO3f::exp(0.5f * relative_body);
+  result.angular_velocity_mid =
+    (current_orientation * previous_orientation.inverse()).log() /
+    static_cast<float>(image_dt);
+
+  const auto angular = angular_predictor.Predict(
+    result.orientation_mid, result.angular_velocity_mid,
+    result.ros_mid_stamp_sec, result.ros_sample_stamp_sec);
+  result.torque_coverage = angular.torque_coverage;
+  result.torque_samples_used = angular.torque_samples_used;
+  const Eigen::Vector3f midpoint_position =
+    0.5f * (linear_estimate.p_k1 + linear_estimate.p_k);
+  const auto translational = thrust_predictor.Predict(
+    midpoint_position, result.velocity_mid, result.orientation_mid,
+    result.angular_velocity_mid, result.ros_mid_stamp_sec,
+    result.ros_sample_stamp_sec, angular_predictor);
+  result.thrust_coverage = translational.thrust_coverage;
+  result.thrust_samples_used = translational.force_samples_used;
+  if (!angular.valid || !translational.valid) {
+    return result;
+  }
+  result.orientation_at_sample = angular.orientation;
+  result.velocity_at_sample = translational.linear_velocity_world;
+  result.valid = result.velocity_at_sample.allFinite();
+  return result;
+}
+
+std::size_t CausalLinearVelocityEstimator::sample_count() const
+{
+  return samples_.size();
+}
 
 namespace
 {
@@ -147,6 +651,7 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
     previous_raw_interval_mid_stamp_sec_ = 0.0;
     previous_raw_interval_dt_quality_ = RawDtQuality::Invalid;
     omega_motion_.setZero();
+    causal_angular_acceleration_.setZero();
   }
   angular_history_epoch_valid_ = true;
   angular_history_map_epoch_ = context.map_epoch;
@@ -157,6 +662,7 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
     angular_velocity_.setZero();
     omega_motion_.setZero();
     omega_bias_.setZero();
+    causal_angular_acceleration_.setZero();
     bias_state_ = BiasCorrectionState::Off;
     motion_bias_suppressed_ = false;
     ClearBiasPending();
@@ -251,11 +757,13 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
         stamp_sec - last_diagnostics_.current_interval_mid_stamp_sec);
       last_diagnostics_.causal_angular_acceleration =
         last_diagnostics_.implied_angular_acceleration;
+      causal_angular_acceleration_ = last_diagnostics_.causal_angular_acceleration;
       omega_hat += last_diagnostics_.causal_angular_acceleration * prediction_horizon;
       last_diagnostics_.omega_prediction_horizon_sec = prediction_horizon;
       last_diagnostics_.omega_estimator_mode =
         AngularMotionEstimatorMode::ThreeSamplePredicted;
     } else {
+      causal_angular_acceleration_.setZero();
       last_diagnostics_.omega_estimator_mode =
         last_diagnostics_.raw_dt_quality == RawDtQuality::Degraded ?
         AngularMotionEstimatorMode::DegradedDt : AngularMotionEstimatorMode::TwoSample;
@@ -269,6 +777,7 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
       previous_raw_angular_velocity_.norm() <= current_speed_limit;
     if (microscopic_reversal || config_.raw_motion_filter_alpha <= 0.0f) {
       omega_hat.setZero();
+      causal_angular_acceleration_.setZero();
     }
     bool omega_limited = false;
     omega_hat = ClampNorm(omega_hat, config_.max_raw_angular_speed_radps, omega_limited);
@@ -282,6 +791,7 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
     previous_raw_interval_dt_quality_ = last_diagnostics_.raw_dt_quality;
     raw_angular_velocity_valid_ = true;
   } else {
+    causal_angular_acceleration_.setZero();
     last_diagnostics_.raw_motion_class = raw_dt_usable ?
       RawMotionClass::Rejected : RawMotionClass::Suspicious;
     last_diagnostics_.raw_rejected = true;
@@ -734,6 +1244,25 @@ PredictedOrbPoseState OrbPosePredictor::Predict(double stamp_sec) const
   result.pose = Propagate(dt);
   result.linear_velocity = linear_velocity_;
   result.angular_velocity = angular_velocity_;
+  if (config_.predict_angular_acceleration && velocity_valid_ && dt > 0.0) {
+    bool acceleration_limited = false;
+    const Eigen::Vector3f acceleration = ClampNorm(
+      causal_angular_acceleration_, config_.max_raw_angular_acceleration_radps2,
+      acceleration_limited);
+    bool speed_limited = false;
+    result.angular_velocity = ClampNorm(
+      angular_velocity_ + acceleration * static_cast<float>(dt),
+      config_.max_angular_speed_radps, speed_limited);
+    result.angular_acceleration = acceleration;
+    result.angular_acceleration_clamped = acceleration_limited;
+    result.angular_velocity_clamped = speed_limited;
+    result.angular_prediction_delta =
+      angular_velocity_ * static_cast<float>(dt) +
+      0.5f * acceleration * static_cast<float>(dt * dt);
+    result.pose = Sophus::SE3f(
+      Sophus::SO3f::exp(result.angular_prediction_delta) * pose_.so3(),
+      pose_.translation() + linear_velocity_ * static_cast<float>(dt));
+  }
   return result;
 }
 
@@ -743,6 +1272,7 @@ void OrbPosePredictor::OverrideAngularVelocityForDiagnostics(
   omega_motion_ = angular_velocity;
   omega_bias_.setZero();
   angular_velocity_ = angular_velocity;
+  causal_angular_acceleration_.setZero();
   velocity_valid_ = valid_;
 }
 
@@ -767,6 +1297,7 @@ void OrbPosePredictor::Reset()
   angular_velocity_.setZero();
   omega_motion_.setZero();
   omega_bias_.setZero();
+  causal_angular_acceleration_.setZero();
   bias_state_ = BiasCorrectionState::Off;
   motion_bias_suppressed_ = false;
   consecutive_angular_rejections_ = 0;

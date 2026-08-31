@@ -1,19 +1,18 @@
 # Ultima sesion
 
-Fecha: 2026-08-29
+Fecha: 2026-08-31
 
-Se implemento y ejecuto la bateria E/F/G 273-275 con pose y omega GT perfectas.
-El laboratorio sincroniza la ultima omega no futura. E conserva el predictor y
-sustituye solo `omega_motion`; F hace hold angular; G propaga directamente
-`exp(omega*dt)*R`. Build `orbslam3` correcto y CTest 2/2.
+Se diagnostica la dependencia de cobertura visual de Y. 334R3R y 335R mueven
+primero el dron a `x=2 m` y despues ejecutan +Y cerca de la pared, evitando el
+fiducial 2. Ambas completan con tracking 2 y cero fallback/missing/clamp; Y
+queda funcionalmente reproducido, con residual de velocidad final
+`0.108/0.111 m/s` documentada.
 
-Las tres pruebas completan el escenario sin fallback ni oscilacion creciente.
-Sus energias totales son `-0.000066/-0.000076/-0.000093 J` y el mismatch
-direccional GT/control `0.41/0.29/0.094 %`. Hold y extrapolacion son estables
-cuando pose y omega son coherentes.
+336 y 337R validan Z +0.5 m de forma reproducible: max ep `0.051/0.046 m`,
+velocidad final `0.015/0.018 m/s`, tracking continuo y cero fallback. El primer
+intento 337 fue invalido por ruta YAML relativa y no envio goals.
 
-Diagnostico `CONSEGUIDO`, opcion A: la causa principal es la
-derivacion/filtrado de `omega_motion`. Fase 5H sigue `PARCIAL`; la siguiente
-decision debe diseñar la omega desde medidas ORB reales. El override y los
-modos GT son instrumentacion temporal marcada para retirar. No queda ninguna
-ejecucion activa.
+338 yaw falla: ORB gobierna `11.18 s`, max er `0.995 rad`, RMSE omega
+`0.409 rad/s` y RMSE lineal `0.530 m/s`; tracking pasa `2->3` y activa
+GT fallback durante el giro. STOP aplicado: 339-343 no ejecutadas. Fase 5H
+continua `PARCIAL`, arquitectura intacta y sin procesos activos.

@@ -1,0 +1,20 @@
+name: f5h_289_pvgt_rpred_omegagt
+description: "F5H 289: p/v/omega GT actuales con R predicha."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 120.0}
+steps:
+  - {name: espera_spawn, type: wait_for_bool, topic: /fiducial_spawn_ready, expected: true, timeout_sec: 90.0}
+  - {name: espera_estado, type: wait, seconds: 16.0}
+  - name: llegada_hover
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: estabilizacion, type: wait, seconds: 8.0}
+  - name: fija_hover
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 4.0, ty: 4.0, tz: 4.0, tyaw: 4.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: hover_diagnostico, type: wait, seconds: 25.0}

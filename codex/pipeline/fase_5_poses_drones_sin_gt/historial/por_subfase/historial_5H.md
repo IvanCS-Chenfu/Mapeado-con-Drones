@@ -730,3 +730,587 @@
   insuficiente y G valida la extrapolacion SO(3) con pose/omega coherentes. La
   causa principal es la derivacion/filtrado de `omega_motion`. 5H sigue
   `PARCIAL`; falta diseñar la correccion con medidas ORB reales.
+
+## 2026-08-29 - Estimador causal de omega, pruebas 276-277
+
+- objetivo: sustituir el pasa-bajos de `omega_motion` por estimacion causal de
+  extremo y validarla primero con pose GT perfecta a 20 Hz;
+- cambios: dos velocidades espaciales
+  `Log(R_k R_{k-1}^{-1})/dt`, aceleracion entre midpoints y proyeccion hasta
+  `t_k`; hold entre medidas, timestamps reales, historial solo con medidas
+  aceptadas, reset por epoch y supresion de inversiones microscopicas. No se
+  tocaron gains, anclajes, mux, W, KF policy, GT normal ni `Delta_target`;
+- validacion: build `orbslam3` correcto; CTest 2/2, estimador 55/55 GTests y
+  analizador 8/8 tests. El intento 0 de 276 fallo antes de goals por YAML
+  relativo y se conserva aparte;
+- 276: escenario completo, 906 medidas/2717 publicaciones, sin fallback;
+  `er` max `0.01368 rad`, RMSE `0.00374 rad/s`, mismatch `4.26 %` sobre 94
+  muestras y energia total `-0.00000442 J`;
+- 277: repeticion completa, 914 medidas, sin fallback; `er` max `0.01778 rad`,
+  RMSE `0.00304 rad/s`, mismatch `0.64 %` sobre 157 muestras y energia total
+  `-0.00000510 J`;
+- comparacion: 270/B tenia RMSE `0.43338 rad/s` y `+0.010879 J`; 273/E con
+  omega GT tenia RMSE `0.00570 rad/s` y `-0.0000659 J`. Las amplitudes GT no
+  son identicas, por lo que la energia absoluta no es un ranking directo;
+- conclusion: 276 y 277 `CONSEGUIDAS`; la correccion es estable y reproducible
+  con pose perfecta a 20 Hz. 5H sigue `PARCIAL` hasta validar delay/jitter y,
+  despues, ORB real bajo un nuevo acuerdo.
+
+## 2026-08-29 - Validacion de delay fijo, prueba 278
+
+- objetivo: validar el estimador causal congelado con pose GT perfecta a
+  20 Hz, delay fijo de 80 ms, timestamp fisico original y control a 50 Hz;
+- cambios: solo escenarios 278-281; la politica acordada obliga a detenerse en
+  el primer fallo. No se modifico `OrbPosePredictor`, gains, anclajes ni gates;
+- validacion: build `orbslam3` codigo 0, CTest 2/2 y analizador 8/8;
+- ejecucion: runner y escenario codigo 1, guard inactiva y minimo 5379 MiB. La
+  fuente diagnostica goberno 3.00 s; no hubo fallback ni tracking no-OK;
+- evidencia: 50 medidas/151 publicaciones, edad visual media/maxima
+  `0.11285/0.14003 s`, horizonte medio `0.09709 s`, clamp `72.19 %`, `er` max
+  `0.36829 rad` y RMSE/MAE omega `1.44719/0.99097 rad/s`;
+- energia: `tau_er=+0.022108 J`, `tau_ew=+0.006732 J` y total
+  `+0.028840 J` en 2.38 s;
+- conclusion: 278 `NO CONSEGUIDA`; 279-281 no ejecutadas. Debe debatirse la
+  compensacion causal desde `t_k` hasta `now`.
+
+## 2026-08-30 - Clamp y extrapolacion alpha, pruebas 282 y 284
+
+- objetivo: separar el limite de `0.10 s` de una propagacion dinamica
+  insuficiente entre `t_k` y `now`;
+- 282/278B: solo el nodo GT de laboratorio usa horizonte `0.18 s`; clamp cae
+  de `72.19 %` a cero, pero el hover falla. RMSE/MAE `2.46780/1.34977 rad/s`,
+  energia total `+0.068966 J` y gobierno `2.82 s`; peor que 278;
+- cambio 278C: flag `predict_angular_acceleration=false` por defecto. Solo el
+  laboratorio publica pose y omega en el mismo target con velocidad espacial
+  world/O y multiplicacion izquierda:
+  `omega=omega_k+alpha*dt`,
+  `R=Exp(omega_k*dt+0.5*alpha*dt^2)R_k`. Usa la misma dt clamped y limita
+  aceleracion/velocidad; alpha se borra tras degradacion, rechazo o reset;
+- validacion: build `orbslam3` correcto; CTest 2/2 con cinco GTests nuevos
+  (60/60 agregados) y analizador 8/8;
+- 284/278C: hover fallido, gobierno `1.86 s`, clamp cero, RMSE/MAE
+  `1.13627/0.95386 rad/s`, mismatch `38.46 %` sobre 39 muestras y energia total
+  `+0.020524 J` en 1.26 s. Ninguna publicacion alcanzo limites alpha/omega;
+- interpretacion: 278C mejora RMSE y energia instantanea frente a 278/282,
+  pero falla antes y raw empieza a rechazarse a `0.84 s`. Ni ampliar horizonte
+  ni aceleracion constante resuelven el delay; no repetir ni avanzar a 279;
+- conclusion: diagnostico `CONSEGUIDO`, solucion funcional `NO CONSEGUIDA`, 5H
+  `PARCIAL`. La rama alpha permanece solo diagnostica y apagada en produccion.
+
+## 2026-08-30 - Cruces R/omega con GT actual, pruebas 285-287
+
+- objetivo: separar `R_pred(now)` y `omega_pred(now)` con entrada visual GT a
+  20 Hz, delay 80 ms, predictor 284 y salida a 50 Hz;
+- cambios: seleccion diagnostica independiente de R/omega; registro de fuentes,
+  estados predicho/GT/usado, edad local y skew. Produccion intacta y 279-281
+  detenidas;
+- validacion: build `orbslam3` codigo 0; GTest directo 63/63, incluidos tres
+  tests cruzados; analizador codigo 0 y YAMLs validos. CTest no pudo escribir
+  `LastTest.log` por sandbox y el escalado fue rechazado por limite de uso;
+- 285, `R_pred+omega_GT`: escenario 1, gobierno `13.1199 s`, RMSE
+  `0.6433 rad/s`, mismatch `0.78 %`, energia total `-0.013794 J`;
+- 286, `R_GT+omega_pred`: escenario 1, gobierno `2.9800 s`, RMSE
+  `1.6436 rad/s`, mismatch `49.02 %`, energia total `+0.044590 J`;
+- 287, `R_GT+omega_GT`: escenario 1, gobierno `13.0600 s`, RMSE
+  `1.0963 rad/s`, mismatch `0.47 %`, energia total `-0.163509 J`;
+- integridad GT: skew pose/omega cero y edad ordinaria `10-20 ms`; una muestra
+  inicial de 287 mezcla el salto de reloj ROS, fuera de la ventana analizada;
+- interpretacion: 285/287 casi coinciden y son disipativas, mientras 286 falla
+  pronto y es inestable. Señala con fuerza a `omega_pred`, pero no lo demuestra:
+  el sanity 287 tambien falla porque p/v lineales siguen en el predictor
+  retrasado y no constituyen GT completo;
+- conclusion: bateria completa, diagnostico `PARCIAL`, solucion funcional
+  `NO CONSEGUIDA`. No ejecutar 279-281. El siguiente sanity debe fijar tambien
+  `p(now)` y `v(now)` GT en las tres ramas.
+
+## 2026-08-30 - Cruce completo p/v/R/omega, pruebas 288-291
+
+- objetivo: cerrar la ambiguedad de 285-287 fijando `p(now)` y `v(now)` GT en
+  las cuatro ramas, con entrada visual a 20 Hz, delay 80 ms y control a 50 Hz;
+- cambios: selector diagnostico independiente para p/v/R/omega, telemetria
+  predicha/GT/usada, edad y skew; cuatro GTests y YAMLs 288-291. Predictor,
+  control, gains, gates y rutas productivas permanecen intactos;
+- validacion: build `orbslam3` codigo 0; GTest directo 67/67, analizador
+  correcto, YAMLs validos y `git diff --check` limpio;
+- 288, `p/v GT + R/omega pred`: escenario 1, gobierno `2.5399 s`, RMSE omega
+  `1.8111 rad/s`, mismatch `50.0 %` y energia total `+0.079788 J`;
+- 289, `p/v/omega GT + R pred`: escenario completo, gobierno `54.4600 s`,
+  RMSE omega `0.003829 rad/s`, mismatch `0.114 %` y energia total
+  `-0.0000487 J`;
+- 290, `p/v/R GT + omega pred`: escenario 1, gobierno `5.1800 s`, RMSE omega
+  `2.0236 rad/s`, mismatch `47.06 %` y energia total `+0.088871 J`;
+- 291, estado GT actual completo: escenario completo, gobierno `55.2000 s`,
+  RMSE omega `0.001255 rad/s`, mismatch cero y energia total `-0.0000660 J`;
+- integridad: las fuentes coinciden al 100 % con cada rama; skew pose/omega
+  nulo salvo una muestra de `0.02 s` en 289 y edades GT ordinarias de
+  `8-14 ms`;
+- conclusion: diagnostico `CONSEGUIDO`. El sanity valida el montaje y ambos
+  cruces demuestran que sustituir solo `omega_pred` por `omega_GT` cambia fallo
+  por hover completo. La causa inmediata esta en la omega predicha bajo delay,
+  no en R ni p/v. 5H sigue `PARCIAL`: falta corregirla sin GT y validar ORB
+  real. 279-281 permanecen detenidas.
+
+## 2026-08-30 - Predictor dinamico por torque, prueba 292
+
+- objetivo: sustituir la extrapolacion cinematica de omega por integracion
+  causal de dinamica rigida desde `t_k`, usando el torque corporal ordenado y
+  la misma `fisico.total.matriz_inercia=diag(1e-4)` del controlador;
+- cambios: `BodyTorqueDynamicPredictor` con buffer acotado, timestamps reales,
+  Euler semiimplicito y ecuacion
+  `J*omega_dot=tau-omega x (J*omega)`; modos diagnosticos 292-295, timestamp en
+  `control/tray/torque`, ocho GTests y cuatro YAMLs. Gains, mixer, gates, mux,
+  KF y rutas productivas no cambian;
+- auditoria: `control/tray/torque` esta expresado en body; el mixer 4x4 no
+  satura y el plugin aplica directamente fuerzas y pares, por lo que el torque
+  reconstruido coincide algebraicamente con el deseado;
+- validacion previa: builds `orbslam3` y `dron_individual` correctos, GTest
+  directo 75/75 y analizador correcto;
+- prueba 292: runner/escenario codigo 1 tras 63 s, guard inactivo y minimo
+  5068.7 MiB. El primer tick de control ordena
+  `tau=(0.003779,-0.005317,-0.000006) Nm`; con `J=1e-4`, el predictor alcanza
+  `omega=(336.3,296.5,7.0) rad/s` mientras GT mide aproximadamente
+  `(-0.96,-0.82,-0.004) rad/s`. La realimentacion genera despues torques de
+  decenas y cientos de Nm, omega de miles y finalmente `NaN` en unas decimas;
+- interpretacion: la integracion implementa la ecuacion acordada, pero la J
+  nominal compartida con control no representa la respuesta fisica compuesta
+  de Gazebo. Las metricas globales posteriores al colapso no son una medida
+  util del estimador;
+- conclusion: 292 `NO CONSEGUIDA`; modelo dinamico `NO VALIDADO`. Por el STOP
+  acordado no se repite 292 ni se ejecutan 293-295. 279-281 siguen detenidas y
+  5H permanece `PARCIAL` a la espera de revisar J efectiva/torque aplicado.
+
+## 2026-08-30 - J compuesta y validacion dinamica, pruebas 296-298 y 293-295
+
+- cambio: `fisico.total.matriz_inercia` pasa a la inercia compuesta del modelo
+  Gazebo de 1.4 kg:
+  `diag(0.00803107,0.00803107,0.015805) kg*m^2`. Se calcula con cuerpo, cuatro
+  brazos de 0.25 m y cuatro motores respecto al CoM; controlador y predictor
+  consumen la misma J y los tensores por enlace no cambian;
+- verificacion: calculo independiente reproduce
+  `(0.0080310714,0.0080310714,0.015805)`; builds `dron_individual` y `orbslam3`
+  codigo 0, GTest 75/75 y analizador correcto;
+
+| Prueba | Rama | Edad visual media s | Gobierno s | RMSE omega rad/s | Mismatch | Energia total J | Resultado |
+|---|---|---:|---:|---:|---:|---:|---|
+| 296 | 292 con J compuesta | 0.1102 | 54.64 | 0.002554 | 0.129 % | -0.00004094 | CONSEGUIDA |
+| 297 | confirmacion 296 | 0.1103 | 55.12 | 0.005565 | 0.777 % | -0.00004833 | CONSEGUIDA |
+| 293 | omega causal + dinamica; p/v/R GT | 0.1104 | 54.62 | 0.002565 | 0 % | -0.00006332 | CONSEGUIDA |
+| 298 | confirmacion 293 | 0.1100 | 54.72 | 0.003608 | 0 % | -0.00007662 | CONSEGUIDA |
+| 294 | p/v GT; R/omega dinamicas | 0.1099 | 54.70 | 0.003385 | 0 % | -0.00005771 | CONSEGUIDA |
+| 295 | p/v predichas; R/omega dinamicas | 0.0311 | 54.90 | 0.003588 | 0 % | -0.00022465 | CONSEGUIDA |
+
+- todas completan el escenario sin fallback, tracking no-OK, clamp ni guard de
+  recursos. El intento 0 de 293 tuvo muerte temprana de Gazebo y fue reintentado
+  automaticamente; el intento 1 es la ejecucion funcional medida;
+- correccion conversada posterior: `dynamic_295` no activa
+  `UsesCrossDiagnostic()`, por lo que su `DeliveryDelay()` es cero. Sus 31 ms
+  medios proceden de muestreo/publicacion, no de los 80 ms artificiales. 294
+  valida R/omega dinamicas con unos 110 ms de edad; 295 valida estado completo
+  a 20 Hz sin delay añadido;
+- conclusion: la J nominal, no la integracion rigida, causaba el colapso de
+  292. El predictor angular queda `VALIDADO EN LABORATORIO` con delay fijo y
+  el estado completo queda validado sin delay añadido. 5H permanece `PARCIAL`
+  porque faltan timing/jitter medido, estado completo bajo ese timing y ORB
+  real; 279-281 siguen detenidas hasta un nuevo acuerdo.
+
+## 2026-08-30 - Timing/jitter determinista, prueba 299
+
+- objetivo: validar el estado completo sin GT actual usando la traza
+  determinista de periodos y delays medida en 268, antes de integrar el
+  predictor en la ruta ORB productiva;
+- cambios: modo `dynamic_299`, que combina `TracePeriods/TraceDelays`, p/v
+  predichas y R/omega del predictor dinamico; YAML 299 y GTest
+  `CompositeInertiaHandlesIrregularOrbTimingTrace`;
+- validacion previa: build `orbslam3` correcto tras corregir mecanicamente el
+  namespace del nuevo test; GTest 76/76 y suite del analizador correctos;
+- ejecucion: runner/escenario codigo 1 tras 62 s; gobierno ORB diagnostico
+  `16.94 s`, sin fallback ni tracking no-OK y sin guard de recursos;
+- timing: edad visual media `0.11533 s`, maxima `0.20001 s`, horizonte medio
+  `0.11500 s` y clamp `4.13 %`; la traza produce 48 intervalos
+  `DEGRADED_DT`, principalmente por periodos de `0.12 s`;
+- integridad dinamica: no aparece `F5H-DYNAMIC-MISSING`; las 889 predicciones
+  observadas declaran `missing=false`, por lo que el buffer de torque cubre la
+  ventana irregular;
+- resultado angular: RMSE/MAE control-GT `0.34965/0.08101 rad/s`, `er` maximo
+  `0.68453 rad`; `tau_er=+0.19480 J`, `tau_ew=-0.18072 J` y energia total
+  `+0.01411 J` durante `16.34 s`;
+- causalidad: el primer rechazo raw llega a `+15.84 s`, despues del crecimiento
+  fisico y energetico. Los diez `REJECTED` finales y los grandes huecos de
+  timestamp son consecuencia del colapso, no su disparador inicial;
+- conclusion: 299 `NO CONSEGUIDA`. La dinamica y la cobertura de torque siguen
+  validadas, pero el estado completo no es estable bajo la combinacion realista
+  de periodos largos y delay variable. La evidencia apunta a la coherencia
+  temporal durante `DEGRADED_DT`/reanclaje de la base y no justifica tocar J,
+  gains, gates o mixer;
+- STOP aplicado: 300 no ejecutada; no se integra la ruta ORB productiva y
+  301-302 no se ejecutan. Fase 5H permanece `PARCIAL`.
+
+## 2026-08-30 - Cruce jitter p/v y angular, pruebas 303-306
+
+- objetivo: separar si el fallo 299 nace en p/v predichas, en el estado
+  angular inicial durante `DEGRADED_DT` o en ambos, sin recalibrar arquitectura;
+- montaje: las cuatro pruebas reutilizan `TracePeriods/TraceDelays` de 299.
+  303 usa p/v GT(now)+angular dinamica; 304 p/v GT(now)+R/omega GT interpoladas
+  en `t_k` y dinamica hasta now; 305 p/v predichas+angular GT(now); 306 GT(now)
+  completo. Build correcto, GTest 77/77 y analizador correcto;
+
+| Prueba | p/v | Angular usada | Gobierno | RMSE omega | Energia total | Resultado |
+|---|---|---|---:|---:|---:|---|
+| 299 | pred | causal+dinamica | 16.94 s | 0.34965 | +0.01411 J | falla |
+| 303 | GT(now) | causal+dinamica | 54.54 s | 0.00304 | -0.0000402 J | pasa |
+| 304 | GT(now) | GT(t_k)+dinamica | 2.52 s | 3.13892 | -0.11277 J | falla |
+| 305 | pred | GT(now) | 15.06 s | 1.86968 | -0.06038 J | falla |
+| 306 | GT(now) | GT(now) | 54.60 s | 0.00405 | -0.0000501 J | pasa |
+
+- 303: escenario completo, 758 medidas, 49 `DEGRADED_DT`, edad media/maxima
+  `0.1147/0.2000 s`, sin fallback, tracking no-OK ni raw rechazado;
+- 304: interpolacion valida con bracket tipico `0.02 s`, residual R inicial
+  respecto a GT(t_k) cero y 896 predicciones con torque cubierto. Aun asi,
+  colapsa pronto; la omega GT instantanea en `t_k` presenta variacion rapida y
+  la propagacion torque/J no reproduce GT(now). Esto invalida 304 como prueba
+  positiva del predictor bajo jitter, pero no contradice 303;
+- 305: con angular GT(now), p/v predichas bastan para fallar; primer rechazo
+  raw a `+13.86 s`, despues de la divergencia. No hubo fallback ni tracking
+  no-OK antes del fallo;
+- 306: sanity completo correcto, 759 medidas, edad media/maxima
+  `0.1144/0.2000 s`, sin fallback, tracking no-OK ni raw rechazado;
+- conclusion principal: `PV PRINCIPAL`. Sustituir solo p/v convierte el fallo
+  299 en hover completo, mientras conservar p/v predichas hace fallar incluso
+  con angular GT actual. El angular causal+dinamico es suficiente bajo jitter
+  cuando p/v son correctas;
+- conclusion secundaria: `GT(t_k)+dinamica` no queda validado con jitter. Antes
+  de usarlo como referencia deben revisarse marco y alineacion temporal de la
+  omega GT instantanea y la suficiencia del torque modelado;
+- no se ejecutan 300-302 ni se modifica la ruta productiva. 5H sigue `PARCIAL`.
+
+## 2026-08-30 - Predictor translacional, pruebas 307-313
+
+- objetivo: separar p/v y validar propagacion translacional causal con la traza 299;
+- 307 (`p_GT+v_pred`) y 308 (`p_pred+v_GT`), ambas con angular GT(now),
+  fallan antes del primer goal. Diagnostico `P Y V`;
+- auditoria: thrust total `+Z_body`, mixer lineal sin clipping, fuerzas
+  relativas en Gazebo y masa compartida de `1.4 kg`;
+- cambios: topic paralelo sellado `control/tray/thrust`, conservando el legacy;
+  `BodyThrustDynamicPredictor` con gravedad, dt reales y `R_dynamic(t)`;
+- validacion: builds correctos, GTest 86/86 y analizador correcto;
+- 309 y su repeticion 313 completan en 91 s sin huecos de fuerza usando p/v
+  GT(t_k) solo como estado inicial. RMSE p `0.0882/0.0990 m` y RMSE v
+  `1.2020/1.2357 m/s`;
+- 310 usa p/v del estimador causal vigente y falla antes del primer goal. RMSE
+  p/v `0.1184/1.2888`; no hubo huecos de fuerza;
+- conclusion: predictor translacional basico `VALIDADO EN LABORATORIO`; la
+  estimacion de `v_hat(t_k)` sigue `NO VALIDADA` y bloquea el estado completo;
+- STOP: 311/312 y 300-302 no ejecutadas. Fase 5H `PARCIAL`.
+
+## 2026-08-30 - Velocidad lineal causal, pruebas 314-317
+
+- objetivo: sustituir en laboratorio la `v_hat(t_k)` mezclada con correcciones
+  de pose por una estimacion causal basada solo en tres posiciones visuales
+  aceptadas, dejando la propagacion `t_k -> now` al predictor dinamico;
+- cambios: `CausalLinearVelocityEstimator` reutilizable, historial crudo
+  separado de clamps/correcciones, dt real, velocidad entre midpoints,
+  aceleracion y proyeccion solo hasta `t_k`; rechazos no entran y epoch reinicia.
+  La ruta productiva de `StereoSlamNode` no consume aun esta clase;
+- validacion previa: build `orbslam3` codigo 0, GTest 94/94, suite del analizador
+  correcta y `git diff --check` sin errores;
+- prueba 314: completa llegada y hover sin fallback, tracking loss ni huecos de
+  thrust. RMSE p/v `0.0901 m / 1.1061 m/s`; RMSE de `v_hat(t_k)` `0.7329 m/s`;
+- intento inicial 315: invalido por omitir en el comando
+  `f5h_gt_timing_mode:=dynamic_315`; completo usando `gt_fallback`. Sus
+  artefactos se conservan como `prueba_315_invalida_sin_modo.*` y no cuentan;
+- prueba 315 valida: reproduce 314, sin fallback ni huecos. RMSE p/v
+  `0.0822 m / 1.0071 m/s`; RMSE de v_hat `0.5785 m/s`;
+- prueba 316, estado completo dinamico: completa sin fallback. RMSE p/v
+  `0.1026 m / 1.1842 m/s`, RMSE angular `0.1077 rad/s`, `er` max
+  `0.7942 rad` y trabajo angular total `-0.00223 J`;
+- prueba 317 confirma 316: RMSE p/v `0.0956 m / 1.0933 m/s`, RMSE angular
+  `0.1149 rad/s`, `er` max `0.8047 rad` y trabajo total `-0.00409 J`;
+- conclusion: bateria 314-317 `CONSEGUIDA`. La nueva `v_hat(t_k)` y el estado
+  completo dinamico quedan `VALIDADOS EN LABORATORIO` bajo la traza 299. Fase
+  5H sigue `PARCIAL`: falta acordar la conexion productiva y validar ORB real.
+
+## 2026-08-30 - Integracion productiva y prueba 318
+
+- objetivo: conectar en `StereoSlamNode` los estimadores causales y predictores
+  dinamicos validados, comprobar paridad en 318 y despues validar ORB real en
+  319/320 con parada en el primer fallo;
+- cambios: selector temporal `navigation_prediction_mode=legacy|dynamic`,
+  consumo sellado de torque/thrust, base comun p/v/R/omega por medida O y
+  publicacion coherente propagada hasta `now`; un hueco invalida el estado y
+  permite el fallback de Fase 5. Launches propagan el selector y parametros
+  fisicos compartidos. Se crean los escenarios 318-320;
+- build/tests: `orbslam3`, `dron_individual` y `simulacion_dron` codigo 0;
+  GTest 94/94, analizador 8/8, Python/YAML y `git diff --check` correctos;
+- prueba 318: runner codigo 0, `success=true`, 92 s, guard inactivo y minimo
+  4847.5 MiB; no hubo fallback ni hueco translacional;
+- evidencia negativa: un `F5H-DYNAMIC-MISSING` al inicio de un movimiento. El
+  buffer contenia una muestra de torque, pero ninguna cubria el timestamp de la
+  base dinamica. El bootstrap solo inserta cero cuando el buffer esta vacio;
+- conclusion: 318 `NO CONSEGUIDA` por el criterio estricto de ausencia de
+  huecos. Se aplica STOP y 319/320 no se ejecutan. La integracion compila, pero
+  no queda validada productivamente ni existe evidencia ORB real;
+- siguiente paso: acordar una politica de arranque con cobertura causal.
+
+## 2026-08-30 - Politica causal y prueba 318R
+
+- auditoria: `aplicar_fuerzas_dron` inicializa fuerza/torque a cero y publica
+  a 50 Hz; `plugin_actuar_motores` inicializa todos los wrenches a cero y los
+  reaplica por ZOH. El cold start cero queda demostrado fisicamente;
+- cambios: cobertura `EMPTY/MISSING_PREFIX/FULL` para torque/thrust, seed cero
+  sellado y trazable, stamps reales, buffers preservados ante reset visual y
+  telemetria oldest/newest/prefijo. Las ecuaciones dinamicas quedan intactas;
+- validacion: builds de los tres paquetes codigo 0, GTest 98/98, analizador 8/8,
+  Python/YAML y `git diff --check` correctos;
+- prueba 318R: escenario completo, codigo 0, 92 s, sin fallback y recursos
+  sanos, pero un `F5H-DYNAMIC-MISSING` con `MISSING_PREFIX=0.070007563 s`;
+- causa: el seed se creo correctamente, pero al llegar el primer comando tras
+  unos 32 s, el recorte de 0.5 s elimino todas las muestras anteriores. La
+  unica muestra restante quedo 70 ms despues de la base;
+- conclusion: 318R `NO CONSEGUIDA`; cobertura de actuacion e integracion
+  productiva no validadas. STOP: 319R/320/321 no ejecutadas;
+- siguiente paso: conservar durante el pruning una unica muestra predecesora
+  al horizonte como autoridad ZOH, sin extender ilimitadamente el historial.
+
+## 2026-08-30 - Poda ZOH, paridad y ORB productivo 318R2-320R
+
+- cambio: la poda conserva la ultima muestra `<= cutoff` y todas las
+  posteriores, tanto para torque como thrust. La ventana sigue en 0.5 s y el
+  coste adicional maximo es una predecesora;
+- validacion: build `orbslam3` correcto, GTest 102/102 y analizador 8/8;
+- 318R2: `CONSEGUIDA`, 92 s, dos goals correctos, cero missing, fallback,
+  tracking loss o NaN/FATAL;
+- 319R: `CONSEGUIDA`, 90 s y mismos criterios. Poda ZOH, cobertura de
+  actuacion y paridad dinamica quedan `VALIDADAS`;
+- 320: intento `INVALIDO`. El escenario completo, pero
+  `navigation_state.yaml` sobrescribio el override y ambos stereo usaron
+  `mode=legacy`. Se conserva como evidencia, no como validacion;
+- correccion mecanica: `orbslam_use.launch.py` carga `stereo_params` al
+  final; build `dron_individual` correcto;
+- 320R: ambos stereo usan `mode=dynamic` y no hay missing de actuacion, pero
+  ORB gobierna ya la aproximacion. Tras ese goal, el estado sigue en
+  `(-0.030,-8.996,0.078) m` con velocidad
+  `(0.064,-0.626,0.931) m/s`, lejos del objetivo `(0,-10,1) m`;
+- durante el hover, tracking pasa 2->3 unos 20.3 s despues, conmuta a fallback
+  sin salto y recupera 59 ms despues, pero queda bloqueado en GT por contrato;
+- conclusion: 320R `NO CONSEGUIDA`. El action termina por tiempo y no
+  demuestra seguimiento. La integracion productiva ORB no esta validada y 321
+  no se ejecuta por STOP.
+
+## 2026-08-30 - ORB shadow y handoff limpio 320R2/320R2R
+
+- objetivo: separar la activacion prematura de 320R del comportamiento del
+  ORB productivo al tomar autoridad desde hover estacionario;
+- cambios: modo temporal `shadow_gt`, gate de tracking+anchor+estado valido y
+  `1.5 s` de estacionariedad, servicio `control/activate_orb_shadow`, paso
+  generico `call_set_bool` y YAMLs 320R2/321;
+- exclusiones respetadas: sin cambios en estimadores, predictores, J, masa,
+  gravedad, buffers, gains, gates visuales, referencia KF, W o control;
+- builds: `dron_individual` correcto; primer build `simulacion_dron` fallo por
+  `find_package(std_srvs)` omitido y paso tras la correccion mecanica;
+- tests: mux 11/11, estimador productivo 102/102 y analizador 8/8;
+- 320R2: `INVALIDA`; el runner recibio una ruta YAML relativa y termino antes
+  del primer paso funcional. Se conserva como intento independiente;
+- 320R2R: escenario `success=true`, 91 s, recursos sanos. Predictor `dynamic`,
+  aproximacion integra con GT, ORB activo en sombra y handoff solo en la
+  frontera del goal nuevo tras anchor y asentamiento;
+- handoff: pose y rotacion `0`, velocidad `0.247078 m/s`, omega
+  `0.003635 rad/s`. Goal ORB iniciado en
+  `(0.011726,-10.002154,1.006141) m` con velocidad
+  `(0.029463,-0.155310,0.194482) m/s`;
+- evidencia posterior: sin missing, tracking permanece `2` y no hay fallback,
+  pero el error de posicion llega a `~1.63 m`, velocidad a `~1.75 m/s` y error
+  angular a `~0.52 rad`;
+- conclusion: 320R2R `NO CONSEGUIDA`. La activacion prematura explica por que
+  320R no era una prueba limpia, pero no es causa suficiente del fallo: el
+  hover diverge con handoff controlado y tracking sano. 321 no ejecutada.
+
+## 2026-08-30 - Bateria p/v ORB real 321A-D
+
+- objetivo: eliminar la carrera authority/goal y aislar posicion y velocidad
+  lineales sin modificar el estimador productivo;
+- cambios: topic transient-local `control/orb_authority_confirmed`, marcador
+  ordenado antes del goal, overrides de salida `position_gt|velocity_gt|both`
+  alineados al O continuo y YAMLs 321A-D. Orientacion/omega siempre ORB;
+- build/tests: `dron_individual` y `simulacion_dron` codigo 0; mux 13/13,
+  Python/YAML y `git diff --check` correctos;
+- 321A: `INVALIDA` antes del hover porque el lock retenido impedia confirmar
+  ORB. Se abre mecanicamente la frontera y se repite como 321AR;
+- validez comun: 321AR/B/C/D confirman ORB antes del segundo goal, usan
+  predictor `dynamic`, cobertura FULL y cero missing. Los cuatro runners
+  terminan `success=true`; recursos sanos;
+- shadow RMSE p/v/R/omega: 321AR `0.0084/0.4556/0.0017/0.0240`, 321B
+  `0.0129/0.6102/0.0017/0.0170`, 321C
+  `0.0104/0.5459/0.0010/0.0338`, 321D
+  `0.0105/0.3954/0.0021/0.0237` en m, m/s, rad y rad/s;
+- 321AR `pGT+vORB`: max hover `ep=1.604 m`, `v=2.428 m/s`,
+  `er=0.931 rad`; tracking 2 y sin fallback. `NO CONSEGUIDA`;
+- 321B `pORB+vGT`: max hover `ep=0.159 m`, `v=0.046 m/s`,
+  `er=0.027 rad`; tracking 2 y sin fallback. `CONSEGUIDA`;
+- 321C `p/vGT+angularORB`: ORB cae a fallback antes de terminar el segundo
+  goal por estado local no consumible, aunque el campo tracking siga en 2;
+  max previo `ep=0.322 m`, `v=0.693 m/s`, `er=0.667 rad`. `NO CONSEGUIDA` y
+  no valida aisladamente el canal angular;
+- 321D ORB completo: max hover `ep=1.761 m`, `v=2.799 m/s`,
+  `er=0.965 rad`; tracking 2 y sin fallback. `NO CONSEGUIDA`;
+- conclusion agregada: diagnostico `CONSEGUIDO`, hover productivo
+  `NO CONSEGUIDO`. 321B estable y el contraste A/D demuestran que la velocidad
+  lineal ORB es la causa principal. La siguiente correccion debe actuar en
+  `v_hat` sin GT y repetirse con ORB completo.
+
+## 2026-08-30 - Diagnostico lineal ORB 322/323
+
+- objetivo: localizar en que etapa se degrada `v_ORB` sin permitir que mueva
+  el dron y contamine la medida;
+- cambios: telemetria `[F5H-LINEAR-MEASUREMENT]`, velocidad GT lineal en el
+  CSV, analizador dual-clock y YAML 322; la salida productiva no cambia;
+- build/tests: tres paquetes codigo 0, GTest 102/102, analizador 4/4, YAML y
+  diff correctos;
+- prueba 322: `success=true`, autoridad GT durante toda la mision, predictor
+  `dynamic`, tracking drone1=2 y ventana settled de unos 43 s; 907 medidas
+  validas, sin missing ni perdida visual;
+- RMSE/MAE/p95/max en m/s: `v_mid` `0.01984/0.01475/0.04061/0.10766`;
+  `v_hat_tk` `0.03457/0.02557/0.07174/0.20456`; `v_dynamic_now`
+  `0.43308/0.39375/0.69850/1.82854`;
+- 323 paralelo sobre las mismas muestras: TWO_SAMPLE en `t_k` da RMSE
+  `0.01988` frente a THREE_SAMPLE `0.03457`; `gain_hat` mediano `1.705`;
+- 905/907 medidas usan THREE_SAMPLE y solo dos DEGRADED_DT; todas las medidas
+  asentadas son `correction_class=SMALL`. Los cambios de referencia empeoran
+  localmente, pero el tramo estable tambien conserva la amplificacion;
+- conclusion: diagnostico `CONSEGUIDO`, causa `MULTICAUSAL` con
+  `A_HAT_AMPLIFICATION` demostrada y una degradacion dominante adicional en
+  `DYNAMIC_PROPAGATION`. No corresponde atribuirla a DEGRADED_DT ni solo a KF.
+  STOP antes de modificar el estimador o predictor.
+
+## 2026-08-30 - Gravedad expresada en O, pruebas 324/325
+
+- auditoria: el predictor recibia p/v/R en O y rotaba correctamente thrust
+  B->O, pero sumaba `(0,0,-9.81)` como si O estuviera alineado con W;
+- cambio: `EpochGravityState` calcula `g_O=O_R_W*g_W` desde el primer
+  `O_T_W` autoritativo, la congela por epoch y la invalida en epoch nuevo. Sin
+  gravedad valida, la base dynamic no es consumible. THREE_SAMPLE queda igual;
+- telemetria: init/wait, componentes thrust/gravity/aceleracion y residual de
+  hover. El analizador filtra ahora por namespace para no mezclar drones;
+- validacion: tres builds codigo 0, GTest 108/108, analizador 6/6, YAML/Python
+  y diff correctos;
+- 324: `success=true`, 875 medidas; `g_O=(0.5448,9.7923,0.2254)`, norma
+  `9.8100`. RMSE mid/two/three/dynamic
+  `0.02119/0.02122/0.03613/0.03583 m/s`; gain dynamic `0.992`. Residual de
+  aceleracion mediano/p95 `0.0129/0.1330 m/s2`;
+- 325: `success=true`, 906 medidas; `g_O=(0.3205,9.8014,0.2568)`, norma
+  `9.8100`. RMSE mid/two/three/dynamic
+  `0.02162/0.02166/0.03695/0.03707 m/s`; gain `1.003`. Residual mediano/p95
+  `0.1064/0.1491 m/s2`;
+- comparacion 322: dynamic baja de `0.43308` a `0.03583/0.03707 m/s` y el
+  gain de `12.53` a aproximadamente `1`. Desaparecen bias Y/Z de
+  `-0.2788/+0.2765 m/s`; 325 queda en `+0.00223/-0.00007 m/s`;
+- conclusion: `GRAVITY_FRAME CONFIRMADO` y `DYNAMIC_PROPAGATION CORREGIDA` de
+  forma reproducible. Fase 5H sigue `PARCIAL` porque
+  `A_HAT_AMPLIFICATION/THREE_SAMPLE` permanece sin corregir. STOP respetado.
+
+## 2026-08-31 - MIDPOINT_DYNAMIC y hover ORB real, pruebas 326-331
+
+- cambio: `PredictMidpointDynamicVelocity` usa dos posiciones aceptadas,
+  velocidad en el midpoint, interpolacion SO(3), omega espacial causal y los
+  predictores de torque/thrust para propagar hasta `t_k`; exige cobertura
+  `FULL`. THREE_SAMPLE queda solo como diagnostico;
+- validacion estatica: tres paquetes compilan, GTest 116/116, analizador 7/7 y
+  `git diff --check` correcto;
+- 326 shadow hover: 930 muestras comunes y cobertura 100 %. RMSE TWO/THREE/
+  MIDPOINT `0.023052/0.039098/0.023144 m/s`;
+- 327 shadow X suave: 814 muestras; RMSE global
+  `0.074311/0.112426/0.074276 m/s` y en movimiento
+  `0.097242/0.136433/0.097166 m/s`;
+- 328/329 shadow productivo: cobertura 100 % y RMSE MIDPOINT
+  `0.021125/0.024599 m/s`. El intento 0 de 329 muere antes del escenario por
+  Gazebo; el reintento 1 completa y fundamenta la conclusion;
+- 330 ORB real: `34.78 s`, tracking OK, cero fallback/clamp, max
+  `er=0.0674 rad`, max omega control `0.0722 rad/s` y energia angular total
+  `-0.000441 J`;
+- 331 repeticion: `35.30 s`, tracking OK, cero fallback/clamp, max
+  `er=0.0631 rad`, max omega control `0.0774 rad/s` y energia angular total
+  `-0.000348 J`;
+- conclusion: `A_HAT_AMPLIFICATION CORREGIDA`,
+  `LINEAR_VELOCITY_ESTIMATOR VALIDADO` y `HOVER ORB REAL VALIDADO` de forma
+  reproducible. 5H permanece `PARCIAL` hasta validar movimiento y trayectoria.
+
+## 2026-08-31 - Validacion progresiva de movimiento, pruebas 332-334
+
+- contrato: arquitectura congelada, fallback cero en maniobras elementales,
+  repeticion obligatoria y STOP en el primer fallo;
+- validacion previa: tres builds codigo 0, GTest 116/116, analizador 7/7, YAML
+  y diff correctos;
+- 332 X 2 m: `CONSEGUIDA`; ORB `29.56 s`, sin fallback, tracking loss, missing
+  ni clamp. RMSE/max ep `0.0360/0.0676 m`; ep/ev final
+  `0.0439 m / 0.0283 m/s`; energia total `-0.001766 J`;
+- 333 repeticion X: `CONSEGUIDA`; ORB `30.28 s`, sin fallback ni tracking
+  loss. RMSE/max ep `0.0477/0.1125 m`; ep/ev final
+  `0.0507 m / 0.0294 m/s`; energia `-0.002225 J`;
+- conclusion X: `MOVIMIENTO X ORB VALIDADO` y reproducible;
+- 334 Y 2 m: `INVALIDA POR COLISION`. ORB gobierna `6.62 s`; tracking pasa `2->3` y
+  despues `3->0->1`, activando `gt_fallback reason=tracking_lost`. Antes de la
+  perdida, RMSE/max ep `0.0295/0.0648 m` y RMSE/max ev
+  `0.0567/0.1660 m/s`; no existe divergencia de control previa;
+- interpretacion revisada tras observacion del usuario: el goal avanza desde
+  `[0,-10,1]` hasta `[0,-8,1]` y atraviesa el fiducial 2 situado en
+  `[0,-8.5,1]`. La colision explica la posterior perdida de tracking; no hay
+  evidencia contra el control Y;
+- 335-343 no ejecutadas. Fase 5H permanece `PARCIAL`; repetir como 334R hacia
+  `-Y` sin obstaculo y con arquitectura intacta.
+
+## 2026-08-31 - Repeticion Y sin obstaculo, prueba 334R
+
+- escenario: `[0,-10,1] -> [0,-12,1]`, alejandose del fiducial 2; estimador,
+  control y criterios congelados;
+- resultado de infraestructura: runner `success=true`, ORB `30.26 s`, tracking
+  2, cero fallback, missing o clamp y cobertura MIDPOINT 100 %;
+- posicion/angular: RMSE/max ep `0.0327/0.0628 m`, max er `0.1372 rad` y
+  energia angular total `-0.002717 J`;
+- velocidad: RMSE/max ev `0.1630/0.4118 m/s`; ev final `0.1873 m/s`. En los
+  ultimos 3 s, RMSE/max ev ORB `0.1739/0.3342 m/s`, mientras GT da
+  `0.0491/0.0745 m/s` y termina en `0.0561 m/s`;
+- conclusion: `NO CONSEGUIDA`. El movimiento conserva posicion y tracking,
+  pero no vuelve limpiamente a `v_ORB≈0`; existe velocidad estimada residual y
+  oscilante en el frenado/hover final;
+- STOP aplicado: 335-343 no ejecutadas. No se modifica el estimador.
+
+## 2026-08-31 - Repeticion visual Y, prueba 334R2
+
+- se repite exactamente 334R con Gazebo GUI visible y artefactos separados;
+- runner `success=true`, ORB `33.30 s`, tracking 2, cero fallback/missing y
+  cobertura MIDPOINT 100 %;
+- max ep/ev `0.4929 m / 2.1876 m/s`; cierre ep/ev
+  `0.2128 m / 0.5506 m/s`; RMSE/max ev en los ultimos 3 s
+  `1.0076/2.1876 m/s`; RMSE lineal productivo `0.4398 m/s`;
+- conclusion: `NO CONSEGUIDA`; reproduce y agrava la inestabilidad lateral y
+  de frenado con tracking sano. 335-343 permanecen sin ejecutar.
+
+## 2026-08-31 - Proximidad visual, Y y Z, pruebas 334R3-337R
+
+- 334R3: `INVALIDA DE INFRAESTRUCTURA`; timeout de
+  `/fiducial_spawn_ready`, sin goals ni evidencia funcional;
+- 334R3R/335R: X seguido de +Y a `x=2 m`, evitando el fiducial y acercando la
+  camara a la pared. Ambas completan con tracking 2 y cero fallback, missing o
+  clamp. Max ep en Y/hover `0.071/0.059 m` y `0.088/0.092 m`; velocidad final
+  `0.108/0.111 m/s`;
+- conclusion Y cercana: `CONSEGUIDA` con residual de velocidad documentada.
+  El contraste con 334R/334R2 apoya la hipotesis de peor cobertura visual al
+  alejarse de la pared;
+- 336 Z +0.5 m: `CONSEGUIDA`; max ep `0.051 m`, ev final `0.015 m/s`, tracking
+  continuo, cero fallback y energia angular `-0.000400 J`;
+- primer intento 337: `INVALIDA DE INFRAESTRUCTURA` por ruta YAML relativa;
+- 337R: `CONSEGUIDA`; reproduce Z con max ep `0.046 m`, ev final `0.018 m/s`,
+  tracking continuo, cero fallback y energia `-0.000477 J`;
+- conclusion: `MOVIMIENTO Y CON BUENA COBERTURA VISUAL VALIDADO` y
+  `MOVIMIENTO Z ORB VALIDADO`.
+
+## 2026-08-31 - Giro yaw, prueba 338
+
+- escenario: giro lento `90 -> 0 deg` con ORB real, arquitectura congelada;
+- runner y goals completan, pero ORB gobierna solo `11.18 s` antes de que
+  tracking pase `2->3`; el mux activa `gt_fallback reason=tracking_lost`;
+- antes/durante la perdida: max er `0.995 rad`, max ew `0.709 rad/s`, RMSE
+  omega control-GT `0.409 rad/s` y RMSE lineal productivo `0.530 m/s`;
+- la energia angular neta es negativa (`-0.000785 J`), pero no compensa la
+  degradacion de pose/velocidad ni la perdida visual;
+- conclusion: `NO CONSEGUIDA`. El giro yaw no queda validado. STOP aplicado:
+  339-343 no ejecutadas; no se modifica el estimador ni el control.

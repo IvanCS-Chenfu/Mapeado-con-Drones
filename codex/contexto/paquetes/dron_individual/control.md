@@ -182,6 +182,29 @@ omega recibida O y transformada a body, `Omega_des`, `er`, `ew`, términos de
 torque separados, torque total, `Kr/Kw`, sample y timestamps. La suma de
 términos es algebraicamente la misma ecuación previa y no altera el control.
 
+Para el laboratorio dinamico 292-295, el mensaje existente
+`control/tray/torque` incluye ahora el `header.stamp` del tick. El vector sigue
+siendo exactamente `tau_total` en body: no cambian ecuacion, ganancias ni
+valor publicado. `orbslam_use.launch.py` pasa `physical.yaml` al nodo
+diagnostico para compartir `fisico.total.matriz_inercia`. Tras la primera 292,
+el valor compartido se corrige a la inercia compuesta
+`diag(0.00803107,0.00803107,0.015805) kg*m^2`; esto cambia los terminos
+dinamicos que dependen de J, pero no ganancias ni estructura del controlador.
+
+Para el laboratorio translacional 309-312, `control_calcular_fuerzas.cpp` ->
+`Clase_Publisher::enviar_fuerzas` (`rg -n "control/tray/thrust|control_stamp"`)
+publica ademas `control/tray/thrust` como `Vector3Stamped` en frame `cuerpo`.
+Su vector es exactamente `[0,0,F_des.z()]` y comparte stamp con el torque del
+mismo tick. El topic legacy `control/tray/fuerza` permanece sin cambios para el
+mixer. Este es lineal, no aplica clipping/saturacion y sus cuatro salidas suman
+el thrust total que Gazebo aplica sobre `+Z` relativo de los motores.
+
+Auditoria causal post-318: antes del primer estado/feedback,
+`aplicar_fuerzas_dron` conserva `fuerza_total=0` y `torque=0`, y su timer
+publica esa mezcla a 50 Hz. Esto demuestra que el seed de actuación cero en el
+consumidor dinamico representa el estado físico inicial, no un fallback
+inventado.
+
 La prueba 264 demuestra que el termino proporcional es decisivo: tras el
 handoff, `tau_er` realiza trabajo positivo respecto a la omega GT en `80.9 %`
 de los ciclos e inyecta `+0.005173 J` al reprocesar con el analizador de 265.
@@ -226,6 +249,7 @@ Salidas típicas:
 |---|---|---|
 | `control/fuerza_total` | `std_msgs/msg/Float64` | Fuerza vertical total |
 | `control/torque` | `geometry_msgs/msg/Vector3Stamped` | Torque deseado |
+| `control/tray/thrust` | `geometry_msgs/msg/Vector3Stamped` | Copia sellada del thrust body para diagnostico F5H |
 
 Funciones/conceptos:
 
@@ -289,6 +313,33 @@ Laboratorio F5H: `navigation_state_mux.cpp` declara
 la selección forzada `gt|orb`. Solo se usa en 269-272, después de calcular la
 decisión normal, para eliminar conmutaciones de la comparación. El default
 `normal` conserva intacta la política runtime y el bloque debe retirarse.
+
+Para el diagnostico post-320R, `f5h_diagnostic_force_source=shadow_gt`
+mantiene GT autoritativo mientras el mismo ORB dinamico productivo sigue
+publicando en sombra. `OrbShadowActivationGate` exige tracking, anchor, estado
+consumible y `1.5 s` continuos bajo `0.15 m/s` y `0.15 rad/s`; el servicio
+`control/activate_orb_shadow` habilita una sola frontera posterior. Los
+marcadores `[F5H-ORB-SHADOW]`, `[F5H-ORB-ACTIVATION-READY]` y
+`[F5H-ORB-ACTIVATED]` registran estado y saltos. Todo el bloque es temporal de
+Fase 5 y debe retirarse junto a `GT_FALLBACK`.
+
+La bateria 321 añade el topic transient-local
+`control/orb_authority_confirmed`: solo publica `true` despues de que el mux
+haya publicado efectivamente un `NavigationState` con source ORB. El marcador
+`[F5H-ORB-AUTHORITY-CONFIRMED]` precede asi al nuevo goal. El parametro temporal
+`f5h_orb_control_override` admite `normal`, `position_gt`, `velocity_gt` y
+`position_velocity_gt`; sustituye exclusivamente posicion y/o velocidad lineal
+en la salida comun, nunca en estimadores o buffers ORB. GT se alinea al O
+continuo en el handoff; orientacion y omega permanecen ORB.
+
+```text
+dron/dron_individual/include/dron_individual/navigation_state_mux.hpp
+  -> OrbShadowActivationGate/DiagnosticGtControlAlignment
+  -> rg "class OrbShadowActivationGate|class DiagnosticGtControlAlignment"
+dron/dron_individual/src/control_tray/navigation_state_mux.cpp
+  -> OnShadowActivation/OnOrbState
+  -> rg "activate_orb_shadow|F5H-ORB-AUTHORITY-CONFIRMED|f5h_orb_control_override"
+```
 
 - El fallback Fase 5 depende de GT, visible y desactivado por defecto.
 - GT no puede alimentar estimacion, mapa, anchors ni pose global.

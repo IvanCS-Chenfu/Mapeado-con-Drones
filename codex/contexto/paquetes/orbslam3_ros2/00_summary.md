@@ -48,6 +48,67 @@ descartan y W nunca mueve O. `NavigationStateEstimator` confirma una cadena
 geometrica aunque cambie el ID del reference KF; `local_t_camera` solo enlaza
 cambios plausibles y Tcr conserva la autoridad local principal.
 `OrbPosePredictor`, dentro del mismo wrapper, publica a 50 Hz un estado SE(3).
+El laboratorio F5H permite seleccionar de forma independiente p/v/R/omega
+predichas o GT actuales mediante `DiagnosticControlState`; esta instrumentacion
+esta apagada por defecto y marcada para retirar. Las pruebas 288-291 aislan el
+fallo con delay en `omega_pred(now)`: las dos ramas que la usan fallan y las dos
+con omega GT completan, incluido el sanity GT total. No es una ruta productiva.
+El laboratorio añade tambien `BodyTorqueDynamicPredictor`: integra en body la
+ecuacion rigida con buffer temporal de `control/tray/torque` y J configurable.
+La prueba 292 con la J nominal `diag(1e-4)` falla de inmediato porque predice
+cientos de rad/s frente a valores GT del orden de uno. Tras sustituirla por la
+J compuesta `diag(0.00803107,0.00803107,0.015805)`, 296-298 y 293-295 completan
+el hover con RMSE `0.00255-0.00557 rad/s`, mismatch menor de `0.78 %` y energia
+total negativa. La clase angular queda validada en laboratorio con entrada GT y
+delay fijo hasta 294. `dynamic_295` no activa el delay cruzado y valida estado
+completo con edad media de 31 ms, no con los 80 ms añadidos. Sigue siendo una
+ruta diagnostica, no productiva.
+El modo `dynamic_299` añade timing/delay determinista de ORB al estado completo
+dinamico, sin overrides GT actuales, para validar jitter antes de conectar la
+ruta ORB real. La prueba 299 falla tras `16.94 s`: no hay fallback ni huecos
+de torque, pero 48 intervalos `DEGRADED_DT`, edad maxima `0.20 s` y energia
+positiva invalidan el estado completo bajo jitter. La ruta ORB no se integra.
+Los modos `dynamic_303` a `dynamic_306` separan p/v de R/omega bajo esa misma
+traza. 304 interpola GT retrospectivo en `t_k` desde buffers acotados, sin
+espera ni uso de GT(now) como salida angular; todo el bloque sigue siendo
+diagnostico y retirable.
+303/306 completan y 304/305 fallan: el cruce localiza el problema principal en
+p/v predichas bajo jitter. La propagacion desde omega GT(t_k) de 304 tampoco
+queda validada y requiere revisar marco/alineacion antes de reutilizarla.
+
+Los cruces 307/308 separan posicion y velocidad bajo angular GT actual. El
+laboratorio incorpora `BodyThrustDynamicPredictor`, alimentado por el nuevo
+topic sellado `control/tray/thrust`: integra p/v con masa compartida, gravedad,
+dt reales y la orientacion angular dinamica durante cada intervalo. Los modos
+309-312 y su telemetria son retirables y no forman parte aun de la ruta ORB.
+
+`CausalLinearVelocityEstimator` conserva THREE_SAMPLE como diagnostico.
+La ruta productiva usa `PredictMidpointDynamicVelocity`: deriva velocidad entre
+dos posiciones visuales aceptadas en su midpoint, interpola R en SO(3), alinea
+el reloj ROS y propaga causalmente hasta `t_k` con torque, thrust y gravedad O.
+Solo una cobertura `FULL` actualiza la base productiva. 326-329 validan su
+precision y 330/331 validan hover ORB real reproducible.
+
+La integracion post-317 conecta esas clases a `StereoSlamNode` mediante
+`navigation_prediction_mode=legacy|dynamic` (`legacy` por defecto). La rama
+dinamica forma una base O comun, consume `control/tray/torque` y
+`control/tray/thrust` sellados y publica p/v/R/omega propagados al mismo tick;
+si falta cobertura invalida el estado para habilitar fallback. Compila y pasa
+94/94 GTests, pero 318 detecta un hueco inicial de torque con muestra posterior
+a la base. La rama no esta validada y ORB real no se ejecuto.
+
+Post-318 se formaliza cobertura de actuacion
+`EMPTY/MISSING_PREFIX/FULL`, seed cold-start cero, ZOH y persistencia de
+buffers ante resets visuales. 98/98 GTests pasan. 318R descubre que la poda por
+`max_history_sec` elimina el seed antes de la primera orden tras una espera
+larga; queda un prefijo desconocido de 70 ms. La correccion pendiente debe
+retener una muestra predecesora al horizonte.
+
+La poda corregida conserva exactamente una predecesora ZOH y todas las
+muestras recientes. Pasa 102/102 GTests y 318R2/319R sin missing. En 320R la
+ruta `StereoSlamNode dynamic` se activa sin huecos, pero el dron no sigue la
+aproximacion y termina cerca del suelo; la integracion ORB sigue no validada.
+
 En rotacion separa la orientacion absoluta visual aceptada del movimiento entre
 medidas (`omega_motion`): SMALL/plausible reancla `pose_` en `t_visual`,
 MODERATE_CONFIRMED con raw plausible reancla tambien por completo y el resto
@@ -112,6 +173,23 @@ Las tres variantes completan y son disipativas: predictor actual con omega GT,
 hold angular y extrapolacion SO(3) directa. Queda aislada como causa principal
 la derivacion/filtrado de `omega_motion`; no fallan el hold ni la formula de
 propagacion cuando pose y omega son coherentes.
+Desde 276, `omega_motion` usa dos incrementos espaciales SO(3) de tres poses
+aceptadas, estima aceleracion entre midpoints y proyecta hasta `t_k` sin
+pasa-bajos; la omega se mantiene entre medidas. Rechazos no contaminan el
+historial y el epoch lo reinicia. 276-277 completan el hover de laboratorio con
+pose GT 20 Hz y energia negativa; falta validar delay/jitter y ORB real.
+La prueba 278 conserva el estimador y añade 80 ms: falla con edad visual media
+`0.1129 s`, clamp `72.2 %`, RMSE `1.447 rad/s` y energia positiva. El siguiente
+problema aislado es la compensacion desde `t_k` hasta `now`; 279-281 no se
+ejecutan.
+Las pruebas 282/284 descartan dos soluciones simples: `0.18 s` elimina el clamp
+pero empeora, y aceleracion constante mejora RMSE/energia pero falla antes. El
+flag `predict_angular_acceleration` queda `false` por defecto y solo el nodo GT
+diagnostico lo activa; ORB productivo conserva propagacion constante.
+Las pruebas cruzadas 285-287 seleccionan independientemente orientacion y omega
+GT actuales y registran edad/skew y estados predicho/GT/usado. 286 con omega
+predicha falla mucho antes que 285/287, pero 287 tambien falla porque p/v
+lineales permanecen retrasadas; el aislamiento queda parcial.
 No ejecutar recorridos largos mientras falle el hover.
 
 Relación: alimentado por `simulacion_dron` (cámaras), usa `ORB_SLAM3`, define mensajes en `orbslam3_msgs` y es consumido por `orbslam3_server`.

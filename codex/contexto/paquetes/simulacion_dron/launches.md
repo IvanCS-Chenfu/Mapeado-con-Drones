@@ -135,6 +135,11 @@ a dos drones y la prueba visual 138 verifico el estado normal.
 
 ## `f3f_replay.launch.py`
 
+Para el laboratorio 321, `multi_dron.launch.py` propaga
+`f5h_orb_control_override` a cada `generar_dron.launch.py`. Su default
+`normal` no altera ejecuciones ordinarias; los valores GT son diagnosticos
+temporales de Fase 5.
+
 Inicia bridge, helper de navegador, RViz2 y servidor en replay, sin Gazebo,
 wrappers ni GT live. Carga los YAML normales de simulación y añade
 `replay_debug.yaml`. Argumentos:

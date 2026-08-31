@@ -35,6 +35,12 @@ Con ese flag, `[F5H-PHASE-CONTROL]` registra cada tick de 50 Hz: sample y
 timestamps de recepción, `R_act/R_des`, omega O/body, `Omega_des`, `er/ew` y
 los vectores `tau_er/tau_ew/tau_feedforward/tau_gyro/tau_total`. Es
 observabilidad únicamente; publicaciones, ganancias y ecuaciones permanecen.
+El ensayo dinamico 292 solo añade timestamp al torque corporal ya publicado y
+pasa `physical.yaml` al nodo diagnostico; no modifica su valor. Tras el fallo
+con la J nominal, `fisico.total.matriz_inercia` contiene la inercia compuesta
+del modelo de 1.4 kg:
+`diag(0.00803107,0.00803107,0.015805) kg*m^2`. Controlador y predictor consumen
+el mismo tensor; los tensores por enlace de Gazebo permanecen intactos.
 La prueba 264 muestra que `tau_er` inyecta energia en `80.9 %` del tramo
 post-handoff y domina el fallo, mientras `tau_ew` conserva damping neto. En
 265 el controlador permanece intacto y consume el `NavigationState`
@@ -84,3 +90,25 @@ Para las pruebas 269-272, `f5h_gt_timing_mode` propaga el modo de laboratorio.
 El mux admite `f5h_diagnostic_force_source=gt|orb` solo para fijar una fuente
 durante cada ensayo y evitar handoffs. Ambos valores quedan `off/normal` por
 defecto y están marcados para retirar; GT normal no se remuestrea ni filtra.
+
+`orbslam_use.launch.py` y `generar_dron.launch.py` propagan
+`orb_navigation_prediction_mode` al parametro productivo
+`navigation_prediction_mode` de `StereoSlamNode` y le entregan
+`physical.yaml`. El default `legacy` conserva el comportamiento previo; la
+rama `dynamic` permanece experimental tras el fallo de cobertura inicial 318.
+
+`orbslam_use.launch.py` carga ahora los YAML base antes de `stereo_params`,
+de modo que `orb_navigation_prediction_mode:=dynamic` tenga precedencia sobre
+el default `legacy` de `navigation_state.yaml`. El intento 320 anterior a
+esta correccion es invalido; 320R confirma en runtime `mode=dynamic`.
+
+`generar_dron.launch.py` propaga ademas `f5h_orb_shadow_mode`. Cuando esta
+activo, el mux conserva GT durante aproximacion y asentamiento, observa el ORB
+productivo en sombra y solo lo habilita mediante
+`control/activate_orb_shadow`. Es instrumentacion temporal de Fase 5; no cambia
+estimadores, control ni el default normal.
+
+La bateria 321 añade confirmacion transient-local de autoridad ORB y el selector
+temporal `f5h_orb_control_override` para sustituir p y/o v lineales solo en la
+salida del mux. Orientacion/omega y estimadores siguen siendo ORB; el default
+`normal` no altera el runtime ordinario.

@@ -9,7 +9,7 @@
 5D: CONSEGUIDA
 5E: CONSEGUIDA tecnicamente
 5F: PARCIAL; puerta humana no aceptada
-5G-5H: PARCIAL; 268 valida gate raw y descarta anclaje moderate completo
+5G-5H: PARCIAL; X/Y cercana/Z validados; yaw falla en 338
 5I: absorbida en 5H
 Fase 5 funcional: en curso
 ```
@@ -231,3 +231,129 @@ sustituir solo `omega_motion` por omega GT; F con hold y G con extrapolacion
 directa tambien son estables y disipativas. Se selecciona la opcion A del
 diagnostico: derivacion/filtrado de `omega_motion`. La siguiente correccion
 debe actuar sobre esa estimacion ORB, no sobre gains, hold o SO(3).
+
+Las pruebas 276-277 sustituyen esa derivacion por un estimador causal de tres
+poses. Ambas completan el hover con pose GT a 20 Hz, sin fallback y con energia
+total negativa; el RMSE baja de `0.43338 rad/s` en 270/B a
+`0.00374/0.00304 rad/s`. La correccion es reproducible en laboratorio, pero la
+fase sigue `PARCIAL` hasta ensayar delay/jitter y ORB real.
+
+La prueba 278 añade 80 ms sin alterar el estimador y no completa el hover:
+clamp `72.2 %`, RMSE `1.447 rad/s` y energia total `+0.02884 J`. La secuencia
+se detiene y 279-281 no se ejecutan. Falta acordar compensacion `t_k -> now`.
+
+282 elimina el clamp con horizonte diagnostico `0.18 s`, pero empeora el fallo.
+284 propaga pose/omega con `alpha_hat`: mejora RMSE/energia, aunque cae antes y
+rechaza raw desde `0.84 s`. Ninguna variante completa el hover; 279 permanece
+detenida y la extrapolacion alpha queda apagada por defecto.
+
+La bateria 285-287 cruza R y omega predichas/GT actuales. Las ramas con omega
+GT duran unos `13.1 s` y son disipativas; con omega predicha solo `2.98 s` y
+energia positiva. La evidencia señala omega, pero 287 tambien falla porque p/v
+lineales siguen retrasadas: el sanity no es GT completo y la causalidad queda
+pendiente. 279-281 permanecen detenidas.
+
+La bateria 288-291 fija p/v GT actuales y cierra esa ambiguedad. 288 y 290 usan
+omega predicha y fallan tras `2.54/5.18 s`, con energia positiva; 289 mantiene
+R predicha pero usa omega GT y completa `54.46 s`, y 291 con estado GT completo
+completa `55.20 s`. El sanity pasa y ambas ramas con omega GT son disipativas.
+El fallo inmediato bajo delay queda aislado en `omega_pred(now)`, no en R ni
+p/v. 5H sigue `PARCIAL` hasta corregirla sin GT y validar ORB real; 279-281
+siguen detenidas.
+
+La prueba 292 integra dinamica rigida causal con torque body y la J nominal
+compartida con control. Builds y 75/75 GTests pasan, pero el modelo predice
+cientos de rad/s frente a valores GT del orden de uno y colapsa en decimas.
+292 queda `NO CONSEGUIDA`; por STOP no se ejecutan 293-295. Debe revisarse la
+inercia efectiva/torque aplicado antes de continuar hacia ORB.
+
+La revision calcula la J compuesta del modelo y actualiza el valor compartido a
+`diag(0.00803107,0.00803107,0.015805)`. Con ella, 296-298 y 293-295 completan
+seis hovers consecutivos, sin fallback ni tracking no-OK, RMSE omega entre
+`0.00255-0.00557 rad/s`, mismatch maximo `0.777 %` y energia total negativa.
+El predictor angular queda validado con delay fijo hasta 294. Una revision
+posterior confirma que 295 no tenia los 80 ms añadidos (edad media 31 ms), por
+lo que el estado completo queda validado solo sin ese delay. Faltan
+timing/jitter medido, estado completo bajo ese timing y ORB real para cerrar 5H.
+
+299 ensaya el estado completo con la traza temporal determinista de 268 y
+falla tras `16.94 s`, pese a mantener fuente y cobertura de torque. Los
+intervalos largos generan 48 `DEGRADED_DT`, la edad alcanza `0.20 s` y la
+energia angular neta pasa a `+0.0141 J`; los rechazos raw aparecen al final,
+despues de la divergencia. Por el STOP no se ejecutan 300-302 ni se integra el
+predictor en ORB productivo. 5H sigue `PARCIAL`.
+
+El cruce 303-306 identifica `PV PRINCIPAL`: 303 completa con p/v GT y angular
+dinamica, 305 falla conservando p/v predichas aunque R/omega sean GT actuales,
+y 306 valida el montaje con GT completo. 304 no valida la propagacion desde
+omega GT instantanea en `t_k`, aun con bracket y torque cubiertos; queda como
+diagnostico secundario. No se reabren 300-302.
+
+La integracion post-317 lleva los estimadores causales y predictores dinamicos
+a `StereoSlamNode` con selector `legacy|dynamic`. Builds y suites pasan. La
+paridad 318 completa el escenario, pero incumple el criterio por un hueco de
+torque al inicio de un movimiento: la muestra disponible estaba sellada despues
+de la base. Se detiene el bloque; 319/320 ORB real no se ejecutan.
+
+La iteracion causal demuestra el cero inicial, añade seed, ZOH, cobertura
+explicita y persistencia ante resets. 318R completa, pero la poda de 0.5 s
+elimina el seed antes del primer comando y produce `MISSING_PREFIX=70 ms`.
+La correccion conserva una predecesora ZOH: 318R2 y 319R completan sin missing
+ni fallback y validan poda, cobertura y paridad. La primera 320 queda invalida
+porque el YAML imponia `legacy`; corregida la precedencia del launch, 320R usa
+`dynamic` realmente, pero no sigue la aproximacion bajo ORB y llega al segundo
+goal cerca del suelo con velocidad alta antes de una perdida visual breve.
+Integracion ORB productiva no validada; 321 queda detenida por STOP.
+
+El diagnostico shadow fuerza GT solo durante aproximacion/asentamiento y deja
+el ORB dinamico productivo activo en paralelo. 320R2 es invalida por ruta YAML;
+320R2R valida un handoff en frontera con salto pose/rotacion cero. Aun con
+tracking `2`, sin fallback ni missing, el hover diverge hasta `~1.63 m` y
+`~0.52 rad`. La bateria 321 confirma autoridad antes del goal: 321B se mantiene
+estable al sustituir solo `v_GT`, mientras 321AR y 321D divergen con `v_ORB`.
+La velocidad lineal ORB queda aislada como causa principal; ORB completo sigue
+sin validar.
+
+322 mantiene GT como autoridad y ejecuta ORB `dynamic` integro en shadow. En
+907 medidas settled, `v_mid` da RMSE `0.01984 m/s`, THREE_SAMPLE
+`0.03457 m/s` frente a TWO_SAMPLE `0.01988 m/s`, y la propagacion hasta now
+`0.43308 m/s`. Diagnostico `MULTICAUSAL`: `A_HAT_AMPLIFICATION` mas
+`DYNAMIC_PROPAGATION`; no se modifica aun la salida productiva.
+
+324/325 corrigen solo la segunda causa: la gravedad se transforma W->O y se
+congela por epoch desde autoridad global. `v_dynamic_now` baja de `0.43308` a
+`0.03583/0.03707 m/s`, reproducible y sin cambiar THREE_SAMPLE. La propagacion
+dinamica queda corregida; la amplificacion `a_hat` permanece separada.
+
+326/327 comparan sobre muestras comunes TWO_SAMPLE, THREE_SAMPLE y el nuevo
+MIDPOINT_DYNAMIC. Este ultimo conserva cobertura 100 %, empata con TWO_SAMPLE
+en hover, mejora ligeramente en movimiento y evita la amplificacion de
+THREE_SAMPLE. 328/329 confirman reproduciblemente su salida productiva en
+shadow con RMSE `0.02113/0.02460 m/s`.
+
+330/331 entregan el estado ORB completo al controlador tras el handoff y
+completan el nuevo goal hover durante `34.78/35.30 s`, con tracking OK, sin
+fallback ni clamp y energia angular total negativa. Quedan validados
+`A_HAT_AMPLIFICATION CORREGIDA`, el estimador lineal productivo y el hover ORB
+real. 5H permanece parcial hasta validar X/Y/Z/yaw y la trayectoria
+representativa.
+
+332/333 validan X 2 m de forma reproducible con ORB, tracking continuo y
+fallback cero. 334 mantiene errores de control acotados, pero su trayectoria
+`[0,-10,1] -> [0,-8,1]` atraviesa el fiducial 2 en `[0,-8.5,1]`; la colision
+causa la perdida de tracking y el fallback. 334 es invalida y no evalua Y;
+335-343 no se ejecutan.
+
+334R corrige la geometria y mantiene ORB/tracking/fallback cero, pero revela
+velocidad residual en el hover final: ev final `0.187 m/s` y RMSE final de
+3 s `0.174 m/s`, frente a GT `0.049 m/s`. Y queda no validado y se aplica STOP.
+
+334R2 visual reproduce y agrava el fallo sin perder tracking: ep/ev final
+`0.213 m / 0.551 m/s`, max ev `2.188 m/s` y RMSE ev final `1.008 m/s`.
+
+334R3R/335R muestran que Y se estabiliza al acercar el dron a la pared y
+evitar el fiducial: tracking continuo, fallback cero y posicion acotada, con
+residual final de velocidad cercana a `0.11 m/s`. 336/337R validan Z. 338 yaw
+falla con max er `0.995 rad`, RMSE omega `0.409 rad/s`, RMSE lineal
+`0.530 m/s` y perdida de tracking que activa fallback. STOP: 339-343 no
+ejecutadas.

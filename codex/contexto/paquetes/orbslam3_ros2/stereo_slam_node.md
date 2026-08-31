@@ -176,6 +176,12 @@ input usa reloj Gazebo y receive/publish reloj ROS, por lo que se declaran como
 dominios distintos y la edad visual se reconstruye offline mediante GT
 dual-clock.
 
+El diagnostico lineal post-321 añade, solo con
+`debug_orb_control_state=true`, `[F5H-LINEAR-MEASUREMENT]`: stamps de imagen y
+recepcion, `p_k2/p_k1/p_k`, velocidades midpoint, `a_hat`, `v_hat_tk`, modo y
+calidad temporal, reference KF y `correction_class`. Es observabilidad pura:
+no altera `CausalLinearVelocityEstimator`, su salida ni la rama productiva.
+
 El laboratorio temporal F5H vive en
 `src/stereo/gt-timing-diagnostic-node.cpp` -> `GtTimingDiagnosticNode`
 (`rg -n "F5H-GT-TIMING|TracePeriods|DeliveryDelay"`). Alimenta el mismo
@@ -184,12 +190,74 @@ El laboratorio temporal F5H vive en
 `gt_20`, `gt_20_delay` y `gt_orb_timing`; esta apagado por defecto y debe
 retirarse tras el diagnostico.
 
+El laboratorio translacional vive en los mismos archivos:
+`navigation-state-estimator.hpp/.cpp` -> `BodyThrustDynamicPredictor`
+(`rg -n "BodyThrustDynamicPredictor|F5H-TRANSLATIONAL"`). Conserva un buffer
+acotado de thrust body sellado, usa la masa `fisico.total.masa`, gravedad world
+y `R_dynamic(t)` del `BodyTorqueDynamicPredictor`. Integra cada intervalo con
+dt real, aceleracion en el punto medio, velocidad semiimplicita y posicion
+trapezoidal. Los modos 309-312 son exclusivamente diagnosticos y no conectan
+esta clase a `StereoSlamNode` productivo.
+
+En la ruta productiva post-323, la gravedad fisica parte de
+`g_W=(0,0,-9.81)` y `EpochGravityState` la expresa como
+`g_O=O_R_W*g_W`. `StereoSlamNode` obtiene `O_T_W` de la primera pose global
+`AUTHORITATIVE`, congela `g_O` durante el `map_epoch` y la invalida al cambiar
+de epoch. Hasta disponer de ella, la base translacional dynamic no es
+consumible. Las revisiones globales posteriores no sobrescriben la gravedad.
+Marcadores debug: `[F5H-GRAVITY-O-INIT]`, `[F5H-GRAVITY-O-WAIT]` y
+`[F5H-DYNAMIC-TRANSLATION]`.
+
+`CausalLinearVelocityEstimator` conserva THREE_SAMPLE para telemetria y
+comparacion. La ruta productiva post-327 usa `PredictMidpointDynamicVelocity`
+en `navigation-state-estimator.hpp/.cpp` (`rg -n
+"PredictMidpointDynamicVelocity|F5H-MIDPOINT-DYNAMIC"`). A partir de dos poses
+visuales aceptadas calcula `v_mid`, interpola R en SO(3), estima omega espacial
+causal y traduce el midpoint de reloj imagen a reloj ROS. Los predictores de
+torque y thrust propagan conjuntamente hasta `t_k` usando gravedad O. Solo
+cobertura `FULL` y resultado valido sustituyen la base lineal productiva; un
+rechazo conserva la ultima base aceptada y el cambio de epoch reinicia el
+historial. `[F5H-PRODUCTIVE-MEASUREMENT]` declara
+`linear_source=MIDPOINT_DYNAMIC|UNAVAILABLE`; THREE_SAMPLE no gobierna.
+326-329 validan cobertura y precision, y 330/331 completan hover ORB real sin
+fallback ni perdida de tracking.
+
 E/F/G añaden los modos `gt_20_exact_omega`,
 `gt_20_exact_omega_hold` y `gt_20_exact_omega_extrapolate`. La omega GT world/O
 se sincroniza con la ultima muestra cuyo timestamp no es futuro. E llama a
 `OrbPosePredictor::OverrideAngularVelocityForDiagnostics`; F/G sustituyen solo
 la rama angular y conservan la traslacion del predictor. La API y estos modos
 son instrumentacion temporal marcada para retirar, no arquitectura final.
+
+Estimacion causal vigente desde 276:
+
+- `OrbPosePredictor::UpdateMeasurement` calcula velocidad espacial world/O con
+  `Log(R_k R_{k-1}^{-1})/dt`, coherente con propagacion izquierda;
+- con tres poses GOOD estima aceleracion entre midpoints y proyecta la ultima
+  velocidad media solo hasta `t_k`;
+- con dos poses o dt degradado usa el ultimo intervalo; entre callbacks hace
+  hold de omega, sin extrapolarla con aceleracion hasta `now`;
+- una medida rechazada no avanza el historial, el decay permanece y un cambio
+  de `map_epoch` reinicia el historial angular;
+- `raw_reversal_noise_step_rad=0.005` anula solo inversiones microscopicas;
+  `raw_motion_filter_alpha<=0` queda como kill switch de tests, no filtro;
+- localizar con
+  `rg -n "ThreeSamplePredicted|omega_hat_at_measurement|microscopic_reversal"`.
+
+276-277 con pose GT 20 Hz completan y son disipativas. Esta evidencia valida
+el estimador sin delay, pero no aun ORB real.
+
+Diagnostico 282/284:
+
+- `gt-timing-diagnostic-node.cpp` construye solo su predictor con horizonte
+  `0.18 s`; el wrapper productivo conserva `0.10 s`;
+- `OrbPosePredictorConfig::predict_angular_acceleration=false` mantiene el
+  comportamiento productivo. El laboratorio lo activa y `Predict` integra
+  coherentemente pose/omega al mismo target mediante aceleracion causal;
+- `PredictedOrbPoseState` informa alpha, delta angular y limites. Alpha se
+  invalida con dt degradado, rechazo, epoch, override o reset;
+- cinco GTests cubren alpha cero, aceleracion conocida, cambio de signo, clamp
+  y coherencia pose/omega. 282 y 284 fallan; la rama no se habilita en ORB real.
 
 La prueba 262 valida el nuevo deadband, supresion y decay con 37/37 GTests y en
 lazo cerrado: `omega_bias=0` durante ORB y raw rechazado decae sin corte. Aun
@@ -610,3 +678,111 @@ La recuperacion de 2026-08-05 se valido con build aislado de `orbslam3` con
 codigo 0 y comprobando que el binario `stereo` contiene `BuildOrbMap`,
 `PublishOrbMapDelta`, `GetFullMapServiceCallback`, `HashMapPoint`,
 `HashKeyFrame` y `UpdateMapEpochFromCurrentMap`.
+
+## Diagnostico cruzado F5H
+
+El cruce ampliado añade `DiagnosticControlState` y los modos
+`gt_20_delay_pvgt_rpred_omegapred`, `..._omegagt`,
+`gt_20_delay_pvgt_rgt_omegapred` y `..._omegagt`. P/v/R/omega se seleccionan
+por canal y `[F5H-PHASE-PUBLISH]` registra `p_pred/p_gt_now/p_used`,
+`v_pred/v_gt_now/v_used`, fuentes, edades y skew. Localizacion:
+`navigation-state-estimator.hpp` -> `SelectDiagnosticControlState` y
+`gt-timing-diagnostic-node.cpp` -> `UsesGtPositionNow`. Las pruebas 288-291
+demuestran que solo las ramas con omega predicha fallan bajo delay; el bloque
+sigue siendo instrumentacion temporal, no control productivo.
+
+`GtTimingDiagnosticNode` conserva pose y omega GT recientes antes del
+downsample visual. Los modos `gt_20_delay_rpred_omegagt`,
+`gt_20_delay_rgt_omegapred` y `gt_20_delay_rgt_omegagt` seleccionan R/omega de
+forma independiente con `SelectDiagnosticAngularState`; traslacion y velocidad
+lineal permanecen en el predictor. `[F5H-PHASE-PUBLISH]` registra fuentes,
+estados predicho/GT/usado, edades locales y skew fisico.
+
+Referencia: `src/stereo/gt-timing-diagnostic-node.cpp` -> buscar
+`UsesGtOrientationNow` y `UsesGtAngularVelocityNow`; selector en
+`src/stereo/navigation-state-estimator.hpp` -> buscar
+`SelectDiagnosticAngularState`. Todo este bloque es laboratorio temporal F5H.
+
+## Predictor dinamico temporal F5H
+
+`navigation-state-estimator.hpp/.cpp` -> `BodyTorqueDynamicPredictor` conserva
+un buffer de torque corporal y propaga `R,omega` con timestamps reales mediante
+`J*omega_dot=tau-omega x (J*omega)`. `gt-timing-diagnostic-node.cpp` consume
+`control/tray/torque`, carga `fisico.total.matriz_inercia` y expone los modos
+`dynamic_292` a `dynamic_295`; `[F5H-DYNAMIC-PREDICT]` registra horizonte,
+torque, omega dinamica y truth GT. Es instrumentacion temporal.
+
+La prueba 292 usa `J=diag(1e-4)` y falla en decimas: el modelo predice cientos
+de rad/s ante milinewton-metro mientras la planta mide alrededor de 1 rad/s.
+Con la J compuesta `diag(0.00803107,0.00803107,0.015805)`, las pruebas 296,
+297, 293, 298, 294 y 295 completan entre `54.62` y `55.12 s`, con RMSE omega
+`0.00255-0.00557 rad/s`, mismatch maximo `0.777 %` y energia total negativa.
+El predictor angular queda validado con delay fijo hasta 294. En 295,
+`UsesCrossDiagnostic()` es falso y `DeliveryDelay()` devuelve cero: sus 31 ms
+medios validan estado completo sin delay añadido, no bajo los ~110 ms de
+296-294. Quedan pendientes timing/jitter medido y ORB real.
+
+`dynamic_299` reutiliza el estado completo dinamico de 295, pero selecciona
+`TracePeriods()` y `TraceDelays()` de 268. No activa overrides GT actuales:
+p/v proceden del predictor y R/omega de `BodyTorqueDynamicPredictor`; GT queda
+solo como truth. El GTest `CompositeInertiaHandlesIrregularOrbTimingTrace`
+cubre J compuesta, periodos irregulares y continuidad del buffer de torque.
+
+La prueba 299 no valida esta rama con jitter: mantiene cobertura completa del
+buffer (`missing=false`) y no pierde fuente, pero los periodos de hasta
+`0.12 s` generan 48 estados `DEGRADED_DT`; con edad visual maxima `0.20 s`, el
+lazo acumula `+0.0141 J` y falla tras `16.94 s`. Los rechazos visuales aparecen
+despues del crecimiento. `dynamic_299` queda como laboratorio diagnostico; no
+se ha conectado el predictor a `StereoSlamNode` productivo.
+
+Los modos de laboratorio `dynamic_303` a `dynamic_306` reutilizan la traza de
+299 para cruzar p/v y estado angular. 303 usa p/v GT actuales con angular
+dinamico; 304 inicializa R/omega desde GT interpolado en `t_k` y propaga hasta
+now solo con torque/J; 305 usa p/v predichas con angular GT actual; 306 usa GT
+actual completo como sanity. `GtTimingDiagnosticNode` conserva buffers GT
+acotados de pose y twist; la interpolacion 304 es retrospectiva, no espera
+muestras y rechaza instantes sin bracket. Buscar `UsesTraceTiming`,
+`InterpolateGtAt` y `[F5H-GT-TK-INVALID]`. Es instrumentacion retirable F5H y
+no modifica `StereoSlamNode` productivo.
+
+Resultado 303-306: 303 y 306 completan; 304 y 305 fallan. El cruce identifica
+p/v predichas como causa principal bajo jitter: angular dinamica funciona con
+p/v GT, pero angular GT(now) no salva p/v predichas. La interpolacion 304 fue
+valida y el torque estuvo cubierto, aunque GT(t_k)+dinamica no reprodujo la
+omega actual; esa rama queda diagnostica y no validada. Ninguno de estos modos
+entra en la ruta productiva.
+
+## Ruta dinamica productiva temporal
+
+`src/stereo/stereo-slam-node.cpp` -> `StereoSlamNode`, buscar
+`navigation_prediction_mode`, `ResetDynamicNavigationState`,
+`[F5H-PRODUCTIVE-MEASUREMENT]` y `[F5H-PRODUCTIVE-PREDICT]`. En modo
+`dynamic`, la medida O aceptada inicializa p/R,
+`CausalLinearVelocityEstimator` aporta v en `t_k`, `OrbPosePredictor`
+aporta omega causal y los predictores de torque/thrust propagan un estado comun
+hasta el tick. Los callbacks conservan los stamps de las ordenes; un intervalo
+no cubierto emite `[F5H-PRODUCTIVE-MISSING]` e invalida la fuente local.
+
+El modo `legacy` permanece por defecto. La prueba 318 equivalente encuentra
+un arranque con buffer no vacio cuya unica orden es posterior a la base; no
+existe cobertura causal y el bootstrap de buffer vacio no aplica. La ruta no
+se ha validado todavia con ORB real.
+
+`navigation-state-estimator.hpp/.cpp` -> `ActuationCoverage`,
+`CoverInterval` y `ActuationCoverageStatusName`: torque y thrust distinguen
+`EMPTY`, `MISSING_PREFIX` y `FULL`; una orden conocida se mantiene por ZOH
+sin fingir huecos internos. `StereoSlamNode` crea
+`[F5H-ACTUATION-SEED]` cero al cold start demostrado y
+`ResetDynamicNavigationState` conserva los buffers físicos.
+
+Limitacion descubierta en 318R: `AddTorque/AddThrust` podan actualmente todas
+las muestras anteriores a `max_history_sec`. Tras una espera larga, eso puede
+eliminar el unico predecesor ZOH justo al llegar la primera orden. Debe
+conservarse una muestra anterior al corte antes de validar la ruta.
+
+La implementacion vigente poda con `while (size > 1 && sample[1].stamp <=
+cutoff) pop_front()`: conserva una predecesora y todas las recientes.
+318R2/319R validan cobertura sin crecimiento indefinido. 320R confirma
+`mode=dynamic` y cero missing productivo, pero no valida el comportamiento de
+control: ORB gobierna antes de la frontera acordada y el dron no alcanza la
+pose de aproximacion.

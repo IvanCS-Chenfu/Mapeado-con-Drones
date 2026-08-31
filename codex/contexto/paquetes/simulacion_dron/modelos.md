@@ -12,6 +12,16 @@ Modelo base del dron:
 - materiales;
 - macros para 4, 6 u 8 brazos.
 
+En el perfil multi-dron vigente, `physical_dron.yaml` aporta masas e inercias
+por enlace y `actuators_dron.yaml` fija brazos de `0.25 m` a 45 grados. El
+modelo de cuatro brazos suma 1.4 kg: cuerpo de 1.0 kg, cuatro brazos de 0.05 kg
+y cuatro motores de 0.05 kg. Los centros de los brazos quedan a radio 0.125 m
+y los motores a radio 0.25 m y z 0.015 m. Componiendo los tensores declarados
+con ejes paralelos respecto al centro de masas se obtiene aproximadamente
+`J_body=diag(0.00803107,0.00803107,0.015805) kg*m^2`; los productos de inercia
+se cancelan por simetria. No confundir esta J compuesta con la J de cada enlace
+ni con el antiguo `fisico.total.matriz_inercia=diag(1e-4)` del controlador.
+
 ### `urdf/dron_plugins.xacro`
 
 Modelo extendido con:
@@ -41,6 +51,15 @@ Referencia:
 simulacion/simulacion_dron/urdf/dron_plugins.xacro
   -> joint_camara_mono / joint_camara_estereo
   -> rg -n "joint_camara_(mono|estereo)|origin xyz"
+```
+
+Para masa e inercia:
+
+```text
+simulacion/simulacion_dron/urdf/dron.xacro
+  -> brazo_total / joint_cuerpo_brazo / joint_brazo_motor
+simulacion/simulacion_dron/config/physical_dron.yaml
+simulacion/simulacion_dron/config/actuators_dron.yaml
 ```
 
 ## Generación/spawn
@@ -101,6 +120,11 @@ Entradas ROS:
 Uso:
 - recibe fuerzas calculadas por `aplicar_fuerzas_dron`;
 - aplica fuerzas y torques en Gazebo.
+
+En cold start, `last_forces_` y `last_torques_` se inicializan
+explícitamente a cero. `OnUpdate` reaplica esos valores en cada tick y
+`OnWrench` los sustituye al recibir una orden: la semantica física es ZOH y
+el cero previo al primer comando esta demostrado.
 
 ### `plugin_sensor_groundtrurh.cpp`
 

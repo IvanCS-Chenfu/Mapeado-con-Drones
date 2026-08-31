@@ -15,6 +15,7 @@
 #include <cmath>
 #include <limits>
 #include <set>
+#include <stdexcept>
 #include <tuple>
 
 using std::placeholders::_1;
@@ -99,6 +100,11 @@ StereoSlamNode::StereoSlamNode(
     this->declare_parameter<double>("body_T_camera_pitch_deg", 0.0);
     this->declare_parameter<double>("body_T_camera_yaw_deg", 0.0);
     this->declare_parameter<double>("orb_state_publish_rate_hz", 50.0);
+    this->declare_parameter<std::string>("navigation_prediction_mode", "legacy");
+    this->declare_parameter<std::vector<double>>(
+        "fisico.total.matriz_inercia",
+        {0.00803107, 0.00803107, 0.015805, 0.0, 0.0, 0.0});
+    this->declare_parameter<double>("fisico.total.masa", 1.4);
     this->declare_parameter<double>("orb_state_filter.position_alpha", 0.55);
     this->declare_parameter<double>("orb_state_filter.orientation_alpha", 0.70);
     this->declare_parameter<double>("orb_state_filter.max_position_innovation_m", 0.30);
@@ -179,6 +185,14 @@ StereoSlamNode::StereoSlamNode(
 
     orb_state_publish_rate_hz_ = std::max(
         1.0, this->get_parameter("orb_state_publish_rate_hz").as_double());
+    navigation_prediction_mode_ =
+        this->get_parameter("navigation_prediction_mode").as_string();
+    if (navigation_prediction_mode_ != "legacy" &&
+        navigation_prediction_mode_ != "dynamic")
+    {
+        throw std::runtime_error(
+            "navigation_prediction_mode debe ser 'legacy' o 'dynamic'");
+    }
     orbslam3_ros2::OrbPosePredictorConfig predictor_config;
     predictor_config.position_alpha = static_cast<float>(
         this->get_parameter("orb_state_filter.position_alpha").as_double());
@@ -268,6 +282,25 @@ StereoSlamNode::StereoSlamNode(
         static_cast<float>(this->get_parameter(
             "orb_state_filter.rejected_motion_decay_acceleration_radps2").as_double());
     orb_pose_predictor_ = orbslam3_ros2::OrbPosePredictor(predictor_config);
+    causal_linear_estimator_ = orbslam3_ros2::CausalLinearVelocityEstimator(
+        predictor_config.raw_dt_max_good_sec,
+        predictor_config.raw_dt_max_degraded_sec,
+        predictor_config.max_linear_speed_mps,
+        predictor_config.max_linear_acceleration_mps2);
+    const auto inertia =
+        this->get_parameter("fisico.total.matriz_inercia").as_double_array();
+    if (inertia.size() != 6U)
+    {
+        throw std::runtime_error("fisico.total.matriz_inercia debe tener 6 valores");
+    }
+    Eigen::Matrix3f inertia_body;
+    inertia_body <<
+        inertia[0], inertia[3], inertia[4],
+        inertia[3], inertia[1], inertia[5],
+        inertia[4], inertia[5], inertia[2];
+    body_torque_predictor_.SetInertia(inertia_body);
+    body_thrust_predictor_.SetMass(static_cast<float>(
+        this->get_parameter("fisico.total.masa").as_double()));
     orbslam3_ros2::ReferenceGateConfig reference_gate_config;
     reference_gate_config.confirmation_frames = static_cast<uint32_t>(
         std::max<int64_t>(1, this->get_parameter(
@@ -335,12 +368,39 @@ StereoSlamNode::StereoSlamNode(
         this->create_publisher<orbslam3_msgs::msg::NavigationState>(
             "orbslam/navigation_state",
             rclcpp::QoS(rclcpp::KeepLast(20)).reliable());
+    torque_subscription_ =
+        this->create_subscription<geometry_msgs::msg::Vector3Stamped>(
+            "control/tray/torque", rclcpp::QoS(100),
+            std::bind(&StereoSlamNode::HandleBodyTorque, this, std::placeholders::_1));
+    thrust_subscription_ =
+        this->create_subscription<geometry_msgs::msg::Vector3Stamped>(
+            "control/tray/thrust", rclcpp::QoS(100),
+            std::bind(&StereoSlamNode::HandleBodyThrust, this, std::placeholders::_1));
+    if (navigation_prediction_mode_ == "dynamic")
+    {
+        const double startup_stamp_sec = this->get_clock()->now().seconds();
+        body_torque_predictor_.AddTorque(startup_stamp_sec, Eigen::Vector3f::Zero());
+        body_thrust_predictor_.AddThrust(startup_stamp_sec, 0.0f);
+        RCLCPP_WARN(
+            this->get_logger(),
+            "[F5H-ACTUATION-SEED] type=ZERO stamp=%.9f "
+            "tau=(0.000000000,0.000000000,0.000000000) thrust=0.000000000 "
+            "reason=COLD_START_KNOWN_ZERO",
+            startup_stamp_sec);
+    }
     const auto navigation_state_period =
         std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::duration<double>(1.0 / orb_state_publish_rate_hz_));
     navigation_state_timer_ = this->create_wall_timer(
         navigation_state_period,
         std::bind(&StereoSlamNode::PublishPredictedNavigationState, this));
+    RCLCPP_WARN(
+        this->get_logger(),
+        "[F5H-PRODUCTIVE-PREDICTOR] mode=%s publish_hz=%.1f mass=%.6f "
+        "J=(%.9g,%.9g,%.9g,%.9g,%.9g,%.9g)",
+        navigation_prediction_mode_.c_str(), orb_state_publish_rate_hz_,
+        this->get_parameter("fisico.total.masa").as_double(), inertia[0], inertia[1],
+        inertia[2], inertia[3], inertia[4], inertia[5]);
     global_pose_client_ =
         this->create_client<orbslam3_msgs::srv::GetGlobalKeyFramePose>(
             "/global_mapping/get_global_keyframe_pose");
@@ -1200,6 +1260,7 @@ void StereoSlamNode::PublishNavigationState(
     const Sophus::SE3f& Tcw,
     double callback_arrival_stamp_sec)
 {
+    epoch_gravity_state_.ObserveEpoch(map_epoch_);
     const bool tracking_valid =
         receipt.tracking_state == ORB_SLAM3::Tracking::OK;
     const Sophus::SE3f local_t_camera = Tcw.inverse();
@@ -1285,6 +1346,144 @@ void StereoSlamNode::PublishNavigationState(
                 frames_since_reference_change_};
             predicted = orb_pose_predictor_.UpdateMeasurement(
                 raw_o_t_body, RosTimeToSeconds(stamp), measurement_context);
+            if (navigation_prediction_mode_ == "dynamic")
+            {
+                if (pose_result.epoch_changed)
+                {
+                    ResetDynamicNavigationState();
+                }
+                latest_linear_estimate_ = causal_linear_estimator_.AddSample(
+                    raw_o_t_body.translation(), RosTimeToSeconds(stamp), map_epoch_, true);
+                const auto& angular_diagnostics = orb_pose_predictor_.last_diagnostics();
+                orbslam3_ros2::MidpointDynamicVelocityEstimate midpoint_dynamic;
+                if (midpoint_previous_sample_valid_ && epoch_gravity_state_.valid())
+                {
+                    midpoint_dynamic = orbslam3_ros2::PredictMidpointDynamicVelocity(
+                        latest_linear_estimate_, midpoint_previous_orientation_,
+                        raw_o_t_body.so3(), midpoint_previous_image_stamp_sec_,
+                        RosTimeToSeconds(stamp), callback_arrival_stamp_sec,
+                        body_torque_predictor_, body_thrust_predictor_);
+                }
+                midpoint_previous_sample_valid_ = true;
+                midpoint_previous_orientation_ = raw_o_t_body.so3();
+                midpoint_previous_image_stamp_sec_ = RosTimeToSeconds(stamp);
+                if (midpoint_dynamic.valid && predicted.velocity_valid &&
+                    epoch_gravity_state_.valid())
+                {
+                    const double base_stamp = callback_arrival_stamp_sec;
+                    dynamic_base_pose_ = raw_o_t_body;
+                    dynamic_base_linear_velocity_ =
+                        midpoint_dynamic.velocity_at_sample;
+                    dynamic_base_angular_velocity_ =
+                        angular_diagnostics.omega_hat_at_measurement;
+                    dynamic_base_stamp_sec_ = base_stamp;
+                    dynamic_base_ready_ = true;
+                }
+                RCLCPP_INFO(
+                    this->get_logger(),
+                    "[F5H-PRODUCTIVE-MEASUREMENT] input_stamp=%.9f base_stamp=%.9f "
+                    "epoch=%lu ref_kf=%lu reference_changed=%s linear_mode=%s "
+                    "angular_mode=%s linear_valid=%s linear_source=%s dynamic_base_ready=%s "
+                    "v_hat_tk=(%.9f,%.9f,%.9f) omega_hat_tk=(%.9f,%.9f,%.9f)",
+                    RosTimeToSeconds(stamp), callback_arrival_stamp_sec,
+                    static_cast<unsigned long>(map_epoch_),
+                    static_cast<unsigned long>(pose_result.active_reference_keyframe_id),
+                    pose_result.reference_changed ? "true" : "false",
+                    orbslam3_ros2::LinearVelocityEstimatorModeName(
+                        latest_linear_estimate_.mode),
+                    orbslam3_ros2::AngularMotionEstimatorModeName(
+                        angular_diagnostics.omega_estimator_mode),
+                    latest_linear_estimate_.valid ? "true" : "false",
+                    midpoint_dynamic.valid ? "MIDPOINT_DYNAMIC" : "UNAVAILABLE",
+                    dynamic_base_ready_ ? "true" : "false",
+                    midpoint_dynamic.velocity_at_sample.x(),
+                    midpoint_dynamic.velocity_at_sample.y(),
+                    midpoint_dynamic.velocity_at_sample.z(),
+                    angular_diagnostics.omega_hat_at_measurement.x(),
+                    angular_diagnostics.omega_hat_at_measurement.y(),
+                    angular_diagnostics.omega_hat_at_measurement.z());
+                if (debug_orb_control_state_)
+                {
+                    const Eigen::Quaternionf q_mid = midpoint_dynamic.orientation_mid.unit_quaternion();
+                    const Eigen::Quaternionf q_tk =
+                        midpoint_dynamic.orientation_at_sample.unit_quaternion();
+                    RCLCPP_INFO(
+                        this->get_logger(),
+                        "[F5H-MIDPOINT-DYNAMIC] input_stamp=%.9f image_mid_stamp=%.9f "
+                        "ros_mid_stamp=%.9f ros_tk_stamp=%.9f horizon=%.9f valid=%s "
+                        "torque_coverage=%s thrust_coverage=%s torque_samples=%u "
+                        "thrust_samples=%u v_mid=(%.9f,%.9f,%.9f) "
+                        "omega_mid=(%.9f,%.9f,%.9f) R_mid_q=(%.9f,%.9f,%.9f,%.9f) "
+                        "R_tk_q=(%.9f,%.9f,%.9f,%.9f) v_midpoint_dynamic_tk=(%.9f,%.9f,%.9f)",
+                        RosTimeToSeconds(stamp), midpoint_dynamic.image_mid_stamp_sec,
+                        midpoint_dynamic.ros_mid_stamp_sec,
+                        midpoint_dynamic.ros_sample_stamp_sec, midpoint_dynamic.horizon_sec,
+                        midpoint_dynamic.valid ? "true" : "false",
+                        orbslam3_ros2::ActuationCoverageStatusName(
+                            midpoint_dynamic.torque_coverage.status),
+                        orbslam3_ros2::ActuationCoverageStatusName(
+                            midpoint_dynamic.thrust_coverage.status),
+                        midpoint_dynamic.torque_samples_used,
+                        midpoint_dynamic.thrust_samples_used,
+                        midpoint_dynamic.velocity_mid.x(), midpoint_dynamic.velocity_mid.y(),
+                        midpoint_dynamic.velocity_mid.z(),
+                        midpoint_dynamic.angular_velocity_mid.x(),
+                        midpoint_dynamic.angular_velocity_mid.y(),
+                        midpoint_dynamic.angular_velocity_mid.z(),
+                        q_mid.x(), q_mid.y(), q_mid.z(), q_mid.w(),
+                        q_tk.x(), q_tk.y(), q_tk.z(), q_tk.w(),
+                        midpoint_dynamic.velocity_at_sample.x(),
+                        midpoint_dynamic.velocity_at_sample.y(),
+                        midpoint_dynamic.velocity_at_sample.z());
+                    RCLCPP_INFO(
+                        this->get_logger(),
+                        "[F5H-LINEAR-MEASUREMENT] input_stamp=%.9f arrival_stamp=%.9f "
+                        "epoch=%lu tracking=%d ref_kf=%lu reference_changed=%s "
+                        "mode=%s accepted=%s valid=%s dt_previous=%.9f dt_current=%.9f "
+                        "mid_previous_stamp=%.9f mid_current_stamp=%.9f horizon_to_tk=%.9f "
+                        "p_k2=(%.9f,%.9f,%.9f) p_k1=(%.9f,%.9f,%.9f) "
+                        "p_k=(%.9f,%.9f,%.9f) v_mid_previous=(%.9f,%.9f,%.9f) "
+                        "v_mid_current=(%.9f,%.9f,%.9f) a_hat=(%.9f,%.9f,%.9f) "
+                        "v_hat_tk=(%.9f,%.9f,%.9f) raw_step_translation=%.9f "
+                        "raw_dt_quality=%s raw_class=%s correction_class=%s",
+                        RosTimeToSeconds(stamp), callback_arrival_stamp_sec,
+                        static_cast<unsigned long>(map_epoch_), receipt.tracking_state,
+                        static_cast<unsigned long>(pose_result.active_reference_keyframe_id),
+                        pose_result.reference_changed ? "true" : "false",
+                        orbslam3_ros2::LinearVelocityEstimatorModeName(
+                            latest_linear_estimate_.mode),
+                        latest_linear_estimate_.sample_accepted ? "true" : "false",
+                        latest_linear_estimate_.valid ? "true" : "false",
+                        latest_linear_estimate_.dt_previous_sec,
+                        latest_linear_estimate_.dt_current_sec,
+                        latest_linear_estimate_.previous_mid_stamp_sec,
+                        latest_linear_estimate_.current_mid_stamp_sec,
+                        latest_linear_estimate_.prediction_horizon_sec,
+                        latest_linear_estimate_.p_k2.x(), latest_linear_estimate_.p_k2.y(),
+                        latest_linear_estimate_.p_k2.z(), latest_linear_estimate_.p_k1.x(),
+                        latest_linear_estimate_.p_k1.y(), latest_linear_estimate_.p_k1.z(),
+                        latest_linear_estimate_.p_k.x(), latest_linear_estimate_.p_k.y(),
+                        latest_linear_estimate_.p_k.z(),
+                        latest_linear_estimate_.previous_mid_velocity.x(),
+                        latest_linear_estimate_.previous_mid_velocity.y(),
+                        latest_linear_estimate_.previous_mid_velocity.z(),
+                        latest_linear_estimate_.current_mid_velocity.x(),
+                        latest_linear_estimate_.current_mid_velocity.y(),
+                        latest_linear_estimate_.current_mid_velocity.z(),
+                        latest_linear_estimate_.acceleration.x(),
+                        latest_linear_estimate_.acceleration.y(),
+                        latest_linear_estimate_.acceleration.z(),
+                        latest_linear_estimate_.velocity_at_sample.x(),
+                        latest_linear_estimate_.velocity_at_sample.y(),
+                        latest_linear_estimate_.velocity_at_sample.z(),
+                        angular_diagnostics.raw_step_translation_m,
+                        orbslam3_ros2::RawDtQualityName(angular_diagnostics.raw_dt_quality),
+                        orbslam3_ros2::RawMotionClassName(
+                            angular_diagnostics.raw_motion_class),
+                        orbslam3_ros2::AngularCorrectionClassName(
+                            angular_diagnostics.classification));
+                }
+            }
             latest_orb_measurement_input_stamp_sec_ = RosTimeToSeconds(stamp);
             latest_orb_measurement_arrival_stamp_sec_ =
                 callback_arrival_stamp_sec;
@@ -1331,6 +1530,7 @@ void StereoSlamNode::PublishNavigationState(
             message.pose_source =
                 orbslam3_msgs::msg::NavigationState::POSE_SOURCE_INVALID;
             orb_pose_predictor_.Reset();
+            ResetDynamicNavigationState();
             o_t_world_valid_ = false;
             frames_since_reference_change_ = 0xFFFFFFFFU;
             last_published_orb_pose_valid_ = false;
@@ -1356,6 +1556,30 @@ void StereoSlamNode::PublishNavigationState(
                     pose_result.w_t_camera * body_t_camera_.inverse();
                 o_t_world_ = predicted.pose * raw_w_t_body.inverse();
                 o_t_world_valid_ = true;
+                if (message.global_valid &&
+                    epoch_gravity_state_.Initialize(map_epoch_, o_t_world_.so3()))
+                {
+                    body_thrust_predictor_.SetGravity(epoch_gravity_state_.gravity_o());
+                    const Eigen::Matrix3f w_r_o = o_t_world_.so3().inverse().matrix();
+                    const Eigen::Matrix3f o_r_w = o_t_world_.so3().matrix();
+                    const Eigen::Vector3f& gravity_o = epoch_gravity_state_.gravity_o();
+                    RCLCPP_WARN(
+                        this->get_logger(),
+                        "[F5H-GRAVITY-O-INIT] map_epoch=%lu stamp=%.9f "
+                        "source=authoritative_global_pose "
+                        "W_R_O=(%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f) "
+                        "O_R_W=(%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f,%.9f) "
+                        "g_W=(0.000000000,0.000000000,-9.810000000) "
+                        "g_O=(%.9f,%.9f,%.9f) norm=%.9f",
+                        static_cast<unsigned long>(map_epoch_), RosTimeToSeconds(stamp),
+                        w_r_o(0, 0), w_r_o(0, 1), w_r_o(0, 2),
+                        w_r_o(1, 0), w_r_o(1, 1), w_r_o(1, 2),
+                        w_r_o(2, 0), w_r_o(2, 1), w_r_o(2, 2),
+                        o_r_w(0, 0), o_r_w(0, 1), o_r_w(0, 2),
+                        o_r_w(1, 0), o_r_w(1, 1), o_r_w(1, 2),
+                        o_r_w(2, 0), o_r_w(2, 1), o_r_w(2, 2),
+                        gravity_o.x(), gravity_o.y(), gravity_o.z(), gravity_o.norm());
+                }
             }
             else if (
                 pose_result.global_state == orbslam3_ros2::GlobalPoseState::Invalid)
@@ -1374,6 +1598,7 @@ void StereoSlamNode::PublishNavigationState(
     else
     {
         orb_pose_predictor_.Reset();
+        ResetDynamicNavigationState();
         o_t_world_valid_ = false;
         frames_since_reference_change_ = 0xFFFFFFFFU;
         last_published_orb_pose_valid_ = false;
@@ -1719,40 +1944,155 @@ void StereoSlamNode::PublishPredictedNavigationState()
             now.seconds());
         base_state = orb_pose_predictor_.Predict(
             latest_orb_measurement_input_stamp_sec_);
-        predicted = orb_pose_predictor_.Predict(
-            prediction_timing.target_measurement_stamp_sec);
+        if (navigation_prediction_mode_ == "dynamic")
+        {
+            if (dynamic_base_ready_ && epoch_gravity_state_.valid())
+            {
+                const auto angular = body_torque_predictor_.Predict(
+                    dynamic_base_pose_.so3(), dynamic_base_angular_velocity_,
+                    dynamic_base_stamp_sec_, now.seconds());
+                const auto translational = body_thrust_predictor_.Predict(
+                    dynamic_base_pose_.translation(), dynamic_base_linear_velocity_,
+                    dynamic_base_pose_.so3(), dynamic_base_angular_velocity_,
+                    dynamic_base_stamp_sec_, now.seconds(), body_torque_predictor_);
+                if (angular.valid && translational.valid)
+                {
+                    predicted.valid = true;
+                    predicted.velocity_valid = true;
+                    predicted.pose = Sophus::SE3f(
+                        angular.orientation, translational.position_world);
+                    predicted.linear_velocity = translational.linear_velocity_world;
+                    predicted.angular_velocity = angular.angular_velocity_world;
+                    predicted.prediction_horizon_sec = angular.horizon_sec;
+                }
+                else
+                {
+                    const auto& torque_coverage = angular.torque_coverage;
+                    const auto& thrust_coverage = translational.thrust_coverage;
+                    RCLCPP_WARN_THROTTLE(
+                        this->get_logger(), *this->get_clock(), 500,
+                        "[F5H-PRODUCTIVE-MISSING] base_stamp=%.9f target_stamp=%.9f "
+                        "missing_torque_interval=%s missing_thrust_interval=%s "
+                        "missing_orientation_interval=%s torque_coverage=%s "
+                        "thrust_coverage=%s torque_oldest=%.9f torque_newest=%.9f "
+                        "thrust_oldest=%.9f thrust_newest=%.9f "
+                        "torque_missing_prefix=%.9f thrust_missing_prefix=%.9f "
+                        "torque_buffer=%zu thrust_buffer=%zu",
+                        dynamic_base_stamp_sec_, now.seconds(),
+                        angular.missing_torque_interval ? "true" : "false",
+                        translational.missing_force_interval ? "true" : "false",
+                        translational.missing_orientation_interval ? "true" : "false",
+                        orbslam3_ros2::ActuationCoverageStatusName(torque_coverage.status),
+                        orbslam3_ros2::ActuationCoverageStatusName(thrust_coverage.status),
+                        torque_coverage.oldest_stamp_sec, torque_coverage.newest_stamp_sec,
+                        thrust_coverage.oldest_stamp_sec, thrust_coverage.newest_stamp_sec,
+                        torque_coverage.missing_prefix_sec,
+                        thrust_coverage.missing_prefix_sec,
+                        body_torque_predictor_.torque_buffer_size(),
+                        body_thrust_predictor_.thrust_buffer_size());
+                }
+                if (debug_orb_control_state_ && predicted.valid)
+                {
+                    RCLCPP_INFO_THROTTLE(
+                        this->get_logger(), *this->get_clock(), 500,
+                        "[F5H-DYNAMIC-TRANSLATION] map_epoch=%lu gravity_valid=true "
+                        "g_O=(%.9f,%.9f,%.9f) thrust=%.9f "
+                        "a_thrust_O=(%.9f,%.9f,%.9f) a_O=(%.9f,%.9f,%.9f) "
+                        "dt=%.9f v_after=(%.9f,%.9f,%.9f)",
+                        static_cast<unsigned long>(map_epoch_),
+                        translational.gravity_world.x(), translational.gravity_world.y(),
+                        translational.gravity_world.z(), translational.thrust_newton,
+                        translational.thrust_acceleration_world.x(),
+                        translational.thrust_acceleration_world.y(),
+                        translational.thrust_acceleration_world.z(),
+                        translational.acceleration_world.x(),
+                        translational.acceleration_world.y(),
+                        translational.acceleration_world.z(), translational.horizon_sec,
+                        translational.linear_velocity_world.x(),
+                        translational.linear_velocity_world.y(),
+                        translational.linear_velocity_world.z());
+                    RCLCPP_INFO(
+                        this->get_logger(),
+                        "[F5H-PRODUCTIVE-PREDICT] base_stamp=%.9f target_stamp=%.9f "
+                        "horizon=%.9f torque_coverage=%s thrust_coverage=%s "
+                        "torque_oldest=%.9f torque_newest=%.9f "
+                        "thrust_oldest=%.9f thrust_newest=%.9f "
+                        "torque_samples=%u thrust_samples=%u "
+                        "p=(%.9f,%.9f,%.9f) v=(%.9f,%.9f,%.9f) "
+                        "omega=(%.9f,%.9f,%.9f)",
+                        dynamic_base_stamp_sec_, now.seconds(), angular.horizon_sec,
+                        orbslam3_ros2::ActuationCoverageStatusName(
+                            angular.torque_coverage.status),
+                        orbslam3_ros2::ActuationCoverageStatusName(
+                            translational.thrust_coverage.status),
+                        angular.torque_coverage.oldest_stamp_sec,
+                        angular.torque_coverage.newest_stamp_sec,
+                        translational.thrust_coverage.oldest_stamp_sec,
+                        translational.thrust_coverage.newest_stamp_sec,
+                        angular.torque_samples_used, translational.force_samples_used,
+                        predicted.pose.translation().x(), predicted.pose.translation().y(),
+                        predicted.pose.translation().z(), predicted.linear_velocity.x(),
+                        predicted.linear_velocity.y(), predicted.linear_velocity.z(),
+                        predicted.angular_velocity.x(), predicted.angular_velocity.y(),
+                        predicted.angular_velocity.z());
+                }
+            }
+            else if (!epoch_gravity_state_.valid())
+            {
+                RCLCPP_WARN_THROTTLE(
+                    this->get_logger(), *this->get_clock(), 1000,
+                    "[F5H-GRAVITY-O-WAIT] map_epoch=%lu gravity_valid=false "
+                    "action=dynamic_translation_not_consumable",
+                    static_cast<unsigned long>(map_epoch_));
+            }
+        }
+        else
+        {
+            predicted = orb_pose_predictor_.Predict(
+                prediction_timing.target_measurement_stamp_sec);
+        }
         if (!predicted.valid)
         {
-            return;
+            message.local_valid = false;
+            message.local_continuity_valid = false;
+            message.global_valid = false;
+            message.velocity_valid = false;
+            message.pose_source =
+                orbslam3_msgs::msg::NavigationState::POSE_SOURCE_INVALID;
+            message.velocity = geometry_msgs::msg::Twist();
+            last_published_orb_pose_valid_ = false;
         }
-        message.o_t_body = SophusToPoseMsg(predicted.pose);
-        if (last_published_orb_pose_valid_)
+        else
         {
-            const Sophus::SE3f published_step =
-                last_published_orb_pose_.inverse() * predicted.pose;
-            published_translation_step_m = published_step.translation().norm();
-            published_rotation_step_rad = published_step.so3().log().norm();
-        }
-        last_published_orb_pose_ = predicted.pose;
-        last_published_orb_pose_valid_ = true;
-        message.velocity_valid = predicted.velocity_valid;
-        message.velocity = geometry_msgs::msg::Twist();
-        if (predicted.velocity_valid)
-        {
-            message.velocity.linear.x = predicted.linear_velocity.x();
-            message.velocity.linear.y = predicted.linear_velocity.y();
-            message.velocity.linear.z = predicted.linear_velocity.z();
-            message.velocity.angular.x = predicted.angular_velocity.x();
-            message.velocity.angular.y = predicted.angular_velocity.y();
-            message.velocity.angular.z = predicted.angular_velocity.z();
-        }
-        if (
-            o_t_world_valid_ &&
-            message.global_status !=
-            orbslam3_msgs::msg::NavigationState::GLOBAL_STATUS_INVALID)
-        {
-            message.w_t_body = SophusToPoseMsg(
-                o_t_world_.inverse() * predicted.pose);
+            message.o_t_body = SophusToPoseMsg(predicted.pose);
+            if (last_published_orb_pose_valid_)
+            {
+                const Sophus::SE3f published_step =
+                    last_published_orb_pose_.inverse() * predicted.pose;
+                published_translation_step_m = published_step.translation().norm();
+                published_rotation_step_rad = published_step.so3().log().norm();
+            }
+            last_published_orb_pose_ = predicted.pose;
+            last_published_orb_pose_valid_ = true;
+            message.velocity_valid = predicted.velocity_valid;
+            message.velocity = geometry_msgs::msg::Twist();
+            if (predicted.velocity_valid)
+            {
+                message.velocity.linear.x = predicted.linear_velocity.x();
+                message.velocity.linear.y = predicted.linear_velocity.y();
+                message.velocity.linear.z = predicted.linear_velocity.z();
+                message.velocity.angular.x = predicted.angular_velocity.x();
+                message.velocity.angular.y = predicted.angular_velocity.y();
+                message.velocity.angular.z = predicted.angular_velocity.z();
+            }
+            if (
+                o_t_world_valid_ &&
+                message.global_status !=
+                orbslam3_msgs::msg::NavigationState::GLOBAL_STATUS_INVALID)
+            {
+                message.w_t_body = SophusToPoseMsg(
+                    o_t_world_.inverse() * predicted.pose);
+            }
         }
     }
     else
@@ -1879,6 +2219,57 @@ void StereoSlamNode::PublishPredictedNavigationState()
         static_cast<unsigned long>(orb_limited_measurement_count_),
         orb_state_publish_rate_hz_,
         message.local_valid ? "true" : "false");
+}
+
+void StereoSlamNode::HandleBodyTorque(
+    geometry_msgs::msg::Vector3Stamped::ConstSharedPtr message)
+{
+    if (navigation_prediction_mode_ != "dynamic")
+    {
+        return;
+    }
+    double stamp_sec = RosTimeToSeconds(message->header.stamp);
+    if (stamp_sec <= 0.0)
+    {
+        stamp_sec = this->get_clock()->now().seconds();
+    }
+    latest_torque_body_ = Eigen::Vector3f(
+        static_cast<float>(message->vector.x),
+        static_cast<float>(message->vector.y),
+        static_cast<float>(message->vector.z));
+    body_torque_predictor_.AddTorque(stamp_sec, latest_torque_body_);
+}
+
+void StereoSlamNode::HandleBodyThrust(
+    geometry_msgs::msg::Vector3Stamped::ConstSharedPtr message)
+{
+    if (navigation_prediction_mode_ != "dynamic")
+    {
+        return;
+    }
+    double stamp_sec = RosTimeToSeconds(message->header.stamp);
+    if (stamp_sec <= 0.0)
+    {
+        stamp_sec = this->get_clock()->now().seconds();
+    }
+    latest_thrust_newton_ = static_cast<float>(message->vector.z);
+    body_thrust_predictor_.AddThrust(stamp_sec, latest_thrust_newton_);
+}
+
+void StereoSlamNode::ResetDynamicNavigationState()
+{
+    causal_linear_estimator_.Reset();
+    latest_linear_estimate_ = orbslam3_ros2::CausalLinearVelocityEstimate();
+    dynamic_base_ready_ = false;
+    dynamic_base_stamp_sec_ = 0.0;
+    midpoint_previous_sample_valid_ = false;
+    midpoint_previous_image_stamp_sec_ = 0.0;
+    RCLCPP_INFO(
+        this->get_logger(),
+        "[F5H-ACTUATION-RESET] visual_state_reset=true physical_buffers_preserved=true "
+        "torque_buffer=%zu thrust_buffer=%zu",
+        body_torque_predictor_.torque_buffer_size(),
+        body_thrust_predictor_.thrust_buffer_size());
 }
 
 void StereoSlamNode::RequestGlobalPose(uint64_t map_epoch, uint64_t keyframe_id)

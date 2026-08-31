@@ -50,6 +50,13 @@ steps:
     type: wait
     seconds: 8.0
 
+  - {name: abre_frontera_orb_dron_1_fiducial_2, type: call_set_bool, service: /dron_1/control/set_trajectory_active, value: false, timeout_sec: 20.0}
+  - {name: abre_frontera_orb_dron_2_fiducial_2, type: call_set_bool, service: /dron_2/control/set_trajectory_active, value: false, timeout_sec: 20.0}
+  - {name: activa_orb_dron_1_fiducial_2, type: call_set_bool, service: /dron_1/control/activate_orb_shadow, value: true, timeout_sec: 20.0}
+  - {name: activa_orb_dron_2_fiducial_2, type: call_set_bool, service: /dron_2/control/activate_orb_shadow, value: true, timeout_sec: 20.0}
+  - {name: confirma_orb_dron_1_fiducial_2, type: wait_for_bool, topic: /dron_1/control/orb_authority_confirmed, expected: true, timeout_sec: 20.0}
+  - {name: confirma_orb_dron_2_fiducial_2, type: wait_for_bool, topic: /dron_2/control/orb_authority_confirmed, expected: true, timeout_sec: 20.0}
+
   - name: ambos_a_esquinas_sur_opuestas
     type: move
     mode: simultaneous
@@ -177,6 +184,11 @@ steps:
   - name: espera_anclaje_fiducial_1
     type: wait
     seconds: 8.0
+
+  - {name: abre_frontera_orb_dron_1_fiducial_1, type: call_set_bool, service: /dron_1/control/set_trajectory_active, value: false, timeout_sec: 20.0}
+  - {name: abre_frontera_orb_dron_2_fiducial_1, type: call_set_bool, service: /dron_2/control/set_trajectory_active, value: false, timeout_sec: 20.0}
+  - {name: reactiva_orb_dron_1_fiducial_1, type: call_set_bool, service: /dron_1/control/activate_orb_shadow, value: true, timeout_sec: 20.0}
+  - {name: reactiva_orb_dron_2_fiducial_1, type: call_set_bool, service: /dron_2/control/activate_orb_shadow, value: true, timeout_sec: 20.0}
 
   - name: barrido_fiducial_1_lateral_a
     type: move

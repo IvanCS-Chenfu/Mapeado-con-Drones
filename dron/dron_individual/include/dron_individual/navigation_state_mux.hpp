@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace dron_individual
 {
@@ -173,6 +174,44 @@ private:
   NavigationSource locked_source_{NavigationSource::GT_FALLBACK};
 };
 
+class OrbShadowActivationGate
+{
+public:
+  bool Update(
+    bool prerequisites_ready, double linear_speed, double angular_speed,
+    double now_sec, double settle_duration_sec, double max_linear_speed,
+    double max_angular_speed)
+  {
+    const bool stationary = prerequisites_ready &&
+      linear_speed <= max_linear_speed && angular_speed <= max_angular_speed;
+    if (!stationary) {
+      settling_ = false;
+      ready_ = false;
+      return false;
+    }
+    if (!settling_) {
+      settling_ = true;
+      settled_since_sec_ = now_sec;
+    }
+    ready_ = now_sec - settled_since_sec_ >= settle_duration_sec;
+    return ready_;
+  }
+
+  void Reset()
+  {
+    settling_ = false;
+    ready_ = false;
+  }
+
+  bool ready() const {return ready_;}
+  double settled_since_sec() const {return settled_since_sec_;}
+
+private:
+  bool settling_{false};
+  bool ready_{false};
+  double settled_since_sec_{0.0};
+};
+
 class EpochAnchorLatch
 {
 public:
@@ -226,6 +265,66 @@ private:
   NavigationSource source_{NavigationSource::INVALID};
   RigidPose control_t_source_;
   RigidPose control_t_body_;
+};
+
+enum class DiagnosticOrbControlMode
+{
+  NORMAL,
+  POSITION_GT,
+  VELOCITY_GT,
+  POSITION_VELOCITY_GT
+};
+
+inline DiagnosticOrbControlMode ParseDiagnosticOrbControlMode(const std::string & value)
+{
+  if (value == "position_gt") {
+    return DiagnosticOrbControlMode::POSITION_GT;
+  }
+  if (value == "velocity_gt") {
+    return DiagnosticOrbControlMode::VELOCITY_GT;
+  }
+  if (value == "position_velocity_gt") {
+    return DiagnosticOrbControlMode::POSITION_VELOCITY_GT;
+  }
+  return DiagnosticOrbControlMode::NORMAL;
+}
+
+inline bool UsesGtPosition(DiagnosticOrbControlMode mode)
+{
+  return mode == DiagnosticOrbControlMode::POSITION_GT ||
+         mode == DiagnosticOrbControlMode::POSITION_VELOCITY_GT;
+}
+
+inline bool UsesGtVelocity(DiagnosticOrbControlMode mode)
+{
+  return mode == DiagnosticOrbControlMode::VELOCITY_GT ||
+         mode == DiagnosticOrbControlMode::POSITION_VELOCITY_GT;
+}
+
+class DiagnosticGtControlAlignment
+{
+public:
+  void Capture(const RigidPose & control_t_body, const RigidPose & gt_t_body)
+  {
+    control_t_gt_ = Compose(control_t_body, Inverse(gt_t_body));
+    valid_ = true;
+  }
+
+  RigidPose TransformPose(const RigidPose & gt_t_body) const
+  {
+    return Compose(control_t_gt_, gt_t_body);
+  }
+
+  Eigen::Vector3d RotateVector(const Eigen::Vector3d & gt_vector) const
+  {
+    return control_t_gt_.rotation * gt_vector;
+  }
+
+  bool valid() const {return valid_;}
+
+private:
+  bool valid_{false};
+  RigidPose control_t_gt_;
 };
 
 }  // namespace dron_individual

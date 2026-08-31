@@ -59,6 +59,8 @@ def generate_launch_description():
         FindPackageShare('dron_individual'), 'config', 'calibration.yaml'])
     navigation_state_params = PathJoinSubstitution([
         FindPackageShare('dron_individual'), 'config', 'navigation_state.yaml'])
+    physical_params = PathJoinSubstitution([
+        FindPackageShare('dron_individual'), 'config', 'physical.yaml'])
 
     args = [
         DeclareLaunchArgument('vocab', default_value=default_vocab),
@@ -78,6 +80,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
         DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
+        DeclareLaunchArgument(
+            'orb_navigation_prediction_mode', default_value='legacy'),
         DeclareLaunchArgument('f5h_gt_timing_mode', default_value='off'),
     ]
 
@@ -97,6 +101,8 @@ def generate_launch_description():
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
     debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
+    orb_navigation_prediction_mode = LaunchConfiguration(
+        'orb_navigation_prediction_mode')
     f5h_gt_timing_mode = LaunchConfiguration('f5h_gt_timing_mode')
 
     common_params = {
@@ -118,6 +124,8 @@ def generate_launch_description():
         debug_fiducial_visualization, value_type=bool)
     stereo_params['debug_orb_control_state'] = ParameterValue(
         debug_orb_control_state, value_type=bool)
+    stereo_params['navigation_prediction_mode'] = ParameterValue(
+        orb_navigation_prediction_mode, value_type=str)
 
     mono_node = Node(
         condition=IfCondition(PythonExpression([
@@ -137,7 +145,9 @@ def generate_launch_description():
         package='orbslam3', executable='stereo', name='orbslam3_stereo',
         output='screen', additional_env=orbslam_environment,
         arguments=[vocab, yaml_stereo, rectify],
-        parameters=[stereo_params, calibration_params, navigation_state_params],
+        parameters=[
+            calibration_params, navigation_state_params, physical_params,
+            stereo_params],
         remappings=[
             ('camera/left', 'sensor/camara_izq/image_raw'),
             ('camera/right', 'sensor/camara_der/image_raw'),
@@ -151,7 +161,7 @@ def generate_launch_description():
         ])),
         package='orbslam3', executable='gt_timing_diagnostic',
         name='f5h_gt_timing_diagnostic', output='screen',
-        parameters=[navigation_state_params, {
+        parameters=[navigation_state_params, physical_params, {
             'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
             'mode': ParameterValue(f5h_gt_timing_mode, value_type=str),
             'drone_id': ParameterValue(drone_id, value_type=int),

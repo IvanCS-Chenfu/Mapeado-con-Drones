@@ -156,6 +156,12 @@ def generate_launch_description():
         'orb_qualification_samples', default_value='20'))
     ld.add_action(DeclareLaunchArgument(
         'f5h_gt_timing_mode', default_value='off'))
+    ld.add_action(DeclareLaunchArgument(
+        'f5h_orb_shadow_mode', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'f5h_orb_control_override', default_value='normal'))
+    ld.add_action(DeclareLaunchArgument(
+        'orb_navigation_prediction_mode', default_value='legacy'))
 
     architecture_telemetry_enabled = PythonExpression([
         "'", LaunchConfiguration('debug_system_architecture_web'),
@@ -334,6 +340,12 @@ def generate_launch_description():
                         'orb_qualification_samples'),
                     'f5h_gt_timing_mode': LaunchConfiguration(
                         'f5h_gt_timing_mode'),
+                    'f5h_orb_shadow_mode': LaunchConfiguration(
+                        'f5h_orb_shadow_mode'),
+                    'f5h_orb_control_override': LaunchConfiguration(
+                        'f5h_orb_control_override'),
+                    'orb_navigation_prediction_mode': LaunchConfiguration(
+                        'orb_navigation_prediction_mode'),
                 }.items()),
         ])
         if i == 1:

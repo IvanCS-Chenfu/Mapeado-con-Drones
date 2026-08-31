@@ -52,6 +52,20 @@ Marcadores:
 En prueba 85 el gate esperó 67.956 s y se liberó al bajar la cola a 2; después
 los tres lotes de dos drones finalizaron con seis resultados correctos.
 
+## Servicio booleano de escenario
+
+El paso `call_set_bool` recibe `service`, `value` y `timeout_sec`. Reintenta
+`std_srvs/SetBool` hasta recibir `success=true`, permitiendo esperar gates sin
+codificar su logica en el runner. Sus marcadores son
+`[SCENARIO-RUNNER-SERVICE-WAIT]`, `NOT-READY`, `DONE` y `TIMEOUT`.
+
+320R2/321 lo usan para llamar a
+`/dron_1/control/activate_orb_shadow` entre la aproximacion GT y el nuevo goal
+ORB. En 321 se abre antes `control/set_trajectory_active=false` y un
+`wait_for_bool` transient-local espera
+`control/orb_authority_confirmed=true`; el runner no interpreta tracking,
+anchor ni estacionariedad.
+
 ## Yaw relativo en escenarios
 
 `yaw_deg` se convierte a radianes y `absoluto_yaw` decide si representa una

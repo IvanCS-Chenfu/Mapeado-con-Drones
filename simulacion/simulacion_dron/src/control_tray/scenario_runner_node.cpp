@@ -17,6 +17,7 @@
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
 #include "std_msgs/msg/bool.hpp"
+#include "std_srvs/srv/set_bool.hpp"
 #include "dron_individual/action/tray_action.hpp"
 
 #include <yaml-cpp/yaml.h>
@@ -161,6 +162,8 @@ public:
         ok = ExecuteWaitStep(step);
       } else if (step_type == "wait_for_bool") {
         ok = ExecuteWaitForBoolStep(step);
+      } else if (step_type == "call_set_bool") {
+        ok = ExecuteCallSetBoolStep(step);
       } else if (step_type == "move") {
         ok = ExecuteMoveStep(step);
       } else {
@@ -408,6 +411,59 @@ private:
       "[SCENARIO-RUNNER-READY] topic='%s' expected=%s",
       topic.c_str(), expected ? "true" : "false");
     return rclcpp::ok();
+  }
+
+  bool ExecuteCallSetBoolStep(const YAML::Node & step)
+  {
+    const std::string service = YamlGet<std::string>(step, "service", "");
+    const bool value = YamlGet<bool>(step, "value", true);
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 15.0);
+    if (service.empty() || timeout_sec <= 0.0) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-ERROR] call_set_bool requires service and timeout_sec > 0");
+      return false;
+    }
+    auto client = create_client<std_srvs::srv::SetBool>(service);
+    const auto start = std::chrono::steady_clock::now();
+    RCLCPP_WARN(
+      get_logger(),
+      "[SCENARIO-RUNNER-SERVICE-WAIT] service='%s' value=%s timeout_sec=%.3f",
+      service.c_str(), value ? "true" : "false", timeout_sec);
+    while (rclcpp::ok()) {
+      const double elapsed = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - start).count();
+      if (elapsed >= timeout_sec) {
+        RCLCPP_ERROR(
+          get_logger(),
+          "[SCENARIO-RUNNER-SERVICE-TIMEOUT] service='%s' timeout_sec=%.3f",
+          service.c_str(), timeout_sec);
+        return false;
+      }
+      if (!client->wait_for_service(200ms)) {
+        continue;
+      }
+      auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
+      request->data = value;
+      auto future = client->async_send_request(request);
+      if (future.wait_for(500ms) != std::future_status::ready) {
+        continue;
+      }
+      const auto response = future.get();
+      if (response->success) {
+        RCLCPP_WARN(
+          get_logger(),
+          "[SCENARIO-RUNNER-SERVICE-DONE] service='%s' value=%s message='%s'",
+          service.c_str(), value ? "true" : "false", response->message.c_str());
+        return true;
+      }
+      RCLCPP_INFO_THROTTLE(
+        get_logger(), *get_clock(), 1000,
+        "[SCENARIO-RUNNER-SERVICE-NOT-READY] service='%s' message='%s'",
+        service.c_str(), response->message.c_str());
+      std::this_thread::sleep_for(100ms);
+    }
+    return false;
   }
 
   bool ExecuteMoveStep(const YAML::Node & step)

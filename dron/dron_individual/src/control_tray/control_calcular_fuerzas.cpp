@@ -21,6 +21,8 @@ public:
     pub_torque_ = this->create_publisher<geometry_msgs::msg::Vector3Stamped>(
       "control/tray/torque",
       10);
+    pub_thrust_ = this->create_publisher<geometry_msgs::msg::Vector3Stamped>(
+      "control/tray/thrust", 10);
     pub_fuerza_ = this->create_publisher<std_msgs::msg::Float64>("control/tray/fuerza", 10);
     objeto_timer = this->create_wall_timer(20ms, std::bind(&Clase_Publisher::enviar_fuerzas, this));
 
@@ -373,7 +375,15 @@ private:
       fuerza_deseada.data = F_des.z();
       pub_fuerza_->publish(fuerza_deseada);
 
+      const auto control_stamp = this->get_clock()->now();
+      geometry_msgs::msg::Vector3Stamped thrust_deseado;
+      thrust_deseado.header.stamp = control_stamp;
+      thrust_deseado.header.frame_id = "cuerpo";
+      thrust_deseado.vector.z = F_des.z();
+      pub_thrust_->publish(thrust_deseado);
+
       geometry_msgs::msg::Vector3Stamped torque_deseado;
+      torque_deseado.header.stamp = control_stamp;
       torque_deseado.header.frame_id = "cuerpo";
       torque_deseado.vector.x = tau_des.x();
       torque_deseado.vector.y = tau_des.y();
@@ -384,6 +394,7 @@ private:
   }
 
   rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_torque_;
+  rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr pub_thrust_;
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr pub_fuerza_;
   rclcpp::TimerBase::SharedPtr objeto_timer;
 

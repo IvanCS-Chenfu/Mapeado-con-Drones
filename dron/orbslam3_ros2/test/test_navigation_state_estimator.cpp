@@ -972,6 +972,207 @@ TEST(OrbPosePredictor, CausalAngularEstimatorDegradesSafelyAcrossLargeGap)
   EXPECT_NEAR(predictor.last_diagnostics().causal_angular_acceleration.norm(), 0.0f, 1e-7f);
 }
 
+TEST(OrbPosePredictor, AlphaPredictionMatchesConstantVelocityWhenAlphaIsZero)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.predict_angular_acceleration = true;
+  config.max_extrapolation_sec = 0.20;
+  config.max_angular_speed_radps = 5.0f;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+  predictor.UpdateMeasurement(RotationZ(0.00f), 1.00);
+  predictor.UpdateMeasurement(RotationZ(0.02f), 1.05);
+  predictor.UpdateMeasurement(RotationZ(0.04f), 1.10);
+
+  const auto predicted = predictor.Predict(1.20);
+  EXPECT_NEAR(predicted.angular_acceleration.norm(), 0.0f, 1e-5f);
+  EXPECT_NEAR(predicted.angular_velocity.z(), 0.4f, 1e-5f);
+  EXPECT_NEAR(predicted.pose.so3().log().z(), 0.08f, 1e-4f);
+}
+
+TEST(DiagnosticAngularState, SelectsPredictedOrientationAndCurrentGtOmegaFor285)
+{
+  const auto predicted = RotationZ(0.2f);
+  const auto gt = RotationZ(0.7f);
+  const auto selected = orbslam3_ros2::SelectDiagnosticAngularState(
+    predicted, Eigen::Vector3f(1.0f, 2.0f, 3.0f), gt,
+    Eigen::Vector3f(4.0f, 5.0f, 6.0f), false, true);
+  EXPECT_NEAR((selected.pose.so3() * predicted.so3().inverse()).log().norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.angular_velocity - Eigen::Vector3f(4.0f, 5.0f, 6.0f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(DiagnosticAngularState, SelectsCurrentGtOrientationAndPredictedOmegaFor286)
+{
+  const auto predicted = Sophus::SE3f(
+    RotationZ(0.2f).so3(), Eigen::Vector3f(1.0f, 2.0f, 3.0f));
+  const auto gt = RotationZ(0.7f);
+  const auto selected = orbslam3_ros2::SelectDiagnosticAngularState(
+    predicted, Eigen::Vector3f(1.0f, 2.0f, 3.0f), gt,
+    Eigen::Vector3f(4.0f, 5.0f, 6.0f), true, false);
+  EXPECT_NEAR((selected.pose.so3() * gt.so3().inverse()).log().norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.pose.translation() - predicted.translation()).norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.angular_velocity - Eigen::Vector3f(1.0f, 2.0f, 3.0f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(DiagnosticAngularState, SelectsCurrentGtOrientationAndOmegaFor287)
+{
+  const auto selected = orbslam3_ros2::SelectDiagnosticAngularState(
+    RotationZ(0.2f), Eigen::Vector3f(1.0f, 2.0f, 3.0f), RotationZ(0.7f),
+    Eigen::Vector3f(4.0f, 5.0f, 6.0f), true, true);
+  EXPECT_NEAR((selected.pose.so3() * RotationZ(0.7f).so3().inverse()).log().norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.angular_velocity - Eigen::Vector3f(4.0f, 5.0f, 6.0f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(DiagnosticControlState, SelectsOnlyCurrentGtPositionAndVelocityFor288)
+{
+  const auto predicted = Sophus::SE3f(
+    RotationZ(0.2f).so3(), Eigen::Vector3f(1.0f, 2.0f, 3.0f));
+  const auto gt = Sophus::SE3f(
+    RotationZ(0.7f).so3(), Eigen::Vector3f(7.0f, 8.0f, 9.0f));
+  const auto selected = orbslam3_ros2::SelectDiagnosticControlState(
+    predicted, Eigen::Vector3f(1.0f, 2.0f, 3.0f), Eigen::Vector3f(4.0f, 5.0f, 6.0f),
+    gt, Eigen::Vector3f(7.0f, 8.0f, 9.0f), Eigen::Vector3f(10.0f, 11.0f, 12.0f),
+    true, true, false, false);
+  EXPECT_NEAR((selected.pose.translation() - gt.translation()).norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.pose.so3() * predicted.so3().inverse()).log().norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.linear_velocity - Eigen::Vector3f(7.0f, 8.0f, 9.0f)).norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.angular_velocity - Eigen::Vector3f(4.0f, 5.0f, 6.0f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(DiagnosticControlState, SelectsCurrentGtPositionVelocityAndOmegaFor289)
+{
+  const auto selected = orbslam3_ros2::SelectDiagnosticControlState(
+    RotationZ(0.2f), Eigen::Vector3f::Ones(), Eigen::Vector3f(4.0f, 5.0f, 6.0f),
+    RotationZ(0.7f), Eigen::Vector3f(7.0f, 8.0f, 9.0f),
+    Eigen::Vector3f(10.0f, 11.0f, 12.0f), true, true, false, true);
+  EXPECT_NEAR((selected.pose.so3() * RotationZ(0.2f).so3().inverse()).log().norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.angular_velocity - Eigen::Vector3f(10.0f, 11.0f, 12.0f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(DiagnosticControlState, SelectsCurrentGtPositionVelocityAndOrientationFor290)
+{
+  const auto selected = orbslam3_ros2::SelectDiagnosticControlState(
+    RotationZ(0.2f), Eigen::Vector3f::Ones(), Eigen::Vector3f(4.0f, 5.0f, 6.0f),
+    RotationZ(0.7f), Eigen::Vector3f(7.0f, 8.0f, 9.0f),
+    Eigen::Vector3f(10.0f, 11.0f, 12.0f), true, true, true, false);
+  EXPECT_NEAR((selected.pose.so3() * RotationZ(0.7f).so3().inverse()).log().norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.angular_velocity - Eigen::Vector3f(4.0f, 5.0f, 6.0f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(DiagnosticControlState, SelectsCompleteCurrentGtStateFor291)
+{
+  const auto gt = Sophus::SE3f(
+    RotationZ(0.7f).so3(), Eigen::Vector3f(7.0f, 8.0f, 9.0f));
+  const auto selected = orbslam3_ros2::SelectDiagnosticControlState(
+    RotationZ(0.2f), Eigen::Vector3f::Ones(), Eigen::Vector3f(4.0f, 5.0f, 6.0f),
+    gt, Eigen::Vector3f(7.0f, 8.0f, 9.0f), Eigen::Vector3f(10.0f, 11.0f, 12.0f),
+    true, true, true, true);
+  EXPECT_NEAR((selected.pose * gt.inverse()).log().norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.linear_velocity - Eigen::Vector3f(7.0f, 8.0f, 9.0f)).norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.angular_velocity - Eigen::Vector3f(10.0f, 11.0f, 12.0f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(DiagnosticControlState, SelectsGtPositionAndPredictedVelocityFor307)
+{
+  const auto predicted = Sophus::SE3f(
+    RotationZ(0.2f).so3(), Eigen::Vector3f(1.0f, 2.0f, 3.0f));
+  const auto gt = Sophus::SE3f(
+    RotationZ(0.7f).so3(), Eigen::Vector3f(7.0f, 8.0f, 9.0f));
+  const auto selected = orbslam3_ros2::SelectDiagnosticControlState(
+    predicted, Eigen::Vector3f(1.0f, 2.0f, 3.0f), Eigen::Vector3f(4.0f, 5.0f, 6.0f),
+    gt, Eigen::Vector3f(7.0f, 8.0f, 9.0f), Eigen::Vector3f(10.0f, 11.0f, 12.0f),
+    true, false, true, true);
+  EXPECT_NEAR((selected.pose.translation() - gt.translation()).norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.linear_velocity - Eigen::Vector3f(1.0f, 2.0f, 3.0f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(DiagnosticControlState, SelectsPredictedPositionAndGtVelocityFor308)
+{
+  const auto predicted = Sophus::SE3f(
+    RotationZ(0.2f).so3(), Eigen::Vector3f(1.0f, 2.0f, 3.0f));
+  const auto gt = Sophus::SE3f(
+    RotationZ(0.7f).so3(), Eigen::Vector3f(7.0f, 8.0f, 9.0f));
+  const auto selected = orbslam3_ros2::SelectDiagnosticControlState(
+    predicted, Eigen::Vector3f(1.0f, 2.0f, 3.0f), Eigen::Vector3f(4.0f, 5.0f, 6.0f),
+    gt, Eigen::Vector3f(7.0f, 8.0f, 9.0f), Eigen::Vector3f(10.0f, 11.0f, 12.0f),
+    false, true, true, true);
+  EXPECT_NEAR((selected.pose.translation() - predicted.translation()).norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR((selected.linear_velocity - Eigen::Vector3f(7.0f, 8.0f, 9.0f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(OrbPosePredictor, AlphaPredictionIntegratesKnownConstantAcceleration)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.predict_angular_acceleration = true;
+  config.max_extrapolation_sec = 0.20;
+  config.max_angular_speed_radps = 5.0f;
+  config.max_raw_angular_acceleration_radps2 = 20.0f;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+  predictor.UpdateMeasurement(RotationZ(0.0000f), 1.00);
+  predictor.UpdateMeasurement(RotationZ(0.0025f), 1.05);
+  predictor.UpdateMeasurement(RotationZ(0.0100f), 1.10);
+
+  const auto predicted = predictor.Predict(1.20);
+  EXPECT_NEAR(predicted.angular_acceleration.z(), 2.0f, 1e-4f);
+  EXPECT_NEAR(predicted.angular_velocity.z(), 0.4f, 1e-4f);
+  EXPECT_NEAR(predicted.angular_prediction_delta.z(), 0.03f, 1e-4f);
+  EXPECT_NEAR(predicted.pose.so3().log().z(), 0.04f, 1e-4f);
+}
+
+TEST(OrbPosePredictor, AlphaPredictionCrossesAngularVelocitySign)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.predict_angular_acceleration = true;
+  config.max_extrapolation_sec = 0.20;
+  config.max_angular_speed_radps = 5.0f;
+  config.max_raw_angular_acceleration_radps2 = 20.0f;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+  predictor.UpdateMeasurement(RotationZ(0.000f), 1.00);
+  predictor.UpdateMeasurement(RotationZ(0.010f), 1.05);
+  predictor.UpdateMeasurement(RotationZ(0.015f), 1.10);
+
+  const auto predicted = predictor.Predict(1.15);
+  EXPECT_NEAR(predicted.angular_acceleration.z(), -2.0f, 1e-4f);
+  EXPECT_LT(predicted.angular_velocity.z(), 0.0f);
+}
+
+TEST(OrbPosePredictor, AlphaPredictionUsesClampedHorizon)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.predict_angular_acceleration = true;
+  config.max_extrapolation_sec = 0.12;
+  config.max_angular_speed_radps = 5.0f;
+  config.max_raw_angular_acceleration_radps2 = 20.0f;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+  predictor.UpdateMeasurement(RotationZ(0.0000f), 1.00);
+  predictor.UpdateMeasurement(RotationZ(0.0025f), 1.05);
+  predictor.UpdateMeasurement(RotationZ(0.0100f), 1.10);
+
+  const auto predicted = predictor.Predict(1.40);
+  EXPECT_TRUE(predicted.prediction_clamped);
+  EXPECT_NEAR(predicted.prediction_horizon_sec, 0.12, 1e-6);
+  EXPECT_NEAR(predicted.angular_velocity.z(), 0.44f, 1e-4f);
+}
+
+TEST(OrbPosePredictor, AlphaPredictionPoseAndOmegaShareTargetTime)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.predict_angular_acceleration = true;
+  config.max_extrapolation_sec = 0.20;
+  config.max_angular_speed_radps = 5.0f;
+  config.max_raw_angular_acceleration_radps2 = 20.0f;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+  predictor.UpdateMeasurement(RotationZ(0.0000f), 1.00);
+  predictor.UpdateMeasurement(RotationZ(0.0025f), 1.05);
+  predictor.UpdateMeasurement(RotationZ(0.0100f), 1.10);
+
+  const auto predicted = predictor.Predict(1.18);
+  const float dt = static_cast<float>(predicted.prediction_horizon_sec);
+  const float expected_omega = 0.20f + 2.0f * dt;
+  const float expected_angle = 0.010f + 0.20f * dt + 0.5f * 2.0f * dt * dt;
+  EXPECT_NEAR(predicted.angular_velocity.z(), expected_omega, 1e-4f);
+  EXPECT_NEAR(predicted.pose.so3().log().z(), expected_angle, 1e-4f);
+}
+
 TEST(OrbPosePredictor, RejectedMeasurementDoesNotEnterCausalAngularHistory)
 {
   orbslam3_ros2::OrbPosePredictorConfig config;
@@ -1360,6 +1561,661 @@ TEST(OrbPosePredictor, BiasNeedsExtraConfirmationAfterReferenceChange)
   EXPECT_EQ(
     predictor.last_diagnostics().bias_state,
     orbslam3_ros2::BiasCorrectionState::Active);
+}
+
+TEST(BodyTorqueDynamicPredictor, ZeroTorqueKeepsRestState)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(Eigen::Matrix3f::Identity());
+  predictor.AddTorque(1.0, Eigen::Vector3f::Zero());
+  const auto result = predictor.Predict(
+    Sophus::SO3f(), Eigen::Vector3f::Zero(), 1.0, 1.1);
+
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.angular_velocity_body.norm(), 0.0f, 1e-7f);
+  EXPECT_NEAR(result.orientation.log().norm(), 0.0f, 1e-7f);
+}
+
+TEST(BodyTorqueDynamicPredictor, ConstantPrincipalTorqueMatchesAnalyticOmega)
+{
+  Eigen::Matrix3f inertia = Eigen::Matrix3f::Identity();
+  inertia(0, 0) = 2.0f;
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(inertia);
+  predictor.AddTorque(1.0, Eigen::Vector3f(4.0f, 0.0f, 0.0f));
+  const auto result = predictor.Predict(
+    Sophus::SO3f(), Eigen::Vector3f::Zero(), 1.0, 1.25);
+
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.angular_velocity_body.x(), 0.5f, 1e-6f);
+  EXPECT_NEAR(result.angular_velocity_body.y(), 0.0f, 1e-7f);
+  EXPECT_GT(result.orientation.log().x(), 0.0f);
+}
+
+TEST(BodyTorqueDynamicPredictor, TorqueSignControlsAngularAccelerationSign)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor positive(Eigen::Matrix3f::Identity());
+  orbslam3_ros2::BodyTorqueDynamicPredictor negative(Eigen::Matrix3f::Identity());
+  positive.AddTorque(0.0, Eigen::Vector3f(0.0f, 0.0f, 1.0f));
+  negative.AddTorque(0.0, Eigen::Vector3f(0.0f, 0.0f, -1.0f));
+  const auto p = positive.Predict(Sophus::SO3f(), Eigen::Vector3f::Zero(), 0.0, 0.1);
+  const auto n = negative.Predict(Sophus::SO3f(), Eigen::Vector3f::Zero(), 0.0, 0.1);
+  ASSERT_TRUE(p.valid && n.valid);
+  EXPECT_GT(p.angular_velocity_body.z(), 0.0f);
+  EXPECT_LT(n.angular_velocity_body.z(), 0.0f);
+}
+
+TEST(BodyTorqueDynamicPredictor, GyroscopicTermCouplesAnisotropicAxes)
+{
+  Eigen::Matrix3f inertia = Eigen::Vector3f(1.0f, 2.0f, 3.0f).asDiagonal();
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(inertia);
+  predictor.AddTorque(0.0, Eigen::Vector3f::Zero());
+  const auto result = predictor.Predict(
+    Sophus::SO3f(), Eigen::Vector3f(1.0f, 1.0f, 0.0f), 0.0, 0.01);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.angular_velocity_body.z(), -1.0f / 300.0f, 1e-6f);
+}
+
+TEST(BodyTorqueDynamicPredictor, UsesIrregularTorqueTimestamps)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(Eigen::Matrix3f::Identity());
+  predictor.AddTorque(0.0, Eigen::Vector3f(1.0f, 0.0f, 0.0f));
+  predictor.AddTorque(0.03, Eigen::Vector3f(3.0f, 0.0f, 0.0f));
+  const auto result = predictor.Predict(
+    Sophus::SO3f(), Eigen::Vector3f::Zero(), 0.0, 0.10);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(result.integration_steps, 2U);
+  EXPECT_NEAR(result.angular_velocity_body.x(), 0.24f, 1e-6f);
+}
+
+TEST(BodyTorqueDynamicPredictor, ReportsMissingTorqueAtIntervalStart)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(Eigen::Matrix3f::Identity());
+  predictor.AddTorque(1.1, Eigen::Vector3f::Zero());
+  const auto result = predictor.Predict(
+    Sophus::SO3f(), Eigen::Vector3f::Zero(), 1.0, 1.2);
+  EXPECT_FALSE(result.valid);
+  EXPECT_TRUE(result.missing_torque_interval);
+  EXPECT_EQ(
+    result.torque_coverage.status,
+    orbslam3_ros2::ActuationCoverageStatus::MissingPrefix);
+  EXPECT_NEAR(result.torque_coverage.missing_prefix_sec, 0.1, 1e-9);
+}
+
+TEST(BodyTorqueDynamicPredictor, ColdStartZeroSeedCoversUntilFirstCommand)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(Eigen::Matrix3f::Identity());
+  predictor.AddTorque(1.0, Eigen::Vector3f::Zero());
+  predictor.AddTorque(1.2, Eigen::Vector3f(2.0f, 0.0f, 0.0f));
+  const auto result = predictor.Predict(
+    Sophus::SO3f(), Eigen::Vector3f::Zero(), 1.1, 1.3);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(
+    result.torque_coverage.status, orbslam3_ros2::ActuationCoverageStatus::Full);
+  EXPECT_EQ(result.torque_samples_used, 2U);
+  EXPECT_NEAR(result.angular_velocity_body.x(), 0.2f, 1e-6f);
+}
+
+TEST(BodyTorqueDynamicPredictor, EmptyHistoryReportsEmptyCoverage)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(Eigen::Matrix3f::Identity());
+  const auto coverage = predictor.CoverInterval(1.0, 1.2);
+  EXPECT_EQ(coverage.status, orbslam3_ros2::ActuationCoverageStatus::Empty);
+}
+
+TEST(BodyTorqueDynamicPredictor, TrimsBoundedTorqueHistory)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(Eigen::Matrix3f::Identity(), 0.1);
+  predictor.AddTorque(0.0, Eigen::Vector3f::Zero());
+  predictor.AddTorque(0.05, Eigen::Vector3f::Zero());
+  predictor.AddTorque(0.20, Eigen::Vector3f::Zero());
+  EXPECT_EQ(predictor.torque_buffer_size(), 2U);
+  const auto coverage = predictor.CoverInterval(0.15, 0.20);
+  EXPECT_EQ(coverage.status, orbslam3_ros2::ActuationCoverageStatus::Full);
+  EXPECT_NEAR(coverage.oldest_stamp_sec, 0.05, 1e-9);
+}
+
+TEST(BodyTorqueDynamicPredictor, KeepsColdStartPredecessorAcrossLongIdle)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(Eigen::Matrix3f::Identity(), 0.5);
+  predictor.AddTorque(0.0, Eigen::Vector3f::Zero());
+  predictor.AddTorque(32.0, Eigen::Vector3f(1.0f, 0.0f, 0.0f));
+  const auto result = predictor.Predict(
+    Sophus::SO3f(), Eigen::Vector3f::Zero(), 31.93, 32.02);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(result.torque_coverage.status, orbslam3_ros2::ActuationCoverageStatus::Full);
+  EXPECT_EQ(result.torque_samples_used, 2U);
+  EXPECT_NEAR(result.angular_velocity_body.x(), 0.02f, 1e-5f);
+}
+
+TEST(BodyTorqueDynamicPredictor, AdvancesPredecessorWithoutGrowingHistory)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(Eigen::Matrix3f::Identity(), 0.5);
+  predictor.AddTorque(0.0, Eigen::Vector3f::Zero());
+  predictor.AddTorque(1.0, Eigen::Vector3f::UnitX());
+  predictor.AddTorque(1.4, 2.0f * Eigen::Vector3f::UnitX());
+  predictor.AddTorque(1.8, 3.0f * Eigen::Vector3f::UnitX());
+  EXPECT_EQ(predictor.torque_buffer_size(), 3U);
+  const auto coverage = predictor.CoverInterval(1.35, 1.8);
+  EXPECT_EQ(coverage.status, orbslam3_ros2::ActuationCoverageStatus::Full);
+  EXPECT_NEAR(coverage.oldest_stamp_sec, 1.0, 1e-9);
+}
+
+TEST(BodyTorqueDynamicPredictor, ConvertsWorldOmegaToBodyAndBack)
+{
+  const Sophus::SO3f orientation = Sophus::SO3f::exp(
+    Eigen::Vector3f(0.0f, 0.0f, static_cast<float>(M_PI_2)));
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(Eigen::Matrix3f::Identity());
+  predictor.AddTorque(0.0, Eigen::Vector3f::Zero());
+  const auto result = predictor.Predict(
+    orientation, Eigen::Vector3f(0.0f, 1.0f, 0.0f), 0.0, 0.01);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.angular_velocity_body.x(), 1.0f, 1e-5f);
+  EXPECT_NEAR(result.angular_velocity_world.y(), 1.0f, 1e-5f);
+}
+
+TEST(BodyTorqueDynamicPredictor, CompositeInertiaHandlesIrregularOrbTimingTrace)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor;
+  Eigen::Matrix3f inertia = Eigen::Matrix3f::Zero();
+  inertia.diagonal() << 0.00803107F, 0.00803107F, 0.015805F;
+  predictor.SetInertia(inertia);
+
+  const std::vector<double> periods{0.049, 0.050, 0.120, 0.051, 0.049, 0.120};
+  double stamp = 1.0;
+  for (const double period : periods) {
+    predictor.AddTorque(stamp, Eigen::Vector3f(0.001F, 0.0F, 0.0F));
+    stamp += period;
+  }
+  predictor.AddTorque(stamp, Eigen::Vector3f(0.001F, 0.0F, 0.0F));
+
+  const auto result = predictor.Predict(
+    Sophus::SO3f(), Eigen::Vector3f::Zero(), 1.0, stamp);
+  ASSERT_TRUE(result.valid);
+  EXPECT_FALSE(result.missing_torque_interval);
+  EXPECT_NEAR(result.angular_velocity_body.x(),
+    static_cast<float>((stamp - 1.0) * 0.001 / 0.00803107), 1e-5F);
+  EXPECT_NEAR(result.angular_velocity_body.y(), 0.0F, 1e-6F);
+  EXPECT_NEAR(result.angular_velocity_body.z(), 0.0F, 1e-6F);
+}
+
+TEST(BodyTorqueDynamicPredictor, PropagatesRetrospectiveGtTkWithoutUsingGtNow)
+{
+  Eigen::Matrix3f inertia = Eigen::Matrix3f::Zero();
+  inertia.diagonal() << 0.00803107F, 0.00803107F, 0.015805F;
+  orbslam3_ros2::BodyTorqueDynamicPredictor predictor(inertia);
+  predictor.AddTorque(10.0, Eigen::Vector3f(0.001F, 0.0F, 0.0F));
+  predictor.AddTorque(10.12, Eigen::Vector3f(0.001F, 0.0F, 0.0F));
+
+  const Eigen::Vector3f omega_gt_tk(0.02F, 0.0F, 0.0F);
+  const Eigen::Vector3f omega_gt_now(0.50F, 0.0F, 0.0F);
+  const auto result = predictor.Predict(Sophus::SO3f(), omega_gt_tk, 10.0, 10.12);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(
+    result.angular_velocity_world.x(),
+    omega_gt_tk.x() + 0.12F * 0.001F / 0.00803107F, 1e-5F);
+  EXPECT_GT((result.angular_velocity_world - omega_gt_now).norm(), 0.1F);
+}
+
+TEST(BodyThrustDynamicPredictor, HoverThrustCancelsGravity)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(1.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.4f);
+  predictor.AddThrust(1.0, 1.4f * 9.81f);
+  const auto result = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), Sophus::SO3f(),
+    Eigen::Vector3f::Zero(), 1.0, 1.1, angular);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.acceleration_world.norm(), 0.0f, 1e-5f);
+  EXPECT_NEAR(result.position_world.norm(), 0.0f, 1e-5f);
+}
+
+TEST(EpochGravityState, AlignedFramesKeepGravityOnNegativeZ)
+{
+  orbslam3_ros2::EpochGravityState gravity;
+  ASSERT_TRUE(gravity.Initialize(0, Sophus::SO3f()));
+  EXPECT_NEAR((gravity.gravity_o() - Eigen::Vector3f(0.0f, 0.0f, -9.81f)).norm(), 0.0f, 1e-6f);
+}
+
+TEST(EpochGravityState, RotatesWorldGravityIntoLocalFrameAndPreservesNorm)
+{
+  orbslam3_ros2::EpochGravityState gravity;
+  const Sophus::SO3f o_r_world = Sophus::SO3f::exp(
+    Eigen::Vector3f(0.5f * static_cast<float>(M_PI), 0.0f, 0.0f));
+  ASSERT_TRUE(gravity.Initialize(4, o_r_world));
+  const Eigen::Vector3f expected = o_r_world * Eigen::Vector3f(0.0f, 0.0f, -9.81f);
+  EXPECT_NEAR((gravity.gravity_o() - expected).norm(), 0.0f, 1e-5f);
+  EXPECT_NEAR(gravity.gravity_o().norm(), 9.81f, 1e-5f);
+}
+
+TEST(EpochGravityState, UsesOFromWorldRatherThanItsInverse)
+{
+  orbslam3_ros2::EpochGravityState gravity;
+  const Sophus::SO3f o_r_world = Sophus::SO3f::exp(Eigen::Vector3f(0.4f, -0.7f, 0.2f));
+  ASSERT_TRUE(gravity.Initialize(2, o_r_world));
+  const Eigen::Vector3f g_world(0.0f, 0.0f, -9.81f);
+  EXPECT_NEAR((gravity.gravity_o() - o_r_world * g_world).norm(), 0.0f, 1e-5f);
+  EXPECT_GT((gravity.gravity_o() - o_r_world.inverse() * g_world).norm(), 1.0f);
+}
+
+TEST(EpochGravityState, FreezesFirstAuthoritativeRotationWithinEpoch)
+{
+  orbslam3_ros2::EpochGravityState gravity;
+  const Sophus::SO3f first = Sophus::SO3f::exp(Eigen::Vector3f(0.3f, 0.0f, 0.0f));
+  const Sophus::SO3f revision = Sophus::SO3f::exp(Eigen::Vector3f(-0.6f, 0.2f, 0.0f));
+  ASSERT_TRUE(gravity.Initialize(7, first));
+  const Eigen::Vector3f frozen = gravity.gravity_o();
+  EXPECT_FALSE(gravity.Initialize(7, revision));
+  EXPECT_NEAR((gravity.gravity_o() - frozen).norm(), 0.0f, 1e-6f);
+}
+
+TEST(EpochGravityState, NewEpochInvalidatesUntilNewAnchor)
+{
+  orbslam3_ros2::EpochGravityState gravity;
+  ASSERT_TRUE(gravity.Initialize(0, Sophus::SO3f()));
+  gravity.ObserveEpoch(1);
+  EXPECT_FALSE(gravity.valid());
+  EXPECT_EQ(gravity.map_epoch(), 1U);
+  EXPECT_NEAR(gravity.gravity_o().norm(), 0.0f, 1e-6f);
+}
+
+TEST(BodyThrustDynamicPredictor, RotatedLocalFrameHoverCancelsGravity)
+{
+  constexpr float kMass = 1.4f;
+  const Sophus::SO3f o_r_world = Sophus::SO3f::exp(
+    Eigen::Vector3f(0.5f * static_cast<float>(M_PI), 0.0f, 0.0f));
+  const Eigen::Vector3f gravity_o =
+    o_r_world * Eigen::Vector3f(0.0f, 0.0f, -9.81f);
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(1.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(kMass, gravity_o);
+  predictor.AddThrust(1.0, kMass * 9.81f);
+  const auto result = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), o_r_world,
+    Eigen::Vector3f::Zero(), 1.0, 1.1, angular);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.acceleration_world.norm(), 0.0f, 1e-5f);
+  EXPECT_NEAR(result.linear_velocity_world.norm(), 0.0f, 1e-5f);
+}
+
+TEST(BodyThrustDynamicPredictor, ZeroThrustFallsWithGravity)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(1.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.4f);
+  predictor.AddThrust(1.0, 0.0f);
+  const auto result = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), Sophus::SO3f(),
+    Eigen::Vector3f::Zero(), 1.0, 1.1, angular);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.linear_velocity_world.z(), -0.981f, 1e-5f);
+  EXPECT_NEAR(result.position_world.z(), -0.04905f, 1e-5f);
+}
+
+TEST(BodyThrustDynamicPredictor, ExcessThrustAcceleratesUpward)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(1.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.4f);
+  predictor.AddThrust(1.0, 2.0f * 1.4f * 9.81f);
+  const auto result = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), Sophus::SO3f(),
+    Eigen::Vector3f::Zero(), 1.0, 1.1, angular);
+  ASSERT_TRUE(result.valid);
+  EXPECT_GT(result.linear_velocity_world.z(), 0.0f);
+}
+
+TEST(BodyThrustDynamicPredictor, TiltedBodyThrustProducesWorldHorizontalAcceleration)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(1.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.0f);
+  predictor.AddThrust(1.0, 9.81f);
+  const Sophus::SO3f tilted = Sophus::SO3f::exp(Eigen::Vector3f(0.0f, 0.2f, 0.0f));
+  const auto result = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), tilted,
+    Eigen::Vector3f::Zero(), 1.0, 1.1, angular);
+  ASSERT_TRUE(result.valid);
+  EXPECT_GT(result.acceleration_world.x(), 0.0f);
+}
+
+TEST(BodyThrustDynamicPredictor, UsesIrregularForceTimestampsAndChanges)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(1.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.0f);
+  predictor.AddThrust(1.0, 9.81f);
+  predictor.AddThrust(1.03, 19.62f);
+  const auto result = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), Sophus::SO3f(),
+    Eigen::Vector3f::Zero(), 1.0, 1.10, angular);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(result.integration_steps, 2U);
+  EXPECT_EQ(result.force_samples_used, 2U);
+  EXPECT_NEAR(result.linear_velocity_world.z(), 9.81f * 0.07f, 1e-5f);
+}
+
+TEST(BodyThrustDynamicPredictor, ColdStartZeroSeedUsesZohUntilFirstCommand)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(1.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.0f);
+  predictor.AddThrust(1.0, 0.0f);
+  predictor.AddThrust(1.2, 9.81f);
+  const auto result = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), Sophus::SO3f(),
+    Eigen::Vector3f::Zero(), 1.1, 1.3, angular);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(
+    result.thrust_coverage.status, orbslam3_ros2::ActuationCoverageStatus::Full);
+  EXPECT_EQ(result.force_samples_used, 2U);
+  EXPECT_LT(result.linear_velocity_world.z(), 0.0f);
+}
+
+TEST(BodyThrustDynamicPredictor, MissingPrefixDoesNotAssumeZero)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(1.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.0f);
+  predictor.AddThrust(1.1, 9.81f);
+  const auto result = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), Sophus::SO3f(),
+    Eigen::Vector3f::Zero(), 1.0, 1.2, angular);
+  EXPECT_FALSE(result.valid);
+  EXPECT_TRUE(result.missing_force_interval);
+  EXPECT_EQ(
+    result.thrust_coverage.status,
+    orbslam3_ros2::ActuationCoverageStatus::MissingPrefix);
+  EXPECT_NEAR(result.thrust_coverage.missing_prefix_sec, 0.1, 1e-9);
+}
+
+TEST(BodyThrustDynamicPredictor, KeepsColdStartPredecessorAcrossLongIdle)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular(Eigen::Matrix3f::Identity(), 40.0);
+  angular.AddTorque(0.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.0f, Eigen::Vector3f::Zero(), 0.5);
+  predictor.AddThrust(0.0, 0.0f);
+  predictor.AddThrust(32.0, 10.0f);
+  const auto result = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), Sophus::SO3f(),
+    Eigen::Vector3f::Zero(), 31.93, 32.02, angular);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(result.thrust_coverage.status, orbslam3_ros2::ActuationCoverageStatus::Full);
+  EXPECT_EQ(result.force_samples_used, 2U);
+  EXPECT_NEAR(result.linear_velocity_world.z(), 0.2f, 1e-5f);
+}
+
+TEST(BodyThrustDynamicPredictor, AdvancesPredecessorAndKeepsRecentChanges)
+{
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.0f, Eigen::Vector3f::Zero(), 0.5);
+  predictor.AddThrust(0.0, 0.0f);
+  predictor.AddThrust(1.0, 1.0f);
+  predictor.AddThrust(1.4, 2.0f);
+  predictor.AddThrust(1.8, 3.0f);
+  EXPECT_EQ(predictor.thrust_buffer_size(), 3U);
+  const auto coverage = predictor.CoverInterval(1.35, 1.8);
+  EXPECT_EQ(coverage.status, orbslam3_ros2::ActuationCoverageStatus::Full);
+  EXPECT_NEAR(coverage.oldest_stamp_sec, 1.0, 1e-9);
+}
+
+TEST(BodyThrustDynamicPredictor, PositionAndVelocityShareTargetTimestamp)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(2.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.0f);
+  predictor.AddThrust(2.0, 0.0f);
+  const auto result = predictor.Predict(
+    Eigen::Vector3f(1.0f, 2.0f, 3.0f), Eigen::Vector3f(2.0f, 0.0f, 0.0f),
+    Sophus::SO3f(), Eigen::Vector3f::Zero(), 2.0, 2.2, angular);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.position_world.x(), 1.4f, 1e-5f);
+  EXPECT_NEAR(result.linear_velocity_world.z(), -1.962f, 1e-5f);
+  EXPECT_NEAR(result.position_world.z(), 3.0f - 0.1962f, 1e-5f);
+}
+
+TEST(BodyThrustDynamicPredictor, MassChangesAccelerationUsingSharedPhysicalValue)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  angular.AddTorque(1.0, Eigen::Vector3f::Zero());
+  orbslam3_ros2::BodyThrustDynamicPredictor predictor(1.4f);
+  predictor.AddThrust(1.0, 1.4f * 9.81f);
+  const auto shared_mass = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), Sophus::SO3f(),
+    Eigen::Vector3f::Zero(), 1.0, 1.1, angular);
+  predictor.SetMass(2.8f);
+  const auto doubled_mass = predictor.Predict(
+    Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), Sophus::SO3f(),
+    Eigen::Vector3f::Zero(), 1.0, 1.1, angular);
+  ASSERT_TRUE(shared_mass.valid);
+  ASSERT_TRUE(doubled_mass.valid);
+  EXPECT_NEAR(shared_mass.acceleration_world.z(), 0.0f, 1e-5f);
+  EXPECT_LT(doubled_mass.acceleration_world.z(), 0.0f);
+}
+
+TEST(CausalLinearVelocityEstimator, RecoversConstantVelocityAtSampleTime)
+{
+  orbslam3_ros2::CausalLinearVelocityEstimator estimator(0.2, 0.3, 20.0f, 20.0f);
+  estimator.AddSample(Eigen::Vector3f(0.0f, 0.0f, 0.0f), 1.0, 1);
+  estimator.AddSample(Eigen::Vector3f(0.1f, -0.2f, 0.05f), 1.1, 1);
+  const auto result = estimator.AddSample(Eigen::Vector3f(0.2f, -0.4f, 0.1f), 1.2, 1);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(result.mode, orbslam3_ros2::LinearVelocityEstimatorMode::ThreeSamplePredicted);
+  EXPECT_NEAR((result.velocity_at_sample - Eigen::Vector3f(1.0f, -2.0f, 0.5f)).norm(), 0.0f, 1e-5f);
+}
+
+TEST(CausalLinearVelocityEstimator, ProjectsConstantAccelerationCloserThanMidpointVelocity)
+{
+  orbslam3_ros2::CausalLinearVelocityEstimator estimator(0.2, 0.3, 20.0f, 20.0f);
+  const auto position = [](float t) {return Eigen::Vector3f(t + t * t, 0.0f, 0.0f);};
+  estimator.AddSample(position(0.0f), 1.0, 1);
+  estimator.AddSample(position(0.1f), 1.1, 1);
+  const auto result = estimator.AddSample(position(0.2f), 1.2, 1);
+  const float true_velocity = 1.4f;
+  ASSERT_TRUE(result.valid);
+  EXPECT_LT(
+    std::abs(result.velocity_at_sample.x() - true_velocity),
+    std::abs(result.current_mid_velocity.x() - true_velocity));
+  EXPECT_NEAR(result.velocity_at_sample.x(), true_velocity, 1e-4f);
+}
+
+TEST(CausalLinearVelocityEstimator, ChangesVelocitySignWithoutLargeOvershoot)
+{
+  orbslam3_ros2::CausalLinearVelocityEstimator estimator(0.2, 0.3, 20.0f, 20.0f);
+  estimator.AddSample(Eigen::Vector3f(0.0f, 0.0f, 0.0f), 1.0, 1);
+  estimator.AddSample(Eigen::Vector3f(0.05f, 0.0f, 0.0f), 1.1, 1);
+  const auto result = estimator.AddSample(Eigen::Vector3f(0.0f, 0.0f, 0.0f), 1.2, 1);
+  ASSERT_TRUE(result.valid);
+  EXPECT_LT(result.velocity_at_sample.x(), 0.0f);
+  EXPECT_NEAR(result.velocity_at_sample.x(), -1.0f, 1e-4f);
+}
+
+TEST(CausalLinearVelocityEstimator, UsesIrregularTimestamps)
+{
+  orbslam3_ros2::CausalLinearVelocityEstimator estimator(0.2, 0.3, 20.0f, 20.0f);
+  const auto position = [](float t) {return Eigen::Vector3f(0.5f * t * t, 0.0f, 0.0f);};
+  estimator.AddSample(position(0.0f), 2.0, 1);
+  estimator.AddSample(position(0.06f), 2.06, 1);
+  const auto result = estimator.AddSample(position(0.17f), 2.17, 1);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.velocity_at_sample.x(), 0.17f, 1e-4f);
+}
+
+TEST(CausalLinearVelocityEstimator, DegradedDtFallsBackToTwoSamples)
+{
+  orbslam3_ros2::CausalLinearVelocityEstimator estimator(0.075, 0.20, 20.0f, 20.0f);
+  estimator.AddSample(Eigen::Vector3f(0.0f, 0.0f, 0.0f), 1.0, 1);
+  estimator.AddSample(Eigen::Vector3f(0.05f, 0.0f, 0.0f), 1.05, 1);
+  const auto result = estimator.AddSample(Eigen::Vector3f(0.17f, 0.0f, 0.0f), 1.17, 1);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(result.mode, orbslam3_ros2::LinearVelocityEstimatorMode::DegradedDt);
+  EXPECT_NEAR(result.acceleration.norm(), 0.0f, 1e-6f);
+  EXPECT_NEAR(result.velocity_at_sample.x(), 1.0f, 1e-5f);
+}
+
+TEST(CausalLinearVelocityEstimator, RejectedSampleDoesNotEnterHistory)
+{
+  orbslam3_ros2::CausalLinearVelocityEstimator estimator(0.2, 0.3, 20.0f, 20.0f);
+  estimator.AddSample(Eigen::Vector3f::Zero(), 1.0, 1);
+  const auto rejected = estimator.AddSample(Eigen::Vector3f(10.0f, 0.0f, 0.0f), 1.05, 1, false);
+  EXPECT_FALSE(rejected.valid);
+  EXPECT_EQ(estimator.sample_count(), 1U);
+  const auto result = estimator.AddSample(Eigen::Vector3f(0.1f, 0.0f, 0.0f), 1.1, 1);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.velocity_at_sample.x(), 1.0f, 1e-5f);
+}
+
+TEST(CausalLinearVelocityEstimator, EpochChangeResetsHistory)
+{
+  orbslam3_ros2::CausalLinearVelocityEstimator estimator;
+  estimator.AddSample(Eigen::Vector3f::Zero(), 1.0, 1);
+  estimator.AddSample(Eigen::Vector3f(0.1f, 0.0f, 0.0f), 1.05, 1);
+  const auto result = estimator.AddSample(Eigen::Vector3f(5.0f, 0.0f, 0.0f), 1.10, 2);
+  EXPECT_FALSE(result.valid);
+  EXPECT_EQ(result.mode, orbslam3_ros2::LinearVelocityEstimatorMode::Init);
+  EXPECT_EQ(estimator.sample_count(), 1U);
+}
+
+TEST(CausalLinearVelocityEstimator, RejectedPositionCorrectionDoesNotCreateVelocityImpulse)
+{
+  orbslam3_ros2::CausalLinearVelocityEstimator estimator(0.2, 0.3, 20.0f, 20.0f);
+  estimator.AddSample(Eigen::Vector3f::Zero(), 1.0, 1);
+  estimator.AddSample(Eigen::Vector3f(0.1f, 0.0f, 0.0f), 1.1, 1);
+  estimator.AddSample(Eigen::Vector3f(10.0f, 0.0f, 0.0f), 1.15, 1, false);
+  const auto result = estimator.AddSample(Eigen::Vector3f(0.2f, 0.0f, 0.0f), 1.2, 1);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.velocity_at_sample.x(), 1.0f, 1e-5f);
+}
+
+orbslam3_ros2::CausalLinearVelocityEstimate MakeMidpointLinearEstimate(
+  const Eigen::Vector3f & velocity_mid, double previous_stamp, double current_stamp)
+{
+  orbslam3_ros2::CausalLinearVelocityEstimate estimate;
+  estimate.valid = true;
+  estimate.sample_accepted = true;
+  estimate.current_mid_velocity = velocity_mid;
+  estimate.current_mid_stamp_sec = 0.5 * (previous_stamp + current_stamp);
+  estimate.p_k1 = Eigen::Vector3f::Zero();
+  estimate.p_k = velocity_mid * static_cast<float>(current_stamp - previous_stamp);
+  return estimate;
+}
+
+TEST(MidpointDynamicVelocity, ConstantVelocityMatchesTwoSample)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  orbslam3_ros2::BodyThrustDynamicPredictor thrust(1.0f);
+  angular.AddTorque(9.0, Eigen::Vector3f::Zero());
+  thrust.AddThrust(9.0, 9.81f);
+  const auto estimate = MakeMidpointLinearEstimate(Eigen::Vector3f(1.0f, -0.2f, 0.1f), 1.0, 1.1);
+  const auto result = orbslam3_ros2::PredictMidpointDynamicVelocity(
+    estimate, Sophus::SO3f(), Sophus::SO3f(), 1.0, 1.1, 10.0, angular, thrust);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR((result.velocity_at_sample - estimate.current_mid_velocity).norm(), 0.0f, 1e-5f);
+}
+
+TEST(MidpointDynamicVelocity, ConstantAccelerationImprovesSampleVelocity)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  orbslam3_ros2::BodyThrustDynamicPredictor thrust(1.0f, Eigen::Vector3f::Zero());
+  angular.AddTorque(9.0, Eigen::Vector3f::Zero());
+  thrust.AddThrust(9.0, 2.0f);
+  const auto estimate = MakeMidpointLinearEstimate(Eigen::Vector3f::Zero(), 1.0, 1.2);
+  const auto result = orbslam3_ros2::PredictMidpointDynamicVelocity(
+    estimate, Sophus::SO3f(), Sophus::SO3f(), 1.0, 1.2, 10.0, angular, thrust);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.velocity_at_sample.z(), 0.2f, 1e-5f);
+  EXPECT_LT(std::abs(result.velocity_at_sample.z() - 0.2f), std::abs(0.0f - 0.2f));
+}
+
+TEST(MidpointDynamicVelocity, RotatedFrameHoverKeepsVelocity)
+{
+  const Sophus::SO3f o_r_world = Sophus::SO3f::exp(
+    Eigen::Vector3f(0.5f * static_cast<float>(M_PI), 0.0f, 0.0f));
+  const Eigen::Vector3f gravity_o = o_r_world * Eigen::Vector3f(0.0f, 0.0f, -9.81f);
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  orbslam3_ros2::BodyThrustDynamicPredictor thrust(1.0f, gravity_o);
+  angular.AddTorque(9.0, Eigen::Vector3f::Zero());
+  thrust.AddThrust(9.0, 9.81f);
+  const auto estimate = MakeMidpointLinearEstimate(Eigen::Vector3f(0.2f, 0.0f, 0.0f), 1.0, 1.1);
+  const auto result = orbslam3_ros2::PredictMidpointDynamicVelocity(
+    estimate, o_r_world, o_r_world, 1.0, 1.1, 10.0, angular, thrust);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR((result.velocity_at_sample - estimate.current_mid_velocity).norm(), 0.0f, 1e-5f);
+}
+
+TEST(MidpointDynamicVelocity, UsesThrustChangesWithZoh)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  orbslam3_ros2::BodyThrustDynamicPredictor thrust(1.0f, Eigen::Vector3f::Zero());
+  angular.AddTorque(9.0, Eigen::Vector3f::Zero());
+  thrust.AddThrust(9.0, 0.0f);
+  thrust.AddThrust(9.95, 2.0f);
+  const auto estimate = MakeMidpointLinearEstimate(Eigen::Vector3f::Zero(), 1.0, 1.2);
+  const auto result = orbslam3_ros2::PredictMidpointDynamicVelocity(
+    estimate, Sophus::SO3f(), Sophus::SO3f(), 1.0, 1.2, 10.0, angular, thrust);
+  ASSERT_TRUE(result.valid);
+  EXPECT_EQ(result.thrust_samples_used, 2U);
+  EXPECT_NEAR(result.velocity_at_sample.z(), 0.1f, 1e-5f);
+}
+
+TEST(MidpointDynamicVelocity, PropagatesDynamicOrientation)
+{
+  Eigen::Matrix3f inertia = Eigen::Matrix3f::Identity();
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular(inertia);
+  orbslam3_ros2::BodyThrustDynamicPredictor thrust(1.0f, Eigen::Vector3f::Zero());
+  angular.AddTorque(9.0, Eigen::Vector3f(0.0f, 1.0f, 0.0f));
+  thrust.AddThrust(9.0, 1.0f);
+  const auto estimate = MakeMidpointLinearEstimate(Eigen::Vector3f::Zero(), 1.0, 1.2);
+  const auto result = orbslam3_ros2::PredictMidpointDynamicVelocity(
+    estimate, Sophus::SO3f(), Sophus::SO3f(), 1.0, 1.2, 10.0, angular, thrust);
+  ASSERT_TRUE(result.valid);
+  EXPECT_GT((result.orientation_at_sample * result.orientation_mid.inverse()).log().norm(), 0.0f);
+  EXPECT_GT(std::abs(result.velocity_at_sample.x()), 0.0f);
+}
+
+TEST(MidpointDynamicVelocity, IncompleteCoverageIsInvalid)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  orbslam3_ros2::BodyThrustDynamicPredictor thrust(1.0f);
+  angular.AddTorque(9.96, Eigen::Vector3f::Zero());
+  thrust.AddThrust(9.96, 9.81f);
+  const auto estimate = MakeMidpointLinearEstimate(Eigen::Vector3f::Zero(), 1.0, 1.1);
+  const auto result = orbslam3_ros2::PredictMidpointDynamicVelocity(
+    estimate, Sophus::SO3f(), Sophus::SO3f(), 1.0, 1.1, 10.0, angular, thrust);
+  EXPECT_FALSE(result.valid);
+  EXPECT_EQ(result.torque_coverage.status, orbslam3_ros2::ActuationCoverageStatus::MissingPrefix);
+}
+
+TEST(MidpointDynamicVelocity, UsesIrregularImageDtAndMappedRosHorizon)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  orbslam3_ros2::BodyThrustDynamicPredictor thrust(1.0f, Eigen::Vector3f::Zero());
+  angular.AddTorque(9.0, Eigen::Vector3f::Zero());
+  thrust.AddThrust(9.0, 1.0f);
+  const auto estimate = MakeMidpointLinearEstimate(Eigen::Vector3f::Zero(), 1.0, 1.14);
+  const auto result = orbslam3_ros2::PredictMidpointDynamicVelocity(
+    estimate, Sophus::SO3f(), Sophus::SO3f(), 1.0, 1.14, 10.0, angular, thrust);
+  ASSERT_TRUE(result.valid);
+  EXPECT_NEAR(result.horizon_sec, 0.07, 1e-9);
+  EXPECT_NEAR(result.ros_mid_stamp_sec, 9.93, 1e-9);
+  EXPECT_NEAR(result.velocity_at_sample.z(), 0.07f, 1e-5f);
+}
+
+TEST(MidpointDynamicVelocity, DoesNotDependOnVisualAcceleration)
+{
+  orbslam3_ros2::BodyTorqueDynamicPredictor angular;
+  orbslam3_ros2::BodyThrustDynamicPredictor thrust(1.0f);
+  angular.AddTorque(9.0, Eigen::Vector3f::Zero());
+  thrust.AddThrust(9.0, 9.81f);
+  auto first = MakeMidpointLinearEstimate(Eigen::Vector3f(0.3f, 0.0f, 0.0f), 1.0, 1.1);
+  auto second = first;
+  first.acceleration = Eigen::Vector3f(100.0f, -50.0f, 25.0f);
+  second.acceleration = Eigen::Vector3f(-100.0f, 50.0f, -25.0f);
+  const auto a = orbslam3_ros2::PredictMidpointDynamicVelocity(
+    first, Sophus::SO3f(), Sophus::SO3f(), 1.0, 1.1, 10.0, angular, thrust);
+  const auto b = orbslam3_ros2::PredictMidpointDynamicVelocity(
+    second, Sophus::SO3f(), Sophus::SO3f(), 1.0, 1.1, 10.0, angular, thrust);
+  ASSERT_TRUE(a.valid);
+  ASSERT_TRUE(b.valid);
+  EXPECT_NEAR((a.velocity_at_sample - b.velocity_at_sample).norm(), 0.0f, 1e-6f);
 }
 
 }  // namespace

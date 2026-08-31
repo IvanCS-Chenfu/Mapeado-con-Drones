@@ -9,7 +9,7 @@ archivo y reconciliarlo con la peticion mas reciente.
 Fase 2: CONSEGUIDA el 2026-08-24
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras pruebas 273-275
+Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 338
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -19,13 +19,101 @@ Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras pruebas 273-275
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA como regresion opcional futura
-Subfase actual: 5H PARCIAL; causa principal aislada en `omega_motion`
-Preparacion 5H: cerrada; autorizacion E/F/G consumida
-Siguiente punto de entrada: corregir derivacion/filtrado de omega ORB
-Punto de entrada Fase 5: evitar inyeccion de energia por `tau_er` sin GT
+Subfase actual: 5H PARCIAL; X/Y cercana/Z validados; yaw falla en 338
+Preparacion 5H: cerrada; bateria detenida por STOP tras 338
+Siguiente punto de entrada: diagnosticar velocidad residual Y sin cambiar gains
+Punto de entrada Fase 5: validar ORB productivo fuera de hover
 Revision visual humana de prueba 200: confirmada correcta
 Cierre de Fase 2: completo
 ```
+
+Pruebas 318R2/319R: la poda conserva una predecesora ZOH y todas las muestras
+recientes; pasan 102/102 GTests, 8/8 tests del analizador y ambas simulaciones
+sin missing ni fallback. Poda, cobertura y paridad dinamica validadas.
+
+Prueba 320 fue invalida porque `navigation_state.yaml` sobrescribia el modo
+`dynamic`; corregida mecanicamente la precedencia del launch. En 320R ambos
+stereo usan `dynamic` y no hay missing, pero ORB gobierna ya la aproximacion y
+el segundo goal arranca cerca del suelo con velocidad alta. El tracking se
+pierde brevemente despues, cuando el error ya existia. 320R `NO CONSEGUIDA`;
+321 no ejecutada y ORB productivo no validado.
+
+Prueba shadow: 320R2 fue invalida por ruta YAML relativa. 320R2R confirma
+aproximacion GT, ORB dinamico en sombra y handoff limpio tras `1.5 s`
+estacionario. Pose/rotacion saltan cero, pero velocidad `0.247 m/s`; tracking
+permanece `2` y no hay fallback ni missing. El hover diverge hasta `~1.63 m`
+de error de posicion y `~0.52 rad` angular. Activacion prematura descartada
+como causa suficiente.
+
+Bateria 321: autoridad ORB confirmada antes del goal. 321B
+(`p_ORB+v_GT+angular_ORB`) cumple los umbrales y no usa fallback; 321AR y 321D
+divergen al usar `v_ORB`. 321C cae a fallback y no aisla el angular. La
+velocidad lineal ORB queda demostrada como causa principal; ORB completo sigue
+sin validar y 5H permanece `PARCIAL`.
+
+Diagnostico 322/323: autoridad GT y ORB `dynamic` en shadow durante unos 43 s
+settled. Sobre 907 medidas, RMSE `v_mid=0.01984`, TWO_SAMPLE en `t_k=0.01988`,
+THREE_SAMPLE `v_hat_tk=0.03457` y salida dinamica now `0.43308 m/s`. Quedan
+demostradas `A_HAT_AMPLIFICATION` y `DYNAMIC_PROPAGATION`; salida productiva
+intacta y STOP antes de corregir.
+
+Pruebas 324/325: se corrige exclusivamente el frame de gravedad mediante
+`g_O=O_R_W*g_W`, congelada desde la primera autoridad global del epoch.
+`v_dynamic_now` baja reproduciblemente de `0.43308` a
+`0.03583/0.03707 m/s`, con gain aproximadamente uno y residual de aceleracion
+pequeno. `DYNAMIC_PROPAGATION CORREGIDA`; THREE_SAMPLE sigue pendiente.
+
+Pruebas 326-329: `MIDPOINT_DYNAMIC` reconstruye la velocidad en `t_k` desde
+dos posiciones aceptadas, interpola R en el midpoint y propaga con thrust,
+torque, gravedad O y buffers causales. En shadow obtiene cobertura 100 % y
+mejora claramente a THREE_SAMPLE; 328/329 validan su uso productivo con RMSE
+`0.02113/0.02460 m/s`. THREE_SAMPLE queda solo como diagnostico.
+
+Pruebas 330/331: ORB completo gobierna un nuevo goal hover durante
+`34.78/35.30 s`, sin fallback, tracking no-OK ni clamp. Los maximos de error
+angular son `0.0674/0.0631 rad` y la energia angular total es negativa en las
+dos ejecuciones. `A_HAT_AMPLIFICATION CORREGIDA`, estimador lineal y hover ORB
+real validados de forma reproducible. 5H sigue `PARCIAL` hasta validar
+movimientos y la trayectoria representativa.
+
+Pruebas 332-334: X 2 m queda validado y reproducido con fallback cero. 334 es
+invalida: desde `[0,-10,1]` avanza en +Y atravesando el fiducial 2 de
+`[0,-8.5,1]`. El control permanece acotado hasta la colision y la posterior
+perdida de tracking; no aporta evidencia contra Y. 335-343 no ejecutadas.
+
+334R elimina la colision y mantiene ORB/tracking/fallback cero, pero falla el
+frenado: ev final `0.187 m/s` y RMSE ev de los ultimos 3 s `0.174 m/s`, frente
+a GT `0.049 m/s`. Y queda no validado por velocidad ORB residual/oscilante;
+STOP mantiene 335-343 sin ejecutar.
+
+334R2 visual reproduce y agrava el fallo con tracking sano: ep/ev final
+`0.213/0.551`, max ev `2.188 m/s` y RMSE ev final `1.008 m/s`.
+
+Integracion post-317: `StereoSlamNode` incorpora una rama temporal `dynamic`
+y conserva `legacy` por defecto. Builds y tests pasan. La prueba 318 completa
+el escenario, pero registra un hueco de torque porque la unica muestra del
+buffer era posterior a la base. 318 queda `NO CONSEGUIDA`; 319/320 no se
+ejecutan por STOP y ORB real sigue pendiente.
+
+Prueba 278: pose GT a 20 Hz con delay fijo de 80 ms no completa el hover.
+Edad visual media `0.1129 s`, clamp `72.2 %`, RMSE angular `1.447 rad/s` y
+trabajo total `+0.02884 J`; sin fallback ni tracking loss. La bateria se
+detiene y 279-281 no se ejecutan. Falta debatir `t_k -> now`.
+
+Pruebas 282/284: `0.18 s` elimina el clamp pero empeora; propagar con
+`alpha_hat` mejora RMSE/energia, aunque falla antes y raw se rechaza desde
+`0.84 s`. El flag alpha queda apagado en produccion. 279-281 siguen detenidas.
+
+Pruebas 285-287: con omega GT se gobiernan unos `13.1 s`; con omega predicha
+solo `2.98 s` y energia positiva. Señala omega, pero 287 tambien falla porque
+p/v lineales siguen retrasadas. Diagnostico `PARCIAL`; el siguiente aislamiento
+debe fijar p/v GT actuales. 279-281 siguen detenidas.
+
+Pruebas 288-291: con p/v GT comunes, 288 y 290 fallan cuando usan omega
+predicha; 289 y 291 completan al usar omega GT, incluso conservando R predicha
+en 289. El sanity GT completo pasa. La causa inmediata queda aislada en
+`omega_pred(now)` bajo delay. Falta una correccion sin GT y validacion ORB real;
+279-281 siguen detenidas.
 
 ## Arquitectura vigente
 

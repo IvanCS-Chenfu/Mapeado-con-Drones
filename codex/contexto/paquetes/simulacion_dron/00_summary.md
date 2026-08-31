@@ -1,5 +1,9 @@
 # 00_summary - simulacion_dron
 
+En el laboratorio 321, `multi_dron.launch.py` propaga el override diagnostico
+p/v del mux y los escenarios usan `call_set_bool` + `wait_for_bool` para
+confirmar autoridad ORB efectiva antes del nuevo goal.
+
 5F incorpora `pose_metrics_node.py`, activable desde `multi_dron.launch.py`,
 para generar CSV/JSON/PNG O/W/GT por dron con emparejamiento temporal y
 alineacion O fija por epoch. La prueba 230 valida su ejecucion y deja la calidad
@@ -186,3 +190,18 @@ Las pruebas diagnósticas 269-272 usan cuatro YAML equivalentes y el argumento
 `f5h_gt_timing_mode` de `multi_dron.launch.py`. `pose_metrics_node.py` conserva
 GT angular dual-clock y el analizador existente compara energía y fase sin
 introducir GT en el control normal.
+El analizador añade desde 276 RMSE/MAE/error máximo y mismatch direccional de
+omega; 276-277 validan de forma reproducible el estimador causal con pose GT
+20 Hz. La 278 reutiliza `gt_20_delay` y falla con 80 ms; la bateria se detiene
+antes de `gt_orb_timing` y ORB real.
+
+`multi_dron.launch.py` propaga `orb_navigation_prediction_mode` a cada dron.
+Los escenarios 318-320 validan respectivamente paridad y dos hovers ORB reales.
+318 completa el runner pero incumple la ausencia de huecos; conforme al STOP,
+319/320 no se han ejecutado.
+
+El diagnostico shadow post-320R añade `f5h_orb_shadow_mode` al launch y
+`call_set_bool` al runner. El primer 320R2 fue invalido por ruta YAML relativa.
+320R2R completo aproximacion GT, ORB dinamico en sombra y activacion en
+frontera; pese a tracking sano y ausencia de fallback, el error de posicion
+crecio hasta `~1.63 m`. Hover productivo no validado; 321 no ejecutada.

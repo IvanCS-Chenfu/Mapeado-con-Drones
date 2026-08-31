@@ -31,6 +31,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose.hpp"
 #include "geometry_msgs/msg/twist.hpp"
+#include "geometry_msgs/msg/vector3_stamped.hpp"
 #include "std_msgs/msg/string.hpp"
 
 #include "MapPoint.h"
@@ -164,6 +165,14 @@ class StereoSlamNode : public rclcpp::Node
         Sophus::SE3f body_t_camera_;
         orbslam3_ros2::NavigationStateEstimator navigation_state_estimator_;
         orbslam3_ros2::OrbPosePredictor orb_pose_predictor_;
+        orbslam3_ros2::CausalLinearVelocityEstimator causal_linear_estimator_;
+        orbslam3_ros2::BodyTorqueDynamicPredictor body_torque_predictor_;
+        orbslam3_ros2::BodyThrustDynamicPredictor body_thrust_predictor_;
+        orbslam3_ros2::EpochGravityState epoch_gravity_state_;
+        rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr
+            torque_subscription_;
+        rclcpp::Subscription<geometry_msgs::msg::Vector3Stamped>::SharedPtr
+            thrust_subscription_;
         rclcpp::TimerBase::SharedPtr navigation_state_timer_;
         orbslam3_msgs::msg::NavigationState latest_navigation_state_;
         bool navigation_state_ready_ = false;
@@ -174,6 +183,18 @@ class StereoSlamNode : public rclcpp::Node
         uint64_t orb_prediction_count_ = 0;
         uint64_t orb_limited_measurement_count_ = 0;
         double orb_state_publish_rate_hz_ = 50.0;
+        std::string navigation_prediction_mode_ = "legacy";
+        bool dynamic_base_ready_ = false;
+        double dynamic_base_stamp_sec_ = 0.0;
+        Sophus::SE3f dynamic_base_pose_;
+        Eigen::Vector3f dynamic_base_linear_velocity_ = Eigen::Vector3f::Zero();
+        Eigen::Vector3f dynamic_base_angular_velocity_ = Eigen::Vector3f::Zero();
+        orbslam3_ros2::CausalLinearVelocityEstimate latest_linear_estimate_;
+        bool midpoint_previous_sample_valid_ = false;
+        Sophus::SO3f midpoint_previous_orientation_;
+        double midpoint_previous_image_stamp_sec_ = 0.0;
+        Eigen::Vector3f latest_torque_body_ = Eigen::Vector3f::Zero();
+        float latest_thrust_newton_ = 0.0f;
         bool debug_orb_control_state_ = false;
         uint32_t frames_since_reference_change_ = 0xFFFFFFFFU;
         double latest_orb_measurement_stamp_sec_ = 0.0;
@@ -207,6 +228,11 @@ class StereoSlamNode : public rclcpp::Node
             const Sophus::SE3f& Tcw,
             double callback_arrival_stamp_sec);
         void PublishPredictedNavigationState();
+        void HandleBodyTorque(
+            geometry_msgs::msg::Vector3Stamped::ConstSharedPtr message);
+        void HandleBodyThrust(
+            geometry_msgs::msg::Vector3Stamped::ConstSharedPtr message);
+        void ResetDynamicNavigationState();
         void LogOrbMeasurementDiagnostics(
             const orbslam3_ros2::OrbPosePredictorDiagnostics& diagnostics);
         void RequestGlobalPose(uint64_t map_epoch, uint64_t keyframe_id);

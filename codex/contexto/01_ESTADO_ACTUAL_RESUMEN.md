@@ -6,7 +6,7 @@
 Fase 2: CONSEGUIDA
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras pruebas 273-275
+Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras prueba 338
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -16,11 +16,11 @@ Fase 5: 5A-5E CONSEGUIDAS; 5F PARCIAL; 5G-5H PARCIAL tras pruebas 273-275
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA; regresion opcional futura
-Subfase actual: 5H PARCIAL; 273-275 aislan derivacion/filtrado de `omega_motion`
-Preparacion 5H: CERRADA; autorizacion E/F/G consumida
-Siguiente punto de entrada: diseñar estimacion de omega ORB coherente
-Trabajo funcional activo: ninguno; baterias A-D y E-G cerradas, etapa 3 detenida
-Punto de entrada Fase 5: evitar inyeccion de energia por `tau_er` sin GT
+Subfase actual: 5H PARCIAL; X/Y cercana/Z validados; yaw falla en 338
+Preparacion 5H: CERRADA; bateria detenida por STOP tras 338
+Siguiente punto de entrada: diagnosticar velocidad residual Y sin cambiar gains
+Trabajo funcional activo: ninguno; 279-281 siguen detenidas
+Punto de entrada Fase 5: validar ORB productivo fuera de hover
 Revision visual de prueba 200: confirmada correcta por el usuario
 Pendiente de Fase 2: ninguno
 Autorizacion 4A+4B: concedida y consumida

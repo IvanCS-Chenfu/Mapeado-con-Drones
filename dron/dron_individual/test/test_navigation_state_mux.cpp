@@ -4,12 +4,18 @@
 
 using dron_individual::ContinuousSourcePose;
 using dron_individual::DecideNavigationSource;
+using dron_individual::DiagnosticGtControlAlignment;
+using dron_individual::DiagnosticOrbControlMode;
 using dron_individual::EpochAnchorLatch;
 using dron_individual::FallbackReason;
 using dron_individual::GoalSourceLock;
 using dron_individual::NavigationSource;
 using dron_individual::OrbTransitionQualifier;
+using dron_individual::OrbShadowActivationGate;
 using dron_individual::RigidPose;
+using dron_individual::ParseDiagnosticOrbControlMode;
+using dron_individual::UsesGtPosition;
+using dron_individual::UsesGtVelocity;
 
 TEST(NavigationStateMux, DistinguishesEveryFallbackReason)
 {
@@ -134,4 +140,50 @@ TEST(NavigationStateMux, OrbLossLocksFallbackForRestOfGoal)
   EXPECT_EQ(lock.locked_source(), NavigationSource::GT_FALLBACK);
   const auto recovered = lock.Apply({NavigationSource::ORB, FallbackReason::NONE});
   EXPECT_EQ(recovered.source, NavigationSource::GT_FALLBACK);
+}
+
+TEST(NavigationStateMux, ShadowActivationRequiresContinuousSettlingWindow)
+{
+  OrbShadowActivationGate gate;
+  EXPECT_FALSE(gate.Update(true, 0.10, 0.10, 10.0, 1.5, 0.15, 0.15));
+  EXPECT_FALSE(gate.Update(true, 0.10, 0.10, 11.4, 1.5, 0.15, 0.15));
+  EXPECT_TRUE(gate.Update(true, 0.10, 0.10, 11.5, 1.5, 0.15, 0.15));
+}
+
+TEST(NavigationStateMux, ShadowActivationResetsOnMotionOrInvalidOrb)
+{
+  OrbShadowActivationGate gate;
+  gate.Update(true, 0.10, 0.10, 20.0, 1.5, 0.15, 0.15);
+  EXPECT_FALSE(gate.Update(true, 0.20, 0.10, 21.0, 1.5, 0.15, 0.15));
+  EXPECT_FALSE(gate.Update(true, 0.10, 0.10, 22.0, 1.5, 0.15, 0.15));
+  EXPECT_FALSE(gate.Update(false, 0.0, 0.0, 24.0, 1.5, 0.15, 0.15));
+  EXPECT_FALSE(gate.ready());
+}
+
+TEST(NavigationStateMux, DiagnosticOverrideModesSelectOnlyRequestedLinearComponents)
+{
+  EXPECT_TRUE(UsesGtPosition(ParseDiagnosticOrbControlMode("position_gt")));
+  EXPECT_FALSE(UsesGtVelocity(ParseDiagnosticOrbControlMode("position_gt")));
+  EXPECT_FALSE(UsesGtPosition(ParseDiagnosticOrbControlMode("velocity_gt")));
+  EXPECT_TRUE(UsesGtVelocity(ParseDiagnosticOrbControlMode("velocity_gt")));
+  EXPECT_TRUE(UsesGtPosition(ParseDiagnosticOrbControlMode("position_velocity_gt")));
+  EXPECT_TRUE(UsesGtVelocity(ParseDiagnosticOrbControlMode("position_velocity_gt")));
+  EXPECT_EQ(ParseDiagnosticOrbControlMode("normal"), DiagnosticOrbControlMode::NORMAL);
+}
+
+TEST(NavigationStateMux, DiagnosticGtAlignmentPreservesHandoffAndMotionInControlFrame)
+{
+  DiagnosticGtControlAlignment alignment;
+  RigidPose control;
+  control.translation = Eigen::Vector3d(2.0, -3.0, 1.0);
+  RigidPose gt;
+  gt.translation = Eigen::Vector3d(10.0, 4.0, 1.0);
+  alignment.Capture(control, gt);
+  EXPECT_NEAR((alignment.TransformPose(gt).translation - control.translation).norm(), 0.0, 1e-12);
+
+  gt.translation += Eigen::Vector3d(0.5, -0.25, 0.1);
+  const auto moved = alignment.TransformPose(gt);
+  EXPECT_NEAR(moved.translation.x() - control.translation.x(), 0.5, 1e-12);
+  EXPECT_NEAR(moved.translation.y() - control.translation.y(), -0.25, 1e-12);
+  EXPECT_NEAR(moved.translation.z() - control.translation.z(), 0.1, 1e-12);
 }

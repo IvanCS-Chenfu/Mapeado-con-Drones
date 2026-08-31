@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(gazebo_ros REQUIRED)
 find_package(gazebo_msgs REQUIRED)
 find_package(xacro REQUIRED)
@@ -120,7 +121,7 @@ ament_target_dependencies(graficar_GTvsTray rclcpp std_msgs dron_individual)
 
 
 add_executable(scenario_runner_node src/control_tray/scenario_runner_node.cpp)
-ament_target_dependencies(scenario_runner_node rclcpp rclcpp_action geometry_msgs std_msgs dron_individual ament_index_cpp)
+ament_target_dependencies(scenario_runner_node rclcpp rclcpp_action geometry_msgs std_msgs std_srvs dron_individual ament_index_cpp)
 target_link_libraries(scenario_runner_node yaml-cpp)
 
 

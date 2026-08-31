@@ -4,6 +4,7 @@
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "orbslam3_msgs/msg/navigation_state.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
@@ -62,6 +63,10 @@ public:
     declare_parameter<bool>("debug_architecture_telemetry", false);
     declare_parameter<int64_t>("drone_id", 0);
     declare_parameter<std::string>("f5h_diagnostic_force_source", "normal");
+    declare_parameter<std::string>("f5h_orb_control_override", "normal");
+    declare_parameter<double>("f5h_shadow_settle_duration_sec", 1.5);
+    declare_parameter<double>("f5h_shadow_max_linear_speed", 0.15);
+    declare_parameter<double>("f5h_shadow_max_angular_speed", 0.15);
     gt_timeout_sec_ = get_parameter("gt_timeout_sec").as_double();
     gt_fallback_enabled_ = get_parameter("gt_fallback_enabled").as_bool();
     orb_qualification_samples_ = static_cast<std::size_t>(std::max<int64_t>(
@@ -74,12 +79,27 @@ public:
     drone_id_ = static_cast<uint32_t>(get_parameter("drone_id").as_int());
     diagnostic_force_source_ =
       get_parameter("f5h_diagnostic_force_source").as_string();
+    diagnostic_orb_control_mode_ = dron_individual::ParseDiagnosticOrbControlMode(
+      get_parameter("f5h_orb_control_override").as_string());
+    RCLCPP_WARN(
+      get_logger(), "[F5H-ORB-CONTROL-OVERRIDE] mode=%s",
+      get_parameter("f5h_orb_control_override").as_string().c_str());
+    shadow_settle_duration_sec_ =
+      get_parameter("f5h_shadow_settle_duration_sec").as_double();
+    shadow_max_linear_speed_ =
+      get_parameter("f5h_shadow_max_linear_speed").as_double();
+    shadow_max_angular_speed_ =
+      get_parameter("f5h_shadow_max_angular_speed").as_double();
     if (debug_architecture_telemetry_) {
       architecture_activity_pub_ = create_publisher<std_msgs::msg::String>(
         "/system_architecture/activity", rclcpp::QoS(64).best_effort());
     }
     publisher_ = create_publisher<NavigationState>(
       "orbslam/navigation_state", rclcpp::QoS(20).reliable());
+    orb_authority_publisher_ = create_publisher<std_msgs::msg::Bool>(
+      "control/orb_authority_confirmed",
+      rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local());
+    PublishOrbAuthority(false);
     orb_subscription_ = create_subscription<NavigationState>(
       "orbslam/navigation_state_orb", rclcpp::QoS(20).reliable(),
       std::bind(&NavigationStateMuxNode::OnOrbState, this, std::placeholders::_1));
@@ -95,11 +115,49 @@ public:
       std::bind(
         &NavigationStateMuxNode::OnTrajectoryActive, this,
         std::placeholders::_1, std::placeholders::_2));
+    shadow_activation_service_ = create_service<std_srvs::srv::SetBool>(
+      "control/activate_orb_shadow",
+      std::bind(
+        &NavigationStateMuxNode::OnShadowActivation, this,
+        std::placeholders::_1, std::placeholders::_2));
     metrics_timer_ = create_wall_timer(
       std::chrono::seconds(10), std::bind(&NavigationStateMuxNode::LogMetrics, this));
   }
 
 private:
+  void OnShadowActivation(
+    const std_srvs::srv::SetBool::Request::SharedPtr request,
+    std_srvs::srv::SetBool::Response::SharedPtr response)
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (diagnostic_force_source_ != "shadow_gt") {
+      response->success = false;
+      response->message = "shadow_mode_disabled";
+      return;
+    }
+    if (!request->data) {
+      shadow_orb_activated_ = false;
+      shadow_gate_.Reset();
+      PublishOrbAuthority(false);
+      response->success = true;
+      response->message = "shadow_gt_authority_reset";
+      return;
+    }
+    if (!shadow_gate_.ready()) {
+      response->success = false;
+      response->message = "shadow_activation_not_ready";
+      return;
+    }
+    shadow_orb_activated_ = true;
+    response->success = true;
+    response->message = "shadow_orb_authority_enabled";
+    RCLCPP_WARN(
+      get_logger(),
+      "[F5H-ORB-ACTIVATION-READY] stamp=%.9f tracking=true anchor=true airborne=true "
+      "settled=true orb_local_valid=true orb_velocity_valid=true settle_sec=%.3f",
+      get_clock()->now().seconds(), shadow_settle_duration_sec_);
+  }
+
   void OnTrajectoryActive(
     const std_srvs::srv::SetBool::Request::SharedPtr request,
     std_srvs::srv::SetBool::Response::SharedPtr response)
@@ -174,6 +232,24 @@ private:
       orb_qualifier_.Reset();
     }
 
+    const bool orb_candidate_ready =
+      decision.source == NavigationSource::ORB && raw->velocity_valid;
+    const double gt_linear_speed = std::sqrt(
+      gt_velocity_.linear.x * gt_velocity_.linear.x +
+      gt_velocity_.linear.y * gt_velocity_.linear.y +
+      gt_velocity_.linear.z * gt_velocity_.linear.z);
+    const double gt_angular_speed = std::sqrt(
+      gt_velocity_.angular.x * gt_velocity_.angular.x +
+      gt_velocity_.angular.y * gt_velocity_.angular.y +
+      gt_velocity_.angular.z * gt_velocity_.angular.z);
+    if (diagnostic_force_source_ == "shadow_gt" && !shadow_orb_activated_) {
+      shadow_gate_.Update(
+        orb_candidate_ready && gt_valid_ && gt_velocity_valid_,
+        gt_linear_speed, gt_angular_speed, get_clock()->now().seconds(),
+        shadow_settle_duration_sec_, shadow_max_linear_speed_,
+        shadow_max_angular_speed_);
+    }
+
     decision = goal_source_lock_.Apply(decision);
 
     // TODO FASE 6: retirar esta seleccion junto con el laboratorio temporal F5H.
@@ -181,6 +257,8 @@ private:
       decision = {NavigationSource::GT_FALLBACK, FallbackReason::NONE};
     } else if (diagnostic_force_source_ == "orb") {
       decision = {NavigationSource::ORB, FallbackReason::NONE};
+    } else if (diagnostic_force_source_ == "shadow_gt" && !shadow_orb_activated_) {
+      decision = {NavigationSource::GT_FALLBACK, FallbackReason::NONE};
     }
 
     RigidPose source_pose;
@@ -235,6 +313,37 @@ private:
       source_pose = gt_pose_;
     }
 
+    if (
+      diagnostic_force_source_ == "shadow_gt" && !shadow_orb_activated_ &&
+      gt_valid_ && orb_candidate_ready)
+    {
+      if (!shadow_pose_initialized_) {
+        shadow_pose_.Update(NavigationSource::GT_FALLBACK, gt_pose_);
+        shadow_pose_initialized_ = true;
+      }
+      const RigidPose shadow_orb_pose = shadow_pose_.Update(
+        NavigationSource::ORB, FromMessage(raw->o_t_body));
+      const Eigen::Vector3d shadow_orb_linear = shadow_pose_.RotateVectorFromSource(
+        Eigen::Vector3d(raw->velocity.linear.x, raw->velocity.linear.y, raw->velocity.linear.z));
+      const Eigen::Vector3d shadow_orb_angular = shadow_pose_.RotateVectorFromSource(
+        Eigen::Vector3d(raw->velocity.angular.x, raw->velocity.angular.y, raw->velocity.angular.z));
+      const Eigen::Vector3d gt_linear(
+        gt_velocity_.linear.x, gt_velocity_.linear.y, gt_velocity_.linear.z);
+      const Eigen::Vector3d gt_angular(
+        gt_velocity_.angular.x, gt_velocity_.angular.y, gt_velocity_.angular.z);
+      RCLCPP_INFO_THROTTLE(
+        get_logger(), *get_clock(), 500,
+        "[F5H-ORB-SHADOW] source_authority=GT orb_state_valid=true settled=%s "
+        "p_error=%.6f v_error=%.6f r_error=%.6f omega_error=%.6f "
+        "gt_linear_speed=%.6f gt_angular_speed=%.6f",
+        shadow_gate_.ready() ? "true" : "false",
+        (shadow_orb_pose.translation - last_continuous_measurement_.translation).norm(),
+        (shadow_orb_linear - gt_linear).norm(),
+        dron_individual::RotationDistance(
+          shadow_orb_pose.rotation, last_continuous_measurement_.rotation),
+        (shadow_orb_angular - gt_angular).norm(), gt_linear_speed, gt_angular_speed);
+    }
+
     // TODO FASE 6: la alineacion de GT desaparece junto con GT_FALLBACK.
     // Update conserva el frame O del goal activo cuando ORB se pierde.
     const RigidPose continuous_pose = continuous_pose_.Update(decision.source, source_pose);
@@ -281,6 +390,58 @@ private:
       output.velocity.angular.y = angular.y();
       output.velocity.angular.z = angular.z();
     }
+    if (
+      decision.source == NavigationSource::ORB &&
+      last_source_ == NavigationSource::GT_FALLBACK && gt_valid_)
+    {
+      diagnostic_gt_alignment_.Capture(last_continuous_measurement_, gt_pose_);
+    }
+    // TODO FASE 6: retirar los overrides GT diagnosticos al eliminar GT_FALLBACK.
+    if (
+      decision.source == NavigationSource::ORB && diagnostic_gt_alignment_.valid() &&
+      gt_valid_ && gt_velocity_valid_)
+    {
+      if (dron_individual::UsesGtPosition(diagnostic_orb_control_mode_)) {
+        const RigidPose gt_in_control = diagnostic_gt_alignment_.TransformPose(gt_pose_);
+        output.o_t_body.position.x = gt_in_control.translation.x();
+        output.o_t_body.position.y = gt_in_control.translation.y();
+        output.o_t_body.position.z = gt_in_control.translation.z();
+      }
+      if (dron_individual::UsesGtVelocity(diagnostic_orb_control_mode_)) {
+        const Eigen::Vector3d gt_linear = diagnostic_gt_alignment_.RotateVector(
+          Eigen::Vector3d(
+            gt_velocity_.linear.x, gt_velocity_.linear.y, gt_velocity_.linear.z));
+        output.velocity.linear.x = gt_linear.x();
+        output.velocity.linear.y = gt_linear.y();
+        output.velocity.linear.z = gt_linear.z();
+      }
+    }
+    if (
+      diagnostic_force_source_ == "shadow_gt" && shadow_orb_activated_ &&
+      last_source_ == NavigationSource::GT_FALLBACK && decision.source == NavigationSource::ORB)
+    {
+      const Eigen::Vector3d previous_linear(
+        last_output_velocity_.linear.x, last_output_velocity_.linear.y,
+        last_output_velocity_.linear.z);
+      const Eigen::Vector3d current_linear(
+        output.velocity.linear.x, output.velocity.linear.y, output.velocity.linear.z);
+      const Eigen::Vector3d previous_angular(
+        last_output_velocity_.angular.x, last_output_velocity_.angular.y,
+        last_output_velocity_.angular.z);
+      const Eigen::Vector3d current_angular(
+        output.velocity.angular.x, output.velocity.angular.y, output.velocity.angular.z);
+      RCLCPP_WARN(
+        get_logger(),
+        "[F5H-ORB-ACTIVATED] stamp=%.9f goal_boundary=true p_jump=%.9f "
+        "v_jump=%.9f r_jump=%.9f omega_jump=%.9f",
+        get_clock()->now().seconds(),
+        (continuous_pose.translation - last_continuous_measurement_.translation).norm(),
+        (current_linear - previous_linear).norm(),
+        dron_individual::RotationDistance(
+          continuous_pose.rotation, last_continuous_measurement_.rotation),
+        (current_angular - previous_angular).norm());
+    }
+    last_output_velocity_ = output.velocity;
     if (decision.source == NavigationSource::GT_FALLBACK) {
       output.global_valid = false;
       output.global_status = NavigationState::GLOBAL_STATUS_INVALID;
@@ -293,6 +454,18 @@ private:
       ++orb_samples_;
     }
     publisher_->publish(output);
+
+    const bool orb_authority_confirmed =
+      diagnostic_force_source_ == "shadow_gt" && shadow_orb_activated_ &&
+      decision.source == NavigationSource::ORB;
+    if (orb_authority_confirmed && !orb_authority_confirmed_) {
+      RCLCPP_WARN(
+        get_logger(),
+        "[F5H-ORB-AUTHORITY-CONFIRMED] stamp=%.9f source=orb output_sample=%lu",
+        get_clock()->now().seconds(), static_cast<unsigned long>(output.sample_sequence));
+    }
+    PublishOrbAuthority(orb_authority_confirmed);
+    orb_authority_confirmed_ = orb_authority_confirmed;
 
     if (decision.source != last_source_ ||
       decision.fallback_reason != last_fallback_reason_)
@@ -325,6 +498,13 @@ private:
       static_cast<unsigned long>(fallback_samples_), fallback_ratio);
   }
 
+  void PublishOrbAuthority(bool confirmed)
+  {
+    std_msgs::msg::Bool message;
+    message.data = confirmed;
+    orb_authority_publisher_->publish(message);
+  }
+
   std::mutex mutex_;
   double gt_timeout_sec_{0.5};
   bool gt_valid_{false};
@@ -341,20 +521,34 @@ private:
   uint32_t drone_id_{0};
   bool debug_architecture_telemetry_{false};
   std::string diagnostic_force_source_{"normal"};
+  dron_individual::DiagnosticOrbControlMode diagnostic_orb_control_mode_{
+    dron_individual::DiagnosticOrbControlMode::NORMAL};
+  double shadow_settle_duration_sec_{1.5};
+  double shadow_max_linear_speed_{0.15};
+  double shadow_max_angular_speed_{0.15};
+  bool shadow_orb_activated_{false};
+  bool orb_authority_confirmed_{false};
+  bool shadow_pose_initialized_{false};
   NavigationSource last_source_{NavigationSource::INVALID};
   FallbackReason last_fallback_reason_{FallbackReason::NONE};
   dron_individual::EpochAnchorLatch anchor_latch_;
   dron_individual::OrbTransitionQualifier orb_qualifier_;
   dron_individual::GoalSourceLock goal_source_lock_;
+  dron_individual::OrbShadowActivationGate shadow_gate_;
   dron_individual::ContinuousSourcePose continuous_pose_;
+  dron_individual::ContinuousSourcePose shadow_pose_;
+  dron_individual::DiagnosticGtControlAlignment diagnostic_gt_alignment_;
+  geometry_msgs::msg::Twist last_output_velocity_;
   RigidPose last_continuous_measurement_;
   bool continuous_measurement_valid_{false};
   rclcpp::Publisher<NavigationState>::SharedPtr publisher_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr orb_authority_publisher_;
   rclcpp::Subscription<NavigationState>::SharedPtr orb_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr gt_subscription_;
   rclcpp::Subscription<geometry_msgs::msg::TwistStamped>::SharedPtr
     gt_velocity_subscription_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr trajectory_active_service_;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr shadow_activation_service_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr architecture_activity_pub_;
   rclcpp::TimerBase::SharedPtr metrics_timer_;
 };

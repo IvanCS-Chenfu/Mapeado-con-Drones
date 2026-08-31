@@ -59,6 +59,15 @@ para comparar energia sin sesgo por distinta duracion ORB.
 Los conteos se deduplican por `measurement_receive_stamp`, evitando ponderar
 una observacion varias veces por los ticks de control de 50 Hz.
 
+Desde 322, el mismo CSV incluye `gt_linear_world_x/y/z`. La herramienta
+`codex/herramientas/analyze_f5h_linear_velocity.py` alinea O->GT, compara
+midpoint y `v_hat` en tiempo fisico de imagen, compara la salida dinamica en
+tiempo ROS de recepcion y segmenta por modo, correccion y cambio de referencia.
+Recorta la ventana desde el primer `F5H-ORB-SHADOW settled=true`.
+Filtra explicitamente el namespace del `--drone-id` solicitado para no mezclar
+medidas cuando otro dron tambien alcanza tracking. Desde 324 resume ademas
+`hover_acceleration_residual_norm` a partir de `[F5H-DYNAMIC-TRANSLATION]`.
+
 ```text
 src/graficar/pose_metrics_node.py -> PoseMetricsNode / on_gt_velocity / build_summary
 test/test_pose_metrics.py -> rg "alignment|angular_velocity|temporal|shutdown"
@@ -92,3 +101,8 @@ En 269-272, `pose_metrics_node.py` registra el GT angular de laboratorio y
 `analyze_f5h_angular_phase.py` consume los marcadores compatibles emitidos por
 `gt_timing_diagnostic`. Los resultados separan A-D en directorios
 `metricas/prueba_269` a `metricas/prueba_272`.
+
+Desde 276, `analyze_f5h_angular_phase.py` añade RMSE, MAE, error máximo y ratio
+de mismatch direccional para `motion/control` frente a GT, con umbral
+`0.01 rad/s`. Sus tests están en
+`codex/herramientas/tests/test_analyze_f5h_angular_phase.py` y pasan 8/8.

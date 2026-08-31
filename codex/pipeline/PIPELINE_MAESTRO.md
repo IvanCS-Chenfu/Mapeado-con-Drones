@@ -100,7 +100,7 @@ Solo con la puerta cerrada, usar el contrato `subfase_*.md` y seguir:
 | 2 | `conseguida` | Separación servidor/dron/simulación | Separación, configuración, visualizadores, guardas y validación final completas. |
 | 3 | `actual` | Mapa sparse global multi-dron | Reabierta solo en 3Q para corregir optimizaciones observadas en la prueba 213. |
 | 4 | `realizado` | Fiducial real sin ground truth funcional | Cerrada con 4A-4H; 4I queda aplazada como regresión opcional. |
-| 5 | `en curso` | Pose global de cada dron sin ground truth | 5A-5E conseguidas; 5F parcial; 5G-5H parciales; 273-275 aislan `omega_motion`. |
+| 5 | `en curso` | Pose global de cada dron sin ground truth | 5A-5E conseguidas; 5F parcial; 5G-5H parciales; X/Y cercana/Z validados y yaw falla en 338. |
 | 6 | `sin hacer` | Tareas y trayectorias de mapeo | Generará misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |
 | 7 | `sin hacer` | GUI 3D propia de operación | GUI C++/Qt/OpenGL independiente de RViz2 y del visualizador web entregado en Fase 3. |
 | 8 | `sin hacer` | Nube densa global multi-dron | Reconstrucción dense en servidor a partir de estéreo, poses globales y sparse. |
@@ -123,6 +123,12 @@ debe corregir coherencia temporal pose/omega antes de `Delta_target`. E/F/G
 273-275 completan y son disipativas al usar omega GT exacta; funcionan tanto
 el hold como la extrapolacion SO(3). La causa principal queda aislada en la
 derivacion/filtrado de `omega_motion`.
+Las pruebas 276-277 sustituyen esa derivacion por un estimador causal de tres
+poses y completan dos hovers con pose GT 20 Hz; faltan delay/jitter y ORB real.
+La prueba 278 añade 80 ms y falla con clamp `72.2 %` y energia positiva; la
+bateria se detiene antes de jitter y ORB real.
+282 elimina el clamp sin estabilizar y 284 con aceleracion constante falla aun
+antes; ambas quedan solo como diagnostico y 279 permanece detenida.
 
 Los archivos específicos de pipeline de fases futuras son contratos
 preparatorios, no autorización de ejecución. Codex debe tratarlos como no
@@ -231,6 +237,27 @@ El contrato separa `O_T_B` continuo de
 `W_T_B` corregible y conserva `GT_FALLBACK` temporal, visible y aislado de
 mapa/global hasta que Fase 6 implemente recovery real. La antigua 5I está
 absorbida en 5H.
+
+El laboratorio 314-317 valida una `v_hat(t_k)` causal y el estado completo
+dinamico bajo timing/jitter sin fallback. Tras corregir la poda para conservar
+el predecesor ZOH, 318R2/319R validan cobertura y paridad. La 320 inicial es
+invalida por ejecutar `legacy`; corregida la precedencia del launch, 320R usa
+`dynamic`, pero el dron no sigue correctamente la aproximacion ORB y llega al
+siguiente goal cerca del suelo con velocidad alta antes de perder tracking.
+320R2R elimina esa ambiguedad: tras aproximacion GT y handoff limpio, el hover
+diverge con tracking `2`, sin fallback ni missing. La Fase 5 permanece parcial;
+321B confirma que `p_ORB+v_GT+angular_ORB` es estable, mientras 321AR/321D
+divergen con `v_ORB`. MIDPOINT_DYNAMIC sustituye despues la velocidad
+THREE_SAMPLE amplificada; 326-329 validan cobertura y precision productiva, y
+330/331 completan de forma reproducible un hover ORB real sin fallback ni
+tracking no-OK. 332/333 validan X; 334 atraviesa por error el fiducial 2 y
+queda invalida por colision. Y debe repetirse alejandose del obstaculo; el STOP
+deja Y/Z/yaw/combinacion y la trayectoria representativa pendientes. 334R
+evita el obstaculo y conserva tracking, pero no lleva la velocidad ORB a cero
+en el hover final; el STOP permanece por fallo funcional de frenado Y.
+El diagnostico posterior 334R3R/335R valida Y con mejor cobertura visual y
+336/337R valida Z. La bateria se detiene en 338: yaw degrada los errores y
+termina en perdida de tracking con GT fallback; 339-343 quedan pendientes.
 
 No ejecutar 5C/5D contra un backend 3Q inestable: verificar primero el cierre
 vigente de 3Q. Cada subfase funcional requiere preparación y autorización.
