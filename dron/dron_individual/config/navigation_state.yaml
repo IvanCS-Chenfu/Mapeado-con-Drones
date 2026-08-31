@@ -2,7 +2,7 @@
   ros__parameters:
     orb_state_publish_rate_hz: 50.0
     # Fase 5: rollback temporal; retirar `legacy` tras validar ORB real.
-    navigation_prediction_mode: legacy
+    navigation_prediction_mode: dynamic
     orb_state_filter.position_alpha: 0.55
     orb_state_filter.orientation_alpha: 0.70
     orb_state_filter.max_position_innovation_m: 0.30

@@ -9,7 +9,7 @@ archivo y reconciliarlo con la peticion mas reciente.
 Fase 2: CONSEGUIDA el 2026-08-24
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: funcionalmente CONSEGUIDA; 5H cerrada por evidencia visual y ORB 3/3
+Fase 5: CONSEGUIDA; 5H integracion, 5I estabilizacion y 5J cierre 2/2
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -19,9 +19,9 @@ Fase 5: funcionalmente CONSEGUIDA; 5H cerrada por evidencia visual y ORB 3/3
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA como regresion opcional futura
-Subfase actual: 5H CONSEGUIDA; deuda de observabilidad transferida a Fase 6
-Preparacion 5H: cerrada; autorización consumida y batería final completada
-Siguiente punto de entrada: diagnosticar velocidad residual Y sin cambiar gains
+Subfase actual: 5J CONSEGUIDA; deuda de observabilidad transferida a Fase 6
+Preparacion 5J: cerrada; autorizacion consumida y regresion final completada
+Siguiente punto de entrada: preparar Fase 6
 Punto de entrada siguiente: preparar Fase 6 y retirar progresivamente GT fallback
 Revision visual humana de prueba 200: confirmada correcta
 Cierre de Fase 2: completo

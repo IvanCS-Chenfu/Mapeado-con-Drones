@@ -132,6 +132,10 @@ goal activo. La pose world GT viaja temporalmente en `w_t_body` con
 GT queda retenido hasta la frontera y ORB solo puede volver en el siguiente
 goal si cumple tracking, anchor y cualificacion.
 
+5J retiro forcing de fuente, shadow manual y overrides parciales GT/ORB. El
+topic `control/orb_authority_confirmed` refleja autoridad ORB real del mux. No
+existe servicio `control/activate_orb_shadow` en el producto.
+
 Para el diagnostico 348, `[F5H-FALLBACK-CAUSE-TRACE]` se emite en cada cambio
 de fuente/reason y conserva todos los predicados del mensaje raw. La decision
 base ORB exige `tracking_state==OK && local_valid && local_continuity_valid` y
@@ -170,7 +174,7 @@ Rol:
 - calcula fuerza total y torque deseado con control PD;
 - publica comandos agregados.
 
-Con `debug_orb_control_state=true`, el callback registra estados no consumibles
+Con `debug_fase_5=true` y `debug_orb_control_state=true`, el callback registra estados no consumibles
 mediante `[F5H-CONTROL-STATE-INVALID]` y el lazo emite a 10 Hz
 `[F5H-CONTROL-DIAG]`: timestamp/edad y metadata de `NavigationState`, normas
 `ep/ev/er/ew`, fuerza, torque, RPY y omega corporal. Las formulas y ganancias

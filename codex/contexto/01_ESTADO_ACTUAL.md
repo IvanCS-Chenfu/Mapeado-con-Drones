@@ -8,6 +8,7 @@ Leer primero `00_CONTEXTO_COMPACTACION.md` y
 ```text
 Fase 2: CONSEGUIDA
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
+Fase 5: CONSEGUIDA; cierre 5J validado con regresion ORB 2/2
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -16,14 +17,14 @@ Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
 4F: CONSEGUIDA
 4G+4H: CONSEGUIDAS
 4I: APLAZADA como regresion opcional futura
-Subfase actual: 3Q, reabierta por errores de optimizacion
-Preparacion 3Q: NO_INICIADA; autorizacion funcional PENDIENTE
-Fase 3: cierre previo conseguido; reentrada correctiva activa en 3Q
-3B-3P: CONSEGUIDAS; 3Q: A REVISAR
+Subfase actual: 5J CONSEGUIDA; siguiente fase a preparar: Fase 6
+Preparacion 5J: CERRADA; autorizacion funcional consumida
+Fase 3: cierre correctivo 3Q completado antes de Fase 5
+3B-3Q: CONSEGUIDAS
 3R: CONSEGUIDA; RECALIBRACION TECNICA Y CIERRE RVIZ2 CONFIRMADOS
 3S: CONSEGUIDA; PERFIL DEBUG Y MODO SILENCIOSO VALIDADOS
 3T: CONSEGUIDA; LIMPIEZA, CONFIGURACION Y HANDOFF VALIDADOS
-Ultima ejecucion: 211 correcta, grafos live y 18/18 batches sincronizados
+Ultimas ejecuciones: 357 y 358, regresion ORB favorable 2/2
 ```
 
 4C+4D entregan el recibo exacto, servicio, worker, detector y visualizador

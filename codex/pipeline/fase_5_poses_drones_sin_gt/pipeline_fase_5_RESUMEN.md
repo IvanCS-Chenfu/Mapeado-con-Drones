@@ -9,8 +9,10 @@
 5D: CONSEGUIDA
 5E: CONSEGUIDA tecnicamente
 5F: PARCIAL; puerta humana no aceptada
-5G-5H: CONSEGUIDA; evidencia visual causal y ruta favorable ORB 3/3
-5I: absorbida en 5H
+5G: CONSEGUIDA
+5H: CONSEGUIDA; integracion NavigationState, goals y control
+5I: CONSEGUIDA; estabilizacion ORB y ruta favorable 3/3
+5J: CONSEGUIDA; limpieza, debug master y regresion post-cierre 2/2
 Fase 5 funcional: CONSEGUIDA dentro del alcance previo a Fase 6
 ```
 
@@ -80,14 +82,14 @@ fuente.
 - estimador en `orbslam3` del Dron;
 - frontera obligatoria Servidor↔`orbslam3`;
 - velocidad derivada de `O_T_B`;
-- 5I absorbida en 5H;
+- 5H conserva la integracion original; la estabilizacion posterior pertenece a 5I;
 - antes de 5C/5D se comprueba el cierre final de 3Q;
 - antes de 5G se reconcilia formalmente el ADR de GT.
 
 ## Secuencia
 
 ```text
-5A -> 5B -> 5C -> 5D -> 5E -> 5F -> 5G -> 5H
+5A -> 5B -> 5C -> 5D -> 5E -> 5F -> 5G -> 5H -> 5I -> 5J
 ```
 
 5B deja operativo `NavigationState`, continuidad `O_T_B` intra-epoch y el gate

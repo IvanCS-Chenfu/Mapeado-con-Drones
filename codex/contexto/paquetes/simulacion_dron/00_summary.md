@@ -1,8 +1,8 @@
 # 00_summary - simulacion_dron
 
-En el laboratorio 321, `multi_dron.launch.py` propaga el override diagnostico
-p/v del mux y los escenarios usan `call_set_bool` + `wait_for_bool` para
-confirmar autoridad ORB efectiva antes del nuevo goal.
+Los overrides GT/ORB y el servicio shadow usados en los laboratorios 321-349
+fueron retirados en 5J. Los YAML historicos se conservan como evidencia, pero
+no son escenarios runtime vigentes.
 
 5F incorpora `pose_metrics_node.py`, activable desde `multi_dron.launch.py`,
 para generar CSV/JSON/PNG O/W/GT por dron con emparejamiento temporal y
@@ -39,7 +39,8 @@ Los markers no dependen de `global_valid`. Solo se actualizan con una muestra
 local, continua y con velocidad valida; ante una muestra transitoria no
 consumible conservan la ultima pose que tambien conserva el controlador.
 
-`debug_orb_control_state=false` se propaga a cada wrapper y controlador. En las
+`debug_fase_5=false` es la puerta maestra. Con ella activa,
+`debug_orb_control_state` se propaga a cada wrapper y controlador. En las
 pruebas progresivas de 5H permite correlacionar medida, pose/omega publicadas y
 respuesta de control; apagado no emite esa telemetria diagnostica.
 

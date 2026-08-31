@@ -120,6 +120,7 @@ def generate_launch_description():
         'debug_open_system_architecture_browser',
         'debug_architecture_telemetry',
         'debug_fiducial_visualization',
+        'debug_fase_5',
         'debug_orb_control_state',
     ):
         ld.add_action(DeclareLaunchArgument(flag, default_value=debug_default(flag)))
@@ -155,17 +156,12 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument(
         'orb_qualification_samples', default_value='20'))
     ld.add_action(DeclareLaunchArgument(
-        'f5h_gt_timing_mode', default_value='off'))
-    ld.add_action(DeclareLaunchArgument(
-        'f5h_orb_shadow_mode', default_value='false'))
-    ld.add_action(DeclareLaunchArgument(
-        'debug_orb_visual_evidence', default_value='false'))
+        'debug_orb_visual_evidence',
+        default_value=debug_default('debug_orb_visual_evidence')))
     ld.add_action(DeclareLaunchArgument(
         'orb_visual_evidence_output_dir', default_value=''))
     ld.add_action(DeclareLaunchArgument(
-        'f5h_orb_control_override', default_value='normal'))
-    ld.add_action(DeclareLaunchArgument(
-        'orb_navigation_prediction_mode', default_value='legacy'))
+        'orb_navigation_prediction_mode', default_value='dynamic'))
 
     architecture_telemetry_enabled = PythonExpression([
         "'", LaunchConfiguration('debug_system_architecture_web'),
@@ -338,20 +334,15 @@ def generate_launch_description():
                         'debug_fiducial_display_seconds'),
                     'debug_orb_control_state': LaunchConfiguration(
                         'debug_orb_control_state'),
+                    'debug_fase_5': LaunchConfiguration('debug_fase_5'),
                     'gt_fallback_enabled': LaunchConfiguration(
                         'gt_fallback_enabled'),
                     'orb_qualification_samples': LaunchConfiguration(
                         'orb_qualification_samples'),
-                    'f5h_gt_timing_mode': LaunchConfiguration(
-                        'f5h_gt_timing_mode'),
-                    'f5h_orb_shadow_mode': LaunchConfiguration(
-                        'f5h_orb_shadow_mode'),
                     'debug_orb_visual_evidence': LaunchConfiguration(
                         'debug_orb_visual_evidence'),
                     'orb_visual_evidence_output_dir': LaunchConfiguration(
                         'orb_visual_evidence_output_dir'),
-                    'f5h_orb_control_override': LaunchConfiguration(
-                        'f5h_orb_control_override'),
                     'orb_navigation_prediction_mode': LaunchConfiguration(
                         'orb_navigation_prediction_mode'),
                 }.items()),

@@ -65,14 +65,12 @@ def generate_launch_description():
             'debug_fiducial_visualization', default_value='false'),
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
+        DeclareLaunchArgument('debug_fase_5', default_value='false'),
         DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
         DeclareLaunchArgument('debug_orb_visual_evidence', default_value='false'),
         DeclareLaunchArgument('orb_visual_evidence_output_dir', default_value=''),
         DeclareLaunchArgument(
-            'orb_navigation_prediction_mode', default_value='legacy'),
-        DeclareLaunchArgument('f5h_gt_timing_mode', default_value='off'),
-        DeclareLaunchArgument('f5h_orb_shadow_mode', default_value='false'),
-        DeclareLaunchArgument('f5h_orb_control_override', default_value='normal'),
+            'orb_navigation_prediction_mode', default_value='dynamic'),
         DeclareLaunchArgument('gt_fallback_enabled', default_value='false'),
         DeclareLaunchArgument('orb_qualification_samples', default_value='20'),
         DeclareLaunchArgument(
@@ -93,15 +91,13 @@ def generate_launch_description():
         'debug_fiducial_visualization')
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
+    debug_fase_5 = LaunchConfiguration('debug_fase_5')
     debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
     debug_orb_visual_evidence = LaunchConfiguration('debug_orb_visual_evidence')
     orb_visual_evidence_output_dir = LaunchConfiguration(
         'orb_visual_evidence_output_dir')
     orb_navigation_prediction_mode = LaunchConfiguration(
         'orb_navigation_prediction_mode')
-    f5h_gt_timing_mode = LaunchConfiguration('f5h_gt_timing_mode')
-    f5h_orb_shadow_mode = LaunchConfiguration('f5h_orb_shadow_mode')
-    f5h_orb_control_override = LaunchConfiguration('f5h_orb_control_override')
     gt_fallback_enabled = LaunchConfiguration('gt_fallback_enabled')
     orb_qualification_samples = LaunchConfiguration('orb_qualification_samples')
     orb_vocabulary_path = LaunchConfiguration('orb_vocabulary_path')
@@ -123,16 +119,6 @@ def generate_launch_description():
                     gt_fallback_enabled, value_type=bool),
                 'orb_qualification_samples': ParameterValue(
                     orb_qualification_samples, value_type=int),
-                'f5h_diagnostic_force_source': ParameterValue(
-                    PythonExpression([
-                        "'shadow_gt' if '", f5h_orb_shadow_mode,
-                        "'.lower() == 'true' else ('gt' if '", f5h_gt_timing_mode,
-                        "'.lower() == 'gt_50' else ('orb' if '",
-                        f5h_gt_timing_mode,
-                        "'.lower() != 'off' else 'normal'))",
-                    ]), value_type=str),
-                'f5h_orb_control_override': ParameterValue(
-                    f5h_orb_control_override, value_type=str),
             }],
         ),
         Node(
@@ -149,7 +135,10 @@ def generate_launch_description():
                 {
                     'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
                     'debug_orb_control_state': ParameterValue(
-                        debug_orb_control_state, value_type=bool),
+                        PythonExpression([
+                            "'", debug_fase_5, "'.lower() == 'true' and '",
+                            debug_orb_control_state, "'.lower() == 'true'",
+                        ]), value_type=bool),
                 },
                 params_physical,
                 params_control,
@@ -174,13 +163,13 @@ def generate_launch_description():
                     debug_fiducial_visualization,
                 'debug_fiducial_display_seconds':
                     debug_fiducial_display_seconds,
+                'debug_fase_5': debug_fase_5,
                 'debug_orb_control_state': debug_orb_control_state,
                 'debug_orb_visual_evidence': debug_orb_visual_evidence,
                 'orb_visual_evidence_output_dir':
                     orb_visual_evidence_output_dir,
                 'orb_navigation_prediction_mode':
                     orb_navigation_prediction_mode,
-                'f5h_gt_timing_mode': f5h_gt_timing_mode,
                 'vocab': orb_vocabulary_path,
             }.items(),
         ),

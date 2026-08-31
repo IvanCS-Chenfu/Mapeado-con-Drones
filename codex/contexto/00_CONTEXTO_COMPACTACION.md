@@ -264,8 +264,111 @@ simulacion.
 - Plan: (1) checkpoint Git selectivo; (2) migracion documental 5H/5I/5J y
   resultado oficial; (3) auditoria/poda y puerta `debug_fase_5`; (4) builds y
   tests; (5) debug off/on; (6) dos regresiones ORB favorables; (7) cierre.
-- Siguiente accion exacta: inventariar cambios versionables, excluir artefactos
-  crudos y crear/pushear el checkpoint previo a la reestructuracion.
+- Checkpoint Git: commit `80dd2ae` (`feat(fase5): cerrar validacion ORB con
+  evidencia visual`) creado y subido a `origin/main`. Metricas crudas excluidas.
+- Cambios completados: contratos 5H/5I/5J, historiales/resumenes iniciales,
+  `EXPLICACION_FASE_5.md` y `RESULTADO_FASE_5.md`; historial cronologico largo
+  preservado como `historial_5I.md`. Launch args de forcing/shadow/overrides
+  retirados, nodo `gt_timing_diagnostic` eliminado del build y
+  `debug_fase_5` conectado como master de control/evidencia visual.
+- Limpieza consolidada: `dynamic` es default productivo; forcing, shadow,
+  overrides parciales y servicio de activacion fueron retirados del runtime;
+  autoridad ORB confirmada refleja la fuente real. Docs de `orbslam3_ros2`,
+  `dron_individual` y `simulacion_dron` sincronizadas. Sintaxis Python y
+  `git diff --check` correctos.
+- Siguiente accion exacta: compilar `orbslam3`, despues `dron_individual` y
+  `simulacion_dron`, registrando cada resultado antes de ejecutar tests.
+- Build `orbslam3`: codigo 0, 1 paquete completado en 2.37 s.
+- Build `dron_individual`: codigo 0, 1 paquete completado en 15.9 s; la poda
+  del mux no deja dependencias de compilacion rotas.
+- Siguiente accion exacta: compilar `simulacion_dron` para validar la interfaz
+  de launch sin argumentos de laboratorio y con `debug_fase_5`.
+- Build `simulacion_dron`: codigo 0, 1 paquete completado en 0.73 s.
+- Builds del bloque: `orbslam3`, `dron_individual` y `simulacion_dron`
+  correctos.
+- Siguiente accion exacta: ejecutar CTest de los dos paquetes con codigo y la
+  suite Python de analizadores; podar solo tests/helpers exclusivamente
+  obsoletos si son los unicos fallos.
+- Tests: `orbslam3` 3/3; `dron_individual` GTests 2/2, cppcheck/lint_cmake/xml
+  correctos. CTest agregado falla solo por deuda legacy ajena: flake8 1540,
+  pep257 49 y uncrustify en cuatro archivos preexistentes; los archivos Fase 5
+  modificados pasan uncrustify. Analizadores Python 11/11.
+- Prueba acordada siguiente: 356 con `tray_prueba_356.yaml`, ruta favorable
+  equivalente a 353 sin shadow/overrides, `debug_fase_5=false`, headless y
+  recursos. Exito: escenario completo, autoridad ORB en los movimientos, sin
+  fallback posterior ni tracking no OK, y sin telemetria extensa de debug.
+- Siguiente accion exacta: ejecutar prueba 356 y registrar resultado del runner
+  antes de reducir su log.
+- Prueba 356 runner: codigo 0, `success=true`, escenario 133 s; guard inactivo,
+  minimo 5683.3 MiB y ORB maximo 1073.5 MiB RSS. Log completo conservado sin
+  lectura en `logs/prueba_356.log`.
+- Siguiente accion exacta: reducir escenario/autoridad/fallback/tracking/debug y
+  decidir si 356 valida simultaneamente regresion ORB y debug apagado.
+- Analisis 356: escenario completo pero regresion ORB `NO CONSEGUIDA`. No existe
+  autoridad ORB; tracking pasa 2->3->0->1 antes/durante X y luego crea epoch 1.
+  Los movimientos terminan bajo GT. El master apagado si bloquea
+  CONTROL-DIAG/PHASE y evidencia visual; errores funcionales permanecen visibles.
+- STOP aplicado: no ejecutar aun 357. Siguiente accion exacta: reducir
+  anchor/qualification/source-lock/fiducial alrededor del fin del goal inicial
+  para distinguir prueba mal sincronizada de regresion causada por la poda.
+- Diagnostico 356: ninguna deteccion fiducial valida (`decoded=0`,
+  `global_status=INVALID`); por tanto nunca existio anchor ni candidato ORB.
+  El mux actuo correctamente y la prueba no puede medir regresion productiva.
+- Prueba siguiente: 357, mismo YAML 356, debug master + control + evidencia
+  visual activos y salida separada. Exito de debug: aparecen trazas y CSV;
+  exito funcional condicionado a que esta repeticion si obtenga anchor.
+- Siguiente accion exacta: ejecutar 357 y registrar runner antes del analisis.
+- Prueba 357 runner: codigo 0, `success=true`, 131 s; guard inactivo, minimo
+  5612.9 MiB y ORB maximo 1095.7 MiB RSS. Log completo conservado sin lectura.
+- Analisis 357: primera regresion productiva ORB `CONSEGUIDA`. Drone 1 detecta
+  el fiducial, queda anclado, completa la cualificacion y confirma autoridad ORB
+  antes de X; completa X, hover, Y y hover final sin transicion posterior a
+  fallback ni tracking no OK. El master de debug reactiva las trazas esperadas.
+  La evidencia CSV no se abre porque el directorio de salida no existia; es un
+  fallo mecanico de preparacion de artefactos, no funcional.
+- Siguiente accion exacta: crear el directorio local de metricas y repetir como
+  prueba 358 con la misma ruta/configuracion debug ON; validar CSV y segunda
+  regresion ORB sin cambiar codigo ni comportamiento.
+- Preparacion 358: creado
+  `codex/archivos_auxiliares/metricas/prueba_358/`. Se ejecutara el mismo YAML
+  356 con `debug_fase_5`, debug de control y evidencia visual activos, modo
+  `dynamic`, headless, timeout 240 s, espera final 5 s y recursos.
+- Prueba 358 runner: codigo 0, `success=true`, escenario 131 s; guard inactivo,
+  minimo 5649.0 MiB y ORB maximo 1101.8 MiB RSS. Log completo conservado sin
+  lectura en `logs/prueba_358.log`.
+- Analisis 358: segunda regresion productiva ORB `CONSEGUIDA`. Autoridad ORB
+  confirmada antes de X; escenario completo sin fallback posterior ni tracking
+  no OK. Ambos CSV se generaron y parsearon; drone1 aporta 1808 frames OK,
+  inliers mediana 324, ratio 0.900 y cobertura 0.917.
+- Cierre 5J: builds de los tres paquetes correctos; tests funcionales y
+  analizadores correctos, con deuda lint legacy ajena registrada. Debug OFF
+  validado en 356; debug ON y diagnostico recuperable en 357/358; regresion ORB
+  post-limpieza 2/2 en 357/358. Documentacion 5H/5I/5J, estado, pipeline,
+  resultado oficial, paquetes e ultima sesion sincronizados.
+- Validacion final: `git diff --check` correcto, launches Python compilables y
+  sin estados documentales residuales de 5J en ejecucion.
+- Preparacion: `CERRADA`.
+- Acuerdo cerrado: `si`.
+- Autorizacion funcional: `CONCEDIDA Y CONSUMIDA`.
+- Prueba acordada: `COMPLETADA` (356-358).
+- Dudas abiertas: ninguna.
+- Trabajo activo: ninguno.
+- Siguiente accion exacta: esperar revision del usuario o preparar Fase 6; no
+  hay procesos de simulacion activos.
+- Limpieza final autorizada: eliminar los MD puente ChatGPT Web de Fase 5 en la
+  raiz, conservando `AGENTS.md` y `README.md`; eliminar
+  `matplotlib-4jshztzx/` (cache de fuentes) y `tmpafme38yc/` (log temporal),
+  ambos sin referencias. Despues validar, crear commit final y subirlo.
+- Limpieza final completada: eliminados 35 MD puente de Fase 5; la raiz conserva
+  solo `AGENTS.md` y `README.md`. Eliminadas la cache Matplotlib y la carpeta
+  temporal, ambas sin referencias. `git diff --check` correcto. Siguiente
+  accion exacta: preparar un staging selectivo que excluya metricas crudas y
+  cambios pytest ajenos, revisar el diff staged, crear commit y hacer push.
+- Staging selectivo preparado: 68 rutas, 2132 inserciones y 43637 eliminaciones;
+  incluye producto, documentacion consolidada, trayectoria reproducible y poda
+  solicitada. No incluye metricas crudas ni cambios `pytest-of-chenfu` ajenos.
+  `git diff --cached --check` correcto. Siguiente accion: reanadir este
+  checkpoint, revisar nombres staged, crear el commit final y subirlo.
 
 ## Preparacion integracion productiva post-317
 

@@ -235,8 +235,9 @@ como entradas funcionales del control.
 coherente, `NavigationState`, continuidad `O_T_B` intra-epoch y gate de goals.
 El contrato separa `O_T_B` continuo de
 `W_T_B` corregible y conserva `GT_FALLBACK` temporal, visible y aislado de
-mapa/global hasta que Fase 6 implemente recovery real. La antigua 5I está
-absorbida en 5H.
+mapa/global hasta que Fase 6 implemente recovery real. La integracion original
+queda en 5H, la estabilizacion y validacion en 5I y la limpieza/preparacion de
+Fase 6 en 5J.
 
 El laboratorio 314-317 valida una `v_hat(t_k)` causal y el estado completo
 dinamico bajo timing/jitter sin fallback. Tras corregir la poda para conservar
@@ -266,6 +267,11 @@ próxima a textura, 353-355 completan 3/3 ejecuciones gobernadas por ORB sin
 fallback posterior ni tracking no `OK`. Fase 5 queda funcionalmente conseguida
 para evidencia adecuada. La vuelta larga no se declara ORB-only: Fase 6 debe
 evitar zonas pobres, fragmentar tareas y retirar progresivamente el fallback.
+
+5J retira forcing, shadow y overrides de laboratorio del runtime, deja
+`debug_fase_5` como puerta maestra y fija `dynamic` como modo productivo. Los
+tres paquetes compilan; 357 y 358 completan la ruta favorable con autoridad
+ORB sin fallback ni perdida. Fase 5 queda cerrada.
 
 No ejecutar 5C/5D contra un backend 3Q inestable: verificar primero el cierre
 vigente de 3Q. Cada subfase funcional requiere preparación y autorización.

@@ -6,7 +6,7 @@
 Fase 2: CONSEGUIDA
 Fase 3: cierre previo conseguido; reabierta únicamente en 3Q
 Fase 4: CONSEGUIDA Y CERRADA con alcance 4A-4H
-Fase 5: funcionalmente CONSEGUIDA; 5H cerrada por evidencia visual y ORB 3/3
+Fase 5: CONSEGUIDA; 5H integracion, 5I estabilizacion y 5J cierre 2/2
 4A: CONSEGUIDA
 4B: CONSEGUIDA
 4C: CONSEGUIDA
@@ -16,8 +16,8 @@ Fase 5: funcionalmente CONSEGUIDA; 5H cerrada por evidencia visual y ORB 3/3
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA; regresion opcional futura
-Subfase actual: 5H CONSEGUIDA; limitación de observabilidad transferida a Fase 6
-Preparacion 5H: CERRADA y autorización consumida
+Subfase actual: 5J CONSEGUIDA; limitacion de observabilidad transferida a Fase 6
+Preparacion 5J: CERRADA y autorizacion consumida
 Siguiente punto de entrada: preparar Fase 6 y retirada progresiva de GT fallback
 Trabajo funcional activo: ninguno; 279-281 siguen detenidas
 Punto de entrada siguiente: preparar Fase 6 y retirar progresivamente GT fallback

@@ -9,8 +9,10 @@
 5D: CONSEGUIDA
 5E: CONSEGUIDA tecnicamente
 5F: PARCIAL; analisis de calidad W por revision pendiente
-5G-5H: CONSEGUIDA; 351 demuestra degradación visual causal y 353-355 pasan 3/3 con ORB
-5I: absorbida en 5H
+5G: CONSEGUIDA
+5H: CONSEGUIDA; integracion original
+5I: CONSEGUIDA; estabilizacion y validacion ORB 3/3
+5J: CONSEGUIDA; limpieza, debug master y regresion ORB 2/2
 ```
 
 ## Lectura barata
@@ -24,7 +26,6 @@
 | 5E | [historial_5E_RESUMEN.md](por_subfase/historial_5E_RESUMEN.md) | [historial_5E.md](por_subfase/historial_5E.md) | O/W separadas y autoridad aplicada; calidad evaluada en 5F. |
 | 5F | [historial_5F_RESUMEN.md](por_subfase/historial_5F_RESUMEN.md) | [historial_5F.md](por_subfase/historial_5F.md) | Prueba 234 valida pose/KFs y corrección visual; pendiente eliminar parpadeo entre estados provisional/autoritativo. |
 | 5G | [historial_5G_RESUMEN.md](por_subfase/historial_5G_RESUMEN.md) | [historial_5G.md](por_subfase/historial_5G.md) | Fallback y fuente por goal validados en 243; el fallo posterior pertenece a la extrinseca de 5H. |
-| 5H | [historial_5H_RESUMEN.md](por_subfase/historial_5H_RESUMEN.md) | [historial_5H.md](por_subfase/historial_5H.md) | Evidencia visual causal; ruta favorable ORB conseguida 3/3, deuda de planificación pasa a Fase 6. |
-
-No existe historial independiente de 5I porque su contrato fue absorbido en 5H
-antes de cualquier ejecución.
+| 5H | [historial_5H_RESUMEN.md](por_subfase/historial_5H_RESUMEN.md) | [historial_5H.md](por_subfase/historial_5H.md) | Integracion original de NavigationState, source lock y control. |
+| 5I | [historial_5I_RESUMEN.md](por_subfase/historial_5I_RESUMEN.md) | [historial_5I.md](por_subfase/historial_5I.md) | Estabilizacion completa; 351 causal y 353-355 ORB 3/3. |
+| 5J | [historial_5J_RESUMEN.md](por_subfase/historial_5J_RESUMEN.md) | [historial_5J.md](por_subfase/historial_5J.md) | Limpieza completada; 357-358 validan debug y regresion ORB 2/2. |

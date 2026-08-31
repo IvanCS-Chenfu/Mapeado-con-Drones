@@ -82,14 +82,6 @@ add_executable(fiducial_visualizer
 ament_target_dependencies(fiducial_visualizer rclcpp sensor_msgs cv_bridge)
 target_link_libraries(fiducial_visualizer ${OpenCV_LIBS})
 
-add_executable(gt_timing_diagnostic
-  src/stereo/gt-timing-diagnostic-node.cpp
-  src/stereo/navigation-state-estimator.cpp
-)
-target_include_directories(gt_timing_diagnostic PRIVATE src/stereo)
-ament_target_dependencies(gt_timing_diagnostic rclcpp orbslam3_msgs geometry_msgs)
-target_link_libraries(gt_timing_diagnostic Sophus::Sophus)
-
 add_executable(stereo-inertial
   src/stereo-inertial/stereo-inertial.cpp
   src/stereo-inertial/stereo-inertial-node.cpp
@@ -97,7 +89,7 @@ add_executable(stereo-inertial
 ament_target_dependencies(stereo-inertial rclcpp sensor_msgs cv_bridge ORB_SLAM3 Pangolin)
 target_link_libraries(stereo-inertial ${OpenCV_LIBS})
 
-install(TARGETS mono rgbd stereo stereo-inertial fiducial_visualizer gt_timing_diagnostic
+install(TARGETS mono rgbd stereo stereo-inertial fiducial_visualizer
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

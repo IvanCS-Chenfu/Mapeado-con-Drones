@@ -1,0 +1,14 @@
+name: f5j_356_regresion_orb_normal_debug_off
+description: "5J: ruta favorable post-limpieza con seleccion ORB normal."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 150.0}
+steps:
+  - {name: espera_spawn, type: wait_for_bool, topic: /fiducial_spawn_ready, expected: true, timeout_sec: 90.0}
+  - {name: espera_tracking, type: wait, seconds: 16.0}
+  - {name: llegada_gt_fiducial_2, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 16.0, tyaw: 10.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: espera_anchor, type: wait, seconds: 8.0}
+  - {name: movimiento_x_orb, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 0, target: [2.0, -10.0, 1.0], yaw_deg: 90.0, tx: 20.0, ty: 20.0, tz: 20.0, tyaw: 10.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: hover_tras_x, type: wait, seconds: 10.0}
+  - {name: movimiento_y_orb_cerca_pared, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 0, target: [2.0, -8.0, 1.0], yaw_deg: 90.0, tx: 20.0, ty: 20.0, tz: 20.0, tyaw: 10.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: hover_final_orb, type: wait, seconds: 12.0}

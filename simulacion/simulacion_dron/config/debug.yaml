@@ -7,5 +7,7 @@ debug:
   debug_open_system_architecture_browser: false
   debug_architecture_telemetry: false
   debug_fiducial_visualization: false
+  debug_fase_5: false
   debug_orb_control_state: false
+  debug_orb_visual_evidence: false
   debug_fiducial_display_seconds: 5.0

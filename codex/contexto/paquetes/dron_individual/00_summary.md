@@ -28,8 +28,9 @@ probation angular moderada, calidad/plausibilidad raw, limites del bias y gate
 de reference KF que consume el wrapper. Incluye tambien deadband/confirmacion
 del bias, supresion por movimiento raw y aceleracion de decay de
 `omega_motion`; el controlador no implementa esos filtros. El
-flag `debug_orb_control_state=false`, propagado por los launches, habilita
-telemetria causal en wrapper y controlador sin modificar el control.
+master `debug_fase_5=false` bloquea toda la telemetria extensa de esta fase.
+Con el master activo, `debug_orb_control_state` habilita telemetria causal en
+wrapper y controlador sin modificar el control.
 
 Con ese flag, `[F5H-PHASE-CONTROL]` registra cada tick de 50 Hz: sample y
 timestamps de recepción, `R_act/R_des`, omega O/body, `Omega_des`, `er/ew` y
@@ -86,40 +87,16 @@ frontal usa traslacion `(0.10,0.03,0.03) m` en body y
 
 Detalles en `launches.md`, `control.md` y archivos de config del paquete.
 
-Para las pruebas 269-272, `f5h_gt_timing_mode` propaga el modo de laboratorio.
-El mux admite `f5h_diagnostic_force_source=gt|orb` solo para fijar una fuente
-durante cada ensayo y evitar handoffs. Ambos valores quedan `off/normal` por
-defecto y están marcados para retirar; GT normal no se remuestrea ni filtra.
-
 `orbslam_use.launch.py` y `generar_dron.launch.py` propagan
 `orb_navigation_prediction_mode` al parametro productivo
 `navigation_prediction_mode` de `StereoSlamNode` y le entregan
-`physical.yaml`. El default `legacy` conserva el comportamiento previo; la
-rama `dynamic` permanece experimental tras el fallo de cobertura inicial 318.
+`physical.yaml`. El default productivo es `dynamic`; `legacy` solo permanece
+como opcion explicita de regresion.
 
 `orbslam_use.launch.py` carga ahora los YAML base antes de `stereo_params`,
-de modo que `orb_navigation_prediction_mode:=dynamic` tenga precedencia sobre
-el default `legacy` de `navigation_state.yaml`. El intento 320 anterior a
-esta correccion es invalido; 320R confirma en runtime `mode=dynamic`.
+de modo que el override explicito del launch prevalezca sobre el YAML.
 
-`generar_dron.launch.py` propaga ademas `f5h_orb_shadow_mode`. Cuando esta
-activo, el mux conserva GT durante aproximacion y asentamiento, observa el ORB
-productivo en sombra y solo lo habilita mediante
-`control/activate_orb_shadow`. Es instrumentacion temporal de Fase 5; no cambia
-estimadores, control ni el default normal.
-
-La bateria 321 añade confirmacion transient-local de autoridad ORB y el selector
-temporal `f5h_orb_control_override` para sustituir p y/o v lineales solo en la
-salida del mux. Orientacion/omega y estimadores siguen siendo ORB; el default
-`normal` no altera el runtime ordinario.
-
-Para 349, el mismo selector añade `orb_pv_gt_angular` y
-`gt_pv_orb_angular`. `DiagnosticGtStateBuffer` sincroniza pose/twist GT al
-stamp de control mediante interpolacion o propagacion causal limitada a
-`20 ms`; el override sigue situado exclusivamente en la salida del mux. ORB
-calcula y publica internamente siempre p/v/R/omega completos.
-
-349AR3/349B validan la infraestructura con cobertura `99.9817/100 %`. El skew
-de 30 ms es exclusivamente diagnostico y no añade retardo; los modos no quedan
-habilitados por defecto. El resultado funcional aísla errores suficientes en
-ambos bloques ORB, por lo que no constituye una solución productiva.
+5J retiro `f5h_gt_timing_mode`, forcing de fuente, shadow manual,
+`control/activate_orb_shadow` y overrides parciales p/v/R/omega. El topic
+`control/orb_authority_confirmed` representa autoridad ORB real del mux. GT
+normal no se remuestrea ni filtra y solo permanece en `GT_FALLBACK`.

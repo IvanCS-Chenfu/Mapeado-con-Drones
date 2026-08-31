@@ -3,7 +3,7 @@
 Resumen: Wrapper ROS 2 para ORB-SLAM3; publica `pose_local`,
 `navigation_state`, `orb_map_delta` y ofrece `GetOrbMap`.
 
-Con `debug_orb_visual_evidence=true`, escribe por dron un CSV del mismo frame
+Con `debug_fase_5=true` y `debug_orb_visual_evidence=true`, escribe por dron un CSV del mismo frame
 con tracking/reference KF, candidatos e inliers, depth/disparidad, cobertura
 4x3 y `Tcr` cruda. Está desactivado por defecto y no modifica la salida de
 navegación. `analyze_orb_visual_evidence.py` resume todos los frames y separa
@@ -23,7 +23,8 @@ Interfaces:
 - Services: `orbslam/get_full_map`.
 - Clients: `/global_mapping/get_fiducial_config`.
 
-Ejecutables/nodos: `StereoSlamNode` y `fiducial_visualizer`.
+Ejecutables/nodos: `StereoSlamNode` y `fiducial_visualizer`. El nodo temporal
+`gt_timing_diagnostic` fue retirado en 5J; sus baterias quedan solo en historial.
 
 Parámetros relevantes: `drone_id`, `local_map_frame`, `delta_publish_period_frames`, `use_sim_time`.
 
@@ -54,11 +55,9 @@ descartan y W nunca mueve O. `NavigationStateEstimator` confirma una cadena
 geometrica aunque cambie el ID del reference KF; `local_t_camera` solo enlaza
 cambios plausibles y Tcr conserva la autoridad local principal.
 `OrbPosePredictor`, dentro del mismo wrapper, publica a 50 Hz un estado SE(3).
-El laboratorio F5H permite seleccionar de forma independiente p/v/R/omega
-predichas o GT actuales mediante `DiagnosticControlState`; esta instrumentacion
-esta apagada por defecto y marcada para retirar. Las pruebas 288-291 aislan el
-fallo con delay en `omega_pred(now)`: las dos ramas que la usan fallan y las dos
-con omega GT completan, incluido el sanity GT total. No es una ruta productiva.
+Las pruebas historicas 288-291 seleccionaron p/v/R/omega GT para aislar el
+fallo con delay. Esa seleccion y su nodo runtime fueron retirados en 5J; no
+existe ningun override GT en la salida productiva.
 El laboratorio añade tambien `BodyTorqueDynamicPredictor`: integra en body la
 ecuacion rigida con buffer temporal de `control/tray/torque` y J configurable.
 La prueba 292 con la J nominal `diag(1e-4)` falla de inmediato porque predice
