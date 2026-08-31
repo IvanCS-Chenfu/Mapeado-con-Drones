@@ -1190,6 +1190,36 @@ TEST(OrbPosePredictor, RejectedMeasurementDoesNotEnterCausalAngularHistory)
   EXPECT_NEAR(predictor.last_diagnostics().implied_angular_velocity.z(), 0.4f, 1e-5f);
 }
 
+TEST(OrbPosePredictor, InvalidRawAgeRebasesWithoutAcceptingInvalidDelta)
+{
+  orbslam3_ros2::OrbPosePredictorConfig config;
+  config.raw_dt_max_good_sec = 0.075;
+  config.raw_dt_max_degraded_sec = 0.20;
+  config.max_raw_rotation_step_rad = 0.10f;
+  config.max_raw_angular_acceleration_radps2 = 0.0f;
+  orbslam3_ros2::OrbPosePredictor predictor(config);
+
+  predictor.UpdateMeasurement(RotationZ(0.00f), 1.00);
+  predictor.UpdateMeasurement(RotationZ(0.02f), 1.05);
+  predictor.UpdateMeasurement(RotationZ(0.40f), 1.10);
+  EXPECT_FALSE(predictor.last_diagnostics().raw_history_advanced);
+
+  predictor.UpdateMeasurement(RotationZ(0.42f), 1.31);
+  const auto rebased = predictor.last_diagnostics();
+  EXPECT_EQ(rebased.raw_dt_quality, orbslam3_ros2::RawDtQuality::Invalid);
+  EXPECT_EQ(rebased.raw_motion_class, orbslam3_ros2::RawMotionClass::Suspicious);
+  EXPECT_EQ(rebased.base_update_type, orbslam3_ros2::AngularBaseUpdateType::Rejected);
+  EXPECT_TRUE(rebased.raw_history_advanced);
+  EXPECT_TRUE(rebased.raw_history_rebased);
+
+  predictor.UpdateMeasurement(RotationZ(0.44f), 1.36);
+  const auto recovered = predictor.last_diagnostics();
+  EXPECT_EQ(recovered.raw_dt_quality, orbslam3_ros2::RawDtQuality::Good);
+  EXPECT_EQ(recovered.raw_motion_class, orbslam3_ros2::RawMotionClass::Plausible);
+  EXPECT_FALSE(recovered.raw_history_rebased);
+  EXPECT_NEAR(recovered.raw_dt_sec, 0.05, 1e-6);
+}
+
 TEST(OrbPosePredictor, EpochChangeResetsCausalAngularHistory)
 {
   orbslam3_ros2::OrbPosePredictor predictor;

@@ -26,6 +26,12 @@ Fase 5B amplía ese recibo con tracking, reference KF real y `Tcr` capturados
 coherentemente en la misma llamada. Es un cambio aditivo de lectura; no concede
 autoridad global ni altera el algoritmo ORB.
 
+El cierre diagnóstico de 5H añade evidencia visual opcional del mismo frame.
+Cuando el wrapper la solicita, el recibo copia keypoints, asociaciones,
+outliers, depth/right-x y los contadores autoritativos de candidatos e inliers
+calculados en `TrackLocalMap`. La ruta permanece desactivada por defecto y no
+participa en ninguna decisión de tracking o control.
+
 ## Autoridad en el proyecto
 
 ORB-SLAM3 debe actuar como frontend local:
@@ -56,6 +62,8 @@ Estado 2026-07-27: `ORB_SLAM3/` se mantiene sobre upstream
   `KeyFrameDatabase` y no se acumulan en la cola de `LoopClosing`.
 - evento `KeyFrameCreationEvent` y recibo estereo exacto para Fase 4C.
 - tracking/ref-KF/`Tcr` coherentes en el recibo para Fase 5B.
+- evidencia visual y candidatos/inliers del mismo frame para el diagnóstico
+  causal de Fase 5H.
 
 `install/orbslam3/lib/libORB_SLAM3.so` es un enlace a
 `src/ORB_SLAM3/lib/libORB_SLAM3.so`.

@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-preparada; absorbe la antigua subfase 5I
+CONSEGUIDA; absorbe la antigua subfase 5I
 ```
 
 ## Objetivo
@@ -433,3 +433,39 @@ de `0.11 m/s`. 336/337R validan Z de forma reproducible. La bateria se detiene
 en 338: durante yaw tracking pasa `2->3`, se activa GT fallback y los errores
 angular/lineal crecen fuertemente. Yaw, combinacion y trayectoria
 representativa siguen pendientes; no avanzar sin un nuevo diagnostico/acuerdo.
+
+La auditoria 344-346 descarta que el historial raw cambie de frame con Kref y
+localiza una retencion obsoleta tras rechazos. El rebase exclusivo del baseline
+raw queda validado en shadow, pero 346 falla en dos fachadas con ORB: el control
+se degrada y activa fallback antes de la perdida visual. La correccion se
+conserva; la trayectoria representativa sigue pendiente y 347 no se ejecuta
+por el STOP acordado.
+
+La prueba diagnostica 348 no cambia comportamiento y reconstruye la secuencia
+causal de 346. El fallback con tracking 2 lo dispara un pulso de
+`local_valid=false` y `local_continuity_valid=false`; `velocity_valid` y
+`reference_keyframe_valid` fallan a la vez, pero no pertenecen al source gate.
+La validez se recupera en 100 ms y el bloqueo por goal conserva GT. La
+divergencia lineal y angular precede unos 40 s al fallback y se clasifica como
+acoplada/multicausal, no como fallo exclusivo de un canal. La siguiente
+iteracion debe acordar un aislamiento controlado antes de ejecutar 349A/349B.
+
+El aislamiento 349 usa GT solo en la frontera final de control. Con cobertura
+causal validada, 349AR3 demuestra que p/v ORB fallan aun usando R/omega GT;
+349B demuestra que R/omega ORB fallan aun usando p/v GT. La clasificacion
+vigente es `MULTIPLE_INDEPENDENT_ERRORS`, no mera incoherencia conjunta. La
+siguiente solucion debe debatirse por canales y no aplicar un parche doble sin
+aislamiento adicional.
+
+## Cierre por evidencia visual
+
+Las pruebas 350R-355 sustituyen la hipótesis de defectos independientes por
+evidencia causal más completa: en la ruta larga, la observabilidad visual cae
+antes de la pérdida; en una ruta corta, lenta y próxima a textura, ORB gobierna
+3/3 veces sin fallback ni tracking no `OK`. Por ello 5H se considera
+`CONSEGUIDA` bajo su contrato: producir estado de control estable cuando ORB
+dispone de evidencia suficiente.
+
+La vuelta completa al edificio no se declara ORB-only. Fase 6 debe fragmentar
+tareas, reducir velocidad y evitar o recuperar regiones visualmente pobres;
+hasta entonces se conserva `GT_FALLBACK` para terminar la misión.

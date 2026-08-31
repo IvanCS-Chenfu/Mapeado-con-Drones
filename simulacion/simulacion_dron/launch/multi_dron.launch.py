@@ -159,6 +159,10 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument(
         'f5h_orb_shadow_mode', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
+        'debug_orb_visual_evidence', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'orb_visual_evidence_output_dir', default_value=''))
+    ld.add_action(DeclareLaunchArgument(
         'f5h_orb_control_override', default_value='normal'))
     ld.add_action(DeclareLaunchArgument(
         'orb_navigation_prediction_mode', default_value='legacy'))
@@ -342,6 +346,10 @@ def generate_launch_description():
                         'f5h_gt_timing_mode'),
                     'f5h_orb_shadow_mode': LaunchConfiguration(
                         'f5h_orb_shadow_mode'),
+                    'debug_orb_visual_evidence': LaunchConfiguration(
+                        'debug_orb_visual_evidence'),
+                    'orb_visual_evidence_output_dir': LaunchConfiguration(
+                        'orb_visual_evidence_output_dir'),
                     'f5h_orb_control_override': LaunchConfiguration(
                         'f5h_orb_control_override'),
                     'orb_navigation_prediction_mode': LaunchConfiguration(

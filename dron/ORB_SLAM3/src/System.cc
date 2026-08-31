@@ -252,8 +252,13 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight,
                                 string filename,
                                 StereoTrackingReceipt* receipt)
 {
+    const bool collectVisualEvidence =
+        receipt && receipt->collect_visual_evidence;
     if(receipt)
+    {
         *receipt = StereoTrackingReceipt();
+        receipt->collect_visual_evidence = collectVisualEvidence;
+    }
 
     if(mSensor!=STEREO && mSensor!=IMU_STEREO)
     {
@@ -332,6 +337,26 @@ Sophus::SE3f System::TrackStereo(const cv::Mat &imLeft, const cv::Mat &imRight,
     if(receipt)
     {
         receipt->tracking_state = mpTracker->mState;
+        if(collectVisualEvidence)
+        {
+            const Frame& frame = mpTracker->mCurrentFrame;
+            receipt->frame_id = static_cast<uint64_t>(frame.mnId);
+            if(mpTracker->mState == Tracking::OK)
+            {
+                receipt->tracking_match_candidate_count =
+                    mpTracker->GetMatchesCandidates();
+                receipt->tracking_inlier_count = mpTracker->GetMatchesInliers();
+            }
+            receipt->frame_keypoints = frame.mvKeysUn;
+            receipt->frame_right_x = frame.mvuRight;
+            receipt->frame_depth = frame.mvDepth;
+            receipt->frame_has_map_point.reserve(frame.mvpMapPoints.size());
+            receipt->frame_is_outlier.reserve(frame.mvbOutlier.size());
+            for(MapPoint* mapPoint : frame.mvpMapPoints)
+                receipt->frame_has_map_point.push_back(mapPoint ? 1U : 0U);
+            for(bool outlier : frame.mvbOutlier)
+                receipt->frame_is_outlier.push_back(outlier ? 1U : 0U);
+        }
         KeyFrame* referenceKeyFrame = mpTracker->mCurrentFrame.mpReferenceKF;
         if(referenceKeyFrame && mpTracker->mCurrentFrame.isSet())
         {

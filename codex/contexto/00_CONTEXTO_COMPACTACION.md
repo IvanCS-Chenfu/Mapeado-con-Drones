@@ -1,19 +1,271 @@
 # Contexto de compactacion
 
-Checkpoint de reanudacion post-compactacion: releido fisicamente tras la
-peticion mas reciente. Se conserva el STOP de 320R: no se ejecuta 321 ni se
-realizan nuevos cambios funcionales. Trabajo activo limitado a sincronizar la
-documentacion final de la poda ZOH y del fallo de integracion ORB productiva.
+Checkpoint de reanudacion 2026-08-31: releido fisicamente y reconciliado con
+la peticion mas reciente. El estado vigente posterior a 349 es Fase 5H
+`PARCIAL`: 349AR3 y 349B aislaron defectos suficientes e independientes en
+p/v ORB y R/omega ORB, con cobertura diagnostica GT valida. No hay simulacion
+activa.
 
-## Estado operativo
+## Preparacion diagnostico evidencia ORB post-349
 
-- Fase activa: Fase 5, subfase 5H.
-- Estado agregado: `PARCIAL`.
-- Ultima ejecucion: prueba 322, con comparacion 323 sobre las mismas muestras.
-- Resultado funcional: diagnostico `CONSEGUIDO`; THREE_SAMPLE amplifica frente
-  a TWO_SAMPLE y la propagacion dinamica degrada mucho mas la velocidad. La
-  salida productiva no se ha corregido; Fase 5H permanece `PARCIAL`.
+- Preparacion: `CERRADA`.
+- Acuerdo cerrado: `si`.
+- Autorizacion funcional: `CONCEDIDA` por la orden de realizar cambios y
+  pruebas tras aceptar el analisis del documento.
+- Objetivo: distinguir causalmente baja evidencia visual ORB de defectos en la
+  cadena pose ORB cruda -> `NavigationState`, antes de decidir el cierre de
+  Fase 5.
+- Alcance: telemetria por el mismo frame, salida estructurada y analisis
+  offline; primero caso reproducible 349 con GT gobernando y ORB shadow; solo
+  despues ruta manual visualmente favorable y tres repeticiones ORB si la
+  evidencia permite continuar.
+- Exclusiones: no cambiar estimador, control, gains, gates, mux, anclajes,
+  politica KF/W ni comportamiento ORB. Evitar tocar el core ORB-SLAM3 salvo la
+  extension minima del recibo del mismo frame que resulte imprescindible.
+- Prueba acordada: auditoria y tests unitarios; paridad/sobrecarga con debug
+  apagado/encendido; GT + ORB shadow en la trayectoria reproducible de 349;
+  bateria favorable condicionada por el analisis causal. STOP si diverge el
+  estado con evidencia visual buena.
+- Criterio: Fase 5 solo puede superarse si la degradacion visual precede o
+  acompana los fallos de la ruta problematica y una ruta favorable funciona
+  tres veces con ORB; evidencia buena seguida de divergencia mantiene 5H
+  abierta.
+- Riesgos aceptados: la instrumentacion puede exigir ampliar datos del recibo;
+  se medira su coste y permanecera desactivada por defecto. Los umbrales se
+  derivaran de baselines empiricos, no se inventaran.
+- Dudas abiertas: ninguna.
+- Siguiente accion exacta: inspeccionar `StereoTrackingReceipt`, su produccion
+  en `TrackStereo` y el consumo en `StereoSlamNode`; fijar el cambio minimo y
+  los identificadores de prueba antes de editar codigo.
+
+Checkpoint instrumentacion evidencia ORB: la auditoria confirma que el recibo
+ya sella tracking/reference/Tcr del frame, pero no asociaciones, outliers ni
+estereo. Se amplia bajo peticion `collect_visual_evidence`, desactivada por
+defecto, con keypoints, asociaciones, outliers, right-x y depth del mismo
+`mCurrentFrame`. `orbslam3_ros2` calcula inliers reales, ratios, cuantiles de
+depth/disparity y cobertura 4x3, y escribe un CSV bufferizado por dron. Launch
+propaga enable/directorio; añadido analizador offline empirico y tests. No se
+ha cambiado ninguna salida de navegacion. Siguiente accion exacta: validar
+sintaxis/diff, ejecutar tests pequenos y compilar `orbslam3`.
+
+Checkpoint build evidencia ORB: validacion Python y `git diff --check`
+correctos; analizador 2/2 mediante harness directo. Build `orbslam3` codigo 0
+en 2min30s, solo warnings heredados de cv_bridge/ORB-SLAM3. Siguiente accion:
+ejecutar CTest del paquete y despues compilar launches `dron_individual` y
+`simulacion_dron` si todos los tests pasan.
+
+Checkpoint ABI y bateria: el build del wrapper inicial paso, pero la auditoria
+de timestamps detecto que `libORB_SLAM3.so` era anterior al nuevo recibo. Se
+recompilo completamente el core (`100 %`, codigo 0), se relinko el wrapper
+`orbslam3` (codigo 0, 8.35 s) y CTest final pasa 3/3. Builds previos de
+`dron_individual` y `simulacion_dron` tambien pasaron. Creados
+`tray_prueba_350.yaml` (baseline hover GT+shadow) y
+`tray_prueba_351.yaml` (geometria/timing 349 sin activar autoridad ORB), ambos
+validos. Siguiente accion larga: ejecutar 350 headless, dynamic, GT shadow,
+telemetria visual activa, timeout 180 s, espera 5 s y recursos; registrar el
+runner y analizar CSV antes de autorizar 351.
+
+Checkpoint 350 intento 0: `INVALIDO DE INFRAESTRUCTURA`. Gazebo murio durante
+el arranque antes del escenario y el reintento quedo bloqueado porque el
+sandbox no permitio crear `/tmp/codex_sim_350_2_resources.stop`; sesion
+detenida limpiamente. No existe resultado funcional. Repeticion mecanica
+autorizada con el mismo YAML/launch mediante permiso operativo del runner.
+
+Checkpoint simulacion 350 valida: runner/escenario codigo 0,
+`success=true`, 101 s; guard no activado, minimo 5453.9 MiB y ORB maximo
+1087.8 MiB RSS. Log completo `logs/prueba_350.log` conservado sin lectura.
+Siguiente accion: reducir escenario/tracking/source/errores y analizar los CSV
+de evidencia visual; solo si el baseline es valido ejecutar 351.
+
+Checkpoint analisis 350: baseline valido para drone1, 1708 frames a 20 Hz y
+tracking `OK` continuo durante 85.35 s. Inliers retenidos mediana 416,
+cobertura 4x3 mediana 0.917 y depth estereo valido mediana 294. Drone2 no
+forma parte del movimiento de este baseline. Detectado un defecto solo de
+telemetria: tras `TrackLocalMap`, ORB elimina asociaciones outlier del frame y
+el cociente calculado desde `mCurrentFrame` queda artificialmente en 1.0.
+Correccion mecanica en curso: sellar candidatos e inliers autoritativos del
+mismo bucle interno, y anadir `Tcr` cruda al CSV; no cambia tracking ni estado
+publicado. Siguiente accion exacta: compilar core/wrapper y repetir el baseline
+con la semantica corregida antes de ejecutar 351.
+
+Checkpoint build core evidencia corregida: target `ORB_SLAM3` codigo 0; solo
+avisos heredados. Se recompilo por el cambio ABI en `Tracking`/`System`.
+Siguiente accion exacta: ejecutar
+`build_selected_packages.sh --group dron orbslam3` para recompilar el wrapper,
+registrar su resultado y ejecutar CTest.
+
+Checkpoint build wrapper evidencia corregida: `orbslam3` codigo 0 en 2 min
+25 s; log completo en `codex/archivos_auxiliares/colcon_build.log`, no leido;
+solo stderr de avisos heredados mostrado por el runner. Siguiente accion exacta:
+ejecutar CTest instalado, validar diff y preparar repeticion 350R.
+
+Checkpoint tests evidencia corregida: primer CTest fue invalido por sandbox al
+no poder escribir `LastTest.log`; repetido con permiso operativo, 3/3 tests
+pasaron. `git diff --check` correcto antes del CTest. Siguiente simulacion:
+prueba `350R`, YAML explicito `tray_prueba_350.yaml`, launch
+`multi_dron.launch.py` headless con GT gobernando, ORB shadow y evidencia CSV
+en `metricas/prueba_350R`, timeout 180 s, espera final 5 s y monitor de
+recursos. Siguiente accion exacta: ejecutar runner y registrar el resultado
+antes de analizar.
+
+Checkpoint 350R intento 1: runner codigo 1; `scenario_runner_node` termino en
+el arranque, guard de recursos inactivo, minimo 6428.6 MiB. Log completo
+`logs/prueba_350R.log` conservado sin lectura. Resultado funcional todavia
+invalido. Siguiente accion exacta: reducir solo arranque/scenario/error para
+identificar si es fallo mecanico de ruta o infraestructura; no interpretar CSV.
+
+Diagnostico 350R intento 1: reducido confirma
+`Could not load scenario YAML ... bad file`; el nodo se ejecuta desde el
+workspace y la ruta relativa no existe alli. Correccion puramente mecanica:
+repetir el mismo `350R` con YAML absoluto, limpiando antes solo sus CSV
+incompletos. No cambia acuerdo ni configuracion funcional.
+
+Checkpoint 350R valido: repeticion con YAML absoluto, runner/escenario codigo
+0, `success=true`, 99 s; guard inactivo, minimo 6304.6 MiB y ORB maximo
+1096.1 MiB RSS. Log completo `logs/prueba_350R.log` conservado sin lectura.
+Siguiente accion exacta: analizar CSV corregidos y reducir solo marcadores de
+escenario/tracking; si el baseline conserva calidad y ratio no degenerado,
+preparar 351.
+
+Checkpoint analisis 350R: analizador offline ampliado sin umbrales para separar
+tracking `OK`; tests directos 2/2. Drone1: 1170 frames `OK`, inliers mediana
+440, ratio mediana 0.900 (p10 0.844), cobertura mediana 0.917 y depth valido
+mediana 301. Drone2: 1518 frames `OK`, inliers mediana 345 y ratio mediana
+0.994, aunque cobertura menor 0.333 por su encuadre. El baseline y la
+instrumentacion son validos; frecuencia aproximada 20 Hz y recursos comparables
+a 350. Siguiente simulacion: prueba 351, YAML absoluto
+`tray_prueba_351.yaml`, GT gobierna toda la ruta de dos fachadas, ORB shadow,
+evidencia en `metricas/prueba_351`, headless, timeout runner 420 s, espera 5 s
+y monitor de recursos. STOP funcional si el estado diverge mientras la
+evidencia visual permanece dentro del rango empirico del baseline.
+
+Checkpoint simulacion 351: runner/escenario codigo 0, `success=true`, 228 s;
+guard inactivo, minimo 6117.3 MiB y ORB maximo 1217.7 MiB RSS. La ruta GT de
+dos fachadas se completo. Log completo `logs/prueba_351.log` conservado sin
+lectura. Siguiente accion exacta: generar resumen CSV y reducciones tematicas
+de escenario, tracking, reference KF y estado ORB; correlacionar degradacion
+visual con cualquier divergencia antes de decidir STOP o bateria favorable.
+
+Checkpoint causal 351: drone2 degrada durante `este_media` antes de perder
+tracking: inliers por bins de 2 s pasan de mediana 192 a 69.5, 55 y 50;
+cobertura de 0.333 a 0.25/0.167 y depth valido de 157 a 49/43/38. A
+continuacion aparecen 62 frames no `OK` entre 1788208892.048 y
+1788208895.108, principalmente `RECENTLY_LOST`, y luego recuperacion. Drone1
+permanece `OK`. La evidencia apoya causalidad visual y habilita la bateria
+favorable acordada. Creados y validados `tray_prueba_352.yaml` (GT+shadow) y
+`tray_prueba_353.yaml` (ORB control), ruta +2 m X y +2 m Y junto a pared con
+segmentos de 20 s. Siguiente simulacion: 352, headless, evidencia CSV, timeout
+240 s, espera 5 s y recursos; solo si pasa ejecutar 353-355 consecutivas.
+
+Checkpoint simulacion 352: runner/escenario codigo 0, `success=true`, 132 s;
+guard inactivo, minimo 6248.1 MiB y ORB maximo 1112.6 MiB RSS. Log completo
+`logs/prueba_352.log` conservado sin lectura. Siguiente accion exacta: analizar
+CSV y tracking de la ruta favorable shadow; solo con evidencia suficiente y
+sin perdida ejecutar 353 con autoridad ORB.
+
+Checkpoint analisis 352: la ruta favorable posterior al anclaje tiene 1510
+frames consecutivos `OK`, sin `RECENTLY_LOST/LOST`; inliers `OK` mediana 303
+(p10 183), ratio 0.907 (p10 0.859), cobertura 0.917 y depth valido 270. Hubo
+una perdida de un frame durante la aproximacion GT inicial al fiducial a
+1788209281.769, precedida por degradacion visual y antes del anclaje; se
+reinicializo y desde el fin de esa aproximacion todo quedo `OK`. El tramo que
+se validara con ORB es visualmente suficiente. Siguiente simulacion: 353 con
+`tray_prueba_353.yaml`, autoridad ORB tras anclaje, telemetria visual, timeout
+240 s, espera 5 s y recursos. STOP si falla; 354/355 solo tras pase.
+
+Checkpoint simulacion 353: runner/escenario codigo 0, `success=true`, 133 s;
+guard inactivo, minimo 6246.3 MiB y ORB maximo 1114.8 MiB RSS. Log completo
+`logs/prueba_353.log` conservado sin lectura. Siguiente accion exacta: reducir
+autoridad/fallback/tracking y analizar CSV; solo si ORB goberno ambos segmentos
+sin fallback ni perdida ejecutar 354.
+
+Checkpoint analisis 353: primera repeticion ORB `CONSEGUIDA`. Autoridad ORB
+confirmada a 1788209515.364 antes de ambos movimientos; no hubo transicion a
+fallback posterior ni tracking no `OK`. Escenario completo. Evidencia drone1:
+1794 frames `OK`, inliers mediana 323.5 (p10 225.3), ratio mediana 0.912
+(p10 0.836), cobertura mediana 1.0. Siguiente simulacion: 354, mismo YAML 353
+y configuracion, salida separada `metricas/prueba_354`; segunda repeticion
+con STOP si falla.
+
+Checkpoint simulacion 354: runner/escenario codigo 0, `success=true`, 134 s;
+guard inactivo, minimo 6271.5 MiB y ORB maximo 1109.8 MiB RSS. Log completo
+`logs/prueba_354.log` conservado sin lectura. Siguiente accion exacta: analizar
+autoridad/fallback/tracking y evidencia; solo si pasa ejecutar 355.
+
+Checkpoint analisis 354: segunda repeticion ORB `CONSEGUIDA`; autoridad ORB
+confirmada, sin fallback posterior ni tracking no `OK`, escenario completo.
+Drone1: 1815 frames `OK`, inliers mediana 322 (p10 216.4), ratio mediana
+0.892 (p10 0.834), cobertura mediana 0.917. Siguiente simulacion: 355, tercera
+repeticion identica, salida `metricas/prueba_355`, STOP si falla.
+
+Checkpoint simulacion 355: runner/escenario codigo 0, `success=true`, 134 s;
+guard inactivo, minimo 6237.5 MiB y ORB maximo 1102.7 MiB RSS. Log completo
+`logs/prueba_355.log` conservado sin lectura. Siguiente accion exacta: analizar
+autoridad/fallback/tracking/evidencia; despues emitir conclusion agregada y
+sincronizar documentacion obligatoria.
+
+Cierre evidencia ORB 350R-355: prueba 355 confirma la tercera repeticion ORB,
+con 1792 frames `OK`, inliers mediana 300, ratio 0.896 y cobertura 0.917; no
+hay fallback posterior a la autoridad ni tracking no `OK`. Bateria favorable
+3/3 `CONSEGUIDA`. Documentacion de core, wrapper, contrato 5H, historial,
+estado, pipeline y ultima sesion sincronizada. Validacion final: CTest 3/3,
+analizador 2/2, CSV 350R-355 parseables y `git diff --check` correcto.
+Conclusion agregada: Fase 5H y Fase 5 funcional `CONSEGUIDAS` cuando ORB tiene
+evidencia adecuada. La vuelta larga sigue sin validarse ORB-only; planificacion
+por evidencia y retirada de `GT_FALLBACK` pertenecen a Fase 6.
+
+- Preparacion: `CERRADA`.
+- Acuerdo cerrado: `si`.
+- Autorizacion funcional: `CONCEDIDA Y CONSUMIDA`.
+- Prueba acordada: `COMPLETADA` (350R-355).
+- Dudas abiertas: ninguna.
 - Trabajo activo: ninguno.
+- Siguiente accion exacta: esperar revision del usuario o preparacion explicita
+  de Fase 6; no hay procesos de simulacion activos.
+
+## Preparacion reestructuracion y cierre documental de Fase 5
+
+Checkpoint de reanudacion 2026-08-31: releido fisicamente tras la peticion
+mas reciente y reconciliado con el cierre vigente 350R-355. Se ha leido
+`INSTRUCCIONES_CODEX_REESTRUCTURACION_Y_CIERRE_FASE_5.md`; todavia no se ha
+modificado codigo, launch, YAML ni configuracion, ni se ha iniciado build o
+simulacion.
+
+- Preparacion: `CERRADA`.
+- Acuerdo cerrado: `si`.
+- Autorizacion funcional: `CONCEDIDA`.
+- Objetivo propuesto: reestructurar Fase 5 en 5H (integracion original), 5I
+  (estabilizacion y validacion ORB en movimiento) y 5J (limpieza y preparacion
+  para Fase 6), crear el resultado oficial y conservar la cronologia real.
+- Alcance propuesto: documentacion e historiales; auditoria y poda conservadora
+  de experimentos cerrados; `debug_fase_5=false` como puerta maestra de
+  telemetria; contrato documental de evidencia para Fase 6; build, tests y
+  regresion ORB favorable.
+- Exclusiones propuestas: no redisenar el estimador ni el controlador, no fijar
+  umbrales GOOD/DEGRADING/POOR, no retirar todavia `GT_FALLBACK`, no reescribir
+  intentos fallidos y no tocar el core ORB salvo necesidad demostrada.
+- Prueba propuesta: builds y tests de `orbslam3_ros2`, `dron_individual` y
+  `simulacion_dron`; comprobaciones con debug apagado/encendido; dos
+  repeticiones favorables equivalentes a 353-355 si la primera no revela una
+  regresion.
+- Criterio propuesto: comportamiento productivo ORB inalterado; silencio de
+  telemetria de Fase 5 con debug apagado; diagnostico recuperable con debug
+  encendido; warnings/errores importantes siempre visibles; regresion ORB
+  favorable completada sin fallback ni perdida.
+- Riesgos aceptados: arbol de trabajo muy sucio y artefactos de
+  varios GiB; una poda demasiado agresiva puede eliminar capacidad diagnostica;
+  mover historia debe conservar trazabilidad hacia las pruebas originales.
+- Decisiones cerradas: crear commit y push de checkpoint antes de la limpieza;
+  no versionar ni mover masivamente logs o metricas crudas, sino conservar
+  indices, resumenes y artefactos reproducibles; retirar exposicion productiva
+  de overrides superados conservando utilidades diagnosticas justificadas.
+- Dudas abiertas: ninguna.
+- Trabajo activo: ejecucion autorizada del bloque completo.
+- Plan: (1) checkpoint Git selectivo; (2) migracion documental 5H/5I/5J y
+  resultado oficial; (3) auditoria/poda y puerta `debug_fase_5`; (4) builds y
+  tests; (5) debug off/on; (6) dos regresiones ORB favorables; (7) cierre.
+- Siguiente accion exacta: inventariar cambios versionables, excluir artefactos
+  crudos y crear/pushear el checkpoint previo a la reestructuracion.
 
 ## Preparacion integracion productiva post-317
 
@@ -1135,6 +1387,390 @@ fallback en caso contrario. Repetir como 342R con Gazebo visible.
   auditoria de infraestructura sin cambiar el comportamiento acordado.
 - Siguiente accion exacta: revisar estado git, excluir artefactos, crear commit
   del avance actual y subirlo; despues iniciar auditoria sin modificar aun.
+
+Checkpoint git post-342R: commit `769a596`
+`feat(fase5): estabilizar estado ORB y ampliar validacion`, 136 archivos,
+creado y subido correctamente a `origin/main`
+(`https://github.com/IvanCS-Chenfu/Mapeado-con-Drones.git`). Metricas/logs
+generados excluidos. Siguiente accion: auditar docs y simbolos actuales de
+historicos raw/reference sin modificar codigo.
+
+Checkpoint auditoria estatica reference/raw: `NavigationStateEstimator`
+compone continuidad en O y `StereoSlamNode` entrega al predictor
+`raw_o_t_body=pose_result.o_t_camera*body_t_camera.inverse()`, tambien en O.
+Por tanto no se observa una pose raw almacenada en frame Kref. El historico
+raw (`last_raw_measurement_`, `last_raw_stamp_sec_`) solo avanza si
+`raw_motion_plausible`; un rechazo conserva indefinidamente la muestra vieja,
+por lo que los frames siguientes acumulan `raw_dt/raw_step` enormes. Esto
+puede realimentar `SUSPICIOUS`, decay de `omega_motion` y PREDICT_ONLY. La rama
+lineal productiva usa MIDPOINT_DYNAMIC sobre posiciones O y es independiente
+del raw angular; `linear_mode=THREE_SAMPLE_PREDICTED` es diagnostico.
+Hipotesis revisada: cross-KF geometrico no demostrado; baseline raw stale es
+causa estatica plausible. Siguiente accion: añadir solo telemetria de stamp,
+avance/retencion y frames post-switch; crear 344 GT+shadow sin cambiar logica.
+
+Checkpoint cambios diagnosticos 344: `OrbPosePredictorDiagnostics` expone
+validez/stamp previo y si el baseline raw avanza; `StereoSlamNode` emite
+`F5H-REF-SWITCH-TRACE` durante la ventana post-KF con old/new ref, frame O,
+raw/O steps, innovacion, clases y base update. Sin cambios de estimacion.
+Creado `tray_prueba_344.yaml`: ambos llegan al fiducial 2 por GT; dron 2 sigue
+la rama este durante dos fachadas y dron 1 queda en hover; no se activa
+autoridad ORB, por lo que ORB dynamic permanece shadow. Siguiente accion:
+validar sintaxis, docs, build y tests antes de 344.
+
+Checkpoint pre-build 344: sintaxis C++ localizada, YAML y `git diff --check`
+correctos; docs de `orbslam3_ros2` actualizadas. Compilar `orbslam3` mediante
+`build_selected_packages.sh --group dron orbslam3`; despues ejecutar GTests y
+analizador. No compilar consumidores porque solo cambian internals/telemetria
+del paquete y el YAML no requiere instalacion.
+
+Checkpoint build 344: `orbslam3` codigo 0 en 1 min 12 s; solo warnings
+heredados de cv_bridge/ORB-SLAM3. Log completo de build conservado sin lectura
+manual. Siguiente accion: ejecutar GTest de `navigation_state_estimator`, CTest
+y harness del analizador; si pasan, iniciar 344.
+
+Checkpoint tests 344: GTest real `116/116`, harness lineal codigo 0 y
+`git diff --check` correcto. La primera invocacion con `--gtest_brief=1` solo
+mostro ayuda y no cuenta. Siguiente simulacion: prueba 344, YAML absoluto
+`tray_prueba_344.yaml`, `multi_dron.launch.py`, headless, dynamic, debug y
+metricas; GT gobierna porque no se solicita autoridad ORB. Timeout 900 s,
+espera posterior 5 s y monitor de recursos. Tras terminar, registrar y reducir
+REF-SWITCH/raw/productive/tracking antes de decidir cualquier correccion.
+
+Checkpoint simulacion 344: runner 0, escenario 0, `success=true`; dos fachadas
+completadas con GT gobernando, recursos sanos y guard inactivo. Log completo
+`logs/prueba_344.log` conservado sin lectura manual. Siguiente accion: reducir
+REF-SWITCH-TRACE, productivo, tracking/fuentes y escenario; cuantificar eventos
+ADVANCE/KEEP y stale antes de decidir si procede correccion o STOP.
+
+Diagnostico 344: `STALE_RAW_HISTORY CONFIRMADO`,
+`CROSS_REFERENCE_RAW_HISTORY DESCARTADO`. Dron 2: 112 cambios Kref, 598 frames
+post-switch, `KEEP=125`, max raw_dt `20.609 s`; evento extremo raw
+`2.741 m/0.675 rad` frente a O `0.025 m/0.009 rad`, con
+`old_ref=new_ref=77`. GT gobernaba y tracking permanecia OK: el feedback ORB
+no origina el defecto. La entrada raw vive en O; el baseline retenido tras
+rechazos causa la edad creciente y afecta angular mediante SUSPICIOUS, decay y
+PREDICT_ONLY. MIDPOINT_DYNAMIC lineal permanece independiente.
+
+Checkpoint correccion stale raw: si `raw_dt` supera el maximo degradado, el
+delta actual sigue rechazado/PREDICT_ONLY pero se rebasa solo
+`last_raw_measurement/stamp` y se invalida la derivada raw previa. No se toca
+pose O, estado dinamico, g_O, buffers, goals ni gains. Telemetria distingue
+`REBASE`. Añadido GTest `InvalidRawAgeRebasesWithoutAcceptingInvalidDelta`.
+Siguiente accion: actualizar docs, validar diff, rebuild y tests; solo si pasan
+ejecutar 345 identica en shadow.
+
+Checkpoint pre-build fix stale raw: docs de paquete, YAML y
+`git diff --check` correctos. Recompilar `orbslam3` con grupo dron; despues
+GTest esperado 117/117 y harness lineal. Si pasan, 345 reutiliza exactamente
+`tray_prueba_344.yaml` y configuracion shadow.
+
+Checkpoint rebuild fix stale raw: `orbslam3` codigo 0 en 1 min 10 s; solo
+warnings heredados. Siguiente accion: ejecutar GTest real esperado 117/117,
+harness lineal y diff; si pasan iniciar 345 shadow.
+
+Checkpoint tests fix intento 1: GTest 117 ejecutados, 116 pasan y falla solo el
+nuevo `InvalidRawAgeRebasesWithoutAcceptingInvalidDelta`; harness lineal y
+diff pasan. 345 detenida. Siguiente accion: ejecutar unicamente el test nuevo y
+diagnosticar su primera asercion real antes de corregir.
+
+Diagnostico test nuevo: el frame con delta raw invalido conserva correctamente
+`base_update_type=REJECTED` por el gate existente; la expectativa
+`PREDICT_ONLY` era incorrecta. Correccion mecanica solo del test a `REJECTED`;
+no cambia codigo productivo. Siguiente accion: rebuild incremental y repetir
+117/117 antes de 345.
+
+Checkpoint rebuild test corregido: `orbslam3` codigo 0 en 4.93 s. Siguiente
+accion: GTest real completo y, si 117/117, ejecutar 345.
+
+Checkpoint tests fix final: GTest `117/117`; harness lineal y diff ya correctos.
+Siguiente simulacion 345: mismo `tray_prueba_344.yaml`, mismo launch dynamic,
+GT gobernando/ORB shadow, headless, debug, metricas 345, timeout 900 s, espera
+5 s y recursos. Comparar REBASE/KEEP/raw_dt/raw steps y ventanas post-KF con
+344 antes de autorizar 346.
+
+Checkpoint simulacion 345: runner 0, escenario 0, `success=true`; misma ruta
+shadow completada, recursos sanos y guard inactivo. Log completo
+`logs/prueba_345.log` conservado sin lectura manual. Siguiente accion: reducir
+trazas y comparar cuantitativamente 344/345 antes de decidir 346.
+
+Diagnostico 345: `STALE_RAW_HISTORY FIX VALIDADO EN SHADOW`. Dron 2 frente a
+344: raw_dt max `20.609->0.201 s`, KEEP `125->5`, REBASE `0->2`, SUSPICIOUS
+`168->2`, racha maxima sin anchor `101->2`, raw translation max
+`2.753->0.247 m`; O max `0.088/0.239 m` segun ejecucion. Los REJECTED con dt
+valido aumentan al hacerse visibles movimientos reales antes ocultos por
+SUSPICIOUS, pero no forman cadenas. Creado `tray_prueba_346.yaml` identico en
+geometria/timing con handoff ORB solo para dron 2. Siguiente accion: validar y
+ejecutar 346; STOP si diverge antes de perdida visual.
+
+Checkpoint pre-simulacion 346: YAML y diff correctos; mismo launch dynamic,
+headless/debug, metricas 346, timeout 900 s, espera 5 s y recursos. Dron 1
+queda en GT hover; dron 2 hace handoff normal y recorre los mismos tres goals.
+Siguiente accion: ejecutar y reducir fuente/tracking/control/ref antes de 347.
+
+Checkpoint simulacion 346: runner 0, escenario 0, `success=true`; ruta corta
+completa, recursos sanos y guard inactivo. Log completo `logs/prueba_346.log`
+conservado sin lectura manual. Siguiente accion: reducir fuente, tracking,
+control, REF/raw y ejecutar analizadores angular/lineal para dron 2 antes de
+decidir 347.
+
+Diagnostico 346: `NO CONSEGUIDA` para control ORB en dos fachadas. La
+correccion stale permanece efectiva (`KEEP=0`, `REBASE=1`, raw_dt maximo
+`0.200 s`), pero el segundo tramo entra en fallback con tracking todavia `2`:
+en las muestras ORB, ep maximo `0.795 m` y ev maximo `1.730 m/s`. En el tercer
+tramo recupera ORB y despues el tracking cae `2->3->0->1`. Por tanto la
+divergencia/fallback precede a la perdida visual y activa el STOP acordado;
+347 no se ejecuta. El bug `STALE_RAW_HISTORY` queda corregido y validado, pero
+no era la unica causa de inestabilidad durante movimiento ORB largo.
+
+Cierre auditoria 344-346: resultado agregado `PARCIAL`. La hipotesis
+cross-reference queda descartada porque raw se expresa en O; 344 reprodujo el
+baseline obsoleto bajo GT, 345 valido el rebase quirurgico en shadow y 346
+demostro que queda otro defecto funcional en control ORB de dos fachadas.
+Build `orbslam3` correcto, GTest `117/117`, harness lineal correcto y recursos
+de simulacion sanos. Preparacion: `CERRADA`; acuerdo cerrado: `si`;
+autorizacion funcional: `SUSPENDIDA` por STOP; dudas abiertas: ninguna sobre
+esta bateria. Trabajo activo: ninguno.
+
+Checkpoint documental final 344-346: historial 5H, contrato, resumen de fase,
+pipeline maestro, estado minimo, ultima sesion y docs de `orbslam3_ros2`
+sincronizados. `git diff --check` correcto. No quedan builds, simulaciones ni
+procesos activos; los cambios posteriores al commit `769a596` permanecen sin
+commit para revision posterior.
+
+## Preparacion diagnostico post-346
+
+- Preparacion: `CERRADA`.
+- Acuerdo cerrado: `si`.
+- Autorizacion funcional: `CONCEDIDA`.
+- Objetivo: localizar el primer canal causal que diverge y la condicion exacta
+  que activa fallback con `tracking=2`, comparando 345 contra 348.
+- Alcance: solo telemetria/observabilidad; no cambiar estimadores, control,
+  thresholds, gains, mux, fuente, trayectoria ni politica de validez.
+- Prueba acordada: 348 reutiliza exactamente `tray_prueba_346.yaml`; una unica
+  348R sin cambios solo si 348 no reproduce. Si sigue ambiguo, STOP antes de
+  349A/349B para revisar con el usuario.
+- Criterio: reconstruir T0-T5 e identificar P/V, R/OMEGA, VALIDITY, CONTROL,
+  MULTICAUSAL o NO CONCLUYENTE; distinguir causa inicial, recualificacion y
+  source lock. Confirmar que stale raw sigue sano.
+- Riesgos aceptados: 345 y 348 deben alinearse por segmento/progreso porque la
+  autoridad fisica difiere; un predicado upstream puede no estar disponible en
+  el mux y requerir correlacion por sample/stamp.
+- Dudas abiertas: ninguna.
+- Siguiente accion exacta: auditar docs/campos actuales de NavigationState,
+  productor, mux y control; fijar telemetria minima y plan de build/reduccion.
+
+Checkpoint auditoria 348: el source gate real es
+`tracking_state==OK && local_valid && local_continuity_valid`, con epoch
+anclado. `velocity_valid` no selecciona fuente; afecta consumibilidad posterior.
+`tracking_lost` con tracking 2 implica `local_valid=false` o
+`local_continuity_valid=false`. Tras la recuperacion aparecen separadamente
+ORB_QUALIFYING y TRAJECTORY_SOURCE_LOCKED. Siguiente accion: instrumentar estas
+fronteras y la causa upstream sin cambiar decisiones.
+
+Checkpoint cambios observabilidad 348: el mux añade
+`F5H-FALLBACK-CAUSE-TRACE` con todos los predicados, source/reason, lock, edad y
+samples; `StereoSlamNode` distingue invalidez de predictor en medida y
+propagacion angular/translacional/base/gravedad en publicacion. Añadido test de
+enumeracion de predicados y docs de ambos paquetes sincronizadas. No cambia
+ninguna decision ni salida. Siguiente accion: validar diff/sintaxis y compilar
+`orbslam3`, despues `dron_individual` y `simulacion_dron` segun contrato.
+
+Checkpoint pre-build 348: `git diff --check` correcto. Un configure auxiliar
+en `/tmp` fallo solo porque el sandbox no pudo crear ese arbol; no es evidencia
+de codigo y no modifica el workspace. Siguiente accion larga: build oficial
+aislado de `orbslam3`; registrar resultado antes de continuar.
+
+Checkpoint build 348 1/3: `orbslam3` codigo 0 en 34.5 s; solo warnings
+heredados de cv_bridge/ORB-SLAM3/Eigen. Siguiente accion larga: build oficial
+de `dron_individual`, que compila el mux y su test nuevo.
+
+Checkpoint build 348 2/3: `dron_individual` codigo 0 en 30.9 s. Siguiente
+accion larga: build `simulacion_dron` para validar la integracion/launch antes
+de suites y simulacion.
+
+Checkpoint build 348 3/3: `simulacion_dron` codigo 0 en 1.08 s. Los tres
+paquetes compilan. Siguiente accion: ejecutar GTest del predictor, CTest focal
+del mux y harness del analizador; despues validar diff antes de 348.
+
+Checkpoint tests 348 parcial: predictor GTest `117/117` y mux `14/14`, incluido
+el nuevo test de todos los predicados. La cadena termino codigo 127 solo porque
+el nombre invocado para el harness lineal no existe en esa ruta; fallo mecanico
+posterior a ambos GTests. Siguiente accion: localizar el harness vigente con
+`rg --files`, ejecutarlo y repetir `git diff --check`.
+
+Checkpoint tests 348 final: harness lineal directo `7/7` y
+`git diff --check` correcto. Builds y suites pasan. Siguiente accion larga:
+prueba 348 reutilizando exactamente `tray_prueba_346.yaml`, launch/config
+dynamic y debug de 346; timeout 900 s, espera 5 s y guard de recursos. Tras el
+runner, registrar antes de reducir logs.
+
+Checkpoint simulacion 348: runner/escenario codigo 0, `success=true`, 225 s;
+guard no activado, minimo 2849.3 MiB disponible y ORB maximo 1186.2 MiB RSS.
+Log completo `logs/prueba_348.log` conservado sin lectura manual. Siguiente
+accion: reducir por FALLBACK-CAUSE/NAV-VALIDITY/source/tracking, control,
+predictor/productive/raw/Kref y escenario; despues construir T0-T5. Solo si no
+reproduce se permite 348R.
+
+Checkpoint diagnostico 348: la prueba reproduce y 348R no procede. Dron 2
+confirma ORB en `1788191534.896668196`; crecimiento angular `ew/omega_motion`
+supera `0.05 rad/s` a `+1.98 s` y el error lineal supera `0.1 m/s` a
+`+2.51 s`. El error lineal crece de RMSE `0.0527 m/s` en 0-5 s a
+`0.5204 m/s` entre 20 s y fallback. Primer fallback a `+41.59 s`, todavia con
+tracking 2: `local_valid=false`, `local_continuity_valid=false`,
+`velocity_valid=false`, `reference_keyframe_valid=false`; solo local y
+continuidad pertenecen al source gate. A los 100 ms todos vuelven validos,
+ORB recualifica y `TRAJECTORY_SOURCE_LOCKED` mantiene GT. La perdida visual
+real llega a `+61.12 s`, 19.54 s despues. Clasificacion: `MULTICAUSAL`, con
+acoplamiento control-estimador y ligera precedencia angular, no un fallo
+angular aislado. El pulso de validez es el disparador exacto pero no el origen
+de la divergencia acumulada. `STALE_RAW_HISTORY` sigue sano: 945 intervalos,
+`raw_dt` 0.048-0.299 s, ninguno negativo; acciones 938 ADVANCE, 3 KEEP y 4
+REBASE. Siguiente accion: documentar 348 y aplicar STOP antes de 349A/349B.
+
+Cierre documental 348: historial 5H, resumen, contrato, pipeline, estado,
+ultima sesion y docs de paquetes sincronizados. Resultado diagnostico
+`PARCIAL / MULTICAUSAL`: disparador de fallback identificado, causa dinamica
+aislada no demostrada. Preparacion: `CERRADA`; acuerdo cerrado: `si`;
+autorizacion funcional: `SUSPENDIDA` por STOP; prueba 348R no necesaria;
+349A/349B no ejecutadas. Dudas abiertas: ninguna sobre 348; el siguiente
+aislamiento requiere nuevo acuerdo. Trabajo activo: ninguno.
+
+## Preparacion diagnostico 349A/349B post-348
+
+- Preparacion: `CERRADA`.
+- Acuerdo cerrado: `si`.
+- Autorizacion funcional: `CONCEDIDA`.
+- Propuesta recibida: aislar `p/v` frente a `R/omega` mediante overrides GT
+  exclusivamente en la frontera final del mux, manteniendo ORB completo en
+  shadow y la ruta de dos fachadas de 346/348.
+- Auditoria inicial: existe `f5h_orb_control_override` y
+  `DiagnosticGtControlAlignment` de 321 para p/v; no existe aun sustitucion
+  angular ni trazabilidad completa de `control_stamp/gt_effective_stamp/skew`.
+- Alcance congelado propuesto: estimadores, dinamica, J, masa, gravedad,
+  buffers, gains, gates, Kref, W, source lock y fallback.
+- Prueba propuesta: 349A ORB p/v + GT R/omega; 349B GT p/v + ORB R/omega;
+  siempre ambas, con repeticion 350A/350B solo ante asimetria funcional clara.
+- Decisiones cerradas: GT interpolado/alineado al `control_stamp`, skew maximo
+  `20 ms`; RMSE GT es diagnostico de evolucion y no umbral absoluto de deriva.
+  Un fallback aislado sin divergencia previa se clasifica
+  `COMMON_VALIDITY_PATH/NO_CONCLUYENTE`, no como fallo del canal.
+- Repetibilidad: ejecutar siempre 349A y 349B; 350A/350B solo si una funciona y
+  la otra falla de forma clara. STOP tras la clasificacion.
+- Dudas abiertas: ninguna.
+- Siguiente accion exacta: auditar callbacks/stamps/configuracion de la ruta
+  321, implementar la extension angular y temporal minima, añadir tests y
+  compilar antes de simular.
+
+Checkpoint cambios 349: reutilizada la frontera final de 321. Añadidos modos
+complementarios p/v frente a R/omega, buffer GT sincronizado al stamp de
+control con limite causal de 20 ms, telemetria de fuente efectiva/skew y tres
+GTests focales. No se modifica ORB interno, mux, fallback, source lock,
+estimadores ni control. La ruta de 346/348 se reutilizara sin nuevo YAML.
+Siguiente accion: validar diff y compilar `dron_individual`; despues builds
+`orbslam3` y `simulacion_dron` y suites acordadas.
+
+Checkpoint build/tests 349: primer build `orbslam3` fallo solo por sandbox al
+crear log fuera de `src`; repetido oficialmente con permiso, codigo 0.
+`dron_individual` codigo 0 en 29.8 s y `simulacion_dron` codigo 0 en 0.83 s.
+Predictor `117/117`, mux `17/17`, analizador lineal `8/8` y
+`git diff --check` correctos. La invocacion inicial con `--gtest_brief` mostro
+ayuda y no cuenta; las suites directas son las validas. Siguiente accion larga:
+349A con `tray_prueba_346.yaml`, dynamic/shadow y override
+`orb_pv_gt_angular`, timeout 900 s, espera 5 s y guard de recursos.
+
+Checkpoint 349A intento invalido: runner/escenario codigo 0 en 223 s y guard
+inactivo, pero `2299/2299` trazas del dron 2 muestran `valid=false` y
+`applied=false`; no se sustituyo ningun canal. Causa mecanica: header GT en
+reloj Gazebo frente a `control_stamp` ROS, diferencia ya conocida en 263. La
+ejecucion se conserva como invalida. Correccion dentro del acuerdo: sellar las
+muestras GT con recepcion ROS local y repetir exclusivamente como 349AR tras
+rebuild; no cambia datos, estimator, fallback ni control productivo.
+
+Checkpoint 349AR invalida: runner/escenario codigo 0; el buffer ya entrega
+`2157/2278` estados validos, skew maximo `19.999981 ms`, medio `5.63 ms` y p95
+`10.07 ms`, pero `applied=0`. La captura de alineacion se intento solo en el
+tick exacto GT->ORB, que no tuvo soporte; despues no se reintentaba. Correccion
+mecanica: capturar una unica vez en la primera muestra ORB con soporte GT
+valido. Repetir como 349AR2 tras rebuild; si no aplica, detener por
+infraestructura sin continuar 349B.
+
+Checkpoint 349AR2: intento 0 invalido de infraestructura por muerte temprana
+de Gazebo; el reintento automatico completa escenario. La reduccion completa
+confirma que el modo y la alineacion funcionan, pero solo `2494/6407`
+publicaciones ORB post-handoff aplican R/omega GT; las restantes carecen de
+soporte conjunto pose+twist dentro de 20 ms y vuelven a ORB. Skew de muestras
+validas <=20 ms, pero la alternancia de fuentes invalida causalmente la prueba.
+No interpretar estabilidad ni ejecutar 349B. Autorizacion funcional:
+`SUSPENDIDA`; hace falta acordar si aumentar el soporte temporal conjunto
+aproximadamente a 30 ms o introducir una salida deliberadamente retardada.
+
+## Preparacion skew 30 ms para 349AR3/349B
+
+- Preparacion: `CERRADA`.
+- Acuerdo cerrado: `si`.
+- Autorizacion funcional: `CONCEDIDA`.
+- Propuesta recibida: ampliar exclusivamente el soporte causal diagnostico de
+  20 a 30 ms, sin retardo artificial ni cambios de estimador/control; medir
+  cobertura solo durante autoridad ORB y exigir ratio >=99.5 %.
+- Secuencia propuesta: rebuild/tests, 349AR3; si cobertura invalida, STOP sin
+  349B. Si valida, ejecutar 349B con el mismo criterio. 350A/350B solo ante
+  asimetria funcional clara.
+- Limite: 30 ms es el ultimo aumento permitido; no escalar automaticamente.
+- Criterio cerrado: ratio aplicado >=99.5 %, racha maxima de misses <=1 y
+  ningun miss coincidente con inicio de divergencia o cambio de fuente.
+- Dudas abiertas: ninguna.
+- Siguiente accion exacta: cambiar solo el parametro diagnostico a 30 ms,
+  añadir analisis de cobertura/tests, compilar y ejecutar 349AR3.
+
+Checkpoint cambios skew 30 ms: parametro diagnostico del mux actualizado a
+`0.03 s`; la propagacion sigue terminando en `control_stamp` y no añade
+retardo. La traza incorpora `navigation_source` y `override_requested`.
+Nuevo analizador calcula cobertura solo con autoridad ORB, rachas y
+percentiles de skew; añadidos tests de 20/30/>30 ms y del denominador. Ningun
+estimador, gate, fallback o control cambia. Siguiente accion: validar Python,
+diff y compilar los tres paquetes acordados.
+
+Checkpoint build/tests skew 30 ms: `orbslam3`, `dron_individual` y
+`simulacion_dron` codigo 0. Predictor `117/117`, mux `18/18`, analizador
+lineal `8/8`, cobertura `1/1`, Python y `git diff --check` correctos.
+Siguiente accion larga: ejecutar 349AR3 con ruta 346/348, override angular GT,
+dynamic/shadow, timeout 900 s y guard; reducir cobertura antes de interpretar.
+
+Checkpoint 349AR3 infraestructura: runner/escenario codigo 0 en 223 s, guard
+inactivo. Cobertura valida: `5474/5475=99.9817 %`, un miss aislado, racha 1;
+skew medio `8.72 ms`, p95 `20.02`, p99 `20.05`, max `21.15 ms`, 3734
+propagaciones causales. El unico miss ocurre mucho despues del primer fallback
+y no inicia la divergencia. Funcionalmente ORB pierde tracking y cae a fallback
+a `+60.38 s`; con angular GT, el error lineal productivo sigue alto (RMSE
+`0.556 m/s`, p95 `1.053`, max `6.458`). 349A es valida pero no completa las
+dos fachadas bajo ORB continuo. Conforme al acuerdo, siguiente accion larga:
+349B con p/v GT y R/omega ORB, mismo skew/ruta/configuracion; validar cobertura
+antes de interpretar.
+
+Checkpoint 349B: runner/escenario codigo 0 en 222 s, guard inactivo. Cobertura
+`3778/3778=100 %`, cero misses; skew medio `12.16 ms`, p95 `20.02`, p99
+`20.04`, max `21.01 ms`. Fuentes efectivas p/v GT y R/omega ORB en todas las
+publicaciones evaluadas. Funcionalmente el error angular aparece a `+1.70 s`,
+fallback por local/continuity invalid con tracking 2 a `+58.68 s` y tracking 3
+a `+60.34 s`. RMSE omega ORB-control frente GT `0.241 rad/s`, max `3.387`;
+energia `tau_er +0.257 J`, total `+0.0296 J`. 349B falla pese a p/v GT.
+
+Conclusion causal 349: `MULTIPLE_INDEPENDENT_ERRORS`. 349AR3 falla con p/v ORB
+y angular GT; 349B falla con p/v GT y angular ORB. En A domina error lineal
+productivo; en B el angular ORB diverge antes del pulso de validez. Ambos
+mantienen la correccion raw (sin dt negativos; REBASE acotado). No procede
+350A/350B porque no existe asimetria pasa/falla. STOP antes de corregir
+estimadores. Siguiente accion: sincronizar historial, contrato, estado, docs de
+paquete y ultima sesion; validar diff final.
+
+Cierre documental bateria 349: historial 5H, resumen, contrato, pipeline,
+estado, ultima sesion y docs de `dron_individual` sincronizados. Preparacion:
+`CERRADA`; acuerdo cerrado: `si`; autorizacion funcional: `SUSPENDIDA` por
+STOP. Pruebas validas: 349AR3 y 349B; intentos 349A/349AR/349AR2 conservados
+como invalidos. 350A/350B no proceden. Dudas abiertas: ninguna sobre la
+clasificacion; la siguiente modificacion de estimadores requiere nuevo acuerdo.
+Trabajo activo: ninguno.
 
 ## Puerta de continuidad
 

@@ -1,6 +1,6 @@
 # Historial 5H - Resumen
 
-Estado agregado: `PARCIAL`; la prueba 252 corrige la extrinseca y completa la
+Estado agregado: `CONSEGUIDA` dentro del contrato de Fase 5; la prueba 252 corrige la extrinseca y completa la
 vuelta, pero revela falta de suavidad ORB. Las iteraciones hasta 259 aislan el
 fallo angular local. El redisenio raw/bias y su politica de deadband/decay pasan
 37/37 GTests. El hover 262 mejora a unos 5.92 s en ORB y elimina el bias, pero
@@ -425,3 +425,48 @@ detiene en 338 yaw: ORB gobierna solo `11.18 s`, alcanza max er `0.995 rad`,
 RMSE omega `0.409 rad/s` y RMSE lineal `0.530 m/s`; tracking pasa `2->3` y el
 mux activa GT fallback durante el giro. 338 queda `NO CONSEGUIDA`; 339-343 no
 se ejecutan y 5H permanece `PARCIAL`.
+
+Auditoria 344-346: se descarta mezcla geometrica entre `reference_kf`, porque
+la entrada raw ya esta expresada en O. 344 confirma bajo GT el defecto real:
+tras rechazos, el baseline raw queda obsoleto hasta `20.609 s` y genera saltos
+de `2.753 m`, aunque el paso en O no supera `0.088 m`. Se implementa un rebase
+exclusivo del historial raw cuando su edad ya es invalida, sin aceptar el delta
+ni reiniciar pose, dinamica o fisica; build correcto y GTest `117/117`.
+
+345 valida la correccion en shadow: `KEEP 125->5`, `SUSPICIOUS 168->2`, raw_dt
+maximo `20.609->0.201 s` y racha sin anchor `101->2`. En 346 el raw sigue
+acotado (`KEEP=0`, `REBASE=1`, raw_dt maximo `0.200 s`), pero el segundo tramo
+entra en fallback con tracking todavia `2`, con ep/ev maximos
+`0.795 m/1.730 m/s`; el tracking se pierde despues, durante el tercer tramo.
+Conclusion: `STALE_RAW_HISTORY CORREGIDO`, pero control ORB en dos fachadas
+`NO CONSEGUIDO`. STOP aplicado y 347 no ejecutada; 5H permanece `PARCIAL`.
+
+Diagnostico 348: la instrumentacion observacional identifica el primer
+fallback a `+41.59 s` con tracking 2 y fallo simultaneo de `local_valid` y
+`local_continuity_valid`, los dos predicados reales del source gate. Los flags
+se recuperan en 100 ms y ORB recualifica, pero el source lock mantiene GT; la
+perdida visual real llega 19.54 s despues. La divergencia ya existia: angular
+cruza `0.05 rad/s` a `+1.98 s` y el error lineal cruza `0.1 m/s` a `+2.51 s`.
+Se clasifica `MULTICAUSAL / CONTROL-ESTIMATOR COUPLING`, con ligera precedencia
+angular pero sin causa aislada suficiente. El raw sigue sano, sin `raw_dt`
+negativos. 348R no procede; STOP antes de 349A/349B. 5H sigue `PARCIAL`.
+
+Bateria 349: los intentos 349A/349AR/349AR2 son invalidos por infraestructura
+temporal y se conservan como tales. Con skew diagnostico causal de 30 ms,
+349AR3 valida cobertura angular GT `99.9817 %`, pero p/v ORB mantienen RMSE
+`0.556 m/s` y terminan en tracking loss/fallback a `+60.38 s`. 349B valida
+cobertura p/v GT `100 %`, pero R/omega ORB divergen desde `+1.70 s`, con RMSE
+omega `0.241 rad/s`, fallback tracking 2 a `+58.68 s` y tracking 3 a
+`+60.34 s`. Clasificacion: `MULTIPLE_INDEPENDENT_ERRORS`; ambos bloques tienen
+un defecto suficiente por separado. No procede 350A/350B. STOP antes de una
+solucion; 5H permanece `PARCIAL`.
+
+Cierre 350R-355: la telemetría visual del mismo frame demuestra en 351 que la
+caída de inliers, cobertura y depth útil precede durante varios segundos a la
+pérdida de tracking en la fachada este. La ruta favorable corta, lenta y junto
+a pared mejora la evidencia; 353, 354 y 355 completan 3/3 ejecuciones
+consecutivas gobernadas por ORB, sin fallback posterior a la toma de autoridad
+ni tracking no `OK`. 5H queda `CONSEGUIDA`: el estado de control es válido con
+evidencia visual adecuada. La planificación para evitar regiones pobres y la
+retirada del fallback GT corresponden a Fase 6; la vuelta larga no queda
+validada como ORB-only.

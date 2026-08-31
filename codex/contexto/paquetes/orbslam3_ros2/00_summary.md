@@ -3,6 +3,12 @@
 Resumen: Wrapper ROS 2 para ORB-SLAM3; publica `pose_local`,
 `navigation_state`, `orb_map_delta` y ofrece `GetOrbMap`.
 
+Con `debug_orb_visual_evidence=true`, escribe por dron un CSV del mismo frame
+con tracking/reference KF, candidatos e inliers, depth/disparidad, cobertura
+4x3 y `Tcr` cruda. Está desactivado por defecto y no modifica la salida de
+navegación. `analyze_orb_visual_evidence.py` resume todos los frames y separa
+las estadísticas con tracking `OK`.
+
 Estado del fuente: el arbol completo vuelve a estar disponible en
 `orbslam3_ros2/`. Se recupero el snapshot base del commit
 `00c54335ccc010d74c1e24e336aa817604124947` de `zang09/ORB_SLAM3_ROS2` y se
@@ -199,3 +205,24 @@ no una lista cronologica de KFs nuevos. `get_full_map` permite reconciliar
 ausencias y puede devolver en bloque KFs anteriores.
 
 Detalles en `stereo_slam_node.md` y demás MDs del directorio.
+
+Auditoria post-342R: la entrada denominada raw del predictor es
+`raw_o_t_body`, ya expresada en O por `NavigationStateEstimator`; no se ha
+encontrado un historico de pose raw almacenado en el frame de una KF. El
+baseline `last_raw_measurement_/last_raw_stamp_sec_` solo avanza cuando
+`raw_motion_plausible`; tras un rechazo puede quedar antiguo y hacer crecer
+los siguientes `raw_dt/raw_step`. La telemetria diagnostica
+`F5H-REF-SWITCH-TRACE` expone stamp previo, `ADVANCE|KEEP`, old/new ref y
+efecto angular sin modificar la estimacion.
+
+La prueba 344 con GT gobernando confirma que no existe mezcla geometrica de
+KFs, pero si retencion indefinida del baseline raw en O: hasta `20.609 s` y
+`2.741 m` raw frente a `0.025 m` en O. El codigo vigente rebasa solo el
+historico raw cuando `raw_dt` supera el maximo degradado; ese delta permanece
+rechazado/PREDICT_ONLY y la siguiente muestra empieza una comparacion nueva.
+La accion se registra como `REBASE` y no resetea estado fisico ni dinamico.
+345 valida este comportamiento en shadow: raw_dt maximo baja a `0.201 s`,
+`KEEP 125->5` y `SUSPICIOUS 168->2`. En 346 ORB el historial sigue acotado,
+pero el control entra en fallback antes de la perdida visual; por tanto la
+correccion stale es vigente y correcta, aunque no resuelve por si sola el
+movimiento ORB largo.

@@ -63,3 +63,16 @@ def test_parse_midpoint_dynamic_keeps_shadow_velocity_and_coverage():
 
 def test_analyzer_defaults_to_drone_one_namespace():
     assert MODULE.analyze.__defaults__ == (1,)
+
+
+def test_temporal_error_summary_uses_handoff_and_stops_at_fallback():
+    rows = [
+        {'stamp': 10.0, 'error': np.array([0.01, 0.0, 0.0])},
+        {'stamp': 12.0, 'error': np.array([0.2, 0.0, 0.0])},
+        {'stamp': 16.0, 'error': np.array([2.0, 0.0, 0.0])},
+    ]
+    result = MODULE.temporal_error_summary(rows, 10.0, 15.0)
+    assert result['fallback_sec'] == 5.0
+    assert result['first_error_gt_0.1_sec'] == 2.0
+    assert result['first_error_gt_1_sec'] == 6.0
+    assert result['windows']['0-5']['count'] == 2

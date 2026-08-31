@@ -112,6 +112,7 @@ public:
     void NewDataset();
     int GetNumberDataset();
     int GetMatchesInliers();
+    int GetMatchesCandidates();
 
     //DEBUG
     void SaveSubTrajectory(string strNameFile_frames, string strNameFile_kf, string strFolder="");
@@ -331,6 +332,7 @@ protected:
 
     //Current matches in frame
     int mnMatchesInliers;
+    int mnMatchesCandidates = 0;
 
     //Last Frame, KeyFrame and Relocalisation Info
     KeyFrame* mpLastKeyFrame;

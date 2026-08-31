@@ -9,9 +9,9 @@
 5D: CONSEGUIDA
 5E: CONSEGUIDA tecnicamente
 5F: PARCIAL; puerta humana no aceptada
-5G-5H: PARCIAL; X/Y cercana/Z validados; yaw falla en 338
+5G-5H: CONSEGUIDA; evidencia visual causal y ruta favorable ORB 3/3
 5I: absorbida en 5H
-Fase 5 funcional: en curso
+Fase 5 funcional: CONSEGUIDA dentro del alcance previo a Fase 6
 ```
 
 ## Objetivo
@@ -219,6 +219,15 @@ tras corregir `0.057317 rad`, el torque total acumula `+0.046416 J` en
 causa principal. No se ejecutan 269 ni etapa 3; el residual gradual
 `Delta_target` queda pendiente de autorizacion.
 
+El cierre 350R-355 instrumenta evidencia visual por el mismo frame sin cambiar
+comportamiento. 351 reproduce bajo GT+shadow la caída de inliers, cobertura y
+depth antes de `RECENTLY_LOST` en la fachada este. La ruta manual favorable
+corta/lenta y junto a pared conserva tracking; 353-355 la completan 3/3 bajo
+autoridad ORB sin fallback posterior. Fase 5 queda funcionalmente conseguida:
+los fallos de la vuelta larga se atribuyen a baja observabilidad y su prevención
+activa pasa a Fase 6. `GT_FALLBACK` se conserva hasta que Fase 6 aporte tareas y
+recovery; no se afirma que la vuelta larga sea hoy ORB-only.
+
 La bateria 269-272 cambia el diagnostico siguiente: GT normal 50 Hz es estable,
 pero GT perfecto a 20 Hz atravesando el `OrbPosePredictor` ya produce giro y
 energia positiva; añadir 80 ms o el timing realista de 268 provoca fallo antes
@@ -357,3 +366,22 @@ residual final de velocidad cercana a `0.11 m/s`. 336/337R validan Z. 338 yaw
 falla con max er `0.995 rad`, RMSE omega `0.409 rad/s`, RMSE lineal
 `0.530 m/s` y perdida de tracking que activa fallback. STOP: 339-343 no
 ejecutadas.
+
+Auditoria 344-346: 344 descarta mezcla de frame Kref y confirma que rechazos
+encadenados conservaban un baseline raw hasta `20.609 s`. El rebase aislado de
+ese historial pasa build, GTest `117/117` y 345 shadow, reduciendo SUSPICIOUS
+`168->2` y raw_dt maximo a `0.201 s`. En 346 la higiene raw se mantiene, pero
+el dron activa fallback con tracking todavia OK y errores ORB maximos de
+`0.795 m/1.730 m/s`; la perdida visual ocurre despues. Resultado: correccion
+stale validada, dos fachadas ORB no validadas y 347 detenida por STOP.
+
+348 añade solo observabilidad y confirma que el fallback de 346 se activa por
+un pulso de validez local/continuidad con tracking todavia OK. La divergencia
+lineal y angular comienza mucho antes y casi simultaneamente; resultado
+`MULTICAUSAL`, con ligera precedencia angular. El raw permanece saneado. No se
+ejecutan 348R ni 349A/349B; hace falta acordar el siguiente aislamiento.
+
+El aislamiento acordado se completa con 349AR3/349B y cobertura GT causal
+`99.9817/100 %`. Ambas ramas fallan por separado: p/v ORB con angular GT y
+R/omega ORB con p/v GT. Resultado `MULTIPLE_INDEPENDENT_ERRORS`; no se ejecutan
+350A/350B y se aplica STOP antes de modificar estimadores.

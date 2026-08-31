@@ -112,3 +112,14 @@ La bateria 321 añade confirmacion transient-local de autoridad ORB y el selecto
 temporal `f5h_orb_control_override` para sustituir p y/o v lineales solo en la
 salida del mux. Orientacion/omega y estimadores siguen siendo ORB; el default
 `normal` no altera el runtime ordinario.
+
+Para 349, el mismo selector añade `orb_pv_gt_angular` y
+`gt_pv_orb_angular`. `DiagnosticGtStateBuffer` sincroniza pose/twist GT al
+stamp de control mediante interpolacion o propagacion causal limitada a
+`20 ms`; el override sigue situado exclusivamente en la salida del mux. ORB
+calcula y publica internamente siempre p/v/R/omega completos.
+
+349AR3/349B validan la infraestructura con cobertura `99.9817/100 %`. El skew
+de 30 ms es exclusivamente diagnostico y no añade retardo; los modos no quedan
+habilitados por defecto. El resultado funcional aísla errores suficientes en
+ambos bloques ORB, por lo que no constituye una solución productiva.

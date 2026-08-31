@@ -132,6 +132,14 @@ goal activo. La pose world GT viaja temporalmente en `w_t_body` con
 GT queda retenido hasta la frontera y ORB solo puede volver en el siguiente
 goal si cumple tracking, anchor y cualificacion.
 
+Para el diagnostico 348, `[F5H-FALLBACK-CAUSE-TRACE]` se emite en cada cambio
+de fuente/reason y conserva todos los predicados del mensaje raw. La decision
+base ORB exige `tracking_state==OK && local_valid && local_continuity_valid` y
+epoch anclado; `velocity_valid` y `reference_keyframe_valid` se registran como
+predicados no pertenecientes al source gate. La traza distingue ademas
+`ORB_QUALIFYING` y `TRAJECTORY_SOURCE_LOCKED`, estado del lock, edad, epoch,
+Kref y samples de entrada/salida. No cambia la politica del mux.
+
 El mux recibe temporalmente `sensor/GT/pose` y `sensor/GT/vel`. En fallback
 reenvia ambas medidas exactas, expresadas mediante la misma rotacion rigida en
 el O continuo; no pasan por filtros ni predictores. Suscripcion, transporte,
@@ -344,3 +352,35 @@ dron/dron_individual/src/control_tray/navigation_state_mux.cpp
 - El fallback Fase 5 depende de GT, visible y desactivado por defecto.
 - GT no puede alimentar estimacion, mapa, anchors ni pose global.
 - Si se automatizan pruebas de Codex, el script debe llamar a `AccionTrayectoria` respetando namespaces.
+
+Validacion de `F5H-FALLBACK-CAUSE-TRACE` en 348: el primer cambio ORB->GT se
+produce con tracking 2 porque `local_valid` y `local_continuity_valid` son
+falsos. `velocity_valid` y `reference_keyframe_valid` tambien caen, pero la
+traza los marca como `NON_SOURCE_GATE`. La recuperacion posterior se separa de
+`TRAJECTORY_SOURCE_LOCKED`; la instrumentacion no altera la fuente elegida.
+
+Diagnostico 349: `DiagnosticGtStateBuffer` conserva hasta 200 muestras de pose
+y twist GT, interpola ambas al `control_stamp` o propaga causalmente la ultima
+pose si su soporte no excede `f5h_diagnostic_gt_max_skew_sec=0.03`. Los modos
+`orb_pv_gt_angular` y `gt_pv_orb_angular` sustituyen bloques complementarios
+despues de la decision del mux y antes de publicar al controlador.
+`[F5H-CHANNEL-OVERRIDE]` registra stamps, skew, validez y fuente efectiva de
+cada componente. El default `normal`, el source gate y el source lock no
+cambian.
+
+El buffer sella GT con tiempo ROS local de recepcion: los headers GT de Gazebo
+pertenecen a otro dominio y no se comparan directamente con `control_stamp`.
+La telemetria conserva el soporte/skew local que determina la validez causal.
+La alineacion se captura una sola vez en la primera muestra ORB con soporte GT
+valido, sin depender de que ese soporte coincida exactamente con el tick del
+handoff.
+
+La validacion 349AR3 amplia exclusivamente ese soporte de `20 ms` a `30 ms`.
+No es una latencia añadida: la pose causal se propaga hasta `control_stamp`.
+La traza incluye `navigation_source` y `override_requested` para que el ratio
+excluya aproximacion, shadow y fallback.
+
+Resultados: 349AR3 aplica R/omega GT en `5474/5475` publicaciones ORB y 349B
+aplica p/v GT en `3778/3778`. Ambos experimentos fallan funcionalmente, lo que
+clasifica defectos independientes en los dos bloques ORB. Esta infraestructura
+es temporal de Fase 5 y no debe convertirse en ruta productiva.

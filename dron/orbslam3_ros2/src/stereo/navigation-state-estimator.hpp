@@ -397,6 +397,10 @@ struct OrbPosePredictorDiagnostics
   float visual_base_error_before_rad = 0.0f;
   float visual_base_error_after_rad = 0.0f;
   double dt_sec = 0.0;
+  bool raw_history_valid_before = false;
+  double previous_raw_measurement_stamp_sec = 0.0;
+  bool raw_history_advanced = false;
+  bool raw_history_rebased = false;
   double raw_dt_sec = 0.0;
   RawDtQuality raw_dt_quality = RawDtQuality::Invalid;
   RawMotionClass raw_motion_class = RawMotionClass::Initializing;

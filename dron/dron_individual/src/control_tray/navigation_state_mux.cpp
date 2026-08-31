@@ -64,6 +64,7 @@ public:
     declare_parameter<int64_t>("drone_id", 0);
     declare_parameter<std::string>("f5h_diagnostic_force_source", "normal");
     declare_parameter<std::string>("f5h_orb_control_override", "normal");
+    declare_parameter<double>("f5h_diagnostic_gt_max_skew_sec", 0.03);
     declare_parameter<double>("f5h_shadow_settle_duration_sec", 1.5);
     declare_parameter<double>("f5h_shadow_max_linear_speed", 0.15);
     declare_parameter<double>("f5h_shadow_max_angular_speed", 0.15);
@@ -81,6 +82,8 @@ public:
       get_parameter("f5h_diagnostic_force_source").as_string();
     diagnostic_orb_control_mode_ = dron_individual::ParseDiagnosticOrbControlMode(
       get_parameter("f5h_orb_control_override").as_string());
+    diagnostic_gt_max_skew_sec_ = std::max(
+      0.0, get_parameter("f5h_diagnostic_gt_max_skew_sec").as_double());
     RCLCPP_WARN(
       get_logger(), "[F5H-ORB-CONTROL-OVERRIDE] mode=%s",
       get_parameter("f5h_orb_control_override").as_string().c_str());
@@ -181,6 +184,8 @@ private:
   {
     std::lock_guard<std::mutex> lock(mutex_);
     gt_pose_ = FromMessage(message->pose);
+    // GT header and control ROS time are different clock domains in Gazebo.
+    gt_state_buffer_.AddPose(get_clock()->now().seconds(), gt_pose_);
     gt_received_at_ = std::chrono::steady_clock::now();
     gt_valid_ = true;
     if (debug_architecture_telemetry_ && architecture_activity_pub_) {
@@ -201,6 +206,12 @@ private:
   {
     std::lock_guard<std::mutex> lock(mutex_);
     gt_velocity_ = message->twist;
+    gt_state_buffer_.AddVelocity(
+      get_clock()->now().seconds(),
+      Eigen::Vector3d(
+        message->twist.linear.x, message->twist.linear.y, message->twist.linear.z),
+      Eigen::Vector3d(
+        message->twist.angular.x, message->twist.angular.y, message->twist.angular.z));
     gt_velocity_received_at_ = std::chrono::steady_clock::now();
     gt_velocity_valid_ = true;
   }
@@ -390,31 +401,85 @@ private:
       output.velocity.angular.y = angular.y();
       output.velocity.angular.z = angular.z();
     }
+    const double control_stamp_sec = get_clock()->now().seconds();
+    const auto synchronized_gt = gt_state_buffer_.Sample(
+      control_stamp_sec, diagnostic_gt_max_skew_sec_);
     if (
       decision.source == NavigationSource::ORB &&
-      last_source_ == NavigationSource::GT_FALLBACK && gt_valid_)
+      !diagnostic_gt_alignment_.valid() && synchronized_gt)
     {
-      diagnostic_gt_alignment_.Capture(last_continuous_measurement_, gt_pose_);
+      diagnostic_gt_alignment_.Capture(
+        last_continuous_measurement_, synchronized_gt->pose);
     }
     // TODO FASE 6: retirar los overrides GT diagnosticos al eliminar GT_FALLBACK.
+    bool diagnostic_override_applied = false;
     if (
       decision.source == NavigationSource::ORB && diagnostic_gt_alignment_.valid() &&
-      gt_valid_ && gt_velocity_valid_)
+      synchronized_gt)
     {
+      const RigidPose gt_in_control = diagnostic_gt_alignment_.TransformPose(
+        synchronized_gt->pose);
       if (dron_individual::UsesGtPosition(diagnostic_orb_control_mode_)) {
-        const RigidPose gt_in_control = diagnostic_gt_alignment_.TransformPose(gt_pose_);
         output.o_t_body.position.x = gt_in_control.translation.x();
         output.o_t_body.position.y = gt_in_control.translation.y();
         output.o_t_body.position.z = gt_in_control.translation.z();
       }
       if (dron_individual::UsesGtVelocity(diagnostic_orb_control_mode_)) {
         const Eigen::Vector3d gt_linear = diagnostic_gt_alignment_.RotateVector(
-          Eigen::Vector3d(
-            gt_velocity_.linear.x, gt_velocity_.linear.y, gt_velocity_.linear.z));
+          synchronized_gt->linear);
         output.velocity.linear.x = gt_linear.x();
         output.velocity.linear.y = gt_linear.y();
         output.velocity.linear.z = gt_linear.z();
       }
+      if (dron_individual::UsesGtOrientation(diagnostic_orb_control_mode_)) {
+        const auto normalized = gt_in_control.rotation.normalized();
+        output.o_t_body.orientation.x = normalized.x();
+        output.o_t_body.orientation.y = normalized.y();
+        output.o_t_body.orientation.z = normalized.z();
+        output.o_t_body.orientation.w = normalized.w();
+      }
+      if (dron_individual::UsesGtAngularVelocity(diagnostic_orb_control_mode_)) {
+        const Eigen::Vector3d gt_angular = diagnostic_gt_alignment_.RotateVector(
+          synchronized_gt->angular);
+        output.velocity.angular.x = gt_angular.x();
+        output.velocity.angular.y = gt_angular.y();
+        output.velocity.angular.z = gt_angular.z();
+      }
+      diagnostic_override_applied =
+        dron_individual::IsDiagnosticChannelOverride(diagnostic_orb_control_mode_);
+    }
+    if (dron_individual::IsDiagnosticChannelOverride(diagnostic_orb_control_mode_)) {
+      const bool gt_position = diagnostic_override_applied &&
+        dron_individual::UsesGtPosition(diagnostic_orb_control_mode_);
+      const bool gt_velocity = diagnostic_override_applied &&
+        dron_individual::UsesGtVelocity(diagnostic_orb_control_mode_);
+      const bool gt_orientation = diagnostic_override_applied &&
+        dron_individual::UsesGtOrientation(diagnostic_orb_control_mode_);
+      const bool gt_angular_velocity = diagnostic_override_applied &&
+        dron_individual::UsesGtAngularVelocity(diagnostic_orb_control_mode_);
+      RCLCPP_INFO(
+        get_logger(),
+        "[F5H-CHANNEL-OVERRIDE] control_stamp=%.9f orb_state_stamp=%.9f "
+        "gt_effective_stamp=%.9f orb_state_age=%.9f gt_alignment_skew=%.9f "
+        "navigation_source=%s override_requested=true valid=%s applied=%s "
+        "position_source=%s linear_velocity_source=%s "
+        "orientation_source=%s angular_velocity_source=%s gt_interpolated=%s "
+        "gt_causal_propagation=%s",
+        control_stamp_sec, rclcpp::Time(raw->header.stamp).seconds(),
+        synchronized_gt ? synchronized_gt->effective_stamp_sec : -1.0,
+        std::max(0.0, control_stamp_sec - rclcpp::Time(raw->header.stamp).seconds()),
+        synchronized_gt ? synchronized_gt->support_skew_sec : -1.0,
+        decision.source == NavigationSource::ORB ? "ORB" : "GT_FALLBACK",
+        synchronized_gt ? "true" : "false",
+        diagnostic_override_applied ? "true" : "false",
+        gt_position ? "GT_DIAGNOSTIC" : "ORB",
+        gt_velocity ? "GT_DIAGNOSTIC" : "ORB",
+        gt_orientation ? "GT_DIAGNOSTIC" : "ORB",
+        gt_angular_velocity ? "GT_DIAGNOSTIC" : "ORB",
+        synchronized_gt &&
+        (synchronized_gt->pose_interpolated || synchronized_gt->velocity_interpolated) ?
+        "true" : "false",
+        synchronized_gt && synchronized_gt->causally_propagated ? "true" : "false");
     }
     if (
       diagnostic_force_source_ == "shadow_gt" && shadow_orb_activated_ &&
@@ -470,6 +535,37 @@ private:
     if (decision.source != last_source_ ||
       decision.fallback_reason != last_fallback_reason_)
     {
+      const double state_age_sec = std::max(
+        0.0, get_clock()->now().seconds() - rclcpp::Time(raw->header.stamp).seconds());
+      const std::string failed_predicates = dron_individual::ExactFailedPredicates(
+        raw->tracking_state == NavigationState::TRACKING_OK,
+        raw->local_valid, raw->local_continuity_valid, raw->velocity_valid,
+        anchored, raw->reference_keyframe_valid, decision.fallback_reason);
+      RCLCPP_WARN(
+        get_logger(),
+        "[F5H-FALLBACK-CAUSE-TRACE] stamp=%.9f source_before=%s source_after=%s "
+        "reason=%s tracking=%d tracking_ok=%s local_valid=%s "
+        "local_continuity_valid=%s velocity_valid=%s global_valid=%s "
+        "anchored=%s reference_valid=%s state_age_sec=%.9f "
+        "trajectory_active=%s locked_source=%s exact_failed_predicates=%s "
+        "epoch=%lu ref_kf=%lu input_sample=%lu output_sample=%lu",
+        get_clock()->now().seconds(),
+        last_source_ == NavigationSource::ORB ? "orb" :
+        (last_source_ == NavigationSource::GT_FALLBACK ? "gt_fallback" : "invalid"),
+        decision.source == NavigationSource::ORB ? "orb" : "gt_fallback",
+        dron_individual::FallbackReasonName(decision.fallback_reason),
+        raw->tracking_state, tracking_ok ? "true" : "false",
+        raw->local_valid ? "true" : "false",
+        raw->local_continuity_valid ? "true" : "false",
+        raw->velocity_valid ? "true" : "false",
+        raw->global_valid ? "true" : "false", anchored ? "true" : "false",
+        raw->reference_keyframe_valid ? "true" : "false", state_age_sec,
+        goal_source_lock_.active() ? "true" : "false",
+        goal_source_lock_.locked_source() == NavigationSource::ORB ? "orb" : "gt_fallback",
+        failed_predicates.c_str(), static_cast<unsigned long>(raw->map_epoch),
+        static_cast<unsigned long>(raw->reference_keyframe_id),
+        static_cast<unsigned long>(raw->sample_sequence),
+        static_cast<unsigned long>(output.sample_sequence));
       RCLCPP_WARN(
         get_logger(),
         "[F5H-POSE-SOURCE] source=%s reason=%s epoch=%lu tracking=%d "
@@ -523,6 +619,7 @@ private:
   std::string diagnostic_force_source_{"normal"};
   dron_individual::DiagnosticOrbControlMode diagnostic_orb_control_mode_{
     dron_individual::DiagnosticOrbControlMode::NORMAL};
+  double diagnostic_gt_max_skew_sec_{0.03};
   double shadow_settle_duration_sec_{1.5};
   double shadow_max_linear_speed_{0.15};
   double shadow_max_angular_speed_{0.15};
@@ -538,6 +635,7 @@ private:
   dron_individual::ContinuousSourcePose continuous_pose_;
   dron_individual::ContinuousSourcePose shadow_pose_;
   dron_individual::DiagnosticGtControlAlignment diagnostic_gt_alignment_;
+  dron_individual::DiagnosticGtStateBuffer gt_state_buffer_;
   geometry_msgs::msg::Twist last_output_velocity_;
   RigidPose last_continuous_measurement_;
   bool continuous_measurement_valid_{false};

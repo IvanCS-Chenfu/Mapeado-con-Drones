@@ -7,6 +7,9 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <optional>
+#include <sstream>
 #include <string>
 
 namespace dron_individual
@@ -84,6 +87,44 @@ inline const char * FallbackReasonName(FallbackReason reason)
       return "trajectory_source_locked";
   }
   return "unknown";
+}
+
+inline std::string ExactFailedPredicates(
+  bool tracking_state_ok, bool local_valid, bool local_continuity_valid,
+  bool velocity_valid, bool anchored, bool reference_valid,
+  FallbackReason final_reason)
+{
+  std::ostringstream result;
+  const auto append = [&result](const char * value) {
+      if (result.tellp() > 0) {
+        result << '|';
+      }
+      result << value;
+    };
+  if (!tracking_state_ok) {
+    append("TRACKING_NOT_OK");
+  }
+  if (!local_valid) {
+    append("LOCAL_INVALID");
+  }
+  if (!local_continuity_valid) {
+    append("CONTINUITY_INVALID");
+  }
+  if (!velocity_valid) {
+    append("VELOCITY_INVALID_NON_SOURCE_GATE");
+  }
+  if (!anchored) {
+    append("EPOCH_UNANCHORED");
+  }
+  if (!reference_valid) {
+    append("REFERENCE_INVALID_NON_SOURCE_GATE");
+  }
+  if (final_reason == FallbackReason::ORB_QUALIFYING) {
+    append("ORB_QUALIFYING");
+  } else if (final_reason == FallbackReason::TRAJECTORY_SOURCE_LOCKED) {
+    append("TRAJECTORY_SOURCE_LOCKED");
+  }
+  return result.tellp() > 0 ? result.str() : "NONE";
 }
 
 inline double RotationDistance(
@@ -272,7 +313,9 @@ enum class DiagnosticOrbControlMode
   NORMAL,
   POSITION_GT,
   VELOCITY_GT,
-  POSITION_VELOCITY_GT
+  POSITION_VELOCITY_GT,
+  ORB_PV_GT_ANGULAR,
+  GT_PV_ORB_ANGULAR
 };
 
 inline DiagnosticOrbControlMode ParseDiagnosticOrbControlMode(const std::string & value)
@@ -286,20 +329,205 @@ inline DiagnosticOrbControlMode ParseDiagnosticOrbControlMode(const std::string 
   if (value == "position_velocity_gt") {
     return DiagnosticOrbControlMode::POSITION_VELOCITY_GT;
   }
+  if (value == "orb_pv_gt_angular" || value == "ORB_PV_GT_ANGULAR") {
+    return DiagnosticOrbControlMode::ORB_PV_GT_ANGULAR;
+  }
+  if (value == "gt_pv_orb_angular" || value == "GT_PV_ORB_ANGULAR") {
+    return DiagnosticOrbControlMode::GT_PV_ORB_ANGULAR;
+  }
   return DiagnosticOrbControlMode::NORMAL;
 }
 
 inline bool UsesGtPosition(DiagnosticOrbControlMode mode)
 {
   return mode == DiagnosticOrbControlMode::POSITION_GT ||
-         mode == DiagnosticOrbControlMode::POSITION_VELOCITY_GT;
+         mode == DiagnosticOrbControlMode::POSITION_VELOCITY_GT ||
+         mode == DiagnosticOrbControlMode::GT_PV_ORB_ANGULAR;
 }
 
 inline bool UsesGtVelocity(DiagnosticOrbControlMode mode)
 {
   return mode == DiagnosticOrbControlMode::VELOCITY_GT ||
-         mode == DiagnosticOrbControlMode::POSITION_VELOCITY_GT;
+         mode == DiagnosticOrbControlMode::POSITION_VELOCITY_GT ||
+         mode == DiagnosticOrbControlMode::GT_PV_ORB_ANGULAR;
 }
+
+inline bool UsesGtOrientation(DiagnosticOrbControlMode mode)
+{
+  return mode == DiagnosticOrbControlMode::ORB_PV_GT_ANGULAR;
+}
+
+inline bool UsesGtAngularVelocity(DiagnosticOrbControlMode mode)
+{
+  return mode == DiagnosticOrbControlMode::ORB_PV_GT_ANGULAR;
+}
+
+inline bool IsDiagnosticChannelOverride(DiagnosticOrbControlMode mode)
+{
+  return mode != DiagnosticOrbControlMode::NORMAL;
+}
+
+struct TimedGtPose
+{
+  double stamp_sec{0.0};
+  RigidPose pose;
+};
+
+struct TimedGtVelocity
+{
+  double stamp_sec{0.0};
+  Eigen::Vector3d linear{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d angular{Eigen::Vector3d::Zero()};
+};
+
+struct SynchronizedGtState
+{
+  RigidPose pose;
+  Eigen::Vector3d linear{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d angular{Eigen::Vector3d::Zero()};
+  double effective_stamp_sec{0.0};
+  double support_skew_sec{0.0};
+  bool pose_interpolated{false};
+  bool velocity_interpolated{false};
+  bool causally_propagated{false};
+};
+
+class DiagnosticGtStateBuffer
+{
+public:
+  void AddPose(double stamp_sec, const RigidPose & pose)
+  {
+    poses_.push_back({stamp_sec, pose});
+    Trim(poses_);
+  }
+
+  void AddVelocity(
+    double stamp_sec, const Eigen::Vector3d & linear, const Eigen::Vector3d & angular)
+  {
+    velocities_.push_back({stamp_sec, linear, angular});
+    Trim(velocities_);
+  }
+
+  std::optional<SynchronizedGtState> Sample(double target_sec, double max_skew_sec) const
+  {
+    if (poses_.empty() || velocities_.empty() || max_skew_sec < 0.0) {
+      return std::nullopt;
+    }
+    const auto pose_bracket = Bracket(poses_, target_sec);
+    const auto velocity_bracket = Bracket(velocities_, target_sec);
+    if (!pose_bracket.first || !velocity_bracket.first) {
+      return std::nullopt;
+    }
+
+    SynchronizedGtState result;
+    result.effective_stamp_sec = target_sec;
+    result.pose = InterpolatePose(
+      *pose_bracket.first, pose_bracket.second, target_sec, result.pose_interpolated);
+    InterpolateVelocity(
+      *velocity_bracket.first, velocity_bracket.second, target_sec,
+      result.linear, result.angular, result.velocity_interpolated);
+
+    const double pose_skew = SupportSkew(*pose_bracket.first, pose_bracket.second, target_sec);
+    const double velocity_skew = SupportSkew(
+      *velocity_bracket.first, velocity_bracket.second, target_sec);
+    result.support_skew_sec = std::max(pose_skew, velocity_skew);
+    if (result.support_skew_sec > max_skew_sec) {
+      return std::nullopt;
+    }
+
+    if (!pose_bracket.second && target_sec > pose_bracket.first->stamp_sec) {
+      const double dt = target_sec - pose_bracket.first->stamp_sec;
+      result.pose.translation += result.linear * dt;
+      const double angle = result.angular.norm() * dt;
+      if (angle > 1e-12) {
+        const Eigen::Quaterniond delta(
+          Eigen::AngleAxisd(angle, result.angular.normalized()));
+        result.pose.rotation = delta * result.pose.rotation;
+        result.pose.rotation.normalize();
+      }
+      result.causally_propagated = true;
+    }
+    return result;
+  }
+
+private:
+  template<typename T>
+  static void Trim(std::deque<T> & samples)
+  {
+    while (samples.size() > 200) {
+      samples.pop_front();
+    }
+  }
+
+  template<typename T>
+  static std::pair<const T *, const T *> Bracket(
+    const std::deque<T> & samples, double target_sec)
+  {
+    const T * before = nullptr;
+    const T * after = nullptr;
+    for (const auto & sample : samples) {
+      if (sample.stamp_sec <= target_sec) {
+        before = &sample;
+      } else {
+        after = &sample;
+        break;
+      }
+    }
+    return {before, after};
+  }
+
+  static double SupportSkew(
+    const TimedGtPose & before, const TimedGtPose * after, double target_sec)
+  {
+    return after ? std::max(target_sec - before.stamp_sec, after->stamp_sec - target_sec) :
+           target_sec - before.stamp_sec;
+  }
+
+  static double SupportSkew(
+    const TimedGtVelocity & before, const TimedGtVelocity * after, double target_sec)
+  {
+    return after ? std::max(target_sec - before.stamp_sec, after->stamp_sec - target_sec) :
+           target_sec - before.stamp_sec;
+  }
+
+  static RigidPose InterpolatePose(
+    const TimedGtPose & before, const TimedGtPose * after, double target_sec,
+    bool & interpolated)
+  {
+    if (!after || after->stamp_sec <= before.stamp_sec) {
+      interpolated = false;
+      return before.pose;
+    }
+    const double alpha = std::clamp(
+      (target_sec - before.stamp_sec) / (after->stamp_sec - before.stamp_sec), 0.0, 1.0);
+    interpolated = true;
+    RigidPose pose;
+    pose.translation = (1.0 - alpha) * before.pose.translation + alpha * after->pose.translation;
+    pose.rotation = before.pose.rotation.slerp(alpha, after->pose.rotation);
+    pose.rotation.normalize();
+    return pose;
+  }
+
+  static void InterpolateVelocity(
+    const TimedGtVelocity & before, const TimedGtVelocity * after, double target_sec,
+    Eigen::Vector3d & linear, Eigen::Vector3d & angular, bool & interpolated)
+  {
+    if (!after || after->stamp_sec <= before.stamp_sec) {
+      linear = before.linear;
+      angular = before.angular;
+      interpolated = false;
+      return;
+    }
+    const double alpha = std::clamp(
+      (target_sec - before.stamp_sec) / (after->stamp_sec - before.stamp_sec), 0.0, 1.0);
+    linear = (1.0 - alpha) * before.linear + alpha * after->linear;
+    angular = (1.0 - alpha) * before.angular + alpha * after->angular;
+    interpolated = true;
+  }
+
+  std::deque<TimedGtPose> poses_;
+  std::deque<TimedGtVelocity> velocities_;
+};
 
 class DiagnosticGtControlAlignment
 {

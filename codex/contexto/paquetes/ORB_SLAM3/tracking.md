@@ -49,6 +49,17 @@ Aunque ORB-SLAM3 se use como frontend del servidor, deben mantenerse:
 Eliminar estas operaciones no solo ahorra optimización global: degrada o rompe
 el tracking.
 
+## Contadores de evidencia visual
+
+`TrackLocalMap()` conserva `mnMatchesCandidates` inmediatamente después de la
+optimización de pose y antes de limpiar asociaciones outlier stereo.
+`GetMatchesCandidates()` y `GetMatchesInliers()` permiten que `System` selle
+en el recibo el denominador y numerador reales del mismo frame. Son contadores
+de diagnóstico y no alteran umbrales, asociaciones ni el resultado de tracking.
+
+Referencia: `Tracking.cc -> Tracking::TrackLocalMap`; localizar con
+`rg "mnMatchesCandidates|GetMatchesCandidates|mnMatchesInliers"`.
+
 ## Evento one-shot de KeyFrame de 4C
 
 En stereo los dos puntos de creación registran el mismo evento escalar:

@@ -80,6 +80,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
         DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
+        DeclareLaunchArgument('debug_orb_visual_evidence', default_value='false'),
+        DeclareLaunchArgument('orb_visual_evidence_output_dir', default_value=''),
         DeclareLaunchArgument(
             'orb_navigation_prediction_mode', default_value='legacy'),
         DeclareLaunchArgument('f5h_gt_timing_mode', default_value='off'),
@@ -101,6 +103,9 @@ def generate_launch_description():
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
     debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
+    debug_orb_visual_evidence = LaunchConfiguration('debug_orb_visual_evidence')
+    orb_visual_evidence_output_dir = LaunchConfiguration(
+        'orb_visual_evidence_output_dir')
     orb_navigation_prediction_mode = LaunchConfiguration(
         'orb_navigation_prediction_mode')
     f5h_gt_timing_mode = LaunchConfiguration('f5h_gt_timing_mode')
@@ -124,6 +129,10 @@ def generate_launch_description():
         debug_fiducial_visualization, value_type=bool)
     stereo_params['debug_orb_control_state'] = ParameterValue(
         debug_orb_control_state, value_type=bool)
+    stereo_params['debug_orb_visual_evidence'] = ParameterValue(
+        debug_orb_visual_evidence, value_type=bool)
+    stereo_params['orb_visual_evidence_output_dir'] = ParameterValue(
+        orb_visual_evidence_output_dir, value_type=str)
     stereo_params['navigation_prediction_mode'] = ParameterValue(
         orb_navigation_prediction_mode, value_type=str)
 

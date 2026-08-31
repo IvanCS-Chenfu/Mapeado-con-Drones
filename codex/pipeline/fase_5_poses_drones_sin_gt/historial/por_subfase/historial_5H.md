@@ -1314,3 +1314,110 @@
   degradacion de pose/velocidad ni la perdida visual;
 - conclusion: `NO CONSEGUIDA`. El giro yaw no queda validado. STOP aplicado:
   339-343 no ejecutadas; no se modifica el estimador ni el control.
+
+## 2026-08-31 - Auditoria raw/reference, pruebas 344-346
+
+- 344, GT gobernando y ORB dynamic shadow: 112 cambios Kref y 125 retenciones
+  raw; raw_dt alcanza `20.609 s` y raw `2.753 m`, frente a paso O `0.088 m`;
+- la entrada raw esta en O y el evento extremo mantiene el mismo Kref, por lo
+  que se descarta `CROSS_REFERENCE_RAW_HISTORY` y se confirma
+  `STALE_RAW_HISTORY`;
+- correccion: un raw_dt ya invalido rechaza el delta actual y rebasa unicamente
+  el baseline raw; no modifica pose O, dinamica, gravedad, buffers ni control;
+- build correcto, GTest `117/117` y harness lineal correcto;
+- 345 shadow: raw_dt maximo `0.201 s`, `KEEP=5`, `REBASE=2`, dos SUSPICIOUS y
+  racha maxima sin anchor de dos frames; correccion validada;
+- 346 ORB real: el raw permanece sano (`KEEP=0`, `REBASE=1`), pero el segundo
+  tramo activa fallback con tracking aun `2`; ep/ev maximos ORB
+  `0.795 m/1.730 m/s`. La perdida visual llega despues en el tercer tramo;
+- conclusion agregada: `PARCIAL`. El bug stale queda corregido, pero no explica
+  toda la inestabilidad ORB larga. STOP aplicado; 347 no ejecutada.
+
+## 2026-08-31 - Diagnostico causal post-346, prueba 348
+
+- objetivo: identificar el primer canal divergente y la condicion exacta del
+  fallback con `tracking=2`, sin cambiar estimador, control ni politicas;
+- cambios: trazas `F5H-FALLBACK-CAUSE-TRACE` y
+  `F5H-NAV-VALIDITY-TRACE`, causa de rechazo productivo mas precisa y resumen
+  temporal del error lineal; ninguna salida funcional cambia;
+- build/tests: `orbslam3`, `dron_individual` y `simulacion_dron` correctos;
+  predictor `117/117`, mux `14/14` y analizador lineal `8/8`;
+- ejecucion: 348 reutiliza exactamente `tray_prueba_346.yaml`; runner y
+  escenario correctos en 225 s, sin guard de recursos;
+- T0: ORB confirmado en `1788191534.896668196`;
+- T1/T2: `ew/omega_motion >0.05 rad/s` a `+1.98 s`; el error lineal supera
+  `0.1 m/s` a `+2.51 s`. Su RMSE crece de `0.0527 m/s` en 0-5 s a
+  `0.5204 m/s` entre 20 s y fallback;
+- T3/T4: fallback a `+41.59 s` con tracking 2. Fallan simultaneamente
+  `local_valid`, `local_continuity_valid`, `velocity_valid` y
+  `reference_keyframe_valid`; solo local y continuidad forman el source gate;
+- recualificacion: 100 ms despues todos los flags vuelven validos; ORB
+  recualifica, pero `TRAJECTORY_SOURCE_LOCKED` conserva GT;
+- T5: tracking pasa a no-OK a `+61.12 s`, 19.54 s despues del fallback;
+- higiene raw: 945 intervalos, `raw_dt=0.048..0.299 s`, ninguno negativo;
+  938 ADVANCE, 3 KEEP y 4 REBASE. No reaparece `STALE_RAW_HISTORY`;
+- conclusion: `PARCIAL / MULTICAUSAL`. El pulso de validez local/continuidad
+  es el disparador exacto del fallback, no su causa dinamica inicial. La
+  divergencia lineal y angular aparece casi simultaneamente, con precedencia
+  angular aproximada de 0.53 s, compatible con acoplamiento
+  control-estimador. No hay base para elegir aun una correccion de un solo
+  canal;
+- siguiente paso: STOP antes de 349A/349B y revisar el aislamiento con el
+  usuario. 348R no procede porque 348 reprodujo el fallo.
+
+## 2026-08-31 - Aislamiento p/v frente a R/omega, pruebas 349
+
+- infraestructura: se reutiliza el override final del mux; ORB interno sigue
+  calculando p/v/R/omega completos. GT se alinea en O y se propaga causalmente
+  al `control_stamp`, sin entrar en estimadores, KFs, raw history o mapa;
+- intentos inválidos: 349A comparo relojes GT/ROS incompatibles; 349AR corrigio
+  el dominio pero no capturo alineacion; 349AR2 aplico angular GT solo
+  `2494/6407` veces con limite de 20 ms. Ninguno aporta evidencia causal;
+- correccion de infraestructura: skew diagnostico `20->30 ms`, sin retardo;
+  analizador limita el denominador a autoridad ORB. Builds correctos;
+  predictor `117/117`, mux `18/18`, analizador lineal `8/8`, cobertura `1/1`;
+- 349AR3, p/v ORB + angular GT: cobertura `5474/5475=99.9817 %`, racha 1,
+  skew medio/p95/p99/max `8.72/20.02/20.05/21.15 ms`. El miss aislado ocurre
+  despues del primer fallback. Falla funcionalmente: RMSE/p95/max de velocidad
+  productiva `0.556/1.053/6.458 m/s`; tracking se pierde y fallback llega a
+  `+60.38 s`;
+- 349B, p/v GT + angular ORB: cobertura `3778/3778=100 %`, cero misses,
+  skew medio/p95/p99/max `12.16/20.02/20.04/21.01 ms`. El error angular crece
+  a `+1.70 s`; RMSE/max omega `0.241/3.387 rad/s`; fallback por
+  local/continuity invalid con tracking 2 a `+58.68 s` y tracking 3 a
+  `+60.34 s`; energia `tau_er=+0.257 J`, total `+0.0296 J`;
+- raw: sin dt negativos; 349AR3 `ADVANCE/KEEP/REBASE=1218/2/4`, 349B
+  `665/5/4`. `STALE_RAW_HISTORY` no reaparece;
+- conclusion: `MULTIPLE_INDEPENDENT_ERRORS`. p/v ORB fallan aun con angular GT
+  y R/omega ORB fallan aun con p/v GT. El validity pulse es posterior a la
+  divergencia, no causa comun suficiente;
+- repetibilidad: 350A/350B no proceden porque ambas ramas fallan; STOP antes de
+  modificar estimadores.
+
+## 2026-08-31 - Evidencia visual y cierre causal, pruebas 350-355
+
+- objetivo: distinguir baja observabilidad ORB de un defecto residual de la
+  cadena `pose ORB -> NavigationState`, sin cambiar estimador ni control;
+- cambios: telemetría opcional del mismo frame con features, candidatos,
+  inliers, depth/disparidad, cobertura 4x3, reference KF y `Tcr`; CSV por dron
+  y analizador offline con estadísticas exclusivas de tracking `OK`;
+- build/tests: core `ORB_SLAM3` y wrapper `orbslam3` correctos; CTest 3/3,
+  analizador 2/2 y YAML 2/2. La telemetría queda apagada por defecto;
+- 350R: el primer intento fue inválido por ruta YAML relativa; la repetición
+  absoluta pasa en 99 s. Baseline drone1: 1170 frames `OK`, inliers mediana
+  440, ratio 0.900, cobertura 0.917 y depth válido 301;
+- 351 GT+shadow: en `este_media`, drone2 cae de inliers mediana 192 a
+  69.5/55/50, cobertura 0.333 a 0.25/0.167 y depth 157 a 49/43/38. Después
+  aparecen 62 frames no `OK` durante 3.06 s. La degradación visual precede la
+  pérdida;
+- 352 GT+shadow favorable: tras anclaje mantiene 1510 frames `OK` consecutivos
+  en la ruta lenta `+2 m X`, `+2 m Y` junto a pared;
+- 353/354/355: tres repeticiones ORB completas y consecutivas, sin fallback
+  posterior a la autoridad ni tracking no `OK`. Inliers mediana
+  323.5/322/300, ratio 0.912/0.892/0.896 y cobertura 1.0/0.917/0.917;
+- conclusión: `CONSEGUIDA` para 5H. Con evidencia visual adecuada, el estado
+  ORB gobierna de forma repetible sin cambiar ganancias, controlador ni
+  arquitectura. Evitar zonas de baja observabilidad con segmentos más cortos,
+  menor velocidad y planificación por evidencia corresponde a Fase 6;
+- limitación: la vuelta larga no queda validada como ORB-only y el fallback GT
+  temporal se conserva hasta Fase 6.

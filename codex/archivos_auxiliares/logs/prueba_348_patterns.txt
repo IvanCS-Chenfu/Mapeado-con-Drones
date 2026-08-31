@@ -1,0 +1,9 @@
+dron_2.control_calcular_fuerzas.*F5H-CONTROL-DIAG
+dron_2.orbslam3_stereo.*F5H-PHASE-PUBLISH
+dron_2.orbslam3_stereo.*F5H-PHASE-MEASUREMENT
+dron_2.orbslam3_stereo.*F5H-PRODUCTIVE-PREDICT
+dron_2.orbslam3_stereo.*F5H-ORB-MEASUREMENT
+dron_2.orbslam3_stereo.*F5H-REF-SWITCH-TRACE
+dron_2.navigation_state_mux.*F5H-FALLBACK-CAUSE-TRACE
+dron_2.orbslam3_stereo.*F5H-ORB-STATE-REJECTED
+scenario_runner_node.*SCENARIO-RUNNER-STEP-(START|DONE|FAIL)

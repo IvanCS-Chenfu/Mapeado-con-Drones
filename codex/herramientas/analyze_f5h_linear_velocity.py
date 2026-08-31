@@ -91,6 +91,28 @@ def grouped_metrics(samples, key):
     }
 
 
+def temporal_error_summary(samples, origin, fallback_stamp=None):
+    if origin is None:
+        return {'status': 'SIN_HANDOFF_ORB'}
+    windows = [(0.0, 5.0), (5.0, 10.0), (10.0, 20.0), (20.0, math.inf)]
+    result = {
+        'status': 'MEDIDO', 'origin_stamp': origin,
+        'fallback_sec': None if fallback_stamp is None else fallback_stamp - origin,
+        'windows': {}}
+    for start, end in windows:
+        values = [sample['error'] for sample in samples
+                  if start <= sample['stamp'] - origin < end and
+                  (fallback_stamp is None or sample['stamp'] <= fallback_stamp)]
+        label = f'{start:g}-{end:g}' if math.isfinite(end) else f'{start:g}-fallback'
+        result['windows'][label] = metrics(values)
+    for threshold in (0.05, 0.1, 0.5, 1.0):
+        first = next((sample['stamp'] - origin for sample in samples
+                      if sample['stamp'] >= origin and
+                      np.linalg.norm(sample['error']) > threshold), None)
+        result[f'first_error_gt_{threshold:g}_sec'] = first
+    return result
+
+
 def reference_window(arrival_stamp, reference_stamps):
     if not reference_stamps:
         return 'stable'
@@ -107,6 +129,8 @@ def reference_window(arrival_stamp, reference_stamps):
 def analyze(log_path, gt_path, drone_id=1):
     measurements, midpoint_dynamic, productive, phases, predictions, translations = [], [], [], [], [], []
     settled_stamp = None
+    orb_authority_stamp = None
+    fallback_stamp = None
     node_token = f'[dron_{drone_id}.orbslam3_stereo]'
     mux_token = f'[dron_{drone_id}.navigation_state_mux]'
     with log_path.open(encoding='utf-8', errors='replace') as stream:
@@ -132,6 +156,12 @@ def analyze(log_path, gt_path, drone_id=1):
                 match = ROS_STAMP_RE.search(line)
                 if match and settled_stamp is None:
                     settled_stamp = float(match.group(1))
+            elif '[F5H-ORB-AUTHORITY-CONFIRMED]' in line and mux_token in line:
+                orb_authority_stamp = float(parse_marker(line)['stamp'])
+            elif ('[F5H-FALLBACK-CAUSE-TRACE]' in line and mux_token in line and
+                  'source_before=orb' in line and 'source_after=gt_fallback' in line and
+                  fallback_stamp is None):
+                fallback_stamp = float(parse_marker(line)['stamp'])
 
     with gt_path.open(newline='', encoding='utf-8') as stream:
         gt = [{key: float(value) if key != 'frame_id' else value
@@ -159,6 +189,7 @@ def analyze(log_path, gt_path, drone_id=1):
         'v_two_tk': [], 'v_hat_tk': [], 'v_midpoint_dynamic_tk': []}
     common_by_motion = {}
     gains_hat, gains_dynamic = [], []
+    dynamic_error_samples = []
     groups = {}
     samples = []
     measurement_by_arrival = {}
@@ -239,6 +270,7 @@ def analyze(log_path, gt_path, drone_id=1):
             continue
         e_dynamic = rotation @ row['v'] - gt_now
         errors['v_dynamic_now'].append(e_dynamic)
+        dynamic_error_samples.append({'stamp': target, 'error': e_dynamic})
         base_error = measurement_by_arrival.get(round(float(row['base_stamp']), 6))
         if base_error is not None:
             gains_dynamic.append(np.linalg.norm(e_dynamic) / max(base_error, 1e-6))
@@ -272,6 +304,10 @@ def analyze(log_path, gt_path, drone_id=1):
             if valid_measurements else 0.0),
         'gain_hat': ratio_metrics(gains_hat),
         'gain_dynamic': ratio_metrics(gains_dynamic),
+        'dynamic_error_timeline': temporal_error_summary(
+            dynamic_error_samples,
+            orb_authority_stamp if orb_authority_stamp is not None else settled_stamp,
+            fallback_stamp),
         'by_linear_mode': grouped,
         'by_correction_class': grouped_metrics(samples, 'correction_class'),
         'by_reference_window': grouped_metrics(samples, 'reference_window'),

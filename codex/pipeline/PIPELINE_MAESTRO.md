@@ -100,7 +100,7 @@ Solo con la puerta cerrada, usar el contrato `subfase_*.md` y seguir:
 | 2 | `conseguida` | Separación servidor/dron/simulación | Separación, configuración, visualizadores, guardas y validación final completas. |
 | 3 | `actual` | Mapa sparse global multi-dron | Reabierta solo en 3Q para corregir optimizaciones observadas en la prueba 213. |
 | 4 | `realizado` | Fiducial real sin ground truth funcional | Cerrada con 4A-4H; 4I queda aplazada como regresión opcional. |
-| 5 | `en curso` | Pose global de cada dron sin ground truth | 5A-5E conseguidas; 5F parcial; 5G-5H parciales; X/Y cercana/Z validados y yaw falla en 338. |
+| 5 | `conseguida` | Pose global de cada dron sin ground truth | 351 demuestra degradación visual causal; ruta favorable gobernada por ORB pasa 3/3 en 353-355. |
 | 6 | `sin hacer` | Tareas y trayectorias de mapeo | Generará misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |
 | 7 | `sin hacer` | GUI 3D propia de operación | GUI C++/Qt/OpenGL independiente de RViz2 y del visualizador web entregado en Fase 3. |
 | 8 | `sin hacer` | Nube densa global multi-dron | Reconstrucción dense en servidor a partir de estéreo, poses globales y sparse. |
@@ -258,6 +258,14 @@ en el hover final; el STOP permanece por fallo funcional de frenado Y.
 El diagnostico posterior 334R3R/335R valida Y con mejor cobertura visual y
 336/337R valida Z. La bateria se detiene en 338: yaw degrada los errores y
 termina en perdida de tracking con GT fallback; 339-343 quedan pendientes.
+
+El cierre causal 350R-355 actualiza esa conclusión: 351 reproduce bajo
+GT+shadow una caída sostenida de inliers, cobertura y profundidad útil antes
+de perder tracking en la fachada problemática. En una ruta corta, lenta y
+próxima a textura, 353-355 completan 3/3 ejecuciones gobernadas por ORB sin
+fallback posterior ni tracking no `OK`. Fase 5 queda funcionalmente conseguida
+para evidencia adecuada. La vuelta larga no se declara ORB-only: Fase 6 debe
+evitar zonas pobres, fragmentar tareas y retirar progresivamente el fallback.
 
 No ejecutar 5C/5D contra un backend 3Q inestable: verificar primero el cierre
 vigente de 3Q. Cada subfase funcional requiere preparación y autorización.

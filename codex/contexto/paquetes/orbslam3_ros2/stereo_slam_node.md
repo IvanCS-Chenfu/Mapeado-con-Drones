@@ -786,3 +786,62 @@ cutoff) pop_front()`: conserva una predecesora y todas las recientes.
 `mode=dynamic` y cero missing productivo, pero no valida el comportamiento de
 control: ORB gobierna antes de la frontera acordada y el dron no alcanza la
 pose de aproximacion.
+
+Auditoria de `reference_kf` post-342R:
+
+- `stereo-slam-node.cpp` -> `PublishNavigationState` -> localizar con
+  `rg "raw_o_t_body|F5H-REF-SWITCH-TRACE"`;
+- `raw_o_t_body` se deriva de `pose_result.o_t_camera` y vive en O, aunque la
+  metadata registre la KF activa;
+- `navigation-state-estimator.cpp` -> `OrbPosePredictor::UpdateMeasurement`
+  -> localizar con `rg "last_raw_measurement_|raw_history_advanced"`;
+- el baseline raw solo avanza con movimiento plausible; un rechazo lo retiene;
+- `F5H-REF-SWITCH-TRACE`, solo con `debug_orb_control_state`, registra durante
+  la ventana post-KF el stamp previo, accion `ADVANCE|KEEP`, raw/O steps,
+  innovaciones y consumidor angular. No cambia gates ni estado productivo;
+- `linear_source=MIDPOINT_DYNAMIC` identifica la velocidad productiva;
+  `linear_mode=THREE_SAMPLE_PREDICTED` es diagnostico y no implica una
+  regresion productiva.
+
+Resultado 344: `CROSS_REFERENCE_RAW_HISTORY` descartado y
+`STALE_RAW_HISTORY` confirmado con GT gobernando. La recuperacion vigente en
+`OrbPosePredictor::UpdateMeasurement` detecta `raw_dt` mayor que
+`raw_dt_max_degraded_sec`, conserva el rechazo del delta actual, rebasa solo
+`last_raw_measurement_/last_raw_stamp_sec_` e invalida la derivada angular raw
+anterior. El siguiente frame puede volver a producir un delta comparable. La
+telemetria usa `REBASE`; pose O, predictor dinamico y buffers no se reinician.
+
+Validacion: 345 confirma en GT+shadow raw_dt maximo `0.201 s`, cinco `KEEP`,
+dos `REBASE` y solo dos `SUSPICIOUS`. 346 mantiene esa higiene con ORB real
+(`KEEP=0`, `REBASE=1`), pero el segundo tramo activa fallback con tracking aun
+OK y el tracking se pierde mas tarde. El rebase stale queda validado; la
+inestabilidad residual en dos fachadas pertenece a otro mecanismo.
+
+Diagnostico post-346: `[F5H-ORB-STATE-REJECTED]` diferencia
+`PREDICTION_INVALID` y `PREDICTOR_UNHEALTHY` en la medida. En la publicacion a
+50 Hz, `[F5H-NAV-VALIDITY-TRACE]` explica una prediccion no consumible mediante
+base dinamica, gravedad, intento y validez angular/translacional. Ambas trazas
+son observacionales y no modifican flags, pose, velocidad ni resets vigentes.
+
+En 348, el primer fallback precede en unos 19.54 s a la perdida real de
+tracking y no coincide con `PREDICTOR_UNHEALTHY`: es un pulso transitorio de
+validez local/continuidad/reference. La divergencia lineal y angular ya habia
+crecido durante unos 40 s. El historial raw permanece sano, con `raw_dt`
+siempre positivo y acciones `ADVANCE/KEEP/REBASE` coherentes.
+
+## Evidencia visual ORB de 5H
+
+La telemetría opcional se activa con `debug_orb_visual_evidence` y escribe en
+`orb_visual_evidence_output_dir`. `StereoSlamNode::WriteVisualEvidence`
+consume exclusivamente el `StereoTrackingReceipt` del callback actual y
+genera `{drone_name}_orb_visual_evidence.csv` con:
+
+- stamps de imagen/llegada, frame, tracking y reference KF;
+- features, candidatos, inliers y ratio real;
+- depth/disparidad y cobertura espacial 4x3 de inliers;
+- `Tcr` cruda del mismo frame.
+
+Está desactivada por defecto, no publica estado alternativo y no interviene en
+gates, predictor, mux ni control. Las métricas geométricas viven en
+`visual-evidence-metrics.cpp`; localizar con
+`rg "WriteVisualEvidence|debug_orb_visual_evidence|ComputeVisualEvidenceMetrics"`.

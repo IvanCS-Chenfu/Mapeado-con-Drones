@@ -102,12 +102,18 @@ del `TrackStereo` que produjo la pose, usando
 `Tracking::mCurrentFrame.mpReferenceKF`; por tanto no mezclan consultas de
 frames distintos. No se modifica mapa, tracking ni optimización del core.
 
+Con `StereoTrackingReceipt::collect_visual_evidence=true`, 5H añade al mismo
+recibo `frame_id`, features, asociaciones, outliers, right-x/depth y los
+contadores de candidatos/inliers de `Tracking`. La copia se hace tras
+`GrabImageStereo()` y solo para telemetría; con el flag falso no se copian esos
+vectores. `Tcr` sigue incluido para reconstruir la pose ORB cruda del frame.
+
 Referencias:
 
 ```text
 ORB_SLAM3/include/System.h -> StereoTrackingReceipt, TrackStereo
 ORB_SLAM3/src/System.cc -> System::TrackStereo
-rg "StereoTrackingReceipt|reference_keyframe|Tcr|ConsumeLastCreatedKeyFrameEvent"
+rg "StereoTrackingReceipt|collect_visual_evidence|GetMatchesCandidates|Tcr"
 aproximadamente lineas 100-150 y 249-355
 ```
 

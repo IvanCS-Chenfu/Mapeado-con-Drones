@@ -38,6 +38,7 @@
 #include "KeyFrame.h"
 
 #include <unordered_map>
+#include <fstream>
 #include <unordered_set>
 #include <chrono>
 #include <cmath>
@@ -196,7 +197,12 @@ class StereoSlamNode : public rclcpp::Node
         Eigen::Vector3f latest_torque_body_ = Eigen::Vector3f::Zero();
         float latest_thrust_newton_ = 0.0f;
         bool debug_orb_control_state_ = false;
+        bool debug_orb_visual_evidence_ = false;
+        std::string orb_visual_evidence_output_dir_;
+        std::ofstream orb_visual_evidence_stream_;
         uint32_t frames_since_reference_change_ = 0xFFFFFFFFU;
+        bool predictor_reference_valid_ = false;
+        uint64_t predictor_reference_keyframe_id_ = 0;
         double latest_orb_measurement_stamp_sec_ = 0.0;
         double latest_orb_measurement_input_stamp_sec_ = 0.0;
         double latest_orb_measurement_arrival_stamp_sec_ = 0.0;
@@ -235,6 +241,10 @@ class StereoSlamNode : public rclcpp::Node
         void ResetDynamicNavigationState();
         void LogOrbMeasurementDiagnostics(
             const orbslam3_ros2::OrbPosePredictorDiagnostics& diagnostics);
+        void WriteVisualEvidence(
+            const builtin_interfaces::msg::Time& stamp,
+            const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
+            double callback_arrival_stamp_sec);
         void RequestGlobalPose(uint64_t map_epoch, uint64_t keyframe_id);
         void HandleGlobalPoseResponse(
             uint64_t generation,

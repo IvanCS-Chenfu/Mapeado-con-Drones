@@ -1,4 +1,5 @@
 #include "stereo-slam-node.hpp"
+#include "visual-evidence-metrics.hpp"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/calib3d.hpp>
@@ -10,6 +11,7 @@
 #include <Eigen/Geometry>
 
 #include <sstream>
+#include <iomanip>
 
 #include <algorithm>
 #include <cmath>
@@ -149,6 +151,8 @@ StereoSlamNode::StereoSlamNode(
     this->declare_parameter<double>(
         "orb_state_filter.rejected_motion_decay_acceleration_radps2", 4.0);
     this->declare_parameter<bool>("debug_orb_control_state", false);
+    this->declare_parameter<bool>("debug_orb_visual_evidence", false);
+    this->declare_parameter<std::string>("orb_visual_evidence_output_dir", "");
     this->declare_parameter<int>("orb_reference_gate.confirmation_frames", 3);
     this->declare_parameter<int>("orb_reference_gate.max_pending_frames", 6);
     this->declare_parameter<double>("orb_reference_gate.max_step_translation_m", 0.10);
@@ -322,6 +326,33 @@ StereoSlamNode::StereoSlamNode(
         this->get_parameter("debug_architecture_telemetry").as_bool();
     debug_orb_control_state_ =
         this->get_parameter("debug_orb_control_state").as_bool();
+    debug_orb_visual_evidence_ =
+        this->get_parameter("debug_orb_visual_evidence").as_bool();
+    orb_visual_evidence_output_dir_ =
+        this->get_parameter("orb_visual_evidence_output_dir").as_string();
+    if (debug_orb_visual_evidence_ && !orb_visual_evidence_output_dir_.empty())
+    {
+        const std::string path = orb_visual_evidence_output_dir_ + "/" +
+            drone_name_ + "_orb_visual_evidence.csv";
+        orb_visual_evidence_stream_.open(path, std::ios::out | std::ios::trunc);
+        if (orb_visual_evidence_stream_)
+        {
+            orb_visual_evidence_stream_ <<
+                "image_stamp_sec,arrival_stamp_sec,frame_id,tracking_state,"
+                "reference_kf_valid,reference_kf_id,n_features,n_map_matches,"
+                "n_tracking_inliers,inlier_ratio,n_valid_stereo_depth,"
+                "stereo_depth_ratio,depth_p25,depth_p50,depth_p75,depth_p90,"
+                "disparity_p10,disparity_p25,disparity_p50,disparity_p75,"
+                "disparity_p90,grid_coverage_ratio,tcr_valid,tcr_tx,tcr_ty,"
+                "tcr_tz,tcr_qx,tcr_qy,tcr_qz,tcr_qw\n";
+        }
+        else
+        {
+            RCLCPP_ERROR(this->get_logger(),
+                "[ORB-VISUAL-EVIDENCE] cannot_open path=%s", path.c_str());
+            debug_orb_visual_evidence_ = false;
+        }
+    }
 
     fiducial_queue_capacity_ =
         this->get_parameter("fiducial_queue_capacity").as_int();
@@ -1093,6 +1124,7 @@ void StereoSlamNode::GrabStereo(
         Utility::StampToSec(msgLeft->header.stamp);
 
     ORB_SLAM3::System::StereoTrackingReceipt tracking_receipt;
+    tracking_receipt.collect_visual_evidence = debug_orb_visual_evidence_;
     Sophus::SE3f Tcw =
         m_SLAM->TrackStereo(
             imLeftForTracking,
@@ -1101,6 +1133,9 @@ void StereoSlamNode::GrabStereo(
             {},
             "",
             &tracking_receipt);
+    WriteVisualEvidence(
+        msgLeft->header.stamp, tracking_receipt,
+        this->get_clock()->now().seconds());
 
     // Detectar cambio de mapa una sola vez. Antes se llamaba aquí y de
     // nuevo más abajo, de forma que la primera llamada podía consumir el
@@ -1334,6 +1369,13 @@ void StereoSlamNode::PublishNavigationState(
         {
             const Sophus::SE3f raw_o_t_body =
                 pose_result.o_t_camera * body_t_camera_.inverse();
+            if (pose_result.epoch_changed)
+            {
+                predictor_reference_valid_ = false;
+            }
+            const uint64_t previous_predictor_reference =
+                predictor_reference_valid_ ? predictor_reference_keyframe_id_ :
+                pose_result.active_reference_keyframe_id;
             if (pose_result.reference_changed)
             {
                 frames_since_reference_change_ = 0;
@@ -1346,6 +1388,46 @@ void StereoSlamNode::PublishNavigationState(
                 frames_since_reference_change_};
             predicted = orb_pose_predictor_.UpdateMeasurement(
                 raw_o_t_body, RosTimeToSeconds(stamp), measurement_context);
+            const auto& reference_diagnostics = orb_pose_predictor_.last_diagnostics();
+            if (debug_orb_control_state_ && reference_diagnostics.post_reference_switch)
+            {
+                RCLCPP_INFO(
+                    this->get_logger(),
+                    "[F5H-REF-SWITCH-TRACE] stamp=%.9f epoch=%lu old_ref_kf=%lu "
+                    "new_ref_kf=%lu frames_since_reference_change=%u "
+                    "raw_history_frame=O raw_history_valid_before=%s "
+                    "previous_raw_stamp=%.9f current_raw_stamp=%.9f "
+                    "raw_history_action=%s raw_dt=%.9f raw_dt_valid=%s "
+                    "raw_translation_step=%.9f raw_rotation_step=%.9f "
+                    "O_translation_step=%.9f O_rotation_step=%.9f "
+                    "position_innovation=%.9f rotation_innovation=%.9f "
+                    "raw_class=%s correction_class=%s base_update_type=%s",
+                    RosTimeToSeconds(stamp), static_cast<unsigned long>(map_epoch_),
+                    static_cast<unsigned long>(previous_predictor_reference),
+                    static_cast<unsigned long>(pose_result.active_reference_keyframe_id),
+                    frames_since_reference_change_,
+                    reference_diagnostics.raw_history_valid_before ? "true" : "false",
+                    reference_diagnostics.previous_raw_measurement_stamp_sec,
+                    RosTimeToSeconds(stamp),
+                    reference_diagnostics.raw_history_rebased ? "REBASE" :
+                    (reference_diagnostics.raw_history_advanced ? "ADVANCE" : "KEEP"),
+                    reference_diagnostics.raw_dt_sec,
+                    reference_diagnostics.raw_dt_quality !=
+                    orbslam3_ros2::RawDtQuality::Invalid ? "true" : "false",
+                    reference_diagnostics.raw_step_translation_m,
+                    reference_diagnostics.raw_step_rotation_rad,
+                    pose_result.step_translation_m, pose_result.step_rotation_rad,
+                    reference_diagnostics.position_innovation_m,
+                    reference_diagnostics.rotation_innovation_rad,
+                    orbslam3_ros2::RawMotionClassName(
+                        reference_diagnostics.raw_motion_class),
+                    orbslam3_ros2::AngularCorrectionClassName(
+                        reference_diagnostics.classification),
+                    orbslam3_ros2::AngularBaseUpdateTypeName(
+                        reference_diagnostics.base_update_type));
+            }
+            predictor_reference_valid_ = true;
+            predictor_reference_keyframe_id_ = pose_result.active_reference_keyframe_id;
             if (navigation_prediction_mode_ == "dynamic")
             {
                 if (pose_result.epoch_changed)
@@ -1518,11 +1600,21 @@ void StereoSlamNode::PublishNavigationState(
         {
             RCLCPP_ERROR(
                 this->get_logger(),
-                "[F5H-ORB-STATE-REJECTED] consecutive_angular_rejections=%u "
-                "reference_pending=%s gate_timeout=%s",
+                "[F5H-ORB-STATE-REJECTED] exact_failed_predicates=%s "
+                "predicted_valid=%s predictor_healthy=%s "
+                "consecutive_angular_rejections=%u reference_pending=%s "
+                "gate_timeout=%s tracking=%d epoch=%lu ref_kf=%lu input_stamp=%.9f",
+                !predicted.valid && !orb_pose_predictor_.healthy() ?
+                "PREDICTION_INVALID|PREDICTOR_UNHEALTHY" :
+                (!predicted.valid ? "PREDICTION_INVALID" : "PREDICTOR_UNHEALTHY"),
+                predicted.valid ? "true" : "false",
+                orb_pose_predictor_.healthy() ? "true" : "false",
                 orb_pose_predictor_.consecutive_angular_rejections(),
                 pose_result.reference_pending ? "true" : "false",
-                pose_result.reference_gate_timed_out ? "true" : "false");
+                pose_result.reference_gate_timed_out ? "true" : "false",
+                receipt.tracking_state, static_cast<unsigned long>(map_epoch_),
+                static_cast<unsigned long>(pose_result.active_reference_keyframe_id),
+                RosTimeToSeconds(stamp));
             message.local_valid = false;
             message.local_continuity_valid = false;
             message.global_valid = false;
@@ -1920,6 +2012,58 @@ void StereoSlamNode::LogOrbMeasurementDiagnostics(
         diagnostics.consecutive_rejections);
 }
 
+void StereoSlamNode::WriteVisualEvidence(
+    const builtin_interfaces::msg::Time& stamp,
+    const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
+    double callback_arrival_stamp_sec)
+{
+    if (!debug_orb_visual_evidence_ || !orb_visual_evidence_stream_)
+        return;
+
+    const int width = receipt.camera.valid ?
+        static_cast<int>(receipt.camera.image_width) : image_width_;
+    const int height = receipt.camera.valid ?
+        static_cast<int>(receipt.camera.image_height) : image_height_;
+    auto metrics = orbslam3_ros2::ComputeVisualEvidenceMetrics(
+        receipt.frame_keypoints,
+        receipt.frame_has_map_point,
+        receipt.frame_is_outlier,
+        receipt.frame_right_x,
+        receipt.frame_depth,
+        width,
+        height);
+    metrics.map_point_match_count = static_cast<std::size_t>(
+        std::max(0, receipt.tracking_match_candidate_count));
+    metrics.tracking_inlier_count = static_cast<std::size_t>(
+        std::max(0, receipt.tracking_inlier_count));
+    metrics.inlier_ratio = metrics.map_point_match_count == 0 ? 0.0 :
+        static_cast<double>(metrics.tracking_inlier_count) /
+        static_cast<double>(metrics.map_point_match_count);
+
+    const Eigen::Vector3f tcr_translation = receipt.tcr_valid ?
+        receipt.Tcr.translation() : Eigen::Vector3f::Zero();
+    const Eigen::Quaternionf tcr_orientation = receipt.tcr_valid ?
+        receipt.Tcr.unit_quaternion() : Eigen::Quaternionf::Identity();
+
+    orb_visual_evidence_stream_ << std::fixed << std::setprecision(9)
+        << RosTimeToSeconds(stamp) << ',' << callback_arrival_stamp_sec << ','
+        << receipt.frame_id << ',' << receipt.tracking_state << ','
+        << (receipt.reference_keyframe_valid ? 1 : 0) << ','
+        << receipt.reference_keyframe_id << ',' << metrics.feature_count << ','
+        << metrics.map_point_match_count << ',' << metrics.tracking_inlier_count << ','
+        << metrics.inlier_ratio << ',' << metrics.valid_stereo_depth_count << ','
+        << metrics.stereo_depth_ratio << ',' << metrics.depth_p25 << ','
+        << metrics.depth_p50 << ',' << metrics.depth_p75 << ','
+        << metrics.depth_p90 << ',' << metrics.disparity_p10 << ','
+        << metrics.disparity_p25 << ',' << metrics.disparity_p50 << ','
+        << metrics.disparity_p75 << ',' << metrics.disparity_p90 << ','
+        << metrics.grid_coverage_ratio << ',' << (receipt.tcr_valid ? 1 : 0) << ','
+        << tcr_translation.x() << ',' << tcr_translation.y() << ','
+        << tcr_translation.z() << ',' << tcr_orientation.x() << ','
+        << tcr_orientation.y() << ',' << tcr_orientation.z() << ','
+        << tcr_orientation.w() << '\n';
+}
+
 void StereoSlamNode::PublishPredictedNavigationState()
 {
     if (!navigation_state_ready_)
@@ -1934,6 +2078,9 @@ void StereoSlamNode::PublishPredictedNavigationState()
     orbslam3_ros2::OrbPredictionTiming prediction_timing;
     orbslam3_ros2::PredictedOrbPoseState base_state;
     orbslam3_ros2::PredictedOrbPoseState predicted;
+    bool dynamic_prediction_attempted = false;
+    bool dynamic_angular_valid = false;
+    bool dynamic_translational_valid = false;
     message.header.stamp = now;
     message.sample_sequence = navigation_sample_sequence_++;
     if (message.local_valid)
@@ -1948,6 +2095,7 @@ void StereoSlamNode::PublishPredictedNavigationState()
         {
             if (dynamic_base_ready_ && epoch_gravity_state_.valid())
             {
+                dynamic_prediction_attempted = true;
                 const auto angular = body_torque_predictor_.Predict(
                     dynamic_base_pose_.so3(), dynamic_base_angular_velocity_,
                     dynamic_base_stamp_sec_, now.seconds());
@@ -1955,6 +2103,8 @@ void StereoSlamNode::PublishPredictedNavigationState()
                     dynamic_base_pose_.translation(), dynamic_base_linear_velocity_,
                     dynamic_base_pose_.so3(), dynamic_base_angular_velocity_,
                     dynamic_base_stamp_sec_, now.seconds(), body_torque_predictor_);
+                dynamic_angular_valid = angular.valid;
+                dynamic_translational_valid = translational.valid;
                 if (angular.valid && translational.valid)
                 {
                     predicted.valid = true;
@@ -2053,6 +2203,35 @@ void StereoSlamNode::PublishPredictedNavigationState()
         }
         if (!predicted.valid)
         {
+            const char * failed_predicate = navigation_prediction_mode_ != "dynamic" ?
+                "PREDICTION_INVALID" : (!dynamic_base_ready_ ?
+                "DYNAMIC_BASE_NOT_READY" :
+                (!epoch_gravity_state_.valid() ? "GRAVITY_INVALID" :
+                (!dynamic_prediction_attempted ? "PREDICTION_NOT_ATTEMPTED" :
+                (!dynamic_angular_valid && !dynamic_translational_valid ?
+                "ANGULAR_INVALID|TRANSLATIONAL_INVALID" :
+                (!dynamic_angular_valid ? "ANGULAR_INVALID" :
+                "TRANSLATIONAL_INVALID")))));
+            RCLCPP_ERROR(
+                this->get_logger(),
+                "[F5H-NAV-VALIDITY-TRACE] stamp=%.9f exact_failed_predicates=%s "
+                "tracking=%d local_before=%s continuity_before=%s "
+                "velocity_before=%s dynamic_mode=%s dynamic_base_ready=%s "
+                "gravity_valid=%s dynamic_attempted=%s angular_valid=%s "
+                "translational_valid=%s epoch=%lu ref_kf=%lu sample=%lu",
+                now.seconds(), failed_predicate, message.tracking_state,
+                message.local_valid ? "true" : "false",
+                message.local_continuity_valid ? "true" : "false",
+                message.velocity_valid ? "true" : "false",
+                navigation_prediction_mode_ == "dynamic" ? "true" : "false",
+                dynamic_base_ready_ ? "true" : "false",
+                epoch_gravity_state_.valid() ? "true" : "false",
+                dynamic_prediction_attempted ? "true" : "false",
+                dynamic_angular_valid ? "true" : "false",
+                dynamic_translational_valid ? "true" : "false",
+                static_cast<unsigned long>(message.map_epoch),
+                static_cast<unsigned long>(message.reference_keyframe_id),
+                static_cast<unsigned long>(message.sample_sequence));
             message.local_valid = false;
             message.local_continuity_valid = false;
             message.global_valid = false;

@@ -5,10 +5,12 @@
 using dron_individual::ContinuousSourcePose;
 using dron_individual::DecideNavigationSource;
 using dron_individual::DiagnosticGtControlAlignment;
+using dron_individual::DiagnosticGtStateBuffer;
 using dron_individual::DiagnosticOrbControlMode;
 using dron_individual::EpochAnchorLatch;
 using dron_individual::FallbackReason;
 using dron_individual::GoalSourceLock;
+using dron_individual::ExactFailedPredicates;
 using dron_individual::NavigationSource;
 using dron_individual::OrbTransitionQualifier;
 using dron_individual::OrbShadowActivationGate;
@@ -16,6 +18,8 @@ using dron_individual::RigidPose;
 using dron_individual::ParseDiagnosticOrbControlMode;
 using dron_individual::UsesGtPosition;
 using dron_individual::UsesGtVelocity;
+using dron_individual::UsesGtOrientation;
+using dron_individual::UsesGtAngularVelocity;
 
 TEST(NavigationStateMux, DistinguishesEveryFallbackReason)
 {
@@ -31,6 +35,19 @@ TEST(NavigationStateMux, DistinguishesEveryFallbackReason)
   EXPECT_EQ(
     DecideNavigationSource(true, true, true).source,
     NavigationSource::ORB);
+}
+
+TEST(NavigationStateMux, ReportsEveryFailedPredicateWithoutChangingSourcePolicy)
+{
+  EXPECT_EQ(
+    ExactFailedPredicates(true, false, false, false, true, false,
+      FallbackReason::TRACKING_LOST),
+    "LOCAL_INVALID|CONTINUITY_INVALID|VELOCITY_INVALID_NON_SOURCE_GATE|"
+    "REFERENCE_INVALID_NON_SOURCE_GATE");
+  EXPECT_EQ(
+    ExactFailedPredicates(true, true, true, true, true, true,
+      FallbackReason::TRAJECTORY_SOURCE_LOCKED),
+    "TRAJECTORY_SOURCE_LOCKED");
 }
 
 TEST(NavigationStateMux, AnchorIsLatchedUntilEpochChanges)
@@ -169,6 +186,76 @@ TEST(NavigationStateMux, DiagnosticOverrideModesSelectOnlyRequestedLinearCompone
   EXPECT_TRUE(UsesGtPosition(ParseDiagnosticOrbControlMode("position_velocity_gt")));
   EXPECT_TRUE(UsesGtVelocity(ParseDiagnosticOrbControlMode("position_velocity_gt")));
   EXPECT_EQ(ParseDiagnosticOrbControlMode("normal"), DiagnosticOrbControlMode::NORMAL);
+}
+
+TEST(NavigationStateMux, DiagnosticChannelModesSelectComplementaryStateBlocks)
+{
+  const auto angular_gt = ParseDiagnosticOrbControlMode("orb_pv_gt_angular");
+  EXPECT_FALSE(UsesGtPosition(angular_gt));
+  EXPECT_FALSE(UsesGtVelocity(angular_gt));
+  EXPECT_TRUE(UsesGtOrientation(angular_gt));
+  EXPECT_TRUE(UsesGtAngularVelocity(angular_gt));
+
+  const auto pv_gt = ParseDiagnosticOrbControlMode("gt_pv_orb_angular");
+  EXPECT_TRUE(UsesGtPosition(pv_gt));
+  EXPECT_TRUE(UsesGtVelocity(pv_gt));
+  EXPECT_FALSE(UsesGtOrientation(pv_gt));
+  EXPECT_FALSE(UsesGtAngularVelocity(pv_gt));
+}
+
+TEST(NavigationStateMux, DiagnosticGtBufferInterpolatesAllComponentsAtControlStamp)
+{
+  DiagnosticGtStateBuffer buffer;
+  RigidPose first;
+  RigidPose second;
+  second.translation = Eigen::Vector3d(2.0, 0.0, 0.0);
+  second.rotation = Eigen::Quaterniond(Eigen::AngleAxisd(0.2, Eigen::Vector3d::UnitZ()));
+  buffer.AddPose(10.0, first);
+  buffer.AddPose(10.02, second);
+  buffer.AddVelocity(10.0, Eigen::Vector3d(1.0, 0.0, 0.0), Eigen::Vector3d::Zero());
+  buffer.AddVelocity(
+    10.02, Eigen::Vector3d(3.0, 0.0, 0.0), Eigen::Vector3d(0.0, 0.0, 2.0));
+
+  const auto sample = buffer.Sample(10.01, 0.02);
+  ASSERT_TRUE(sample);
+  EXPECT_TRUE(sample->pose_interpolated);
+  EXPECT_TRUE(sample->velocity_interpolated);
+  EXPECT_FALSE(sample->causally_propagated);
+  EXPECT_NEAR(sample->pose.translation.x(), 1.0, 1e-9);
+  EXPECT_NEAR(sample->linear.x(), 2.0, 1e-9);
+  EXPECT_NEAR(sample->angular.z(), 1.0, 1e-9);
+  EXPECT_NEAR(sample->pose.rotation.norm(), 1.0, 1e-12);
+  EXPECT_NEAR(sample->support_skew_sec, 0.01, 1e-9);
+}
+
+TEST(NavigationStateMux, DiagnosticGtBufferPropagatesCausallyWithinSkewAndRejectsBeyondIt)
+{
+  DiagnosticGtStateBuffer buffer;
+  RigidPose pose;
+  buffer.AddPose(20.0, pose);
+  buffer.AddVelocity(
+    20.0, Eigen::Vector3d(2.0, 0.0, 0.0), Eigen::Vector3d(0.0, 0.0, 1.0));
+
+  const auto valid = buffer.Sample(20.01, 0.02);
+  ASSERT_TRUE(valid);
+  EXPECT_TRUE(valid->causally_propagated);
+  EXPECT_NEAR(valid->pose.translation.x(), 0.02, 1e-9);
+  EXPECT_NEAR(valid->pose.rotation.norm(), 1.0, 1e-12);
+  EXPECT_FALSE(buffer.Sample(20.03, 0.02));
+}
+
+TEST(NavigationStateMux, DiagnosticGtBufferAcceptsThirtyMillisecondDiagnosticLimitOnly)
+{
+  DiagnosticGtStateBuffer buffer;
+  buffer.AddPose(30.0, RigidPose{});
+  buffer.AddVelocity(
+    30.0, Eigen::Vector3d(1.0, 0.0, 0.0), Eigen::Vector3d(0.0, 0.0, 1.0));
+
+  const auto within_thirty_ms = buffer.Sample(30.025, 0.03);
+  ASSERT_TRUE(within_thirty_ms);
+  EXPECT_TRUE(within_thirty_ms->causally_propagated);
+  EXPECT_NEAR(within_thirty_ms->effective_stamp_sec, 30.025, 1e-12);
+  EXPECT_FALSE(buffer.Sample(30.031, 0.03));
 }
 
 TEST(NavigationStateMux, DiagnosticGtAlignmentPreservesHandoffAndMotionInControlFrame)

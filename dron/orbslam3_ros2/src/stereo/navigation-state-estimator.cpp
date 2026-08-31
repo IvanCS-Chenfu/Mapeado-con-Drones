@@ -641,6 +641,8 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
   last_diagnostics_.measurement_stamp_sec = stamp_sec;
   last_diagnostics_.measurement_orientation = measurement.unit_quaternion();
   last_diagnostics_.context = context;
+  last_diagnostics_.raw_history_valid_before = raw_measurement_valid_;
+  last_diagnostics_.previous_raw_measurement_stamp_sec = last_raw_stamp_sec_;
   last_diagnostics_.post_reference_switch =
     context.reference_changed ||
     context.frames_since_reference_change <= config_.post_reference_switch_frames;
@@ -671,6 +673,7 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
     raw_measurement_valid_ = true;
     last_raw_measurement_ = measurement;
     last_raw_stamp_sec_ = stamp_sec;
+    last_diagnostics_.raw_history_advanced = true;
     previous_raw_interval_mid_stamp_sec_ = 0.0;
     previous_raw_interval_dt_quality_ = RawDtQuality::Invalid;
     last_diagnostics_.classification = AngularCorrectionClass::Initializing;
@@ -1211,6 +1214,22 @@ PredictedOrbPoseState OrbPosePredictor::UpdateMeasurement(
     last_raw_measurement_ = measurement;
     last_raw_stamp_sec_ = stamp_sec;
     raw_measurement_valid_ = true;
+    last_diagnostics_.raw_history_advanced = true;
+  } else if (
+    last_diagnostics_.raw_dt_quality == RawDtQuality::Invalid &&
+    last_diagnostics_.raw_dt_sec > config_.raw_dt_max_degraded_sec)
+  {
+    // The invalid delta remains rejected; rebase only prevents a stale raw
+    // baseline from making every later measurement incomparable.
+    last_raw_measurement_ = measurement;
+    last_raw_stamp_sec_ = stamp_sec;
+    raw_measurement_valid_ = true;
+    raw_angular_velocity_valid_ = false;
+    previous_raw_angular_velocity_.setZero();
+    previous_raw_interval_mid_stamp_sec_ = 0.0;
+    previous_raw_interval_dt_quality_ = RawDtQuality::Invalid;
+    last_diagnostics_.raw_history_advanced = true;
+    last_diagnostics_.raw_history_rebased = true;
   }
   const Sophus::SE3f published_step = previous_pose.inverse() * pose_;
   last_diagnostics_.published_pose_translation_step_m =

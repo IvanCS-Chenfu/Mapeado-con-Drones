@@ -2988,6 +2988,7 @@ bool Tracking::TrackWithMotionModel()
 
 bool Tracking::TrackLocalMap()
 {
+    mnMatchesCandidates = 0;
 
     // We have an estimation of the camera pose and some map points tracked in the frame.
     // We retrieve the local map and try to find matches to points in the local map.
@@ -3040,6 +3041,8 @@ bool Tracking::TrackLocalMap()
             if(mCurrentFrame.mvbOutlier[i])
                 aux2++;
         }
+
+    mnMatchesCandidates = aux1;
 
     mnMatchesInliers = 0;
 
@@ -4106,6 +4109,11 @@ int Tracking::GetNumberDataset()
 int Tracking::GetMatchesInliers()
 {
     return mnMatchesInliers;
+}
+
+int Tracking::GetMatchesCandidates()
+{
+    return mnMatchesCandidates;
 }
 
 void Tracking::SaveSubTrajectory(string strNameFile_frames, string strNameFile_kf, string strFolder)

@@ -120,6 +120,7 @@ public:
 
     struct StereoTrackingReceipt
     {
+        bool collect_visual_evidence = false;
         int tracking_state = -1;
         bool reference_keyframe_valid = false;
         uint64_t reference_keyframe_id = 0;
@@ -128,6 +129,14 @@ public:
         KeyFrameCreationEvent keyframe_event;
         cv::Mat image_left_effective;
         EffectiveCameraModel camera;
+        uint64_t frame_id = 0;
+        int tracking_match_candidate_count = 0;
+        int tracking_inlier_count = 0;
+        std::vector<cv::KeyPoint> frame_keypoints;
+        std::vector<uint8_t> frame_has_map_point;
+        std::vector<uint8_t> frame_is_outlier;
+        std::vector<float> frame_right_x;
+        std::vector<float> frame_depth;
     };
 
 public:
