@@ -19,5 +19,17 @@
 
     fisico.camara.dim: [0.005, 0.01, 0.01]
     fisico.camara.color: "Yellow"
-    fisico.camara.masa: 0.00
+    fisico.camara.masa: 1e-5
     fisico.camara.matriz_inercia: [1e-6, 1e-6, 1e-6, 0.0, 0.0, 0.0]
+
+    fisico.camera_pitch.enabled: true
+    fisico.camera_pitch.lower_rad: -1.2217304764
+    fisico.camera_pitch.upper_rad: 1.2217304764
+    fisico.camera_pitch.max_velocity_radps: 0.35
+    fisico.camera_pitch.max_acceleration_radps2: 0.70
+    fisico.camera_pitch.max_effort_nm: 0.002
+    fisico.camera_pitch.kp: 0.01
+    fisico.camera_pitch.ki: 0.0
+    fisico.camera_pitch.kd: 0.004
+    fisico.camera_pitch.integral_limit: 0.10
+    fisico.camera_pitch.velocity_filter_tau_sec: 0.05

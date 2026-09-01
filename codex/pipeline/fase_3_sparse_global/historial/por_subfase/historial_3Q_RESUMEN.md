@@ -4,9 +4,11 @@
 
 `A REVISAR`: la correccion reabierta tras la prueba 213 y la mejora conservadora
 posterior estan implementadas y validadas. La prueba 220 da un resultado visual
-general excelente y demuestra la cascada world pendiente. El usuario acepta
-continuar sin otra correccion; 3Q solo se reabrira si vuelve a aparecer el
-movimiento incoherente aislado observado en una ventana de 296 KFs.
+general excelente. Nueva evidencia 373: desde `marker_id=368`, al final del
+rodeo, debieron ejecutarse varias optimizaciones por loop para corregir el
+cierre y no se hicieron; seis tareas fueron rechazadas por
+`loop_submap_interval_too_small`. El usuario pide dejarlo apuntado en 3Q y no
+investigarlo ni corregirlo ahora.
 
 ## Implementacion vigente
 
@@ -122,5 +124,13 @@ estructural local. No cambiar cascada, recuperacion 1/1 ni fiduciales.
 Esta mejora queda documentada, no activa. No ejecutar cambios adicionales de
 3Q salvo nueva evidencia runtime del mismo fallo o peticion explicita del
 usuario.
+
+## Pendiente incorporado por prueba 373
+
+Revisar por que, desde `marker_id=368`, no se ejecutaron las optimizaciones de
+loop esperadas para corregir el cierre del rodeo. Correlacionar los seis
+`loop_submap_interval_too_small` con las propuestas/intervalos disponibles y
+determinar si el selector descarta ventanas que deberian ser optimizables. No
+se autoriza diagnostico adicional, cambio de runtime ni repeticion ahora.
 
 Detalle cronologico: `historial_3Q.md`.

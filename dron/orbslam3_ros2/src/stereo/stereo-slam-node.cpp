@@ -91,6 +91,8 @@ StereoSlamNode::StereoSlamNode(
     this->declare_parameter<std::string>("local_map_frame", "orb_map");
     this->declare_parameter<std::string>("odom_frame", "odom");
     this->declare_parameter<std::string>("body_frame", "base_link");
+    this->declare_parameter<std::string>("camera_frame", "camera_left_optical_frame");
+    this->declare_parameter<std::string>("body_camera_transform_mode", "static");
     this->declare_parameter<int>("delta_publish_period_frames", 30);
     this->declare_parameter<bool>("debug_architecture_telemetry", false);
     this->declare_parameter<int>("fiducial_queue_capacity", 4);
@@ -169,6 +171,14 @@ StereoSlamNode::StereoSlamNode(
         this->get_parameter("local_map_frame").as_string();
     odom_frame_ = this->get_parameter("odom_frame").as_string();
     body_frame_ = this->get_parameter("body_frame").as_string();
+    camera_frame_ = this->get_parameter("camera_frame").as_string();
+    body_camera_transform_mode_ =
+        this->get_parameter("body_camera_transform_mode").as_string();
+    if (body_camera_transform_mode_ != "static" && body_camera_transform_mode_ != "tf")
+    {
+        throw std::runtime_error(
+            "body_camera_transform_mode debe ser 'static' o 'tf'");
+    }
 
     constexpr double kDegToRad = M_PI / 180.0;
     const float roll = static_cast<float>(
@@ -186,6 +196,11 @@ StereoSlamNode::StereoSlamNode(
         static_cast<float>(this->get_parameter("body_T_camera_y").as_double()),
         static_cast<float>(this->get_parameter("body_T_camera_z").as_double()));
     body_t_camera_ = Sophus::SE3f(body_r_camera, body_t_camera_translation);
+    if (body_camera_transform_mode_ == "tf")
+    {
+        tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
+        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    }
 
     orb_state_publish_rate_hz_ = std::max(
         1.0, this->get_parameter("orb_state_publish_rate_hz").as_double());
@@ -1289,6 +1304,44 @@ void StereoSlamNode::PublishLocalPose(
     pose_local_pub_->publish(msg);
 }
 
+bool StereoSlamNode::ResolveBodyTCamera(
+    const builtin_interfaces::msg::Time& stamp,
+    Sophus::SE3f& body_t_camera)
+{
+    if (body_camera_transform_mode_ == "static")
+    {
+        body_t_camera = body_t_camera_;
+        return true;
+    }
+    try
+    {
+        const auto transform = tf_buffer_->lookupTransform(
+            body_frame_, camera_frame_, rclcpp::Time(stamp),
+            rclcpp::Duration::from_seconds(0.05));
+        Eigen::Quaternionf q(
+            static_cast<float>(transform.transform.rotation.w),
+            static_cast<float>(transform.transform.rotation.x),
+            static_cast<float>(transform.transform.rotation.y),
+            static_cast<float>(transform.transform.rotation.z));
+        q.normalize();
+        const Eigen::Vector3f translation(
+            static_cast<float>(transform.transform.translation.x),
+            static_cast<float>(transform.transform.translation.y),
+            static_cast<float>(transform.transform.translation.z));
+        body_t_camera = Sophus::SE3f(q.toRotationMatrix(), translation);
+        return true;
+    }
+    catch (const tf2::TransformException& error)
+    {
+        RCLCPP_ERROR_THROTTLE(
+            this->get_logger(), *this->get_clock(), 1000,
+            "[1J-BODY-CAMERA-TF-MISSING] stamp=%.9f body=%s camera=%s error='%s'",
+            RosTimeToSeconds(stamp), body_frame_.c_str(), camera_frame_.c_str(),
+            error.what());
+        return false;
+    }
+}
+
 void StereoSlamNode::PublishNavigationState(
     const builtin_interfaces::msg::Time& stamp,
     const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
@@ -1362,13 +1415,28 @@ void StereoSlamNode::PublishNavigationState(
     {
         message.tcr = SophusToPoseMsg(pose_result.active_tcr);
     }
+    Sophus::SE3f current_body_t_camera = body_t_camera_;
+    if (pose_result.local_valid && !ResolveBodyTCamera(stamp, current_body_t_camera))
+    {
+        orb_pose_predictor_.Reset();
+        ResetDynamicNavigationState();
+        o_t_world_valid_ = false;
+        message.pose_source = orbslam3_msgs::msg::NavigationState::POSE_SOURCE_INVALID;
+        message.local_valid = false;
+        message.local_continuity_valid = false;
+        message.global_valid = false;
+        message.velocity_valid = false;
+        navigation_state_pub_->publish(message);
+        ++navigation_sample_sequence_;
+        return;
+    }
     if (pose_result.local_valid)
     {
         orbslam3_ros2::PredictedOrbPoseState predicted;
         if (pose_result.measurement_accepted)
         {
             const Sophus::SE3f raw_o_t_body =
-                pose_result.o_t_camera * body_t_camera_.inverse();
+                pose_result.o_t_camera * current_body_t_camera.inverse();
             if (pose_result.epoch_changed)
             {
                 predictor_reference_valid_ = false;
@@ -1645,7 +1713,7 @@ void StereoSlamNode::PublishNavigationState(
                 pose_result.global_state != orbslam3_ros2::GlobalPoseState::Invalid)
             {
                 const Sophus::SE3f raw_w_t_body =
-                    pose_result.w_t_camera * body_t_camera_.inverse();
+                    pose_result.w_t_camera * current_body_t_camera.inverse();
                 o_t_world_ = predicted.pose * raw_w_t_body.inverse();
                 o_t_world_valid_ = true;
                 if (message.global_valid &&
@@ -1702,7 +1770,7 @@ void StereoSlamNode::PublishNavigationState(
         const geometry_msgs::msg::Pose w_t_camera =
             SophusToPoseMsg(pose_result.w_t_camera);
         const geometry_msgs::msg::Pose body_t_camera =
-            SophusToPoseMsg(body_t_camera_);
+            SophusToPoseMsg(current_body_t_camera);
         RCLCPP_WARN_THROTTLE(
             this->get_logger(), *this->get_clock(), 1000,
             "[F5H-WRAPPER-FRAME-DIAG] part=inputs drone=%u epoch=%lu "

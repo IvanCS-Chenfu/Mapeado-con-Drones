@@ -63,6 +63,17 @@ public:
     this->declare_parameter<int>("sensores.camara.width", 640);
     this->declare_parameter<int>("sensores.camara.height", 480);
     this->declare_parameter<std::string>("sensores.camara.mostrar_gazebo", "false");
+    this->declare_parameter<bool>("fisico.camera_pitch.enabled", true);
+    this->declare_parameter<double>("fisico.camera_pitch.lower_rad", -1.2217304764);
+    this->declare_parameter<double>("fisico.camera_pitch.upper_rad", 1.2217304764);
+    this->declare_parameter<double>("fisico.camera_pitch.max_velocity_radps", 0.35);
+    this->declare_parameter<double>("fisico.camera_pitch.max_acceleration_radps2", 0.70);
+    this->declare_parameter<double>("fisico.camera_pitch.max_effort_nm", 0.002);
+    this->declare_parameter<double>("fisico.camera_pitch.kp", 0.01);
+    this->declare_parameter<double>("fisico.camera_pitch.ki", 0.0);
+    this->declare_parameter<double>("fisico.camera_pitch.kd", 0.004);
+    this->declare_parameter<double>("fisico.camera_pitch.integral_limit", 0.10);
+    this->declare_parameter<double>("fisico.camera_pitch.velocity_filter_tau_sec", 0.05);
 
     this->declare_parameter<int>("dron.numero", 1);
     this->declare_parameter<std::vector<double>>("dron.spawn_box", {-10.0, 10.0, -10.0, 10.0});
@@ -111,6 +122,23 @@ public:
     sensores_camara_height = this->get_parameter("sensores.camara.height").as_int();
     sensores_camara_mostrar_gazebo =
       this->get_parameter("sensores.camara.mostrar_gazebo").as_string();
+    camera_pitch_enabled = this->get_parameter("fisico.camera_pitch.enabled").as_bool();
+    camera_pitch_lower_rad = this->get_parameter("fisico.camera_pitch.lower_rad").as_double();
+    camera_pitch_upper_rad = this->get_parameter("fisico.camera_pitch.upper_rad").as_double();
+    camera_pitch_max_velocity_radps =
+      this->get_parameter("fisico.camera_pitch.max_velocity_radps").as_double();
+    camera_pitch_max_acceleration_radps2 =
+      this->get_parameter("fisico.camera_pitch.max_acceleration_radps2").as_double();
+    camera_pitch_max_effort_nm =
+      this->get_parameter("fisico.camera_pitch.max_effort_nm").as_double();
+    camera_pitch_kp = this->get_parameter("fisico.camera_pitch.kp").as_double();
+    camera_pitch_ki = this->get_parameter("fisico.camera_pitch.ki").as_double();
+    camera_pitch_kd = this->get_parameter("fisico.camera_pitch.kd").as_double();
+    camera_pitch_integral_limit =
+      this->get_parameter("fisico.camera_pitch.integral_limit").as_double();
+    camera_pitch_velocity_filter_tau_sec =
+      this->get_parameter("fisico.camera_pitch.velocity_filter_tau_sec").as_double();
+    debug_fase_1 = this->declare_parameter<bool>("debug_fase_1", false);
 
     dron_numero = this->get_parameter("dron.numero").as_int();
     dron_spawn_box = this->get_parameter("dron.spawn_box").as_double_array();
@@ -239,7 +267,20 @@ private:
          << " sensores_camara_publish_rate:=" << sensores_camara_publish_rate
          << " sensores_camara_width:=" << sensores_camara_width
          << " sensores_camara_height:=" << sensores_camara_height
-         << " sensores_camara_mostrar_gazebo:=" << sensores_camara_mostrar_gazebo;
+         << " sensores_camara_mostrar_gazebo:=" << sensores_camara_mostrar_gazebo
+         << " camera_pitch_enabled:=" << (camera_pitch_enabled ? "true" : "false")
+         << " camera_pitch_lower_rad:=" << camera_pitch_lower_rad
+         << " camera_pitch_upper_rad:=" << camera_pitch_upper_rad
+         << " camera_pitch_max_velocity_radps:=" << camera_pitch_max_velocity_radps
+         << " camera_pitch_max_acceleration_radps2:=" << camera_pitch_max_acceleration_radps2
+         << " camera_pitch_max_effort_nm:=" << camera_pitch_max_effort_nm
+         << " camera_pitch_kp:=" << camera_pitch_kp
+         << " camera_pitch_ki:=" << camera_pitch_ki
+         << " camera_pitch_kd:=" << camera_pitch_kd
+         << " camera_pitch_integral_limit:=" << camera_pitch_integral_limit
+         << " camera_pitch_velocity_filter_tau_sec:=" << camera_pitch_velocity_filter_tau_sec
+         << " debug_fase_1:=" << (debug_fase_1 ? "true" : "false")
+         << " drone_name:=" << name_space.substr(1);
 
     std::string command = "xacro " + xacro_path + args.str();              // Ejecutamos el procesador xacro por terminal
     FILE * pipe = popen(command.c_str(), "r");                // Abrimos el comando como un stream
@@ -295,6 +336,18 @@ private:
   int64_t sensores_camara_width;
   int64_t sensores_camara_height;
   std::string sensores_camara_mostrar_gazebo;
+  bool camera_pitch_enabled;
+  double camera_pitch_lower_rad;
+  double camera_pitch_upper_rad;
+  double camera_pitch_max_velocity_radps;
+  double camera_pitch_max_acceleration_radps2;
+  double camera_pitch_max_effort_nm;
+  double camera_pitch_kp;
+  double camera_pitch_ki;
+  double camera_pitch_kd;
+  double camera_pitch_integral_limit;
+  double camera_pitch_velocity_filter_tau_sec;
+  bool debug_fase_1;
 
   std::string name_space;
 

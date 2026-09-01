@@ -165,6 +165,7 @@ def test_debug_profile_controls_simulation_and_server_producers():
     profile = yaml.safe_load(
         (SIMULATION_PACKAGE / 'config/debug.yaml').read_text(encoding='utf-8'))['debug']
     expected = {
+        'debug_fase_1',
         'debug_sparse_global_rviz',
         'debug_pipeline_flow_web',
         'debug_open_pipeline_flow_browser',
@@ -174,6 +175,9 @@ def test_debug_profile_controls_simulation_and_server_producers():
         'debug_architecture_telemetry',
         'debug_fiducial_visualization',
         'debug_fiducial_display_seconds',
+        'debug_fase_5',
+        'debug_orb_control_state',
+        'debug_orb_visual_evidence',
     }
     assert set(profile) == expected
     assert profile['debug_fiducial_visualization'] is False
@@ -205,3 +209,23 @@ def test_debug_profile_controls_simulation_and_server_producers():
         "LaunchConfiguration('debug_pipeline_flow_web')" in simulation_launch
     )
     assert 'architecture_telemetry_enabled = PythonExpression' in simulation_launch
+
+
+def test_phase1_debug_flag_is_quiet_by_default_and_reaches_all_producers():
+    profile = yaml.safe_load(
+        (SIMULATION_PACKAGE / 'config/debug.yaml').read_text(encoding='utf-8'))['debug']
+    simulation_launch = (
+        SIMULATION_PACKAGE / 'launch/multi_dron.launch.py'
+    ).read_text(encoding='utf-8')
+    drone_launch = (
+        SRC_ROOT / 'dron/dron_individual/launch/generar_dron.launch.py'
+    ).read_text(encoding='utf-8')
+    xacro = (
+        SIMULATION_PACKAGE / 'urdf/dron_plugins.xacro'
+    ).read_text(encoding='utf-8')
+
+    assert profile['debug_fase_1'] is False
+    assert "'debug_fase_1': LaunchConfiguration('debug_fase_1')" in simulation_launch
+    assert "DeclareLaunchArgument('debug_fase_1', default_value='false')" in drone_launch
+    assert "else 'warn'" in drone_launch
+    assert xacro.count('<debug_fase_1>${debug_fase_1}</debug_fase_1>') == 5

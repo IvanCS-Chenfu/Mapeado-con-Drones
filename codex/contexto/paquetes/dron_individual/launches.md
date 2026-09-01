@@ -32,6 +32,10 @@ Carga por nodo `config/trajectory.yaml`, `config/physical.yaml`,
 `config/control.yaml` y `config/actuators.yaml`. Los booleanos operativos de
 ORB se leen desde `config/vision.yaml` como booleanos YAML reales.
 
+`debug_fase_1=false` aplica nivel ROS `warn` a `navigation_state_mux`,
+`gen_tray`, `control_calcular_fuerzas` y `aplicar_fuerzas_dron`; con `true`
+restaura `info`. No gobierna ORB ni los logs de Fases 3-5.
+
 ## `launch/orbslam_use.launch.py`
 
 Lanza ORB-SLAM3 mono o estéreo y, con debug fiducial activo, un visualizador

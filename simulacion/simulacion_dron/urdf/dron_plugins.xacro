@@ -33,6 +33,19 @@
     <xacro:arg name="sensores_camara_width" default="640"/>
     <xacro:arg name="sensores_camara_height" default="480"/>
     <xacro:arg name="sensores_camara_mostrar_gazebo" default= "false"/>
+    <xacro:arg name="camera_pitch_enabled" default="true"/>
+    <xacro:arg name="camera_pitch_lower_rad" default="-1.2217304764"/>
+    <xacro:arg name="camera_pitch_upper_rad" default="1.2217304764"/>
+    <xacro:arg name="camera_pitch_max_velocity_radps" default="0.35"/>
+    <xacro:arg name="camera_pitch_max_acceleration_radps2" default="0.70"/>
+    <xacro:arg name="camera_pitch_max_effort_nm" default="0.002"/>
+    <xacro:arg name="camera_pitch_kp" default="0.01"/>
+    <xacro:arg name="camera_pitch_ki" default="0.0"/>
+    <xacro:arg name="camera_pitch_kd" default="0.004"/>
+    <xacro:arg name="camera_pitch_integral_limit" default="0.10"/>
+    <xacro:arg name="camera_pitch_velocity_filter_tau_sec" default="0.05"/>
+    <xacro:arg name="debug_fase_1" default="false"/>
+    <xacro:arg name="drone_name" default="dron_1"/>
 
     <!-- Se pasa a propiedad para poder hacer cálculos con ella -->
     <xacro:property name="fisico_cuerpo_dim" value="$(arg fisico_cuerpo_dim)"/>
@@ -66,6 +79,19 @@
     <xacro:property name="sensores_camara_width" value="$(arg sensores_camara_width)"/>
     <xacro:property name="sensores_camara_height" value="$(arg sensores_camara_height)"/>
     <xacro:property name="sensores_camara_mostrar_gazebo" value="$(arg sensores_camara_mostrar_gazebo)"/>
+    <xacro:property name="camera_pitch_enabled" value="$(arg camera_pitch_enabled)"/>
+    <xacro:property name="camera_pitch_lower_rad" value="$(arg camera_pitch_lower_rad)"/>
+    <xacro:property name="camera_pitch_upper_rad" value="$(arg camera_pitch_upper_rad)"/>
+    <xacro:property name="camera_pitch_max_velocity_radps" value="$(arg camera_pitch_max_velocity_radps)"/>
+    <xacro:property name="camera_pitch_max_acceleration_radps2" value="$(arg camera_pitch_max_acceleration_radps2)"/>
+    <xacro:property name="camera_pitch_max_effort_nm" value="$(arg camera_pitch_max_effort_nm)"/>
+    <xacro:property name="camera_pitch_kp" value="$(arg camera_pitch_kp)"/>
+    <xacro:property name="camera_pitch_ki" value="$(arg camera_pitch_ki)"/>
+    <xacro:property name="camera_pitch_kd" value="$(arg camera_pitch_kd)"/>
+    <xacro:property name="camera_pitch_integral_limit" value="$(arg camera_pitch_integral_limit)"/>
+    <xacro:property name="camera_pitch_velocity_filter_tau_sec" value="$(arg camera_pitch_velocity_filter_tau_sec)"/>
+    <xacro:property name="debug_fase_1" value="$(arg debug_fase_1)"/>
+    <xacro:property name="drone_name" value="$(arg drone_name)"/>
 
 
     <!-- Materiales -->
@@ -206,6 +232,7 @@
                 <topic4>motor/arr_der</topic4>
 
                 <fuerza2torque>${actuadores_conversor_fuerza2torque}</fuerza2torque>
+                <debug_fase_1>${debug_fase_1}</debug_fase_1>
             </plugin>
         </gazebo>
     </xacro:if>
@@ -242,6 +269,7 @@
                 <topic6>motor/arr_der</topic6>
 
                 <fuerza2torque>${actuadores_conversor_fuerza2torque}</fuerza2torque>
+                <debug_fase_1>${debug_fase_1}</debug_fase_1>
             </plugin>
         </gazebo>
     </xacro:if>
@@ -286,6 +314,7 @@
                 <topic8>motor/arr_der</topic8>
 
                 <fuerza2torque>${actuadores_conversor_fuerza2torque}</fuerza2torque>
+                <debug_fase_1>${debug_fase_1}</debug_fase_1>
             </plugin>
         </gazebo>
     </xacro:if>
@@ -311,6 +340,7 @@
             <publish_rate>${sensores_ground_truth_publish_rate}</publish_rate>
             <frame_id>world</frame_id>
             <frame_propio>false</frame_propio>
+            <debug_fase_1>${debug_fase_1}</debug_fase_1>
         </plugin>
     </gazebo>
 
@@ -369,7 +399,7 @@
                     <imageTopicName>sensor/camara_${name}/image_raw</imageTopicName>
                     <cameraInfoTopicName>sensor/camara_${name}/camera_info</cameraInfoTopicName>
 
-                    <frameName>camara_${name}</frameName>
+                    <frameName>${drone_name}/camera_${name}_optical_frame</frameName>
                 </plugin>
             </sensor>
         </gazebo>
@@ -388,14 +418,12 @@
     </xacro:macro>
     <!-- MACRO Joint Cuerpo - Camara (estereo)-->
     <xacro:macro name="joint_camara_estereo" params="name izquierda">
-        <xacro:property name="ox" value="${0.5 * float(fisico_cuerpo_dim.split()[0]) - 0.5 * float(fisico_camara_dim.split()[0])}"/>
-        <xacro:property name="oz" value="${0.5 * float(fisico_cuerpo_dim.split()[2]) + 0.5 * float(fisico_camara_dim.split()[2])}"/>
-        <xacro:property name="oy" value="${(0.5 * float(fisico_cuerpo_dim.split()[1]) - 0.5 * float(fisico_camara_dim.split()[1]))*izquierda*sensores_camara_porcentaje_estereo}"/>
+        <xacro:property name="oy" value="${0.0285*izquierda}"/>
 
         <joint name="joint_camara_${name}" type="fixed">
-            <parent link="cuerpo"/>
+            <parent link="stereo_rig"/>
             <child link="camara_${name}"/>
-            <origin xyz="${ox} ${oy} ${oz}" rpy="0 0 0"/>
+            <origin xyz="0 ${oy} 0" rpy="0 0 0"/>
         </joint>
     </xacro:macro>
 
@@ -409,10 +437,65 @@
         <xacro:joint_camara_mono name="mono"/>
     </xacro:if>
     <xacro:unless value="${sensores_camara_porcentaje_estereo == 0.0}">
+        <link name="stereo_rig">
+            <inertial>
+                <mass value="${fisico_camara_masa}"/>
+                <inertia ixx="${fisico_camara_matriz_inercia.split()[0]}" iyy="${fisico_camara_matriz_inercia.split()[1]}" izz="${fisico_camara_matriz_inercia.split()[2]}" ixy="${fisico_camara_matriz_inercia.split()[3]}" ixz="${fisico_camara_matriz_inercia.split()[4]}" iyz="${fisico_camara_matriz_inercia.split()[5]}"/>
+            </inertial>
+        </link>
+        <xacro:if value="${camera_pitch_enabled}">
+            <joint name="stereo_pitch_joint" type="revolute">
+                <parent link="cuerpo"/>
+                <child link="stereo_rig"/>
+                <origin xyz="0.10 0 0.03" rpy="0 0 0"/>
+                <axis xyz="0 1 0"/>
+                <limit lower="${camera_pitch_lower_rad}" upper="${camera_pitch_upper_rad}" effort="${camera_pitch_max_effort_nm}" velocity="${camera_pitch_max_velocity_radps}"/>
+                <dynamics damping="0.01" friction="0.00005"/>
+            </joint>
+            <gazebo reference="stereo_pitch_joint">
+                <implicitSpringDamper>true</implicitSpringDamper>
+                <stopCfm>1e-5</stopCfm>
+                <stopErp>0.2</stopErp>
+            </gazebo>
+        </xacro:if>
+        <xacro:unless value="${camera_pitch_enabled}">
+            <joint name="stereo_pitch_joint" type="fixed">
+                <parent link="cuerpo"/>
+                <child link="stereo_rig"/>
+                <origin xyz="0.10 0 0.03" rpy="0 0 0"/>
+            </joint>
+        </xacro:unless>
         <xacro:link_camara name="izq"/>
         <xacro:joint_camara_estereo name="izq" izquierda="1.0"/>
         <xacro:link_camara name="der"/>
         <xacro:joint_camara_estereo name="der" izquierda="-1.0"/>
+        <xacro:if value="${camera_pitch_enabled}">
+            <gazebo>
+              <plugin name="plugin_camera_pitch" filename="libplugin_camera_pitch.so">
+                <joint_name>stereo_pitch_joint</joint_name>
+                <command_topic>camera_pitch/command</command_topic>
+                <state_topic>camera_pitch/joint_states</state_topic>
+                <enabled>${camera_pitch_enabled}</enabled>
+                <lower>${camera_pitch_lower_rad}</lower>
+                <upper>${camera_pitch_upper_rad}</upper>
+                <max_velocity>${camera_pitch_max_velocity_radps}</max_velocity>
+                <max_acceleration>${camera_pitch_max_acceleration_radps2}</max_acceleration>
+                <max_effort>${camera_pitch_max_effort_nm}</max_effort>
+                <kp>${camera_pitch_kp}</kp>
+                <ki>${camera_pitch_ki}</ki>
+                <kd>${camera_pitch_kd}</kd>
+                <integral_limit>${camera_pitch_integral_limit}</integral_limit>
+                <velocity_filter_tau_sec>${camera_pitch_velocity_filter_tau_sec}</velocity_filter_tau_sec>
+                <debug_fase_1>${debug_fase_1}</debug_fase_1>
+                <publish_rate>100.0</publish_rate>
+                <body_frame>${drone_name}/base_link</body_frame>
+                <camera_frame>${drone_name}/camera_izq_optical_frame</camera_frame>
+                <camera_x>0.10</camera_x>
+                <camera_y>0.0285</camera_y>
+                <camera_z>0.03</camera_z>
+              </plugin>
+            </gazebo>
+        </xacro:if>
     </xacro:unless>
 
 

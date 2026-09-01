@@ -1,0 +1,11 @@
+name: fase_1j_pitch_fisica_aislada_ajuste_damping
+description: "Puerta fisica post-362: neutral, +30 grados y retorno sin trayectoria del dron."
+namespace_base: dron
+action_name: AccionTrayectoria
+steps:
+  - {name: espera_spawn, type: wait_for_bool, topic: /fiducial_spawn_ready, expected: true, timeout_sec: 90.0}
+  - {name: neutral, type: wait, seconds: 5.0}
+  - {name: pitch_abajo_30, type: pitch, drone_id: 1, target_deg: 30.0, tolerance_deg: 1.0, timeout_sec: 15.0}
+  - {name: observar, type: wait, seconds: 5.0}
+  - {name: retorno_neutral, type: pitch, drone_id: 1, target_deg: 0.0, tolerance_deg: 1.0, timeout_sec: 15.0}
+  - {name: observacion_final, type: wait, seconds: 5.0}

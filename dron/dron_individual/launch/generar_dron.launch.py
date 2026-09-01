@@ -61,6 +61,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument(
             'debug_architecture_telemetry', default_value='false'),
+        DeclareLaunchArgument('debug_fase_1', default_value='false'),
         DeclareLaunchArgument(
             'debug_fiducial_visualization', default_value='false'),
         DeclareLaunchArgument(
@@ -71,6 +72,8 @@ def generate_launch_description():
         DeclareLaunchArgument('orb_visual_evidence_output_dir', default_value=''),
         DeclareLaunchArgument(
             'orb_navigation_prediction_mode', default_value='dynamic'),
+        DeclareLaunchArgument('phase5_navigation_source', default_value='orb'),
+        DeclareLaunchArgument('camera_pitch_enabled', default_value='false'),
         DeclareLaunchArgument('gt_fallback_enabled', default_value='false'),
         DeclareLaunchArgument('orb_qualification_samples', default_value='20'),
         DeclareLaunchArgument(
@@ -87,6 +90,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
     debug_architecture_telemetry = LaunchConfiguration(
         'debug_architecture_telemetry')
+    debug_fase_1 = LaunchConfiguration('debug_fase_1')
     debug_fiducial_visualization = LaunchConfiguration(
         'debug_fiducial_visualization')
     debug_fiducial_display_seconds = LaunchConfiguration(
@@ -98,6 +102,8 @@ def generate_launch_description():
         'orb_visual_evidence_output_dir')
     orb_navigation_prediction_mode = LaunchConfiguration(
         'orb_navigation_prediction_mode')
+    phase5_navigation_source = LaunchConfiguration('phase5_navigation_source')
+    camera_pitch_enabled = LaunchConfiguration('camera_pitch_enabled')
     gt_fallback_enabled = LaunchConfiguration('gt_fallback_enabled')
     orb_qualification_samples = LaunchConfiguration('orb_qualification_samples')
     orb_vocabulary_path = LaunchConfiguration('orb_vocabulary_path')
@@ -108,6 +114,9 @@ def generate_launch_description():
         'debug_architecture_telemetry': ParameterValue(
             debug_architecture_telemetry, value_type=bool),
     }
+    phase1_log_level = PythonExpression([
+        "'info' if '", debug_fase_1, "'.lower() == 'true' else 'warn'",
+    ])
 
     return LaunchDescription(args + [
         Node(
@@ -117,15 +126,21 @@ def generate_launch_description():
             parameters=[common_debug, {
                 'gt_fallback_enabled': ParameterValue(
                     gt_fallback_enabled, value_type=bool),
+                'phase5_navigation_source': ParameterValue(
+                    phase5_navigation_source, value_type=str),
+                'body_frame': ParameterValue(
+                    [drone_name, '/base_link'], value_type=str),
                 'orb_qualification_samples': ParameterValue(
                     orb_qualification_samples, value_type=int),
             }],
+            arguments=['--ros-args', '--log-level', phase1_log_level],
         ),
         Node(
             package='dron_individual',
             executable='gen_tray',
             name='gen_tray',
             parameters=[common_debug, params_trajectory],
+            arguments=['--ros-args', '--log-level', phase1_log_level],
         ),
         Node(
             package='dron_individual',
@@ -143,12 +158,14 @@ def generate_launch_description():
                 params_physical,
                 params_control,
             ],
+            arguments=['--ros-args', '--log-level', phase1_log_level],
         ),
         Node(
             package='dron_individual',
             executable='aplicar_fuerzas_dron',
             name='aplicar_fuerzas_dron',
             parameters=[common_debug, params_actuators],
+            arguments=['--ros-args', '--log-level', phase1_log_level],
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(orbslam_launch_path),
@@ -170,6 +187,7 @@ def generate_launch_description():
                     orb_visual_evidence_output_dir,
                 'orb_navigation_prediction_mode':
                     orb_navigation_prediction_mode,
+                'camera_pitch_enabled': camera_pitch_enabled,
                 'vocab': orb_vocabulary_path,
             }.items(),
         ),

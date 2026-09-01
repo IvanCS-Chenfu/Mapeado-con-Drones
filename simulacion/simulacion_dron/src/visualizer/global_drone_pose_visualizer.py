@@ -50,6 +50,8 @@ def pose_source_name(message):
         return 'ORB'
     if message.pose_source == NavigationState.POSE_SOURCE_GT_FALLBACK:
         return 'GT'
+    if message.pose_source == NavigationState.POSE_SOURCE_GT_FORCED:
+        return 'GT_FORCED'
     return 'INVALID'
 
 

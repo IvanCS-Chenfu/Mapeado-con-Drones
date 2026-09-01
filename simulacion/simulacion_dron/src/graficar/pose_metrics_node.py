@@ -283,7 +283,10 @@ class PoseMetricsNode(Node):
         fallback_samples = sum(
             row['pose_source'] == NavigationState.POSE_SOURCE_GT_FALLBACK
             for row in rows)
-        source_samples = orb_samples + fallback_samples
+        gt_forced_samples = sum(
+            row['pose_source'] == NavigationState.POSE_SOURCE_GT_FORCED
+            for row in rows)
+        source_samples = orb_samples + fallback_samples + gt_forced_samples
         interarrival_values = [row['interarrival_sec'] for row in rows]
         temporal = temporal_summary(interarrival_values)
         return {
@@ -296,6 +299,7 @@ class PoseMetricsNode(Node):
             'authoritative_samples': sum(row['global_valid'] for row in rows),
             'orb_samples': orb_samples,
             'gt_fallback_samples': fallback_samples,
+            'gt_forced_samples': gt_forced_samples,
             'gt_fallback_ratio': (
                 fallback_samples / source_samples if source_samples else None),
             'linear_velocity_error_mps': metric_summary([

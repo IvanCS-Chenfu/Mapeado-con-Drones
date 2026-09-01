@@ -1,0 +1,18 @@
+name: fase_1j_pitch_gt_forced
+description: "Joint stereo, control de consigna y extrinseca dinamica con GT_FORCED."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 120.0}
+steps:
+  - {name: espera_spawn, type: wait_for_bool, topic: /fiducial_spawn_ready, expected: true, timeout_sec: 90.0}
+  - {name: espera_tracking, type: wait, seconds: 20.0}
+  - {name: hover_frente_fiducial, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: estabilizacion_neutral, type: wait, seconds: 5.0}
+  - {name: pitch_abajo_30, type: pitch, drone_id: 1, target_deg: 30.0, tolerance_deg: 1.0, timeout_sec: 15.0}
+  - {name: observar_abajo, type: wait, seconds: 5.0}
+  - {name: pitch_arriba_30, type: pitch, drone_id: 1, target_deg: -30.0, tolerance_deg: 1.0, timeout_sec: 15.0}
+  - {name: observar_arriba, type: wait, seconds: 5.0}
+  - {name: saturacion_limite_superior, type: pitch, drone_id: 1, target_deg: 90.0, tolerance_deg: 1.0, timeout_sec: 20.0}
+  - {name: observar_limite, type: wait, seconds: 3.0}
+  - {name: retorno_neutral, type: pitch, drone_id: 1, target_deg: 0.0, tolerance_deg: 1.0, timeout_sec: 20.0}
+  - {name: observacion_final, type: wait, seconds: 10.0}

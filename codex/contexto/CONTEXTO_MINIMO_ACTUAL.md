@@ -19,13 +19,39 @@ Fase 5: CONSEGUIDA; 5H integracion, 5I estabilizacion y 5J cierre 2/2
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA como regresion opcional futura
-Subfase actual: 5J CONSEGUIDA; deuda de observabilidad transferida a Fase 6
-Preparacion 5J: cerrada; autorizacion consumida y regresion final completada
-Siguiente punto de entrada: preparar Fase 6
-Punto de entrada siguiente: preparar Fase 6 y retirar progresivamente GT fallback
+Subfase actual: 1K CONSEGUIDA tras pruebas 374 y 375
+Fase 1: cierre tecnico 1A-1K conseguido
+Siguiente punto de entrada: preparar ciclo iterativo Fases 6/7
+Despues de 1K: iniciar el ciclo iterativo Fases 6/7
 Revision visual humana de prueba 200: confirmada correcta
 Cierre de Fase 2: completo
 ```
+
+Entrega previa 1J: `phase5_navigation_source=gt|orb` esta integrado. La prueba
+359R completo bajo `GT_FORCED` con 3479/3479 muestras y ORB en sombra; la 360
+confirmo autoridad ORB estricta, cero fallback y goal completado. El intento
+359 fue invalido por una replica Server antigua de `orbslam3_msgs`, ya
+sincronizada y recompilada. Esto habilita las futuras baterias dobles de 1J,
+pero no implementa aun el joint de pitch.
+
+Intento 361: ambos paquetes compilan y pasan tests dirigidos, pero
+`stereo_pitch_joint` entra en velocidad/esfuerzo NaN desde neutral. El hover GT
+completa y el comando +30 llega, pero no mueve el joint y expira. Se aplica
+STOP antes de ajustar masa/inercia/gains o probar F5 en movimiento.
+
+Intento 362: el ajuste fisico acordado elimina los NaN y el joint alcanza
+`+30 deg` con unos `0.40 deg` de error. No supera la puerta porque su velocidad
+oscila aproximadamente entre `-0.052` y `+0.126 rad/s`, por encima del reposo
+exigido de `0.03 rad/s`; se aplica STOP antes de un nuevo ajuste.
+
+Intento 363: menor friccion y mayor damping/Kd conservan el estado finito y un
+error angular de unos `0.67 deg`, pero no eliminan la oscilacion de velocidad
+(`-0.053` a `+0.127 rad/s`). La siguiente decision es si filtrar la velocidad
+del joint antes de realimentarla y usarla como estado de asentamiento.
+
+Pruebas 364-366: el filtro `tau=0.05 s` resuelve la puerta; pasan consigna y
+retorno aislados, bateria `+30/-30/+90` saturada a `+70`, y dos movimientos del
+dron con pitch no neutral bajo GT_FORCED. Builds y regresiones dirigidas pasan.
 
 Pruebas 318R2/319R: la poda conserva una predecesora ZOH y todas las muestras
 recientes; pasan 102/102 GTests, 8/8 tests del analizador y ambas simulaciones

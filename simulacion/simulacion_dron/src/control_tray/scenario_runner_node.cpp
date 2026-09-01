@@ -1,15 +1,19 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <future>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <eigen3/Eigen/Dense>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
@@ -17,8 +21,13 @@
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
 #include "std_msgs/msg/bool.hpp"
+#include "sensor_msgs/msg/joint_state.hpp"
+#include "trajectory_msgs/msg/joint_trajectory.hpp"
+#include "trajectory_msgs/msg/joint_trajectory_point.hpp"
 #include "std_srvs/srv/set_bool.hpp"
+#include "std_srvs/srv/trigger.hpp"
 #include "dron_individual/action/tray_action.hpp"
+#include "orbslam3_msgs/msg/navigation_state.hpp"
 
 #include <yaml-cpp/yaml.h>
 
@@ -164,6 +173,10 @@ public:
         ok = ExecuteWaitForBoolStep(step);
       } else if (step_type == "call_set_bool") {
         ok = ExecuteCallSetBoolStep(step);
+      } else if (step_type == "wait_for_navigation_pose") {
+        ok = ExecuteWaitForNavigationPoseStep(step);
+      } else if (step_type == "pitch") {
+        ok = ExecutePitchStep(step);
       } else if (step_type == "move") {
         ok = ExecuteMoveStep(step);
       } else {
@@ -226,6 +239,7 @@ private:
     bool absoluto_z = true;
     bool absoluto_yaw = true;
     bool expect_rejected = false;
+    std::string navigation_source = "none";
 
     double timeout_sec = 120.0;
   };
@@ -413,6 +427,114 @@ private:
     return rclcpp::ok();
   }
 
+  bool ExecuteWaitForNavigationPoseStep(const YAML::Node & step)
+  {
+    const int drone_id = YamlGet<int>(step, "drone_id", 1);
+    const std::string drone = YamlGet<std::string>(
+      step, "drone", namespace_base_ + "_" + std::to_string(drone_id));
+    const auto target = step["target"];
+    if (!target || !target.IsSequence() || target.size() < 3) {
+      RCLCPP_ERROR(
+        get_logger(), "[SCENARIO-RUNNER-POSE-GATE-ERROR] target must be [x,y,z]");
+      return false;
+    }
+    const Eigen::Vector3d expected(
+      target[0].as<double>(), target[1].as<double>(), target[2].as<double>());
+    const double expected_yaw = YamlGet<double>(step, "yaw_deg", 0.0) * M_PI / 180.0;
+    const double position_tolerance = YamlGet<double>(step, "position_tolerance_m", 0.10);
+    const double yaw_tolerance = YamlGet<double>(step, "yaw_tolerance_deg", 2.0) * M_PI / 180.0;
+    const double hold_sec = YamlGet<double>(step, "hold_sec", 1.0);
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 10.0);
+    if (position_tolerance <= 0.0 || yaw_tolerance <= 0.0 ||
+      hold_sec < 0.0 || timeout_sec <= 0.0)
+    {
+      RCLCPP_ERROR(get_logger(), "[SCENARIO-RUNNER-POSE-GATE-ERROR] invalid tolerances");
+      return false;
+    }
+
+    struct GateState
+    {
+      std::mutex mutex;
+      bool received{false};
+      bool valid{false};
+      Eigen::Vector3d position{Eigen::Vector3d::Zero()};
+      double yaw{0.0};
+      uint8_t source{0};
+    };
+    auto state = std::make_shared<GateState>();
+    const std::string topic = "/" + drone + "/orbslam/navigation_state";
+    auto subscription = create_subscription<orbslam3_msgs::msg::NavigationState>(
+      topic, rclcpp::QoS(20).reliable(),
+      [state](const orbslam3_msgs::msg::NavigationState::SharedPtr msg)
+      {
+        const auto & q = msg->o_t_body.orientation;
+        std::lock_guard<std::mutex> lock(state->mutex);
+        state->received = true;
+        state->valid = msg->local_valid && msg->local_continuity_valid && msg->velocity_valid;
+        state->position = Eigen::Vector3d(
+          msg->o_t_body.position.x, msg->o_t_body.position.y, msg->o_t_body.position.z);
+        state->yaw = std::atan2(
+          2.0 * (q.w * q.z + q.x * q.y),
+          1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+        state->source = msg->pose_source;
+      });
+
+    RCLCPP_WARN(
+      get_logger(),
+      "[SCENARIO-RUNNER-POSE-GATE-WAIT] topic='%s' target=(%.3f,%.3f,%.3f) "
+      "yaw_deg=%.3f position_tolerance_m=%.3f yaw_tolerance_deg=%.3f hold_sec=%.3f timeout_sec=%.3f",
+      topic.c_str(), expected.x(), expected.y(), expected.z(), expected_yaw * 180.0 / M_PI,
+      position_tolerance, yaw_tolerance * 180.0 / M_PI, hold_sec, timeout_sec);
+    const auto started = std::chrono::steady_clock::now();
+    auto matched_since = std::chrono::steady_clock::time_point{};
+    Eigen::Vector3d last_position = Eigen::Vector3d::Zero();
+    double last_yaw = 0.0;
+    uint8_t last_source = 0;
+    while (rclcpp::ok()) {
+      bool matched = false;
+      {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        last_position = state->position;
+        last_yaw = state->yaw;
+        last_source = state->source;
+        const double yaw_error = std::abs(std::remainder(state->yaw - expected_yaw, 2.0 * M_PI));
+        matched = state->received && state->valid &&
+          (state->position - expected).norm() <= position_tolerance &&
+          yaw_error <= yaw_tolerance;
+      }
+      const auto now = std::chrono::steady_clock::now();
+      if (matched) {
+        if (matched_since.time_since_epoch().count() == 0) {
+          matched_since = now;
+        }
+        if (std::chrono::duration<double>(now - matched_since).count() >= hold_sec) {
+          RCLCPP_WARN(
+            get_logger(),
+            "[SCENARIO-RUNNER-POSE-GATE-DONE] source=%u position=(%.6f,%.6f,%.6f) "
+            "position_error_m=%.6f yaw_deg=%.6f yaw_error_deg=%.6f",
+            static_cast<unsigned>(last_source), last_position.x(), last_position.y(),
+            last_position.z(), (last_position - expected).norm(), last_yaw * 180.0 / M_PI,
+            std::abs(std::remainder(last_yaw - expected_yaw, 2.0 * M_PI)) * 180.0 / M_PI);
+          return true;
+        }
+      } else {
+        matched_since = std::chrono::steady_clock::time_point{};
+      }
+      if (std::chrono::duration<double>(now - started).count() >= timeout_sec) {
+        RCLCPP_ERROR(
+          get_logger(),
+          "[SCENARIO-RUNNER-POSE-GATE-TIMEOUT] source=%u position=(%.6f,%.6f,%.6f) "
+          "position_error_m=%.6f yaw_deg=%.6f yaw_error_deg=%.6f",
+          static_cast<unsigned>(last_source), last_position.x(), last_position.y(),
+          last_position.z(), (last_position - expected).norm(), last_yaw * 180.0 / M_PI,
+          std::abs(std::remainder(last_yaw - expected_yaw, 2.0 * M_PI)) * 180.0 / M_PI);
+        return false;
+      }
+      std::this_thread::sleep_for(50ms);
+    }
+    return false;
+  }
+
   bool ExecuteCallSetBoolStep(const YAML::Node & step)
   {
     const std::string service = YamlGet<std::string>(step, "service", "");
@@ -462,6 +584,89 @@ private:
         "[SCENARIO-RUNNER-SERVICE-NOT-READY] service='%s' message='%s'",
         service.c_str(), response->message.c_str());
       std::this_thread::sleep_for(100ms);
+    }
+    return false;
+  }
+
+  bool ExecutePitchStep(const YAML::Node & step)
+  {
+    const int drone_id = YamlGet<int>(step, "drone_id", 1);
+    const double target_deg = YamlGet<double>(step, "target_deg", 0.0);
+    const double tolerance_deg = YamlGet<double>(step, "tolerance_deg", 1.0);
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 15.0);
+    const std::string drone = namespace_base_ + "_" + std::to_string(drone_id);
+    const std::string command_topic = "/" + drone + "/camera_pitch/command";
+    const std::string state_topic = "/" + drone + "/camera_pitch/joint_states";
+    constexpr double kDegToRad = M_PI / 180.0;
+    const double requested = target_deg * kDegToRad;
+    const double expected = std::clamp(requested, -70.0 * kDegToRad, 70.0 * kDegToRad);
+    const double tolerance = std::max(0.1, tolerance_deg) * kDegToRad;
+
+    struct PitchState
+    {
+      std::mutex mutex;
+      bool received{false};
+      double position{0.0};
+      double velocity{0.0};
+    };
+    auto state = std::make_shared<PitchState>();
+    auto subscription = this->create_subscription<sensor_msgs::msg::JointState>(
+      state_topic, 20,
+      [state](sensor_msgs::msg::JointState::SharedPtr msg)
+      {
+        const auto it = std::find(msg->name.begin(), msg->name.end(), "stereo_pitch_joint");
+        if (it == msg->name.end()) {
+          return;
+        }
+        const auto index = static_cast<std::size_t>(std::distance(msg->name.begin(), it));
+        if (index >= msg->position.size()) {
+          return;
+        }
+        std::lock_guard<std::mutex> lock(state->mutex);
+        state->received = true;
+        state->position = msg->position[index];
+        state->velocity = index < msg->velocity.size() ? msg->velocity[index] : 0.0;
+      });
+    auto publisher = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
+      command_topic, 10);
+    trajectory_msgs::msg::JointTrajectory command;
+    command.joint_names = {"stereo_pitch_joint"};
+    trajectory_msgs::msg::JointTrajectoryPoint point;
+    point.positions = {requested};
+    command.points = {point};
+
+    RCLCPP_WARN(
+      get_logger(),
+      "[SCENARIO-RUNNER-PITCH-SEND] drone=%s requested_deg=%.3f expected_deg=%.3f",
+      drone.c_str(), target_deg, expected / kDegToRad);
+    const auto start = std::chrono::steady_clock::now();
+    auto last_publish = start - 1s;
+    while (rclcpp::ok()) {
+      const auto now = std::chrono::steady_clock::now();
+      if (now - last_publish >= 500ms) {
+        command.header.stamp = this->now();
+        publisher->publish(command);
+        last_publish = now;
+      }
+      {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        if (state->received && std::abs(state->position - expected) <= tolerance &&
+          std::abs(state->velocity) <= 0.03)
+        {
+          RCLCPP_WARN(
+            get_logger(),
+            "[SCENARIO-RUNNER-PITCH-DONE] drone=%s position_deg=%.3f velocity=%.6f",
+            drone.c_str(), state->position / kDegToRad, state->velocity);
+          return true;
+        }
+      }
+      if (std::chrono::duration<double>(now - start).count() > timeout_sec) {
+        RCLCPP_ERROR(
+          get_logger(), "[SCENARIO-RUNNER-PITCH-TIMEOUT] drone=%s timeout=%.3f",
+          drone.c_str(), timeout_sec);
+        return false;
+      }
+      std::this_thread::sleep_for(50ms);
     }
     return false;
   }
@@ -566,6 +771,19 @@ private:
     spec.expect_rejected =
       YamlGet<bool>(goal_node, "expect_rejected", false);
 
+    spec.navigation_source =
+      YamlGet<std::string>(goal_node, "navigation_source", "none");
+    std::transform(
+      spec.navigation_source.begin(), spec.navigation_source.end(),
+      spec.navigation_source.begin(),
+      [](unsigned char character) {return static_cast<char>(std::tolower(character));});
+    if (spec.navigation_source != "none" &&
+      spec.navigation_source != "gt" && spec.navigation_source != "orb")
+    {
+      throw std::runtime_error(
+              "navigation_source must be one of: None, GT, ORB");
+    }
+
     spec.timeout_sec =
       YamlGet<double>(
       goal_node,
@@ -653,6 +871,55 @@ private:
     return client;
   }
 
+  bool PrepareNavigationSource(const GoalSpec & spec)
+  {
+    std::string drone_namespace = spec.drone;
+    if (drone_namespace.empty()) {
+      drone_namespace = spec.action_full_name;
+      const auto separator = drone_namespace.find_last_of('/');
+      drone_namespace = separator == std::string::npos ? "" : drone_namespace.substr(0, separator);
+    }
+    while (!drone_namespace.empty() && drone_namespace.front() == '/') {
+      drone_namespace.erase(drone_namespace.begin());
+    }
+    if (drone_namespace.empty()) {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[SCENARIO-RUNNER-NAV-SOURCE-ERROR] cannot derive drone namespace action='%s'",
+        spec.action_full_name.c_str());
+      return false;
+    }
+
+    const std::string service_name = "/" + drone_namespace +
+      "/control/set_navigation_source_" + spec.navigation_source;
+    auto client = this->create_client<std_srvs::srv::Trigger>(service_name);
+    if (!client->wait_for_service(5s)) {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[SCENARIO-RUNNER-NAV-SOURCE-ERROR] service_not_available service='%s' requested=%s",
+        service_name.c_str(), spec.navigation_source.c_str());
+      return false;
+    }
+    auto future = client->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+    if (!WaitFuture(future, 5.0, "navigation source " + service_name)) {
+      return false;
+    }
+    const auto response = future.get();
+    if (!response || !response->success) {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[SCENARIO-RUNNER-NAV-SOURCE-ERROR] service='%s' requested=%s response='%s'",
+        service_name.c_str(), spec.navigation_source.c_str(),
+        response ? response->message.c_str() : "missing");
+      return false;
+    }
+    RCLCPP_WARN(
+      this->get_logger(),
+      "[SCENARIO-RUNNER-NAV-SOURCE] action='%s' requested=%s service='%s' prepared=true",
+      spec.action_full_name.c_str(), spec.navigation_source.c_str(), service_name.c_str());
+    return true;
+  }
+
   TrayAction::Goal BuildActionGoal(const GoalSpec & spec)
   {
     TrayAction::Goal goal;
@@ -696,6 +963,9 @@ private:
     active_goals.clear();
     active_goals.reserve(goals.size());
     for (const auto & spec : goals) {
+      if (!PrepareNavigationSource(spec)) {
+        return false;
+      }
       auto client = GetClient(spec.action_full_name);
       if (!client->wait_for_action_server(5s)) {
         RCLCPP_ERROR(
@@ -707,13 +977,14 @@ private:
 
       RCLCPP_WARN(
         this->get_logger(),
-        "[SCENARIO-RUNNER-GOAL-SEND] action='%s' target=(%.3f, %.3f, %.3f) yaw_deg=%.3f tipo=%u phase=%s",
+        "[SCENARIO-RUNNER-GOAL-SEND] action='%s' target=(%.3f, %.3f, %.3f) yaw_deg=%.3f tipo=%u navigation_source=%s phase=%s",
         spec.action_full_name.c_str(),
         spec.x,
         spec.y,
         spec.z,
         spec.yaw_deg,
         static_cast<unsigned int>(spec.tipo_trayectoria),
+        spec.navigation_source.c_str(),
         phase.c_str());
 
       rclcpp_action::Client<TrayAction>::SendGoalOptions options;

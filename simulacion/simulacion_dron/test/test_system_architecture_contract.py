@@ -225,6 +225,14 @@ def test_master_web_flag_gates_architecture_producers():
     assert "executable='system_architecture_browser.py'" in launch
 
 
+def test_dron_individual_does_not_build_removed_experimental_nodes():
+    cmake = (
+        PACKAGE_ROOT.parent.parent / 'dron/dron_individual/CMakeLists.txt'
+    ).read_text(encoding='utf-8')
+    assert 'add_executable(control_dron' not in cmake
+    assert 'add_executable(clock src/otros/clock.cpp)' not in cmake
+
+
 def test_phase5_profile_enables_explicit_gt_fallback_switch():
     multi_launch = (
         PACKAGE_ROOT / 'launch/multi_dron.launch.py'
@@ -234,3 +242,7 @@ def test_phase5_profile_enables_explicit_gt_fallback_switch():
     ).read_text(encoding='utf-8')
     assert "'gt_fallback_enabled', default_value='true'" in multi_launch
     assert "'gt_fallback_enabled', default_value='false'" in drone_launch
+    assert "'phase5_navigation_source', default_value='orb'" in multi_launch
+    assert "'phase5_navigation_source', default_value='orb'" in drone_launch
+    assert "'phase5_navigation_source': LaunchConfiguration(" in multi_launch
+    assert "'phase5_navigation_source': ParameterValue(" in drone_launch

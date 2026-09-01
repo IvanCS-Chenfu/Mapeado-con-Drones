@@ -22,6 +22,46 @@ pose local Twc + mapa ORB interno
 PublishLocalPose / PublishOrbMapDelta / get_full_map
 ```
 
+## Frontera camara-body y auditoria 1J
+
+`TrackStereo()` y los `OrbKeyFrame` trabajan en pose de camara. Esa semantica
+alimenta tambien el mapa sparse y F4 y debe conservarse.
+
+Para `NavigationState`, el constructor carga una unica `body_t_camera_` desde
+los parametros `body_T_camera_*`. `PublishNavigationState()` aplica hoy:
+
+```text
+pose_result.o_t_camera * body_t_camera_.inverse() -> raw_o_t_body
+pose_result.w_t_camera * body_t_camera_.inverse() -> raw_w_t_body
+```
+
+La Fase 1J debera sustituirla por la extrinseca correspondiente al stamp de la
+imagen cuando el rig tenga pitch. El predictor lineal/angular debe seguir
+recibiendo pose body ya compensada; aplicar el estado mas reciente sin
+sincronizacion produciria velocidad ficticia durante el movimiento del joint.
+1J incorpora los parametros `body_camera_transform_mode=static|tf` y
+`camera_frame`. En modo `tf`, `ResolveBodyTCamera()` exige la extrinseca al
+stamp de imagen; si falta, publica salida body invalida y reinicia el predictor
+sin alterar pose de camara, KFs o fiduciales. Compila y pasa los 117 tests del
+estimador. Las pruebas 364-366 validan el joint y control bajo GT_FORCED, pero
+no validan aun la salida body ORB ni la dinamica F5 durante pitch. Pendientes:
+tests de composicion variable y pruebas ORB en sombra/productivas.
+
+`orbslam_use.launch.py` publica `dron_X/base_link` como `body_frame`, aunque el
+link fisico principal del modelo se llama `cuerpo`. La introduccion de TF debe
+resolver esa relacion sin cambiar accidentalmente el frame publico de
+`NavigationState`. El modo `static` conserva despliegues sin rig movil y el
+modo `tf` no reutiliza silenciosamente el ultimo pitch disponible.
+
+F4 publica `camera_t_tag` del mismo KF y el servidor obtiene
+`world_T_camera`; no usa esta `body_t_camera_`. No debe añadirse una segunda
+compensacion por pitch en esa ruta.
+
+Auditoria post-366: el predictor de thrust conserva masa `1.4 kg` y el de
+torque una inercia body fija/torque de control. Gazebo incorpora `0.04 kg` de
+rig/camaras y torque de reaccion del servo. Ese residual debe medirse y su
+politica cerrarse antes de validar F5 ORB con camara movil.
+
 ## Constructor `StereoSlamNode(...)`
 
 Responsabilidades:

@@ -85,6 +85,7 @@ def generate_launch_description():
         DeclareLaunchArgument('orb_visual_evidence_output_dir', default_value=''),
         DeclareLaunchArgument(
             'orb_navigation_prediction_mode', default_value='dynamic'),
+        DeclareLaunchArgument('camera_pitch_enabled', default_value='false'),
     ]
 
     vocab = LaunchConfiguration('vocab')
@@ -109,6 +110,7 @@ def generate_launch_description():
         'orb_visual_evidence_output_dir')
     orb_navigation_prediction_mode = LaunchConfiguration(
         'orb_navigation_prediction_mode')
+    camera_pitch_enabled = LaunchConfiguration('camera_pitch_enabled')
 
     common_params = {
         'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
@@ -141,6 +143,13 @@ def generate_launch_description():
         orb_visual_evidence_output_dir, value_type=str)
     stereo_params['navigation_prediction_mode'] = ParameterValue(
         orb_navigation_prediction_mode, value_type=str)
+    stereo_params['body_camera_transform_mode'] = ParameterValue(
+        PythonExpression([
+            "'tf' if '", camera_pitch_enabled,
+            "'.lower() == 'true' else 'static'",
+        ]), value_type=str)
+    stereo_params['camera_frame'] = ParameterValue(
+        [drone_name, '/camera_izq_optical_frame'], value_type=str)
 
     mono_node = Node(
         condition=UnlessCondition(usar_estereo),

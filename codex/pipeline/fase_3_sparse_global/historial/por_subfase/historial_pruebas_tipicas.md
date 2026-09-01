@@ -255,3 +255,34 @@
 - conclusion revisada: `CONSEGUIDA` solo como regresion del movimiento espurio
   por loop; `PARCIAL` para separacion temporal del flujo principal, deteccion
   fiducial reproducible, backlog y visualizador live.
+
+## 2026-09-01 - `prueba_373` - Regresion F3/F4 post-1J con GT estricto
+
+- objetivo: repetir el rodeo largo tras introducir pitch, usando GT solo para
+  navegacion, ORB en sombra y joint activo neutral;
+- variante: `tray_prueba_373.yaml`, derivada sin modificar el canonico; conserva
+  22 goals, todos `navigation_source: GT`, y elimina las conmutaciones legacy a
+  autoridad ORB;
+- build: no procede, solo cambia un YAML auxiliar;
+- runtime: runner 0, `SIM-DONE success=true`, exit 0, 537 s, 395 muestras,
+  minimo 4170 MiB, memory PSI 0 y guard inactivo;
+- trayectoria: 22/22 resultados correctos y 22/22 inicios `source=4`; joint
+  cargado neutral y cero consignas pitch;
+- F3 positiva: 520 KFs creados y 658 deltas sparse; deltas finales con unos
+  944 MapPoints en drone 1 y 1393 en drone 2;
+- F3 negativa, interpretacion revisada con el usuario: desde `marker_id=368`,
+  al final de la trayectoria, debieron ejecutarse varias optimizaciones por
+  loop para corregir el cierre y no se ejecutaron. Se observaron seis rechazos
+  `reason=loop_submap_interval_too_small action=continue`. No hubo crash ni no
+  finitos, pero la ausencia de esas optimizaciones es una deuda concreta de 3Q;
+- F4 positiva: 517 KFs procesados, 77 batches y 88 tags validos; ambos drones
+  generan KFs con deteccion valida (34 y 43);
+- F4 ausente: no hay evidencia positiva suficiente de
+  anchor/revisit/task/commit del backend en esta ejecucion;
+- patrones de reduccion: runner/fuente atomica, KFs/deltas, `F3*`, tags/batches,
+  pitch y errores graves;
+- conclusion: `PARCIAL`. 1J no rompe vuelo GT, mapa sparse local ni deteccion
+  fiducial, pero esta prueba no demuestra F3/F4 end-to-end perfectas;
+- siguiente paso: anotar en 3Q la revision pendiente desde `marker_id=368` y no
+  investigarla ni corregirla ahora; la validacion backend F4 tambien queda
+  pendiente.

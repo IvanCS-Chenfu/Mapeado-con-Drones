@@ -7,9 +7,21 @@ Ejecuta escenarios YAML y envía lotes de goals a
 4B incorpora el paso generico `wait_for_bool` para esperar readiness externo
 sin acoplar el runner al spawner.
 
+Cada goal `move` admite `navigation_source: None|GT|ORB` sin distinguir
+mayusculas. Antes de enviar la action, el runner llama al servicio namespaced
+correspondiente. `None`, valor por defecto, hereda el selector global. Los
+marcadores `[SCENARIO-RUNNER-NAV-SOURCE]` y
+`[SCENARIO-RUNNER-NAV-SOURCE-ERROR]` hacen observable la preparacion.
+
+El paso `wait_for_navigation_pose` valida llegada mediante
+`/<drone>/orbslam/navigation_state`. Exige pose local, continuidad y velocidad
+validas, tolerancias XYZ/yaw y permanencia `hold_sec`. Recibe `drone_id`,
+`target`, `yaw_deg`, `position_tolerance_m`, `yaw_tolerance_deg`, `hold_sec` y
+`timeout_sec`; emite marcadores `POSE-GATE-WAIT/DONE/TIMEOUT/ERROR`.
+
 ```text
 simulacion_dron/src/control_tray/scenario_runner_node.cpp
-rg -n "wait_for_bool|READY-WAIT|mapping_backpressure|MOVE-GATE-WAIT" simulacion/simulacion_dron/src/control_tray/scenario_runner_node.cpp
+rg -n "navigation_source|PrepareNavigationSource|wait_for_navigation_pose|POSE-GATE|wait_for_bool|READY-WAIT|mapping_backpressure|MOVE-GATE-WAIT" simulacion/simulacion_dron/src/control_tray/scenario_runner_node.cpp
 ```
 
 `wait_for_bool` recibe `topic`, `expected` y `timeout_sec`. Crea una

@@ -35,6 +35,35 @@ launch expone `phase5_global_pose_rviz_enabled=false` y el modo de prueba
 `use_legacy_gt_goal_policy_for_simulation=false`; este último gobierna solo el
 control legacy GT y no alimenta las poses estimadas.
 
+Preparacion 1J vigente: `multi_dron.launch.py` expone
+`phase5_navigation_source=gt|orb` y lo propaga al
+`navigation_state_mux` de cada dron, separado de la politica de
+fallback. En modo GT ORB permanece activo en sombra y los fiduciales siguen
+siendo exclusivamente visuales.
+
+Los goals YAML pueden sobrescribir esa fuente con
+`navigation_source: None|GT|ORB`. `None` hereda el launch y `ORB` conserva la
+politica de fallback configurada. La prueba 369 valida `GT` seguido de `None`:
+el segundo goal uso GT_FALLBACK al no existir anchor.
+
+1J incorpora el plugin fisico de pitch y pasos `pitch` en
+`scenario_runner_node`. El filtro configurable de 364 (`tau=0.05 s`) resolvio
+la oscilacion de velocidad y 365/366 validaron consignas, limites y movimiento.
+`camera_pitch_enabled=false` crea ahora topologia fixed sin cargar el servo;
+`true` crea el revolute. Cada camara y el rig usan `1e-5 kg`, evitando el
+momento descentrado de `~0.0392 Nm` que causaba la deriva de 370. Las pruebas
+370R2/371 validan llegada real con ambas topologias y 372 completa el barrido.
+
+Desde 1K, `debug_fase_1=false` silencia `DEBUG/INFO` de los nodos de vuelo y
+plugins de motores, GT y pitch. Conserva warnings de seguridad, errores y
+resultados. Las pruebas 374/375 validan la conmutacion sin cambiar vuelo ni pitch.
+
+El runner ofrece `wait_for_navigation_pose` para exigir tolerancias XYZ/yaw
+sostenidas sobre `NavigationState`. En 372 el gate GT dio `0.0157 m`; ORB tomo
+autoridad real antes del barrido y despues perdio tracking, entrando en el
+fallback configurado. 1J queda conseguida; la persistencia ORB corresponde al
+trabajo posterior de Fase 5/6.
+
 Los markers no dependen de `global_valid`. Solo se actualizan con una muestra
 local, continua y con velocidad valida; ante una muestra transitoria no
 consumible conservan la ultima pose que tambien conserva el controlador.

@@ -20,6 +20,9 @@ find_package(Eigen3 REQUIRED)
 find_package(dron_individual REQUIRED)
 find_package(orbslam3_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(trajectory_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
@@ -91,10 +94,17 @@ ament_target_dependencies(plugin_sensor_groundtrurh gazebo_ros rclcpp geometry_m
 target_include_directories(plugin_sensor_groundtrurh PRIVATE include ${gazebo_ros_INCLUDE_DIRS})
 target_link_libraries(plugin_sensor_groundtrurh ${gazebo_ros_LIBRARIES})
 
+add_library(plugin_camera_pitch SHARED src/plugins/plugin_camera_pitch.cpp)
+ament_target_dependencies(
+  plugin_camera_pitch gazebo_ros rclcpp sensor_msgs trajectory_msgs tf2_ros geometry_msgs)
+target_include_directories(plugin_camera_pitch PRIVATE include ${gazebo_ros_INCLUDE_DIRS})
+target_link_libraries(plugin_camera_pitch ${gazebo_ros_LIBRARIES})
+
 
 install(TARGETS
   plugin_actuar_motores
   plugin_sensor_groundtrurh
+  plugin_camera_pitch
 
   LIBRARY DESTINATION lib
 )
@@ -121,7 +131,9 @@ ament_target_dependencies(graficar_GTvsTray rclcpp std_msgs dron_individual)
 
 
 add_executable(scenario_runner_node src/control_tray/scenario_runner_node.cpp)
-ament_target_dependencies(scenario_runner_node rclcpp rclcpp_action geometry_msgs std_msgs std_srvs dron_individual ament_index_cpp)
+ament_target_dependencies(
+  scenario_runner_node rclcpp rclcpp_action geometry_msgs std_msgs std_srvs
+  sensor_msgs trajectory_msgs dron_individual orbslam3_msgs Eigen3 ament_index_cpp)
 target_link_libraries(scenario_runner_node yaml-cpp)
 
 

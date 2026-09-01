@@ -31,6 +31,7 @@ public:
     topic_names_[3] = sdf->Get<std::string>("topic4");
 
     fuerza2torque = sdf->Get<double>("fuerza2torque", 0.02).first;
+    debug_fase_1_ = sdf->Get<bool>("debug_fase_1", false).first;
 
     // Caso NO quadracopter
     if (sdf->HasElement("motor5")) {
@@ -64,9 +65,11 @@ public:
             this->OnWrench(i, msg);
           });
 
-        RCLCPP_INFO(
-          ros_node_->get_logger(), "Suscrito a [%s] para aplicar wrench en [%s]",
-          topic_names_[i].c_str(), link_names_[i].c_str());
+        if (debug_fase_1_) {
+          RCLCPP_INFO(
+            ros_node_->get_logger(), "Suscrito a [%s] para aplicar wrench en [%s]",
+            topic_names_[i].c_str(), link_names_[i].c_str());
+        }
       }
     }
 
@@ -76,6 +79,7 @@ public:
   }
 
 private:
+  bool debug_fase_1_{false};
   // Callback parametrizado por índice
   void OnWrench(int idx, const std_msgs::msg::Float64::SharedPtr msg)
   {

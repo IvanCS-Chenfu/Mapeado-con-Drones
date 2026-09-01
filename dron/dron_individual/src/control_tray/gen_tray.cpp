@@ -140,7 +140,9 @@ private:
         control_t_world_epoch_ = msg->map_epoch;
       } else if (
         msg->pose_source ==
-        orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FALLBACK)
+        orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FALLBACK ||
+        msg->pose_source ==
+        orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FORCED)
       {
         // TODO FASE 6: retirar esta composicion cuando desaparezca GT_FALLBACK.
         // El mux transporta W_T_B de GT con global_valid=false solo para mantener
@@ -342,6 +344,8 @@ private:
         state.velocity_valid = last_navigation_state_.velocity_valid;
         state.gt_fallback = last_navigation_state_.pose_source ==
           orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FALLBACK;
+        state.gt_forced = last_navigation_state_.pose_source ==
+          orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FORCED;
         state.map_epoch = last_navigation_state_.map_epoch;
         state.sample_sequence = last_navigation_state_.sample_sequence;
       }
@@ -383,7 +387,7 @@ private:
       requests_absolute ? "true" : "false",
       static_cast<unsigned long>(state.map_epoch),
       static_cast<unsigned long>(state.sample_sequence),
-      state.gt_fallback ? "gt_fallback" : "orb");
+      state.gt_forced ? "gt_forced" : (state.gt_fallback ? "gt_fallback" : "orb"));
 
     // Si devolvemos (ACCEPT_AND_EXECUTE) se llama a la función "handle_accepted" (y se interrumpe la acción anterior)
     // Si devolvemos (ACCEPT_AND_DEFER) se espera a que termine la acción anterior y se llama a "handle_accepted"

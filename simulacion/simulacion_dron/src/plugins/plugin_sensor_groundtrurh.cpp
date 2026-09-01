@@ -35,6 +35,7 @@ public:
     publish_rate_ = sdf->Get<double>("publish_rate", 50.0).first;
     frame_id_ = sdf->Get<std::string>("frame_id", "world").first;
     frame_propio_ = sdf->Get<bool>("frame_propio", false).first;
+    debug_fase_1_ = sdf->Get<bool>("debug_fase_1", false).first;
 
 
     // Obtener links + crear publishers
@@ -50,15 +51,17 @@ public:
       pub_vel_ = ros_node_->create_publisher<geometry_msgs::msg::TwistStamped>(topic_vel_name_, 10);
       pub_acc_ = ros_node_->create_publisher<geometry_msgs::msg::AccelStamped>(topic_acc_name_, 10);
 
-      RCLCPP_INFO(
-        ros_node_->get_logger(), "Publicando pose de [%s] en [%s] (rate=%.1f Hz)",
-        link_name_.c_str(), topic_pose_name_.c_str(), publish_rate_);
-      RCLCPP_INFO(
-        ros_node_->get_logger(), "Publicando velocidad de [%s] en [%s] (rate=%.1f Hz)",
-        link_name_.c_str(), topic_vel_name_.c_str(), publish_rate_);
-      RCLCPP_INFO(
-        ros_node_->get_logger(), "Publicando aceleración de [%s] en [%s] (rate=%.1f Hz)",
-        link_name_.c_str(), topic_acc_name_.c_str(), publish_rate_);
+      if (debug_fase_1_) {
+        RCLCPP_INFO(
+          ros_node_->get_logger(), "Publicando pose de [%s] en [%s] (rate=%.1f Hz)",
+          link_name_.c_str(), topic_pose_name_.c_str(), publish_rate_);
+        RCLCPP_INFO(
+          ros_node_->get_logger(), "Publicando velocidad de [%s] en [%s] (rate=%.1f Hz)",
+          link_name_.c_str(), topic_vel_name_.c_str(), publish_rate_);
+        RCLCPP_INFO(
+          ros_node_->get_logger(), "Publicando aceleracion de [%s] en [%s] (rate=%.1f Hz)",
+          link_name_.c_str(), topic_acc_name_.c_str(), publish_rate_);
+      }
     }
 
 
@@ -74,6 +77,7 @@ public:
   }
 
 private:
+  bool debug_fase_1_{false};
   void OnUpdate(const gazebo::common::UpdateInfo & info)
   {
     // Publicar segun el "publish_rate" deseado

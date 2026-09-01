@@ -36,14 +36,59 @@ Usa parámetros procedentes de:
 - `dron_individual/config/hardware.yaml`;
 - `simulacion_dron/config/sim_dron.yaml`.
 
-Las camaras estereo se fijan a `cuerpo` con `rpy="0 0 0"`, desplazadas hacia
-`+X` y a ambos lados en Y; fisicamente miran hacia el frente del body. Las
+Las camaras estereo se fijan a `stereo_rig`, y este se une a `cuerpo` mediante
+`stereo_pitch_joint`; permanecen rigidas entre si y desplazadas a ambos lados
+en Y. Con `camera_pitch_enabled=true` el joint es revolute y se carga el servo;
+con `false` es fixed y el plugin no se carga. En neutral miran hacia el frente del body. Las
 imagenes procesadas por OpenCV/ORB usan frame optico (X derecha, Y abajo, Z
 frente). La extrinseca optica `B_T_C` correspondiente tiene rotacion
 `RPY=(-90,0,-90)` bajo `Rz*Ry*Rx`, que es la configuracion vigente en las tres
 copias `calibration*.yaml`. La rotacion historica `RPY=(0,-90,90)` era su
 inversa; el flag `use_camera_optical_frame_convention=true` no cambia por si
 solo el wrapper.
+
+Auditoria previa 1J: el modelo no contiene `stereo_rig` ni joint movil. El
+generador entrega el URDF directamente a `/spawn_entity`; el despliegue actual
+no lanza `robot_state_publisher`, no publica `robot_description` para ese nodo
+y no se ha localizado un productor de `joint_states`. Por tanto, añadir solo
+un joint al Xacro no proporciona una TF dinamica consumible por F5.
+
+Implementacion 1J en validacion: `dron_plugins.xacro` contiene
+`stereo_rig` y `stereo_pitch_joint`; las camaras conservan 0.057 m de baseline
+y el plugin `plugin_camera_pitch.cpp` recibe `camera_pitch/command`, publica
+`camera_pitch/joint_states` y la TF body-camara con stamp de simulacion. El
+runtime 361 produjo NaN en neutral. El ajuste fisico posterior elimina esos
+valores no finitos en 362 y permite alcanzar `+30 deg` con unos `0.40 deg` de
+error, pero queda una oscilacion de velocidad aproximada entre `-0.052` y
+`+0.126 rad/s`; el modelo aun no satisface el criterio de reposo.
+
+En el intento 363 se redujo la friccion del joint a `0.00005 Nm`, se aumento
+el damping a `0.01 Nms/rad` y `kd` a `0.004`. El joint sigue finito y alcanza
+la tolerancia angular, pero persisten impulsos alternos de velocidad aun cuando
+la posicion tardia apenas cambia. El siguiente cambio candidato es filtrar la
+velocidad usada por el controlador y por el criterio de asentamiento.
+
+Implementacion vigente tras 364: filtro paso bajo configurable
+`velocity_filter_tau_sec=0.05`; D y `JointState.velocity` usan la velocidad
+filtrada, y `[1J-PITCH-STATE]` conserva tambien `velocity_raw`. La puerta
+aislada supera `+30 deg` y retorno a cero dentro de `1 deg` y `0.03 rad/s`.
+La bateria 365 valida `+30`, `-30`, saturacion `+90 -> +70` y retorno; 366
+valida movimiento del dron con pitch no neutral bajo GT_FORCED.
+
+Los plugins de camara usan frame IDs namespaced
+`${drone_name}/camera_{izq,der}_optical_frame`. El link fisico mira por `+X` y
+debe distinguirse del frame optico OpenCV que mira por `+Z`.
+
+La posicion actual sale de dimensiones del modelo y queda aproximadamente en
+`(0.0975, +/-0.0285, 0.03) m`; la calibracion canonica usa
+`(0.10, 0.03, 0.03) m` para la izquierda y baseline 0.057 m. Este desfase
+pequeno queda resuelto en la TF dinamica autoritaria, que usa
+`(0.10,0.0285,0.03) m` para la izquierda. `physical_dron.yaml` fija cada
+camara en `1e-5 kg`; `stereo_rig` reutiliza esa masa e inercia configurables.
+El conjunto añade `3e-5 kg`, masa positiva para el joint pero despreciable
+frente a los `1.4 kg` del dron. La configuracion anterior sumaba `0.04 kg` a
+`0.10 m` del cuerpo y generaba `~0.0392 Nm` no modelados por el control; 370
+reprodujo la deriva y 370R2 valido la correccion.
 
 Referencia:
 
@@ -109,6 +154,8 @@ giro real, sin blackout ni cambios en tracking.
 
 Plugin de Gazebo que se engancha al modelo y aplica fuerzas a los enlaces de motor.
 
+Su mensaje informativo de suscripcion solo se emite con `debug_fase_1=true`.
+
 Entradas ROS:
 
 - `motor/arr_iz`
@@ -129,6 +176,9 @@ el cero previo al primer comando esta demostrado.
 ### `plugin_sensor_groundtrurh.cpp`
 
 Plugin de Gazebo que publica estado real simulado del cuerpo.
+
+Sus mensajes informativos de topics/rate solo se emiten con
+`debug_fase_1=true`; la publicacion no depende del flag.
 
 Salidas:
 

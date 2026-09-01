@@ -4,7 +4,8 @@ Resumen: Lógica por dron: control, generación de trayectorias (`TrayAction`), 
 
 Interfaces/Entradas: recibe GT y sensores simulados; action `TrayAction`.
 
-Ejecutables principales: `gen_tray`, `control_calcular_fuerzas`, `aplicar_fuerzas_dron`, `control_dron`.
+Ejecutables principales: `gen_tray`, `navigation_state_mux`,
+`control_calcular_fuerzas` y `aplicar_fuerzas_dron`.
 
 Config/Launch: `config/*.yaml`, `launch/` con `orbslam_use.launch.py`.
 
@@ -16,6 +17,9 @@ Fase 5H hace que `gen_tray` y `control_calcular_fuerzas` consuman exclusivamente
 ORB corregida a 50 Hz llega ya preparada desde `orbslam3_ros2`; GT usa pose y
 velocidad exactas. Tambien ofrece el servicio namespaced
 `control/set_trajectory_active` para congelar la fuente durante cada goal.
+Tres servicios `Trigger` permiten preparar por goal `none|gt|orb`; `none`
+hereda `phase5_navigation_source` y la seleccion pendiente se aplica al abrir
+una frontera. ORB sigue cualificandose en sombra durante GT_FORCED.
 `GT -> ORB` solo ocurre en frontera; una perdida permite `ORB -> GT` inmediata y
 retiene GT hasta terminar sin cambiar el frame O activo. La cualificacion usa
 tracking+anchor consecutivos, no errores frente a GT.
@@ -31,6 +35,10 @@ del bias, supresion por movimiento raw y aceleracion de decay de
 master `debug_fase_5=false` bloquea toda la telemetria extensa de esta fase.
 Con el master activo, `debug_orb_control_state` habilita telemetria causal en
 wrapper y controlador sin modificar el control.
+
+`debug_fase_1=false` fija nivel ROS `warn` en los cuatro nodos de vuelo;
+activarlo restaura `info`. Los antiguos `control_dron`, `clock` y prototipos de
+`src/vision/` se retiraron en 1K tras comprobar que no estaban en uso.
 
 Con ese flag, `[F5H-PHASE-CONTROL]` registra cada tick de 50 Hz: sample y
 timestamps de recepción, `R_act/R_des`, omega O/body, `Omega_des`, `er/ew` y

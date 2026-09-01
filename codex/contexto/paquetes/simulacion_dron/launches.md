@@ -56,6 +56,7 @@ canonico: recuperacion 1/1 habilitada, `0.50 m`, `0.15 rad` y recorrido maximo
 Perfil `config/debug.yaml` y argumentos homonimos:
 
 ```text
+debug_fase_1=false
 fase3_rviz2=false
 fase3_grafo_web=false
 fase3_abrir_navegador_web=false
@@ -64,6 +65,10 @@ debug_fiducial_visualization=false
 debug_fiducial_display_seconds=5.0
 debug_orb_control_state=false
 ```
+
+`debug_fase_1` llega al launch de cada dron, al generador URDF y al Xacro.
+Apagado fija nivel `warn` en nodos de vuelo y bloquea `INFO` en plugins de
+motores, GT y pitch; no afecta al runner ni a Fases 3-5.
 
 `debug_orb_control_state` se propaga a cada `generar_dron.launch.py` y activa
 los marcadores estructurados `[F5H-ORB-MEASUREMENT]`, `[F5H-ORB-PUBLISH]` y

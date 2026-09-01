@@ -75,11 +75,6 @@ ament_export_dependencies(rosidl_default_runtime)
 ament_export_dependencies(rclcpp_action)
 
 
-add_executable(clock src/otros/clock.cpp)
-ament_target_dependencies(clock rclcpp)
-
-
-
 add_executable(gen_tray src/control_tray/gen_tray.cpp)
 target_include_directories(gen_tray PRIVATE include)
 ament_target_dependencies(gen_tray rclcpp geometry_msgs std_msgs std_srvs rclcpp_action lib_tray orbslam3_msgs Eigen3)
@@ -103,21 +98,11 @@ ament_target_dependencies(aplicar_fuerzas_dron rclcpp geometry_msgs std_msgs Eig
 
 
 
-add_executable(control_dron src/vision/control_dron.cpp)
-ament_target_dependencies(control_dron rclcpp std_msgs geometry_msgs rclcpp_action)
-rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(control_dron "${cpp_typesupport_target}")
-
-
-
-
 install(TARGETS
-  clock
   gen_tray
   navigation_state_mux
   control_calcular_fuerzas
   aplicar_fuerzas_dron
-  control_dron
 
   DESTINATION lib/${PROJECT_NAME}
 )

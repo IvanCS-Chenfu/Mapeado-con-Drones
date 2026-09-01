@@ -7,12 +7,14 @@
 #include "std_msgs/msg/bool.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "std_srvs/srv/set_bool.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <sstream>
+#include <stdexcept>
 
 namespace
 {
@@ -59,11 +61,23 @@ public:
   {
     declare_parameter<double>("gt_timeout_sec", 0.5);
     declare_parameter<bool>("gt_fallback_enabled", false);
+    declare_parameter<std::string>("phase5_navigation_source", "orb");
     declare_parameter<int64_t>("orb_qualification_samples", 20);
     declare_parameter<bool>("debug_architecture_telemetry", false);
     declare_parameter<int64_t>("drone_id", 0);
+    declare_parameter<std::string>("body_frame", "base_link");
     gt_timeout_sec_ = get_parameter("gt_timeout_sec").as_double();
     gt_fallback_enabled_ = get_parameter("gt_fallback_enabled").as_bool();
+    const std::string configured_source =
+      get_parameter("phase5_navigation_source").as_string();
+    const auto parsed_source = dron_individual::ParsePhase5NavigationSource(configured_source);
+    if (!parsed_source) {
+      throw std::invalid_argument(
+              "phase5_navigation_source debe ser 'gt' u 'orb', recibido: " +
+              configured_source);
+    }
+    configured_navigation_source_ = *parsed_source;
+    phase5_navigation_source_ = configured_navigation_source_;
     orb_qualification_samples_ = static_cast<std::size_t>(std::max<int64_t>(
         2, get_parameter("orb_qualification_samples").as_int()));
     if (gt_timeout_sec_ <= 0.0) {
@@ -72,6 +86,7 @@ public:
     debug_architecture_telemetry_ =
       get_parameter("debug_architecture_telemetry").as_bool();
     drone_id_ = static_cast<uint32_t>(get_parameter("drone_id").as_int());
+    body_frame_ = get_parameter("body_frame").as_string();
     if (debug_architecture_telemetry_) {
       architecture_activity_pub_ = create_publisher<std_msgs::msg::String>(
         "/system_architecture/activity", rclcpp::QoS(64).best_effort());
@@ -82,6 +97,11 @@ public:
       "control/orb_authority_confirmed",
       rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local());
     PublishOrbAuthority(false);
+    RCLCPP_WARN(
+      get_logger(),
+      "[F5-NAVIGATION-SOURCE-CONFIG] source=%s gt_fallback_enabled=%s",
+      phase5_navigation_source_ == dron_individual::Phase5NavigationSource::GT ?
+      "gt" : "orb", gt_fallback_enabled_ ? "true" : "false");
     orb_subscription_ = create_subscription<NavigationState>(
       "orbslam/navigation_state_orb", rclcpp::QoS(20).reliable(),
       std::bind(&NavigationStateMuxNode::OnOrbState, this, std::placeholders::_1));
@@ -97,11 +117,60 @@ public:
       std::bind(
         &NavigationStateMuxNode::OnTrajectoryActive, this,
         std::placeholders::_1, std::placeholders::_2));
+    navigation_source_none_service_ = CreateNavigationSourceService(
+      "control/set_navigation_source_none", configured_navigation_source_, "none");
+    navigation_source_gt_service_ = CreateNavigationSourceService(
+      "control/set_navigation_source_gt", dron_individual::Phase5NavigationSource::GT, "gt");
+    navigation_source_orb_service_ = CreateNavigationSourceService(
+      "control/set_navigation_source_orb", dron_individual::Phase5NavigationSource::ORB, "orb");
     metrics_timer_ = create_wall_timer(
       std::chrono::seconds(10), std::bind(&NavigationStateMuxNode::LogMetrics, this));
   }
 
 private:
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr CreateNavigationSourceService(
+    const std::string & service_name,
+    dron_individual::Phase5NavigationSource source,
+    const std::string & requested_name)
+  {
+    return create_service<std_srvs::srv::Trigger>(
+      service_name,
+      [this, source, requested_name](
+        const std_srvs::srv::Trigger::Request::SharedPtr,
+        std_srvs::srv::Trigger::Response::SharedPtr response)
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        pending_navigation_source_ = source;
+        pending_navigation_source_valid_ = true;
+        if (!goal_source_lock_.active()) {
+          ApplyPendingNavigationSource();
+        }
+        response->success = true;
+        response->message = "navigation_source_prepared_" + requested_name;
+        RCLCPP_WARN(
+          get_logger(),
+          "[F5-NAVIGATION-SOURCE-PREPARED] requested=%s effective=%s deferred=%s",
+          requested_name.c_str(),
+          phase5_navigation_source_ == dron_individual::Phase5NavigationSource::GT ?
+          "gt" : "orb",
+          pending_navigation_source_valid_ ? "true" : "false");
+      });
+  }
+
+  void ApplyPendingNavigationSource()
+  {
+    if (!pending_navigation_source_valid_) {
+      return;
+    }
+    phase5_navigation_source_ = pending_navigation_source_;
+    pending_navigation_source_valid_ = false;
+    RCLCPP_WARN(
+      get_logger(),
+      "[F5-NAVIGATION-SOURCE-EFFECTIVE] source=%s boundary=true",
+      phase5_navigation_source_ == dron_individual::Phase5NavigationSource::GT ?
+      "gt" : "orb");
+  }
+
   void OnTrajectoryActive(
     const std_srvs::srv::SetBool::Request::SharedPtr request,
     std_srvs::srv::SetBool::Response::SharedPtr response)
@@ -111,6 +180,7 @@ private:
       goal_source_lock_.Begin(last_source_);
     } else {
       goal_source_lock_.End();
+      ApplyPendingNavigationSource();
     }
     response->success = true;
     response->message = request->data ? "trajectory_source_locked" : "trajectory_boundary_open";
@@ -118,7 +188,9 @@ private:
       get_logger(),
       "[F5H-TRAJECTORY-SOURCE-LOCK] active=%s source=%s",
       request->data ? "true" : "false",
-      goal_source_lock_.locked_source() == NavigationSource::ORB ? "orb" : "gt_fallback");
+      phase5_navigation_source_ == dron_individual::Phase5NavigationSource::GT ?
+      "gt_forced" : dron_individual::NavigationSourceName(
+        goal_source_lock_.locked_source()));
   }
 
   void OnGtPose(const geometry_msgs::msg::PoseStamped::SharedPtr message)
@@ -127,6 +199,9 @@ private:
     gt_pose_ = FromMessage(message->pose);
     gt_received_at_ = std::chrono::steady_clock::now();
     gt_valid_ = true;
+    if (phase5_navigation_source_ == dron_individual::Phase5NavigationSource::GT) {
+      PublishForcedGt(*message);
+    }
     if (debug_architecture_telemetry_ && architecture_activity_pub_) {
       std_msgs::msg::String activity;
       std::ostringstream json;
@@ -152,6 +227,8 @@ private:
   void OnOrbState(const NavigationState::SharedPtr raw)
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    last_orb_state_ = *raw;
+    last_orb_state_valid_ = true;
     const bool authoritative =
       raw->global_status == NavigationState::GLOBAL_STATUS_AUTHORITATIVE;
     const bool anchored = anchor_latch_.Update(raw->map_epoch, authoritative);
@@ -174,6 +251,11 @@ private:
       }
     } else if (decision.source != NavigationSource::ORB) {
       orb_qualifier_.Reset();
+    }
+
+    if (phase5_navigation_source_ == dron_individual::Phase5NavigationSource::GT) {
+      PublishOrbAuthority(false);
+      return;
     }
 
     decision = goal_source_lock_.Apply(decision);
@@ -241,8 +323,8 @@ private:
         get_logger(),
         "[F5H-SOURCE-CONTINUITY] previous=%s current=%s translation_jump_m=%.9f "
         "rotation_jump_rad=%.9f",
-        last_source_ == NavigationSource::ORB ? "orb" : "gt_fallback",
-        decision.source == NavigationSource::ORB ? "orb" : "gt_fallback",
+        dron_individual::NavigationSourceName(last_source_),
+        dron_individual::NavigationSourceName(decision.source),
         (continuous_pose.translation - last_continuous_measurement_.translation).norm(),
         dron_individual::RotationDistance(
           continuous_pose.rotation, last_continuous_measurement_.rotation));
@@ -350,15 +432,55 @@ private:
   void LogMetrics()
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    const uint64_t total = orb_samples_ + fallback_samples_;
+    const uint64_t total = orb_samples_ + fallback_samples_ + gt_forced_samples_;
     const double fallback_ratio = total == 0 ? 0.0 :
       static_cast<double>(fallback_samples_) / static_cast<double>(total);
     RCLCPP_INFO(
       get_logger(),
       "[F5H-SOURCE-METRICS] orb_samples=%lu fallback_samples=%lu "
-      "fallback_ratio=%.6f",
+      "gt_forced_samples=%lu fallback_ratio=%.6f",
       static_cast<unsigned long>(orb_samples_),
-      static_cast<unsigned long>(fallback_samples_), fallback_ratio);
+      static_cast<unsigned long>(fallback_samples_),
+      static_cast<unsigned long>(gt_forced_samples_), fallback_ratio);
+  }
+
+  void PublishForcedGt(const geometry_msgs::msg::PoseStamped & pose_message)
+  {
+    const double gt_velocity_age = gt_velocity_valid_ ? std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - gt_velocity_received_at_).count() : 1e9;
+    if (!gt_velocity_valid_ || gt_velocity_age > gt_timeout_sec_) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "[F5-GT-FORCED-WAIT] velocity_valid=%s velocity_age_sec=%.3f",
+        gt_velocity_valid_ ? "true" : "false", gt_velocity_age);
+      return;
+    }
+
+    NavigationState output;
+    if (last_orb_state_valid_) {
+      output = last_orb_state_;
+    }
+    output.header = pose_message.header;
+    output.child_frame_id = body_frame_;
+    output.drone_id = drone_id_;
+    output.sample_sequence = output_sequence_++;
+    output.pose_source = NavigationState::POSE_SOURCE_GT_FORCED;
+    output.global_status = NavigationState::GLOBAL_STATUS_INVALID;
+    output.local_valid = true;
+    output.local_continuity_valid = true;
+    output.global_valid = false;
+    output.velocity_valid = true;
+    const RigidPose continuous_pose = continuous_pose_.Update(
+      NavigationSource::GT_FORCED, FromMessage(pose_message.pose));
+    last_continuous_measurement_ = continuous_pose;
+    continuous_measurement_valid_ = true;
+    output.o_t_body = ToMessage(continuous_pose);
+    output.w_t_body = pose_message.pose;
+    output.velocity = gt_velocity_;
+    publisher_->publish(output);
+    ++gt_forced_samples_;
+    last_source_ = NavigationSource::GT_FORCED;
+    PublishOrbAuthority(false);
   }
 
   void PublishOrbAuthority(bool confirmed)
@@ -381,9 +503,20 @@ private:
   uint64_t output_sequence_{0};
   uint64_t orb_samples_{0};
   uint64_t fallback_samples_{0};
+  uint64_t gt_forced_samples_{0};
   uint32_t drone_id_{0};
   bool debug_architecture_telemetry_{false};
   bool orb_authority_confirmed_{false};
+  bool last_orb_state_valid_{false};
+  NavigationState last_orb_state_;
+  std::string body_frame_;
+  dron_individual::Phase5NavigationSource phase5_navigation_source_{
+    dron_individual::Phase5NavigationSource::ORB};
+  dron_individual::Phase5NavigationSource configured_navigation_source_{
+    dron_individual::Phase5NavigationSource::ORB};
+  dron_individual::Phase5NavigationSource pending_navigation_source_{
+    dron_individual::Phase5NavigationSource::ORB};
+  bool pending_navigation_source_valid_{false};
   NavigationSource last_source_{NavigationSource::INVALID};
   FallbackReason last_fallback_reason_{FallbackReason::NONE};
   dron_individual::EpochAnchorLatch anchor_latch_;
@@ -399,6 +532,9 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::TwistStamped>::SharedPtr
     gt_velocity_subscription_;
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr trajectory_active_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr navigation_source_none_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr navigation_source_gt_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr navigation_source_orb_service_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr architecture_activity_pub_;
   rclcpp::TimerBase::SharedPtr metrics_timer_;
 };

@@ -41,6 +41,12 @@ Tema transversal de pruebas reutilizables. No es una subfase funcional.
   conclusion transversal `PARCIAL`.
 - En `prueba_75` hubo `13` observaciones de `fid=1`; en `prueba_76`, cero. Esta
   diferencia de entrada explica por que la segunda no creo tareas fiduciales.
+- `prueba_373`: regresion post-1J con 22/22 goals GT_FORCED y pitch neutral.
+  Produce 520 KFs, 658 deltas sparse, 88 tags validos y 77 batches, pero seis
+  loops se rechazan por intervalo submapa pequeno. Revision del usuario: desde
+  `marker_id=368` debieron ejecutarse varias optimizaciones de cierre y no se
+  hicieron; queda apuntado en 3Q, sin corregir ahora. Faltan ademas accepts
+  explicitos de anchor/revisit; conclusion `PARCIAL` para F3/F4 end-to-end.
 
 ## Aprendizajes
 

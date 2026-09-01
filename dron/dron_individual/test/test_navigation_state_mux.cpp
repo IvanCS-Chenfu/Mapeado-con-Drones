@@ -12,6 +12,7 @@ using dron_individual::FallbackReason;
 using dron_individual::GoalSourceLock;
 using dron_individual::ExactFailedPredicates;
 using dron_individual::NavigationSource;
+using dron_individual::Phase5NavigationSource;
 using dron_individual::OrbTransitionQualifier;
 using dron_individual::OrbShadowActivationGate;
 using dron_individual::RigidPose;
@@ -20,6 +21,30 @@ using dron_individual::UsesGtPosition;
 using dron_individual::UsesGtVelocity;
 using dron_individual::UsesGtOrientation;
 using dron_individual::UsesGtAngularVelocity;
+
+TEST(NavigationStateMux, ParsesOnlyExplicitPhase5NavigationSources)
+{
+  ASSERT_TRUE(dron_individual::ParsePhase5NavigationSource("gt"));
+  EXPECT_EQ(
+    *dron_individual::ParsePhase5NavigationSource("gt"),
+    Phase5NavigationSource::GT);
+  ASSERT_TRUE(dron_individual::ParsePhase5NavigationSource("orb"));
+  EXPECT_EQ(
+    *dron_individual::ParsePhase5NavigationSource("orb"),
+    Phase5NavigationSource::ORB);
+  EXPECT_FALSE(dron_individual::ParsePhase5NavigationSource("auto"));
+  EXPECT_FALSE(dron_individual::ParsePhase5NavigationSource("GT"));
+}
+
+TEST(NavigationStateMux, NamesForcedGtSeparatelyFromFallback)
+{
+  EXPECT_STREQ(
+    dron_individual::NavigationSourceName(NavigationSource::GT_FORCED),
+    "gt_forced");
+  EXPECT_STREQ(
+    dron_individual::NavigationSourceName(NavigationSource::GT_FALLBACK),
+    "gt_fallback");
+}
 
 TEST(NavigationStateMux, DistinguishesEveryFallbackReason)
 {
@@ -40,12 +65,14 @@ TEST(NavigationStateMux, DistinguishesEveryFallbackReason)
 TEST(NavigationStateMux, ReportsEveryFailedPredicateWithoutChangingSourcePolicy)
 {
   EXPECT_EQ(
-    ExactFailedPredicates(true, false, false, false, true, false,
+    ExactFailedPredicates(
+      true, false, false, false, true, false,
       FallbackReason::TRACKING_LOST),
     "LOCAL_INVALID|CONTINUITY_INVALID|VELOCITY_INVALID_NON_SOURCE_GATE|"
     "REFERENCE_INVALID_NON_SOURCE_GATE");
   EXPECT_EQ(
-    ExactFailedPredicates(true, true, true, true, true, true,
+    ExactFailedPredicates(
+      true, true, true, true, true, true,
       FallbackReason::TRAJECTORY_SOURCE_LOCKED),
     "TRAJECTORY_SOURCE_LOCKED");
 }

@@ -13,6 +13,11 @@ bits de validez explícitos. En 5B solo local/continuidad pueden ser válidas;
 global y velocidad permanecen inválidas. Las copias Dron/Servidor incluyen el
 mensaje en CMake y deben seguir siendo byte a byte idénticas.
 
+La preparacion 1J añade `POSE_SOURCE_GT_FORCED=4` para distinguir una fuente
+GT seleccionada expresamente de `POSE_SOURCE_GT_FALLBACK`. Las replicas Dron y
+Server contienen la misma constante y deben compilarse ambas cuando cambie la
+interfaz, porque el orden de overlays puede resolver cualquiera de las dos.
+
 5D añade `GlobalKeyFramePose` y `GetGlobalKeyFramePose` con identidad completa,
 status, `pose_revision` y `W_T_KF`. 5E amplía `NavigationState` con estado
 global `INVALID/PROVISIONAL/AUTHORITATIVE` y revisión. En 5C-5F solo

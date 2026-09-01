@@ -36,8 +36,42 @@ enum class NavigationSource
 {
   INVALID,
   ORB,
-  GT_FALLBACK
+  GT_FALLBACK,
+  GT_FORCED
 };
+
+enum class Phase5NavigationSource
+{
+  GT,
+  ORB
+};
+
+inline std::optional<Phase5NavigationSource> ParsePhase5NavigationSource(
+  const std::string & value)
+{
+  if (value == "gt") {
+    return Phase5NavigationSource::GT;
+  }
+  if (value == "orb") {
+    return Phase5NavigationSource::ORB;
+  }
+  return std::nullopt;
+}
+
+inline const char * NavigationSourceName(NavigationSource source)
+{
+  switch (source) {
+    case NavigationSource::INVALID:
+      return "invalid";
+    case NavigationSource::ORB:
+      return "orb";
+    case NavigationSource::GT_FALLBACK:
+      return "gt_fallback";
+    case NavigationSource::GT_FORCED:
+      return "gt_forced";
+  }
+  return "unknown";
+}
 
 enum class FallbackReason
 {

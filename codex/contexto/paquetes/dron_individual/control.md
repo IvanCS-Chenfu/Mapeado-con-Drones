@@ -7,7 +7,6 @@
 - `include/dron_individual/navigation_state_mux.hpp`
 - `src/control_tray/control_calcular_fuerzas.cpp`
 - `src/control_tray/aplicar_fuerzas_dron.cpp`
-- `src/vision/control_dron.cpp` como control experimental de visión
 
 ## Flujo de control actual
 
@@ -135,6 +134,30 @@ goal si cumple tracking, anchor y cualificacion.
 5J retiro forcing de fuente, shadow manual y overrides parciales GT/ORB. El
 topic `control/orb_authority_confirmed` refleja autoridad ORB real del mux. No
 existe servicio `control/activate_orb_shadow` en el producto.
+
+Preparacion 1J: `navigation_state_mux` declara el selector estricto
+`phase5_navigation_source=gt|orb`, independiente de `gt_fallback_enabled`. En
+`gt` publica pose y velocidad desde `sensor/GT/pose`/`sensor/GT/vel` con
+`POSE_SOURCE_GT_FORCED`, aunque ORB no sea elegible; conserva el ultimo estado
+ORB solo como sombra y no activa su autoridad. En `orb` mantiene la politica
+productiva existente. `gen_tray` reconoce `gt_forced` para transformar goals
+absolutos. Las pruebas 359R y 360 validan respectivamente GT forzado y ORB
+estricto sin fallback; esto aun no incorpora el joint de pitch 1J.
+
+1J permite preparar la fuente por goal mediante tres servicios namespaced
+`std_srvs/Trigger`: `control/set_navigation_source_none`,
+`control/set_navigation_source_gt` y `control/set_navigation_source_orb`.
+`none` restaura `phase5_navigation_source`; las otras opciones fuerzan la
+politica elegida solo para el siguiente goal. Si hay una trayectoria bloqueada,
+la seleccion queda pendiente y se aplica al abrir la frontera. Durante
+GT_FORCED el mux sigue acumulando anchor/cualificacion ORB en sombra y siembra
+`ContinuousSourcePose` con GT para conservar continuidad.
+
+```text
+dron/dron_individual/src/control_tray/navigation_state_mux.cpp
+  -> CreateNavigationSourceService, ApplyPendingNavigationSource
+  -> rg "F5-NAVIGATION-SOURCE-PREPARED|F5-NAVIGATION-SOURCE-EFFECTIVE"
+```
 
 Para el diagnostico 348, `[F5H-FALLBACK-CAUSE-TRACE]` se emite en cada cambio
 de fuente/reason y conserva todos los predicados del mensaje raw. La decision
@@ -306,17 +329,12 @@ Funciones/conceptos:
 - si `A` es casi singular usa pseudoinversa;
 - publica fuerzas por motor periódicamente.
 
-## `control_dron.cpp`
+## Limpieza 1K
 
-Estado: experimental/visión.
-
-Rol:
-- cliente de `AccionTrayectoria`;
-- recibe puntos de visión en `vision/keypoint_cercano`;
-- publica byte de control en `vision/byte_control`;
-- implementa comportamientos como encontrarse, colocarse frente a pared y obtener nube.
-
-No es parte central del pipeline actual de sparse global multi-dron.
+`control_dron.cpp` y el `clock` local se retiraron: no aparecian en launches,
+escenarios ni configuracion y duplicaban rutas experimentales o el reloj de
+`simulacion_dron`. Los cuatro nodos vigentes usan nivel ROS `warn` cuando
+`debug_fase_1=false` e `info` cuando esta activo.
 
 ## Riesgos
 

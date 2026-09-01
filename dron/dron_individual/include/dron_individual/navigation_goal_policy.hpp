@@ -16,6 +16,7 @@ struct NavigationGoalState
   bool absolute_frame_valid = false;
   bool velocity_valid = false;
   bool gt_fallback = false;
+  bool gt_forced = false;
   uint64_t map_epoch = 0;
   uint64_t sample_sequence = 0;
 };
@@ -55,9 +56,9 @@ inline NavigationGoalDecision EvaluateNavigationGoal(
   {
     return NavigationGoalDecision::REJECT_GLOBAL_INVALID;
   }
-  return requests_absolute
-    ? NavigationGoalDecision::ACCEPT_ABSOLUTE
-    : NavigationGoalDecision::ACCEPT_RELATIVE;
+  return requests_absolute ?
+         NavigationGoalDecision::ACCEPT_ABSOLUTE :
+         NavigationGoalDecision::ACCEPT_RELATIVE;
 }
 
 inline const char * NavigationGoalDecisionName(NavigationGoalDecision decision)

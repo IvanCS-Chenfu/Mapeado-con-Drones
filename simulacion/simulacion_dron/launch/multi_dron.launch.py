@@ -106,12 +106,14 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('drone_start_stagger_sec', default_value='8.0'))
     ld.add_action(DeclareLaunchArgument(
         'dron_spawn_override_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument('camera_pitch_enabled', default_value='true'))
     ld.add_action(DeclareLaunchArgument('dron_spawn_y', default_value='-10.8'))
     ld.add_action(DeclareLaunchArgument(
         'dron_spawn_yaw_deg', default_value='90.0'))
     ld.add_action(DeclareLaunchArgument(
         'orb_vocabulary_path', default_value=full_orb_vocabulary))
     for flag in (
+        'debug_fase_1',
         'debug_sparse_global_rviz',
         'debug_pipeline_flow_web',
         'debug_open_pipeline_flow_browser',
@@ -153,6 +155,8 @@ def generate_launch_description():
         'phase5_global_pose_rviz_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
         'gt_fallback_enabled', default_value='true'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase5_navigation_source', default_value='orb'))
     ld.add_action(DeclareLaunchArgument(
         'orb_qualification_samples', default_value='20'))
     ld.add_action(DeclareLaunchArgument(
@@ -307,6 +311,12 @@ def generate_launch_description():
                         'use_sim_time': True,
                         'drone_id': i,
                         'drone_name': drone_name,
+                        'debug_fase_1': ParameterValue(
+                            LaunchConfiguration('debug_fase_1'),
+                            value_type=bool),
+                        'fisico.camera_pitch.enabled': ParameterValue(
+                            LaunchConfiguration('camera_pitch_enabled'),
+                            value_type=bool),
                         'dron.spawn_override_enabled': ParameterValue(
                             LaunchConfiguration('dron_spawn_override_enabled'),
                             value_type=bool),
@@ -328,6 +338,7 @@ def generate_launch_description():
                     'use_sim_time': 'true',
                     'orb_vocabulary_path': LaunchConfiguration('orb_vocabulary_path'),
                     'debug_architecture_telemetry': architecture_telemetry_enabled,
+                    'debug_fase_1': LaunchConfiguration('debug_fase_1'),
                     'debug_fiducial_visualization': LaunchConfiguration(
                         'debug_fiducial_visualization'),
                     'debug_fiducial_display_seconds': LaunchConfiguration(
@@ -337,6 +348,10 @@ def generate_launch_description():
                     'debug_fase_5': LaunchConfiguration('debug_fase_5'),
                     'gt_fallback_enabled': LaunchConfiguration(
                         'gt_fallback_enabled'),
+                    'phase5_navigation_source': LaunchConfiguration(
+                        'phase5_navigation_source'),
+                    'camera_pitch_enabled': LaunchConfiguration(
+                        'camera_pitch_enabled'),
                     'orb_qualification_samples': LaunchConfiguration(
                         'orb_qualification_samples'),
                     'debug_orb_visual_evidence': LaunchConfiguration(

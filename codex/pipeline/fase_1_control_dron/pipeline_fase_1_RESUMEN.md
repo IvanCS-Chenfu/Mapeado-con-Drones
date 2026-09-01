@@ -5,9 +5,9 @@ Usar este archivo antes de abrir `pipeline_fase_1.md` o los contratos completos 
 ## Estado vigente
 
 ```text
-Fase 1: realizado
-Subfases: 1A, 1B, 1C, 1D, 1E, 1F, 1G, 1H y 1I
-Historial: creado y vacío; no se inventan ejecuciones ni resultados
+Fase 1: 1A-1K realizadas; cierre tecnico conseguido
+Subfases: 1A, 1B, 1C, 1D, 1E, 1F, 1G, 1H, 1I, 1J y 1K
+Historial: pitch fisico 1J y limpieza/flag de logs 1K validados
 ```
 
 El estado `realizado` refleja que los bloques descritos existen en el código de referencia y que el contrato documental de la fase está creado. La evidencia concreta de futuras reconstrucciones, builds y simulaciones se escribirá únicamente cuando se vuelvan a ejecutar las pruebas.
@@ -28,7 +28,15 @@ Reconstruir, entender y validar la cadena completa que permite crear uno o vario
   -> 1G acción, control y mixer de cuatro motores
   -> 1H GUI multi-dron y prueba integral
   -> 1I gráficas de perfiles, GT, referencia y error
+  -> 1J pitch fisico del rig stereo
+  -> 1K limpieza y cierre de Fase 1
 ```
+
+El selector previo al joint 1J quedo validado con
+`phase5_navigation_source=gt|orb`: permite ejecutar primero las pruebas bajo GT
+forzado, con ORB en sombra, y repetirlas despues bajo autoridad ORB estricta.
+1J incorpora joint, servo y extrinseca dinamica. 1K retira prototipos sin uso
+y añade `debug_fase_1=false` como puerta maestra de telemetria informativa.
 
 ## Paquetes principales
 

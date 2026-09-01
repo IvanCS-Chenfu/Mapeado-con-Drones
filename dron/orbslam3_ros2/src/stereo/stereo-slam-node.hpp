@@ -33,6 +33,8 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/vector3_stamped.hpp"
 #include "std_msgs/msg/string.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
 
 #include "MapPoint.h"
 #include "KeyFrame.h"
@@ -163,7 +165,11 @@ class StereoSlamNode : public rclcpp::Node
         std::string local_map_frame_;
         std::string odom_frame_;
         std::string body_frame_;
+        std::string camera_frame_;
+        std::string body_camera_transform_mode_;
         Sophus::SE3f body_t_camera_;
+        std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+        std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
         orbslam3_ros2::NavigationStateEstimator navigation_state_estimator_;
         orbslam3_ros2::OrbPosePredictor orb_pose_predictor_;
         orbslam3_ros2::CausalLinearVelocityEstimator causal_linear_estimator_;
@@ -233,6 +239,9 @@ class StereoSlamNode : public rclcpp::Node
             const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
             const Sophus::SE3f& Tcw,
             double callback_arrival_stamp_sec);
+        bool ResolveBodyTCamera(
+            const builtin_interfaces::msg::Time& stamp,
+            Sophus::SE3f& body_t_camera);
         void PublishPredictedNavigationState();
         void HandleBodyTorque(
             geometry_msgs::msg::Vector3Stamped::ConstSharedPtr message);

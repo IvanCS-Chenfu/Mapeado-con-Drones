@@ -80,3 +80,10 @@ def test_fallback_pose_uses_control_pose_and_source_label():
     markers = MODULE.build_pose_markers(message).markers
     assert math.isclose(markers[0].points[0].x, 1.0)
     assert markers[3].text == 'drone_2 [GT]'
+
+
+def test_forced_gt_has_an_unambiguous_source_label():
+    message = make_state(
+        pose_source=NavigationState.POSE_SOURCE_GT_FORCED)
+    markers = MODULE.build_pose_markers(message).markers
+    assert markers[3].text == 'drone_2 [GT_FORCED]'

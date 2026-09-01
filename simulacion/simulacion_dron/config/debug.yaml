@@ -1,4 +1,5 @@
 debug:
+  debug_fase_1: false
   debug_sparse_global_rviz: false
   debug_pipeline_flow_web: false
   debug_open_pipeline_flow_browser: false
