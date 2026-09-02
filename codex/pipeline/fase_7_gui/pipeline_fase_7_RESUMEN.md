@@ -3,10 +3,11 @@
 ## Estado
 
 ```text
-sin hacer
-Preparación documental: cerrada
-Autorización de ejecución: pendiente
-Historial: vacío; no existen ejecuciones reales en este ZIP
+en curso: bloques 1 y 2 conseguidos
+Preparación documental: actualizada para ciclo iterativo con Fase 6
+Bloque 1 (7A-7D): conseguido el 2026-09-02
+Bloque 2 (7E, 7F, 7H): conseguido el 2026-09-02
+Historial: disponible en historial/por_subfase/
 ```
 
 ## Objetivo
@@ -16,7 +17,10 @@ Crear una GUI de escritorio propia en `src/servidor/`, implementada con C++ + Qt
 ## Decisiones cerradas
 
 - GUI propia desde cero; Qt/OpenGL son infraestructura gráfica, no un visualizador externo.
+- Dos paquetes en Servidor: `multidron_gui_lib` para lógica/modelos/render/widgets
+  testeables y `multidron_gui` para orquestación/ejecutable/launch ROS 2 + Qt.
 - Proceso/nodo GUI independiente del servidor de mapa; cerrar la GUI no afecta al pipeline.
+- Tema oscuro/moderno, subordinado a legibilidad y rendimiento.
 - Callbacks ROS → caches `GuiDataModel` → snapshots → thread Qt/OpenGL.
 - Render fluido; no reconstruir buffers pesados en cada frame si el dato no cambió.
 - Panel derecho con tarjeta por dron y scroll vertical cuando no caben.
@@ -29,10 +33,22 @@ Crear una GUI de escritorio propia en `src/servidor/`, implementada con C++ + Qt
 - Mostrar únicamente la trayectoria actual futura de cada dron, no todo el historial de propuestas.
 - Tareas GUI baseline: `GO_TO`, `CAPTURE_SPARSE`, `CAPTURE_DENSE`; todas las poses son `(x,y,z,yaw)` absolutas en `world`.
 - No hay botones pause/resume/cancel en esta fase.
-- `GO_TO` reutiliza TaskManager/planner/reservas de Fase 6; nunca `TrayAction` directo.
+- `GO_TO` entra por `task_server` y se ejecuta mediante `task_manager`, planner
+  y reservas de Fase 6; nunca mediante `TrayAction` directo desde la GUI.
 - `CAPTURE_SPARSE`: llegar a pose y esperar creación natural de KF; no forzar ORB-SLAM3; si no aparece, tarea fallida.
 - `CAPTURE_DENSE`: contrato/UI preparados; captura/reconstrucción real en Fase 8.
 - `DenseMapLayer` se valida en Fase 7 con datos sintéticos/replay, no con una reconstrucción inventada.
+- Dron perdido/stale: conservar última pose válida, mostrar tag `PERDIDO` y
+  ejes más transparentes; no borrar ni propagar pose falsa.
+
+## Ciclo con Fase 6
+
+Primera estrategia acordada: ejecutar Fase 7 hasta donde permitan Fases 1–5 y
+la telemetría real existente; cuando una subfase dependa de contratos de tareas,
+progreso, trayectoria vigente o voxeles de Fase 6, volver a Fase 6 hasta
+desbloquearla y repetir. Tramo inicial probable: `7A`–`7F`, `7H` y partes
+testeables/sintéticas de `7L`; `7G`, `7I`, `7J`, `7K` y `7M` definitiva quedan
+condicionadas por Fase 6 real.
 
 ## Puerta de validación hacia atrás
 
@@ -40,7 +56,7 @@ La GUI también sirve para corroborar visualmente Fases 3–6. Si el mensaje rec
 
 Ejemplos: sparse/KFs → Fase 3; fiduciales → Fase 4; pose/tracking → Fase 5; tareas/progreso/trayectoria → Fase 6.
 
-Ante una duda funcional nueva —por ejemplo cómo representar un dron perdido— Codex debe parar y preguntarle al usuario antes de decidir.
+Ante una duda funcional nueva no cubierta por este contrato, Codex debe parar y preguntarle al usuario antes de decidir.
 
 ## Subfases
 
@@ -59,6 +75,10 @@ Ante una duda funcional nueva —por ejemplo cómo representar un dron perdido�
 7L  DenseMapLayer + rendimiento
 7M  integración, validación visual y cierre
 ```
+
+Estado ejecutado: `7A`-`7F` y `7H` conseguidas. `7G` y `7I`-`7M` permanecen
+pendientes. El siguiente bloqueo real es Fase 6: trayectoria vigente, estado y
+progreso de tareas y acciones operativas para continuar la GUI.
 
 ## Prueba final
 

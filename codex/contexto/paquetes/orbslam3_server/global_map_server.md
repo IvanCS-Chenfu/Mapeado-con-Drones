@@ -209,12 +209,15 @@ Los defaults de distancia son `score_suspicious_near_distance_m=1.0`,
 El principal emite `[F3R-RAW-SCORE-COMMIT]` con dirty raw/fused y
 `[F3R-SCORE-STATS]` cada 25 arrivals live. El secundario emite
 `[F3R-FUSED-SCORE-COMMIT]`; rejected/stale muestran `committed=false dirty=0`.
-`PointCloud2` mantiene `score` y `rgb`, con rojo en 0, amarillo en 0.5 y verde
-en 1, sin filtrar puntos.
+`PointCloud2` mantiene `score` sin filtrar puntos. Desde 7E, el RGB temporal se
+retira y la GUI calcula rojo-amarillo-verde; el mensaje conserva
+`drone_id`, `map_epoch_low/high` y `local_mp_id_low/high` con `point_step=36`.
 
 La prueba 194 cierra con principal/secundario `pending=0`, 23.564 puntos,
 `score_field=true`, `rgb_field=true`, 53 commits fused y cero penalizaciones
 sparse. Stats finales: 24.977 anchored, 99 near, 11.433 far y media `0.2596`.
+Ese `rgb_field=true` describe la ejecucion historica de 3R, anterior a la
+migracion de presentacion realizada en 7E.
 El exit 255 de Gazebo ocurre durante cleanup posterior a `success=true`, no
 durante el escenario.
 

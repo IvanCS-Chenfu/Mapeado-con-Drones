@@ -1,0 +1,9 @@
+std_msgs/Header header
+string mission_id
+uint64 config_revision
+mission_msgs/AxisAlignedBox mapping_roi
+mission_msgs/AxisAlignedBox hard_flight_volume
+float64[3] mapping_hysteresis
+float64 level_height
+mission_msgs/MappingLevel[] levels
+mission_msgs/BaseSubRoi[] regions

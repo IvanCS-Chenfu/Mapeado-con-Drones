@@ -1,0 +1,131 @@
+{
+  "drones": {
+    "1": {
+      "angular_error": {
+        "control_vs_gt": {
+          "direction_mismatch_ratio": 0.38461538461538464,
+          "direction_samples": 13,
+          "direction_threshold_radps": 0.01,
+          "mae_radps": 143377.53155679465,
+          "max_error_radps": 1627896.9105803228,
+          "rmse_radps": 455141.5304910474
+        },
+        "motion_vs_gt": {
+          "direction_mismatch_ratio": 0.0,
+          "direction_samples": 1,
+          "direction_threshold_radps": 0.01,
+          "mae_radps": 459.7456713314083,
+          "max_error_radps": 5597.28014627176,
+          "rmse_radps": 1554.2020213923743
+        }
+      },
+      "base_update_applied_ratio": 0.3333333333333333,
+      "base_update_counts": {
+        "REJECTED": 10,
+        "SMALL_ANCHOR": 5
+      },
+      "chronology_sec_from_orb": {
+        "fallback": null,
+        "first_ew_growth": 0.1199796199798584,
+        "first_gt_growth": 0.09999489784240723,
+        "first_motion_growth": 0.24000048637390137,
+        "first_positive_damping_power": 0.06000494956970215,
+        "first_raw_growth": 0.24000048637390137,
+        "first_raw_rejected": 0.2999844551086426,
+        "first_tau_ew_growth": 0.1199796199798584,
+        "orb_start": 0.0,
+        "tracking_not_ok": null
+      },
+      "common_window_samples": 0,
+      "common_window_sec": null,
+      "cross_correlation": {
+        "x": {
+          "control": {
+            "correlation": null,
+            "lag_sec": null,
+            "phase_deg": null
+          },
+          "motion": {
+            "correlation": null,
+            "lag_sec": null,
+            "phase_deg": null
+          },
+          "raw": {
+            "correlation": null,
+            "lag_sec": null,
+            "phase_deg": null
+          }
+        },
+        "y": {
+          "control": {
+            "correlation": null,
+            "lag_sec": null,
+            "phase_deg": null
+          },
+          "motion": {
+            "correlation": null,
+            "lag_sec": null,
+            "phase_deg": null
+          },
+          "raw": {
+            "correlation": null,
+            "lag_sec": null,
+            "phase_deg": null
+          }
+        },
+        "z": {
+          "control": {
+            "correlation": null,
+            "lag_sec": null,
+            "phase_deg": null
+          },
+          "motion": {
+            "correlation": null,
+            "lag_sec": null,
+            "phase_deg": null
+          },
+          "raw": {
+            "correlation": null,
+            "lag_sec": null,
+            "phase_deg": null
+          }
+        }
+      },
+      "dominant_axis": "x",
+      "dominant_frequency_hz": 1.1110591912689898,
+      "longest_positive_damping_interval_sec": 0.03998994827270508,
+      "max_control_omega_radps": 2031339015.6005816,
+      "max_er_rad": 0.6415463103833237,
+      "max_ew_radps": 15624202.100663617,
+      "max_gt_omega_radps": 5597.34539176367,
+      "max_local_visual_age_sec": 0.130016565,
+      "max_tau_ew": 1562420.2100663623,
+      "max_visual_base_error_after_rad": 1.570723772,
+      "max_visual_base_error_before_rad": 1.570723772,
+      "max_visual_base_error_rad": 1.5707238935338221,
+      "mean_local_visual_age_sec": 0.11800818948888889,
+      "mean_prediction_horizon_sec": 0.11800818948888889,
+      "mean_visual_base_error_after_rad": 1.0123228311333334,
+      "mean_visual_base_error_before_rad": 1.0127260048666669,
+      "orb_duration_sec": 0.8799872398376465,
+      "orb_samples": 45,
+      "positive_damping_power_ratio": 0.1111111111111111,
+      "prediction_clamped_ratio": 0.0,
+      "status": "MEDIDO_PENDIENTE_INTERPRETACION",
+      "tau_er_work_common_window": null,
+      "tau_er_work_post_handoff": null,
+      "tau_ew_ideal_alignment_mean": 0.388835942016596,
+      "tau_ew_ideal_alignment_negative_ratio": 0.38461538461538464,
+      "tau_ew_work_common_window": null,
+      "tau_ew_work_post_handoff": null,
+      "tau_total_work_common_window": null,
+      "tau_total_work_post_handoff": null,
+      "unique_orb_measurements": 15
+    },
+    "2": {
+      "orb_samples": 0,
+      "status": "DATOS_INSUFICIENTES"
+    }
+  },
+  "source_log": "codex/archivos_auxiliares/logs/prueba_292.log"
+}

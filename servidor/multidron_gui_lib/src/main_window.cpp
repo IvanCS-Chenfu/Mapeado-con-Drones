@@ -9,13 +9,16 @@
 #include <QFontDatabase>
 #include <QFrame>
 #include <QGroupBox>
+#include <QPushButton>
 #include <QScrollArea>
+#include <QSlider>
 #include <QStatusBar>
 #include <QTimer>
 #include <QToolBar>
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 
 namespace multidron_gui_lib
@@ -84,7 +87,7 @@ void MainWindow::BuildUi()
 
   counters_label_ = new QLabel("Esperando datos ROS 2...", this);
   statusBar()->addPermanentWidget(counters_label_, 1);
-  statusBar()->showMessage("world | arrastrar izq: órbita | der/medio: pan | rueda: zoom | doble click: reset");
+  statusBar()->showMessage("Frame: world");
 }
 
 void MainWindow::BuildToolbar()
@@ -94,7 +97,7 @@ void MainWindow::BuildToolbar()
   toolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
 
   auto add_layer_action = [this, toolbar](
-      const QString & text, bool checked, auto setter) {
+    const QString & text, bool checked, auto setter) {
       QAction * action = toolbar->addAction(text);
       action->setCheckable(true);
       action->setChecked(checked);
@@ -108,6 +111,7 @@ void MainWindow::BuildToolbar()
   add_layer_action("Fiduciales", true, &Scene3DWidget::SetFiducialsVisible);
   add_layer_action("Trayectorias", true, &Scene3DWidget::SetTrajectoriesVisible);
   add_layer_action("Vóxeles", false, &Scene3DWidget::SetVoxelsVisible);
+  add_layer_action("Regiones", true, &Scene3DWidget::SetMissionRegionsVisible);
 
   toolbar->addSeparator();
   auto * score_color = new QCheckBox("Color por score", toolbar);
@@ -130,11 +134,30 @@ void MainWindow::BuildToolbar()
   threshold->setDecimals(2);
   threshold->setValue(0.0);
   threshold->setToolTip("Score mínimo visible cuando el filtro está activo");
+  threshold->setFixedWidth(72);
+  auto * threshold_slider = new QSlider(Qt::Horizontal, toolbar);
+  threshold_slider->setRange(0, 100);
+  threshold_slider->setValue(0);
+  threshold_slider->setFixedWidth(120);
+  threshold_slider->setToolTip("Umbral visual de score");
+  toolbar->addWidget(threshold_slider);
   toolbar->addWidget(threshold);
   connect(
     threshold, qOverload<double>(&QDoubleSpinBox::valueChanged),
-    this, [this](double value) {
+    this, [this, threshold_slider](double value) {
       scene_->SetScoreThreshold(static_cast<float>(value));
+      const int slider_value = static_cast<int>(std::lround(value * 100.0));
+      if (threshold_slider->value() != slider_value) {
+        threshold_slider->setValue(slider_value);
+      }
+    });
+  connect(
+    threshold_slider, &QSlider::valueChanged,
+    threshold, [threshold](int value) {
+      const double score = static_cast<double>(value) / 100.0;
+      if (std::abs(threshold->value() - score) > 1e-9) {
+        threshold->setValue(score);
+      }
     });
 }
 
@@ -146,6 +169,7 @@ void MainWindow::BuildDroneDock()
   dock->setMinimumWidth(300);
 
   auto * scroll = new QScrollArea(dock);
+  scroll->setObjectName("droneCardsScroll");
   scroll->setWidgetResizable(true);
   scroll->setFrameShape(QFrame::NoFrame);
 
@@ -155,7 +179,24 @@ void MainWindow::BuildDroneDock()
   drone_cards_layout_->setSpacing(8);
   drone_cards_layout_->addStretch(1);
   scroll->setWidget(drone_cards_container_);
-  dock->setWidget(scroll);
+
+  auto * panel = new QWidget(dock);
+  auto * panel_layout = new QVBoxLayout(panel);
+  panel_layout->setContentsMargins(0, 0, 0, 0);
+  panel_layout->setSpacing(8);
+  panel_layout->addWidget(scroll, 1);
+
+  auto * region_group = new QGroupBox("Regiones de misión", panel);
+  region_group->setObjectName("missionRegionsGroup");
+  mission_regions_layout_ = new QVBoxLayout(region_group);
+  mission_regions_container_ = region_group;
+  auto * waiting = new QLabel("Esperando geometría de misión", region_group);
+  waiting->setObjectName("missionRegionsWaiting");
+  waiting->setWordWrap(true);
+  mission_regions_layout_->addWidget(waiting);
+  panel_layout->addWidget(region_group, 0);
+
+  dock->setWidget(panel);
   addDockWidget(Qt::RightDockWidgetArea, dock);
 }
 
@@ -178,7 +219,8 @@ void MainWindow::BuildInspectorDock()
 
 void MainWindow::ApplyDarkTheme()
 {
-  setStyleSheet(R"(
+  setStyleSheet(
+    R"(
     QMainWindow, QWidget {
       background: #11161e;
       color: #dce3ea;
@@ -233,6 +275,7 @@ void MainWindow::RefreshFromModel()
   const GuiSnapshot snapshot = model_->Snapshot();
   scene_->SetSnapshot(snapshot);
   UpdateDroneCards(snapshot);
+  UpdateMissionRegions(snapshot);
 
   const std::size_t sparse = snapshot.sparse_points ? snapshot.sparse_points->size() : 0U;
   const std::size_t keyframes = snapshot.keyframes ? snapshot.keyframes->size() : 0U;
@@ -241,14 +284,56 @@ void MainWindow::RefreshFromModel()
   const std::size_t trajectories = snapshot.trajectories ? snapshot.trajectories->size() : 0U;
   const std::size_t voxels = snapshot.voxels ? snapshot.voxels->size() : 0U;
   counters_label_->setText(
-    QString("gen %1 | MP %2 | KF %3 | drones %4 | fid %5 | traj %6 | vox %7")
+    QString("gen %1 | MP %2 | KF %3 | drones %4 | fid %5 | traj %6 | vox %7 | reg %8")
     .arg(static_cast<qulonglong>(snapshot.generation))
     .arg(static_cast<qulonglong>(sparse))
     .arg(static_cast<qulonglong>(keyframes))
     .arg(static_cast<qulonglong>(drones))
     .arg(static_cast<qulonglong>(fiducials))
     .arg(static_cast<qulonglong>(trajectories))
-    .arg(static_cast<qulonglong>(voxels)));
+    .arg(static_cast<qulonglong>(voxels))
+    .arg(static_cast<qulonglong>(
+      snapshot.mission_regions ? snapshot.mission_regions->size() : 0U)));
+}
+
+void MainWindow::UpdateMissionRegions(const GuiSnapshot & snapshot)
+{
+  const void * identity = snapshot.mission_regions.get();
+  if (identity == mission_regions_identity_ || !mission_regions_layout_) {
+    return;
+  }
+  mission_regions_identity_ = identity;
+  while (QLayoutItem * item = mission_regions_layout_->takeAt(0)) {
+    if (item->widget()) {
+      item->widget()->deleteLater();
+    }
+    delete item;
+  }
+  if (!snapshot.mission_regions || snapshot.mission_regions->empty()) {
+    auto * waiting = new QLabel("Esperando geometría de misión", mission_regions_container_);
+    waiting->setWordWrap(true);
+    mission_regions_layout_->addWidget(waiting);
+    return;
+  }
+  std::uint32_t current_level = std::numeric_limits<std::uint32_t>::max();
+  for (const auto & region : *snapshot.mission_regions) {
+    if (region.level_index != current_level) {
+      current_level = region.level_index;
+      auto * level = new QLabel(QString("Nivel %1").arg(current_level), mission_regions_container_);
+      level->setStyleSheet("color:#8ecae6;font-weight:600;");
+      mission_regions_layout_->addWidget(level);
+    }
+    auto * button = new QPushButton(
+      QString::fromStdString(region.side), mission_regions_container_);
+    button->setObjectName(QString("missionRegion_%1").arg(
+      QString::fromStdString(region.region_id)));
+    button->setToolTip(QString::fromStdString(region.region_id));
+    connect(button, &QPushButton::clicked, scene_,
+      [this, id = QString::fromStdString(region.region_id)]() {
+        scene_->SelectMissionRegion(id);
+      });
+    mission_regions_layout_->addWidget(button);
+  }
 }
 
 void MainWindow::ShowSelection(const QString & description)

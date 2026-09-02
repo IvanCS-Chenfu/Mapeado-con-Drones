@@ -4,6 +4,7 @@
 #include <QMouseEvent>
 #include <QOpenGLContext>
 #include <QOpenGLShader>
+#include <QPainter>
 #include <QSurfaceFormat>
 #include <QVector4D>
 #include <QWheelEvent>
@@ -78,42 +79,88 @@ Scene3DWidget::~Scene3DWidget()
 void Scene3DWidget::SetSnapshot(const GuiSnapshot & snapshot)
 {
   snapshot_ = snapshot;
+  if (selection_ && !SelectionStillExists(selection_->key)) {
+    qInfo().noquote() << "[GUI-SELECTION-CLEAR] reason=entity_removed";
+    selection_.reset();
+    selection_dirty_ = true;
+    emit SelectionChanged("Sin selección");
+  } else if (selection_) {
+    selection_->snapshot_generation = snapshot.generation;
+  }
   update();
 }
 
 void Scene3DWidget::SetSparseVisible(bool visible)
 {
-  sparse_visible_ = visible;
+  sparse_render_layer_.SetVisible(visible);
   update();
 }
 
 void Scene3DWidget::SetKeyframesVisible(bool visible)
 {
-  keyframes_visible_ = visible;
+  keyframe_render_layer_.SetVisible(visible);
   update();
 }
 
 void Scene3DWidget::SetDronesVisible(bool visible)
 {
-  drones_visible_ = visible;
+  drone_render_layer_.SetVisible(visible);
   update();
 }
 
 void Scene3DWidget::SetFiducialsVisible(bool visible)
 {
-  fiducials_visible_ = visible;
+  fiducial_render_layer_.SetVisible(visible);
   update();
 }
 
 void Scene3DWidget::SetTrajectoriesVisible(bool visible)
 {
-  trajectories_visible_ = visible;
+  trajectory_render_layer_.SetVisible(visible);
+  update();
+}
+
+void Scene3DWidget::SetMissionRegionsVisible(bool visible)
+{
+  mission_region_render_layer_.SetVisible(visible);
+  update();
+}
+
+void Scene3DWidget::SelectMissionRegion(const QString & region_id)
+{
+  if (!snapshot_.mission_regions) {
+    return;
+  }
+  const auto match = std::find_if(
+    snapshot_.mission_regions->begin(), snapshot_.mission_regions->end(),
+    [&region_id](const MissionRegionVisual & region) {
+      return QString::fromStdString(region.region_id) == region_id;
+    });
+  if (match == snapshot_.mission_regions->end()) {
+    return;
+  }
+  const auto index = static_cast<std::uint64_t>(
+    std::distance(snapshot_.mission_regions->begin(), match));
+  const QVector3D center = 0.5F * (match->min_world + match->max_world);
+  const QString description = QString(
+    "REGIÓN DE MISIÓN\nregion_id: %1\nnivel: %2\nlado: %3\n"
+    "min: (%4, %5, %6)\nmax: (%7, %8, %9)\nasignación: ninguna")
+    .arg(region_id).arg(match->level_index).arg(QString::fromStdString(match->side))
+    .arg(match->min_world.x(), 0, 'f', 2).arg(match->min_world.y(), 0, 'f', 2)
+    .arg(match->min_world.z(), 0, 'f', 2).arg(match->max_world.x(), 0, 'f', 2)
+    .arg(match->max_world.y(), 0, 'f', 2).arg(match->max_world.z(), 0, 'f', 2);
+  selection_ = SelectedEntity{
+    EntityKey{EntityType::MissionRegion, 0U, 0U, index}, center, description,
+    snapshot_.generation};
+  selection_dirty_ = true;
+  emit SelectionChanged(description);
+  qInfo().noquote() << "[GUI-REGION-SELECT] region=" << region_id;
   update();
 }
 
 void Scene3DWidget::SetVoxelsVisible(bool visible)
 {
-  voxels_visible_ = visible;
+  voxel_render_layer_.SetVisible(visible);
   update();
 }
 
@@ -121,6 +168,8 @@ void Scene3DWidget::SetScoreColorEnabled(bool enabled)
 {
   score_color_enabled_ = enabled;
   sparse_style_dirty_ = true;
+  ++sparse_style_revision_;
+  qInfo().noquote() << "[GUI-SCORE-COLOR] enabled=" << (enabled ? "true" : "false");
   update();
 }
 
@@ -128,6 +177,9 @@ void Scene3DWidget::SetScoreFilterEnabled(bool enabled)
 {
   score_filter_enabled_ = enabled;
   sparse_style_dirty_ = true;
+  ++sparse_style_revision_;
+  qInfo().noquote() << "[GUI-SCORE-FILTER] enabled=" << (enabled ? "true" : "false")
+                    << " threshold=" << score_threshold_;
   update();
 }
 
@@ -135,6 +187,10 @@ void Scene3DWidget::SetScoreThreshold(float threshold)
 {
   score_threshold_ = std::clamp(threshold, 0.0F, 1.0F);
   sparse_style_dirty_ = true;
+  ++sparse_style_revision_;
+  qInfo().noquote() << "[GUI-SCORE-FILTER] enabled="
+                    << (score_filter_enabled_ ? "true" : "false")
+                    << " threshold=" << score_threshold_;
   update();
 }
 
@@ -162,7 +218,8 @@ void Scene3DWidget::initializeGL()
                     << " renderer=" << (renderer ? renderer : "unknown")
                     << " version=" << (version ? version : "unknown");
 
-  static const char * kVertexShader = R"(
+  static const char * kVertexShader =
+    R"(
     #version 120
     attribute vec3 a_position;
     attribute vec4 a_color;
@@ -177,7 +234,8 @@ void Scene3DWidget::initializeGL()
     }
   )";
 
-  static const char * kFragmentShader = R"(
+  static const char * kFragmentShader =
+    R"(
     #version 120
     varying vec4 v_color;
     void main()
@@ -221,31 +279,37 @@ void Scene3DWidget::paintGL()
   const QMatrix4x4 mvp = MvpMatrix();
 
   DrawLayer(grid_layer_, mvp);
-  if (voxels_visible_) {
+  if (voxel_render_layer_.IsVisible()) {
     DrawLayer(voxel_wire_layer_, mvp);
     glDepthMask(GL_FALSE);
     DrawLayer(voxel_fill_layer_, mvp);
     glDepthMask(GL_TRUE);
   }
-  if (sparse_visible_) {
+  if (sparse_render_layer_.IsVisible()) {
     DrawLayer(sparse_layer_, mvp);
   }
-  if (keyframes_visible_) {
+  if (keyframe_render_layer_.IsVisible()) {
     DrawLayer(keyframe_layer_, mvp);
   }
-  if (fiducials_visible_) {
+  if (fiducial_render_layer_.IsVisible()) {
     DrawLayer(fiducial_layer_, mvp);
   }
-  if (trajectories_visible_) {
+  if (trajectory_render_layer_.IsVisible()) {
     DrawLayer(trajectory_layer_, mvp);
   }
-  if (drones_visible_) {
+  if (drone_render_layer_.IsVisible()) {
     DrawLayer(drone_layer_, mvp);
   }
 
   glDisable(GL_DEPTH_TEST);
+  if (mission_region_render_layer_.IsVisible()) {
+    glDepthMask(GL_FALSE);
+    DrawLayer(selection_fill_layer_, mvp);
+    glDepthMask(GL_TRUE);
+  }
   DrawLayer(selection_layer_, mvp);
   glEnable(GL_DEPTH_TEST);
+  DrawEntityLabels();
 }
 
 void Scene3DWidget::mousePressEvent(QMouseEvent * event)
@@ -325,7 +389,7 @@ void Scene3DWidget::CleanupGl()
   for (GpuLayer * layer : {
       &grid_layer_, &sparse_layer_, &keyframe_layer_, &drone_layer_,
       &fiducial_layer_, &trajectory_layer_, &voxel_wire_layer_,
-      &voxel_fill_layer_, &selection_layer_})
+      &voxel_fill_layer_, &selection_layer_, &selection_fill_layer_})
   {
     if (layer->created) {
       layer->buffer.destroy();
@@ -381,7 +445,7 @@ void Scene3DWidget::EnsureLayerBuffers()
   for (GpuLayer * layer : {
       &grid_layer_, &sparse_layer_, &keyframe_layer_, &drone_layer_,
       &fiducial_layer_, &trajectory_layer_, &voxel_wire_layer_,
-      &voxel_fill_layer_, &selection_layer_})
+      &voxel_fill_layer_, &selection_layer_, &selection_fill_layer_})
   {
     if (!layer->created) {
       layer->created = layer->buffer.create();
@@ -440,45 +504,58 @@ void Scene3DWidget::SynchronizeGpuData()
   }
 
   const void * sparse = snapshot_.sparse_points.get();
-  if (sparse != sparse_identity_ || sparse_style_dirty_) {
+  if (sparse_render_layer_.NeedsUpload(sparse, sparse_style_revision_)) {
     UploadLayer(&sparse_layer_, BuildSparseVertices(), GL_POINTS, 3.0F);
     sparse_identity_ = sparse;
     sparse_style_dirty_ = false;
+    sparse_render_layer_.MarkUploaded(sparse, sparse_style_revision_);
   }
 
   const void * keyframes = snapshot_.keyframes.get();
-  if (keyframes != keyframe_identity_) {
+  if (keyframe_render_layer_.NeedsUpload(keyframes)) {
     UploadLayer(&keyframe_layer_, BuildKeyframeVertices(), GL_LINES);
     keyframe_identity_ = keyframes;
+    keyframe_render_layer_.MarkUploaded(keyframes);
   }
 
   const void * drones = snapshot_.drones.get();
-  if (drones != drone_identity_) {
+  if (drone_render_layer_.NeedsUpload(drones)) {
     UploadLayer(&drone_layer_, BuildDroneVertices(), GL_LINES);
     drone_identity_ = drones;
+    drone_render_layer_.MarkUploaded(drones);
   }
 
   const void * fiducials = snapshot_.fiducials.get();
-  if (fiducials != fiducial_identity_) {
+  if (fiducial_render_layer_.NeedsUpload(fiducials)) {
     UploadLayer(&fiducial_layer_, BuildFiducialVertices(), GL_LINES);
     fiducial_identity_ = fiducials;
+    fiducial_render_layer_.MarkUploaded(fiducials);
   }
 
   const void * trajectories = snapshot_.trajectories.get();
-  if (trajectories != trajectory_identity_) {
+  if (trajectory_render_layer_.NeedsUpload(trajectories)) {
     UploadLayer(&trajectory_layer_, BuildTrajectoryVertices(), GL_LINES);
     trajectory_identity_ = trajectories;
+    trajectory_render_layer_.MarkUploaded(trajectories);
   }
 
   const void * voxels = snapshot_.voxels.get();
-  if (voxels != voxel_identity_) {
+  if (voxel_render_layer_.NeedsUpload(voxels)) {
     UploadLayer(&voxel_wire_layer_, BuildVoxelWireVertices(), GL_LINES);
     UploadLayer(&voxel_fill_layer_, BuildVoxelFillVertices(), GL_TRIANGLES);
     voxel_identity_ = voxels;
+    voxel_render_layer_.MarkUploaded(voxels);
+  }
+
+  const void * mission_regions = snapshot_.mission_regions.get();
+  if (mission_regions != mission_region_identity_) {
+    mission_region_identity_ = mission_regions;
+    selection_dirty_ = true;
   }
 
   if (selection_dirty_) {
     UploadLayer(&selection_layer_, BuildSelectionVertices(), GL_LINES);
+    UploadLayer(&selection_fill_layer_, BuildSelectionFillVertices(), GL_TRIANGLES);
     selection_dirty_ = false;
   }
 }
@@ -508,15 +585,17 @@ std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildSparseVertices() const
   }
   vertices.reserve(snapshot_.sparse_points->size());
   for (const auto & point : *snapshot_.sparse_points) {
-    if (score_filter_enabled_ && point.score < score_threshold_) {
+    if (!SparsePointVisible(point.score, score_filter_enabled_, score_threshold_)) {
       continue;
     }
-    const QColor color = score_color_enabled_ ? ScoreColor(point.score) : QColor(245, 247, 250);
+    const QColor color = score_color_enabled_ ?
+      multidron_gui_lib::ScoreColor(point.score) : QColor(245, 247, 250);
     const float alpha = static_cast<float>(color.alphaF());
-    vertices.push_back(Vertex{
-      point.position.x(), point.position.y(), point.position.z(),
-      static_cast<float>(color.redF()), static_cast<float>(color.greenF()),
-      static_cast<float>(color.blueF()), alpha});
+    vertices.push_back(
+      Vertex{
+        point.position.x(), point.position.y(), point.position.z(),
+        static_cast<float>(color.redF()), static_cast<float>(color.greenF()),
+        static_cast<float>(color.blueF()), alpha});
   }
   return vertices;
 }
@@ -639,20 +718,42 @@ std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildVoxelFillVertices() const
 std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildSelectionVertices() const
 {
   std::vector<Vertex> vertices;
-  if (!selection_valid_) {
+  if (!selection_) {
+    return vertices;
+  }
+  const QColor color(255, 235, 59, 255);
+  if (selection_->key.type == EntityType::MissionRegion && snapshot_.mission_regions &&
+    selection_->key.id < snapshot_.mission_regions->size())
+  {
+    const auto & region = snapshot_.mission_regions->at(selection_->key.id);
+    AppendBoxEdges(&vertices, 0.5F * (region.min_world + region.max_world),
+      region.max_world - region.min_world, QQuaternion(), color);
     return vertices;
   }
   constexpr float half = 0.22F;
-  const QColor color(255, 235, 59, 255);
   AppendLine(
-    &vertices, selection_world_ - QVector3D(half, 0.0F, 0.0F),
-    selection_world_ + QVector3D(half, 0.0F, 0.0F), color);
+    &vertices, selection_->world_position - QVector3D(half, 0.0F, 0.0F),
+    selection_->world_position + QVector3D(half, 0.0F, 0.0F), color);
   AppendLine(
-    &vertices, selection_world_ - QVector3D(0.0F, half, 0.0F),
-    selection_world_ + QVector3D(0.0F, half, 0.0F), color);
+    &vertices, selection_->world_position - QVector3D(0.0F, half, 0.0F),
+    selection_->world_position + QVector3D(0.0F, half, 0.0F), color);
   AppendLine(
-    &vertices, selection_world_ - QVector3D(0.0F, 0.0F, half),
-    selection_world_ + QVector3D(0.0F, 0.0F, half), color);
+    &vertices, selection_->world_position - QVector3D(0.0F, 0.0F, half),
+    selection_->world_position + QVector3D(0.0F, 0.0F, half), color);
+  return vertices;
+}
+
+std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildSelectionFillVertices() const
+{
+  std::vector<Vertex> vertices;
+  if (!selection_ || selection_->key.type != EntityType::MissionRegion ||
+    !snapshot_.mission_regions || selection_->key.id >= snapshot_.mission_regions->size())
+  {
+    return vertices;
+  }
+  const auto & region = snapshot_.mission_regions->at(selection_->key.id);
+  AppendBoxTriangles(
+    &vertices, region.min_world, region.max_world, QColor(38, 198, 218), 0.18F);
   return vertices;
 }
 
@@ -663,13 +764,16 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
   float best_depth = std::numeric_limits<float>::infinity();
   QString description;
   QVector3D best_world;
+  EntityKey best_key;
+  std::size_t candidate_count = 0U;
 
-  auto consider = [&](const QVector3D & world, const QString & text) {
+  auto consider = [&](const QVector3D & world, const EntityKey & key, const QString & text) {
       QPointF projected;
       float depth = 0.0F;
       if (!ProjectToScreen(world, &projected, &depth)) {
         return;
       }
+      ++candidate_count;
       const double dx = projected.x() - screen_position.x();
       const double dy = projected.y() - screen_position.y();
       const double distance = std::sqrt(dx * dx + dy * dy);
@@ -679,11 +783,12 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
         best_distance = distance;
         best_depth = depth;
         best_world = world;
+        best_key = key;
         description = text;
       }
     };
 
-  if (drones_visible_ && snapshot_.drones) {
+  if (drone_render_layer_.IsVisible() && snapshot_.drones) {
     for (const auto & item : *snapshot_.drones) {
       const auto & drone = item.second;
       if (!drone.has_world_pose) {
@@ -691,8 +796,10 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
       }
       consider(
         drone.position,
-        QString("DRONE\nid: %1\ntracking: %2\nmap_epoch: %3\npose_revision: %4\n"
-                "x: %5\ny: %6\nz: %7\nyaw: %8 rad\nvisual: %9")
+        EntityKey{EntityType::Drone, drone.drone_id, drone.map_epoch, drone.drone_id},
+        QString(
+          "DRONE\nid: %1\ntracking: %2\nmap_epoch: %3\npose_revision: %4\n"
+          "x: %5\ny: %6\nz: %7\nyaw: %8 rad\nvisual: %9")
         .arg(drone.drone_id)
         .arg(TrackingName(drone.tracking_state))
         .arg(static_cast<qulonglong>(drone.map_epoch))
@@ -705,12 +812,16 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
     }
   }
 
-  if (keyframes_visible_ && snapshot_.keyframes) {
+  if (keyframe_render_layer_.IsVisible() && snapshot_.keyframes) {
     for (const auto & keyframe : *snapshot_.keyframes) {
       consider(
         keyframe.position,
-        QString("KEYFRAME MARKER\nmarker_id: %1\nnamespace: %2\n"
-                "x: %3\ny: %4\nz: %5")
+        EntityKey{
+          EntityType::Keyframe, 0U, 0U,
+          static_cast<std::uint64_t>(static_cast<std::uint32_t>(keyframe.marker_id))},
+        QString(
+          "KEYFRAME MARKER\nmarker_id: %1\nnamespace: %2\n"
+          "x: %3\ny: %4\nz: %5")
         .arg(keyframe.marker_id)
         .arg(QString::fromStdString(keyframe.marker_namespace))
         .arg(keyframe.position.x(), 0, 'f', 3)
@@ -719,7 +830,7 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
     }
   }
 
-  if (fiducials_visible_ && snapshot_.fiducials) {
+  if (fiducial_render_layer_.IsVisible() && snapshot_.fiducials) {
     for (const auto & fiducial : *snapshot_.fiducials) {
       QString tags;
       for (std::size_t index = 0; index < fiducial.tag_ids.size(); ++index) {
@@ -730,8 +841,12 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
       }
       consider(
         fiducial.position,
-        QString("FIDUCIAL OBJECT\nobject_id: %1\nshape: %2\ntags: [%3]\n"
-                "x: %4\ny: %5\nz: %6")
+        EntityKey{
+          EntityType::Fiducial, 0U, 0U,
+          static_cast<std::uint64_t>(static_cast<std::uint32_t>(fiducial.object_id))},
+        QString(
+          "FIDUCIAL OBJECT\nobject_id: %1\nshape: %2\ntags: [%3]\n"
+          "x: %4\ny: %5\nz: %6")
         .arg(fiducial.object_id)
         .arg(QString::fromStdString(fiducial.shape))
         .arg(tags)
@@ -741,14 +856,18 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
     }
   }
 
-  if (trajectories_visible_ && snapshot_.trajectories) {
+  if (trajectory_render_layer_.IsVisible() && snapshot_.trajectories) {
     for (const auto & item : *snapshot_.trajectories) {
       const auto & trajectory = item.second;
       for (const auto & sample : trajectory.samples_world) {
         consider(
           sample,
-          QString("TRAJECTORY\ndrone_id: %1\ntask_id: %2\ntrajectory_id: %3\n"
-                  "plan_revision: %4\nmap_revision: %5\nalignment_revision: %6")
+          EntityKey{
+            EntityType::Trajectory, trajectory.drone_id, 0U,
+            trajectory.plan_revision},
+          QString(
+            "TRAJECTORY\ndrone_id: %1\ntask_id: %2\ntrajectory_id: %3\n"
+            "plan_revision: %4\nmap_revision: %5\nalignment_revision: %6")
           .arg(trajectory.drone_id)
           .arg(QString::fromStdString(trajectory.task_id))
           .arg(QString::fromStdString(trajectory.trajectory_id))
@@ -759,10 +878,15 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
     }
   }
 
-  if (voxels_visible_ && snapshot_.voxels) {
+  if (voxel_render_layer_.IsVisible() && snapshot_.voxels) {
     for (const auto & voxel : *snapshot_.voxels) {
       consider(
         voxel.center_world,
+        EntityKey{
+          EntityType::Voxel, 0U, 0U,
+          static_cast<std::uint64_t>(voxel.ix) ^
+          (static_cast<std::uint64_t>(voxel.iy) << 21U) ^
+          (static_cast<std::uint64_t>(voxel.iz) << 42U)},
         QString("VOXEL\nindex: (%1, %2, %3)\nstate: %4\nscore: %5\nsize_m: %6")
         .arg(static_cast<qlonglong>(voxel.ix))
         .arg(static_cast<qlonglong>(voxel.iy))
@@ -773,15 +897,19 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
     }
   }
 
-  if (sparse_visible_ && snapshot_.sparse_points) {
+  if (sparse_render_layer_.IsVisible() && snapshot_.sparse_points) {
     for (const auto & point : *snapshot_.sparse_points) {
-      if (score_filter_enabled_ && point.score < score_threshold_) {
+      if (!SparsePointVisible(point.score, score_filter_enabled_, score_threshold_)) {
         continue;
       }
       consider(
         point.position,
-        QString("MAP POINT\nsource_index: %1\ndrone_id: %2\nmap_epoch: %3\n"
-                "score: %4\nx: %5\ny: %6\nz: %7")
+        EntityKey{
+          EntityType::MapPoint, point.drone_id, point.map_epoch,
+          point.source_index},
+        QString(
+          "MAP POINT\nsource_index: %1\ndrone_id: %2\nmap_epoch: %3\n"
+          "score: %4\nx: %5\ny: %6\nz: %7")
         .arg(static_cast<qulonglong>(point.source_index))
         .arg(point.drone_id)
         .arg(static_cast<qulonglong>(point.map_epoch))
@@ -793,16 +921,97 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
   }
 
   if (description.isEmpty()) {
-    selection_valid_ = false;
+    selection_.reset();
     selection_dirty_ = true;
+    qInfo().noquote() << "[GUI-SELECTION-CLEAR] reason=no_candidate candidates="
+                      << candidate_count;
     emit SelectionChanged("Sin selección");
   } else {
-    selection_valid_ = true;
-    selection_world_ = best_world;
+    selection_ = SelectedEntity{best_key, best_world, description, snapshot_.generation};
     selection_dirty_ = true;
+    qInfo().noquote() << "[GUI-PICK] type=" << static_cast<int>(best_key.type)
+                      << " id=" << best_key.id << " candidates=" << candidate_count;
     emit SelectionChanged(description);
   }
   update();
+}
+
+bool Scene3DWidget::SelectionStillExists(const EntityKey & key) const
+{
+  switch (key.type) {
+    case EntityType::MapPoint:
+      if (snapshot_.sparse_points) {
+        return std::any_of(
+          snapshot_.sparse_points->begin(), snapshot_.sparse_points->end(),
+          [&key](const SparsePoint & point) {
+            return point.drone_id == key.drone_id && point.map_epoch == key.map_epoch &&
+            point.source_index == key.id;
+          });
+      }
+      return false;
+    case EntityType::Drone:
+      return snapshot_.drones && snapshot_.drones->count(key.drone_id) > 0U;
+    case EntityType::Keyframe:
+      return snapshot_.keyframes && std::any_of(
+        snapshot_.keyframes->begin(), snapshot_.keyframes->end(),
+        [&key](const KeyframeVisual & keyframe) {
+          return static_cast<std::uint32_t>(keyframe.marker_id) == key.id;
+        });
+    case EntityType::Fiducial:
+      return snapshot_.fiducials && std::any_of(
+        snapshot_.fiducials->begin(), snapshot_.fiducials->end(),
+        [&key](const FiducialObject & fiducial) {
+          return static_cast<std::uint32_t>(fiducial.object_id) == key.id;
+        });
+    case EntityType::Trajectory:
+      return snapshot_.trajectories && snapshot_.trajectories->count(key.drone_id) > 0U;
+    case EntityType::Voxel:
+      return snapshot_.voxels != nullptr;
+    case EntityType::MissionRegion:
+      return snapshot_.mission_regions && key.id < snapshot_.mission_regions->size();
+  }
+  return false;
+}
+
+void Scene3DWidget::DrawEntityLabels()
+{
+  QPainter painter(this);
+  painter.setRenderHint(QPainter::TextAntialiasing);
+  painter.setPen(QColor(225, 232, 240));
+
+  if (drone_render_layer_.IsVisible() && snapshot_.drones) {
+    for (const auto & item : *snapshot_.drones) {
+      const DroneState & drone = item.second;
+      QPointF screen;
+      if (!drone.has_world_pose || !ProjectToScreen(drone.position, &screen)) {
+        continue;
+      }
+      painter.setPen(drone.lost_or_unavailable ? QColor(255, 183, 77) : QColor(225, 232, 240));
+      painter.drawText(screen + QPointF(7.0, -7.0), QString("D%1").arg(drone.drone_id));
+    }
+  }
+
+  if (fiducial_render_layer_.IsVisible() && snapshot_.fiducials) {
+    painter.setPen(QColor(255, 183, 77));
+    for (const auto & fiducial : *snapshot_.fiducials) {
+      QPointF screen;
+      if (ProjectToScreen(fiducial.position, &screen)) {
+        painter.drawText(screen + QPointF(7.0, -7.0), QString("F%1").arg(fiducial.object_id));
+      }
+    }
+  }
+  if (selection_ && selection_->key.type == EntityType::MissionRegion &&
+    snapshot_.mission_regions && selection_->key.id < snapshot_.mission_regions->size())
+  {
+    const auto & region = snapshot_.mission_regions->at(selection_->key.id);
+    QPointF screen;
+    if (ProjectToScreen(selection_->world_position, &screen)) {
+      painter.setPen(QColor(38, 198, 218));
+      painter.drawText(screen + QPointF(8.0, -8.0),
+        QString("Nivel %1 - %2").arg(region.level_index).arg(
+          QString::fromStdString(region.side)));
+    }
+  }
 }
 
 bool Scene3DWidget::ProjectToScreen(
@@ -865,13 +1074,13 @@ void Scene3DWidget::AppendBoxEdges(
   const QVector3D half = size * 0.5F;
   std::array<QVector3D, 8> corners = {
     QVector3D(-half.x(), -half.y(), -half.z()),
-    QVector3D( half.x(), -half.y(), -half.z()),
-    QVector3D( half.x(),  half.y(), -half.z()),
-    QVector3D(-half.x(),  half.y(), -half.z()),
-    QVector3D(-half.x(), -half.y(),  half.z()),
-    QVector3D( half.x(), -half.y(),  half.z()),
-    QVector3D( half.x(),  half.y(),  half.z()),
-    QVector3D(-half.x(),  half.y(),  half.z())};
+    QVector3D(half.x(), -half.y(), -half.z()),
+    QVector3D(half.x(), half.y(), -half.z()),
+    QVector3D(-half.x(), half.y(), -half.z()),
+    QVector3D(-half.x(), -half.y(), half.z()),
+    QVector3D(half.x(), -half.y(), half.z()),
+    QVector3D(half.x(), half.y(), half.z()),
+    QVector3D(-half.x(), half.y(), half.z())};
   for (auto & corner : corners) {
     corner = center + orientation.rotatedVector(corner);
   }
@@ -919,13 +1128,38 @@ void Scene3DWidget::AppendCubeTriangles(
   }
 }
 
-QColor Scene3DWidget::ScoreColor(float score)
+void Scene3DWidget::AppendBoxTriangles(
+  std::vector<Vertex> * vertices,
+  const QVector3D & min,
+  const QVector3D & max,
+  const QColor & color,
+  float alpha)
 {
-  const float normalized = std::clamp(score, 0.0F, 1.0F);
-  if (normalized <= 0.5F) {
-    return QColor::fromRgbF(1.0, normalized * 2.0, 0.0, 1.0);
+  if (vertices == nullptr) {
+    return;
   }
-  return QColor::fromRgbF(2.0 * (1.0 - normalized), 1.0, 0.0, 1.0);
+  const std::array<QVector3D, 8> p = {
+    QVector3D(min.x(), min.y(), min.z()), QVector3D(max.x(), min.y(), min.z()),
+    QVector3D(max.x(), max.y(), min.z()), QVector3D(min.x(), max.y(), min.z()),
+    QVector3D(min.x(), min.y(), max.z()), QVector3D(max.x(), min.y(), max.z()),
+    QVector3D(max.x(), max.y(), max.z()), QVector3D(min.x(), max.y(), max.z())};
+  static constexpr std::array<std::array<int, 3>, 12> triangles = {{
+    {{0, 2, 1}}, {{0, 3, 2}}, {{4, 5, 6}}, {{4, 6, 7}},
+    {{0, 1, 5}}, {{0, 5, 4}}, {{1, 2, 6}}, {{1, 6, 5}},
+    {{2, 3, 7}}, {{2, 7, 6}}, {{3, 0, 4}}, {{3, 4, 7}}}};
+  const Vertex base{
+    0.0F, 0.0F, 0.0F, static_cast<float>(color.redF()),
+    static_cast<float>(color.greenF()), static_cast<float>(color.blueF()),
+    std::clamp(alpha, 0.0F, 1.0F)};
+  for (const auto & triangle : triangles) {
+    for (const int index : triangle) {
+      Vertex vertex = base;
+      vertex.x = p[index].x();
+      vertex.y = p[index].y();
+      vertex.z = p[index].z();
+      vertices->push_back(vertex);
+    }
+  }
 }
 
 }  // namespace multidron_gui_lib

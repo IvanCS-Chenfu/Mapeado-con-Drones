@@ -53,13 +53,15 @@ Fase 6 diferencia `task_id` y `trajectory_id`, usa trayectorias cortas y replann
 ## Archivos permitidos a modificar
 
 ```text
-src/servidor/multidron_gui/src/render/trajectory_layer.*
-src/servidor/multidron_gui/src/ros_data_bridge.*
-src/servidor/multidron_gui/src/gui_data_model.*
-src/servidor/orbslam3_server/              # solo si es propietario de telemetría de reservas/trayectorias
-src/dron/dron_individual/                  # solo reabriendo Fase 6 si el plan vigente solo existe embarcado
-src/servidor/orbslam3_msgs/
-src/dron/orbslam3_msgs/
+src/servidor/multidron_gui_lib/src/render/trajectory_layer.*
+src/servidor/multidron_gui_lib/src/ros_data_bridge.*
+src/servidor/multidron_gui_lib/src/gui_data_model.*
+src/servidor/task_server/                  # telemetría autoritativa de misión/reservas
+src/servidor/task_lib/
+src/servidor/mission_msgs/
+src/dron/task_manager/                     # plan vigente embarcado
+src/dron/task_manager_lib/
+src/dron/mission_msgs/                     # réplica exacta de interfaces
 ```
 
 Las rutas nuevas son de contrato. Antes de crearlas, comprobar el árbol posterior a Fases 2–6. Si existe un componente equivalente, reutilizarlo en lugar de duplicarlo.
@@ -130,13 +132,14 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
 ```
 
 Si se reabre Fase 6 para telemetría, compilar también los productores/interfases realmente modificados.

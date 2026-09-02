@@ -47,20 +47,22 @@ Fase 6 documenta `GO_TO(x,y,z,yaw)` para futura GUI, pero la interfaz exacta dep
 
 - Todos los objetivos son absolutos en `world`.
 - Seleccionar un MapPoint no rellena/envía el objetivo automáticamente.
-- `GO_TO` entra por TaskManager; nunca `TrayAction` directo.
+- `GO_TO` entra por `task_server`; nunca por `TrayAction` directo.
 - No introducir preempción nueva.
-- Validar `flight_bounds`/alcanzabilidad en el backend, no confiar solo en GUI.
+- Validar `hard_flight_volume`/alcanzabilidad en el backend, no confiar solo en GUI.
 - La GUI puede hacer validación sintáctica, pero servidor sigue siendo autoridad de aceptación.
 
 ## Archivos permitidos a modificar
 
 ```text
-src/servidor/multidron_gui/src/widgets/task_creation_panel.*
-src/servidor/multidron_gui/src/ros_command_bridge.*
-src/servidor/multidron_gui/include/multidron_gui/...
-src/servidor/orbslam3_server/              # solo integración de endpoint real si Fase 6 lo dejó incompleto
-src/servidor/orbslam3_msgs/
-src/dron/orbslam3_msgs/
+src/servidor/multidron_gui_lib/src/widgets/task_creation_panel.*
+src/servidor/multidron_gui_lib/src/ros_command_bridge.*
+src/servidor/multidron_gui_lib/include/multidron_gui_lib/...
+src/servidor/task_server/                  # endpoint autoritativo de GO_TO
+src/servidor/task_lib/
+src/servidor/mission_msgs/
+src/dron/task_manager/
+src/dron/mission_msgs/                     # réplica exacta de interfaces
 ```
 
 Las rutas nuevas son de contrato. Antes de crearlas, comprobar el árbol posterior a Fases 2–6. Si existe un componente equivalente, reutilizarlo en lugar de duplicarlo.
@@ -92,8 +94,8 @@ Además:
 
 ```text
 GO_TO Task contract de Fase 6
-TaskManager / endpoint de submit
-flight_bounds / validación world
+task_server / endpoint de submit
+hard_flight_volume / validación world
 TaskCreationPanel
 RosCommandBridge
 feedback/ACK/result de task submission
@@ -133,13 +135,16 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui orbslam3_server orbslam3_msgs
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor orbslam3_msgs
+./codex/herramientas/build_selected_packages.sh --group servidor orbslam3_server
 ```
 
 Ajustar al conjunto real de paquetes modificados; no tocar Dron si el endpoint ya estaba completo.
@@ -158,7 +163,7 @@ Campos vacíos, NaN/no numérico o dron inexistente: rechazo local o backend exp
 
 ### Prueba 3 — Fuera de límites
 
-Enviar pose fuera de `flight_bounds`. El backend debe rechazar/fallar con razón de Fase 6; la GUI no puede obligar al dron a ejecutarla.
+Enviar pose fuera de `hard_flight_volume`. El backend debe rechazar/fallar con razón de Fase 6; la GUI no puede obligar al dron a ejecutarla.
 
 ### Prueba 4 — GO_TO mientras hay tarea RUNNING
 
@@ -178,7 +183,7 @@ El mecanismo exacto para arrancar `multidron_gui` junto a ese launch se fija en 
 ## Patrones de reducción de logs
 
 ```text
-GUI-GO-TO|GO-TO-TASK|TASK-STATE|TASK-ALLOC|TRAJ-CONFLICT|LOCAL-OBSTACLE|flight_bounds|task_id|ERROR|FATAL|Segmentation fault|Killed
+GUI-GO-TO|GO-TO-TASK|TASK-STATE|TASK-ALLOC|TRAJ-CONFLICT|LOCAL-OBSTACLE|hard_flight_volume|outside_hard_flight_volume|task_id|ERROR|FATAL|Segmentation fault|Killed
 ```
 
 Los logs completos solo alimentan reductores. Si falta evidencia, regenerar el reducido con patrones más precisos; no abrir el log completo directamente.
@@ -187,7 +192,7 @@ Los logs completos solo alimentan reductores. Si falta evidencia, regenerar el r
 
 La subfase se considera `CONSEGUIDA` solo si:
 
-1. `GO_TO` se envía desde GUI y llega al TaskManager real.
+1. `GO_TO` se envía desde GUI y llega a `task_server`.
 2. Objetivo usa `(x,y,z,yaw)` en `world`.
 3. Planner/obstacle avoidance/reservas siguen activos.
 4. ACK/rechazo y resultado son visibles sin bloquear UI.
@@ -200,7 +205,7 @@ Además, todo build requerido debe devolver `0`, todas las pruebas obligatorias 
 
 - `PARCIAL` si la GUI envía la tarea pero no muestra ACK/rechazo.
 - `PARCIAL` si `GO_TO` funciona solo cuando no hay otras tareas y contradice la cola acordada.
-- `NO CONSEGUIDA` si se salta TaskManager/reservas.
+- `NO CONSEGUIDA` si se salta `task_server`/`task_manager` o las reservas.
 
 - `NO CONSEGUIDA` si no compila, una prueba obligatoria no se ejecuta, falta evidencia crítica o el comportamiento contradice el objetivo.
 - `BLOQUEADA` solo ante dependencia/información externa realmente irresoluble con cambios mínimos o porque una fase anterior debe corregirse antes de continuar.

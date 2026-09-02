@@ -44,6 +44,7 @@ private:
   void BuildInspectorDock();
   void ApplyDarkTheme();
   void UpdateDroneCards(const GuiSnapshot & snapshot);
+  void UpdateMissionRegions(const GuiSnapshot & snapshot);
   DroneCard CreateDroneCard(std::uint32_t drone_id);
 
   std::shared_ptr<GuiDataModel> model_;
@@ -53,6 +54,9 @@ private:
   QLabel * inspector_label_ = nullptr;
   QLabel * counters_label_ = nullptr;
   QMap<std::uint32_t, DroneCard> drone_cards_;
+  QWidget * mission_regions_container_ = nullptr;
+  QVBoxLayout * mission_regions_layout_ = nullptr;
+  const void * mission_regions_identity_ = nullptr;
 };
 
 }  // namespace multidron_gui_lib

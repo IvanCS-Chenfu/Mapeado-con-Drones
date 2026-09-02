@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>task_server</name>
+  <version>0.1.0</version>
+  <description>Coordinador ROS 2 de misión y registro multi-dron.</description>
+  <maintainer email="ivancalvosantos2003@uma.es">Ivan Calvo Santos</maintainer>
+  <license>GPL-3.0-only</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>ament_index_cpp</depend>
+  <depend>mission_msgs</depend>
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+  <depend>task_lib</depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

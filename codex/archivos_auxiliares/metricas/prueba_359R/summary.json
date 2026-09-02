@@ -1,0 +1,196 @@
+{
+  "drones": [
+    {
+      "angular_velocity_error_radps": {
+        "count": 3479,
+        "mae": 0.057429705969671216,
+        "max": 0.17834454199286853,
+        "p95": 0.17834453979274487,
+        "rmse": 0.10110574656821421
+      },
+      "authoritative_samples": 0,
+      "drone_id": 1,
+      "epochs_aligned": [
+        0
+      ],
+      "frequency_hz": 48.752453041771794,
+      "gt_angular_samples": 3480,
+      "gt_fallback_ratio": 0.0,
+      "gt_fallback_samples": 0,
+      "gt_forced_samples": 3479,
+      "interarrival_sec": {
+        "count": 3478,
+        "mae": 0.02051178838412881,
+        "max": 0.6199999999999903,
+        "p95": 0.020000000000003126,
+        "rmse": 0.025375840774191548
+      },
+      "jitter_sec": {
+        "count": 3478,
+        "mae": 0.0005117883841311592,
+        "max": 0.5999999999999908,
+        "p95": 3.552713678800501e-15,
+        "rmse": 0.014948637383787544
+      },
+      "latency_definition": "relative_to_first_sample_per_epoch",
+      "latency_sec": {
+        "count": 3479,
+        "mae": 0.353555451730573,
+        "max": 1.200026512145996,
+        "p95": 0.5400264263153076,
+        "rmse": 0.3863791528761872
+      },
+      "linear_velocity_error_mps": {
+        "count": 3479,
+        "mae": 0.004904578236083099,
+        "max": 1.563203292226601,
+        "p95": 0.009799990392099651,
+        "rmse": 0.0286986236042586
+      },
+      "max_skew_sec": 0.0,
+      "o_angle_rad": {
+        "count": 3479,
+        "mae": 1.333293554702151e-09,
+        "max": 2.9802322387695312e-08,
+        "p95": 2.1073424255447017e-08,
+        "rmse": 5.453632344351768e-09
+      },
+      "o_position_m": {
+        "count": 3479,
+        "mae": 1.2757840309320303e-22,
+        "max": 6.776263578034403e-21,
+        "p95": 0.0,
+        "rmse": 8.546678502815861e-22
+      },
+      "o_yaw_rad": {
+        "count": 3479,
+        "mae": 0.0,
+        "max": 0.0,
+        "p95": 0.0,
+        "rmse": 0.0
+      },
+      "orb_samples": 0,
+      "paired_samples": 3479,
+      "reference_switches": 11,
+      "revision_changes": 7,
+      "unpaired_samples": 0,
+      "w_angle_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_position_m": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_yaw_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      }
+    },
+    {
+      "angular_velocity_error_radps": {
+        "count": 3119,
+        "mae": 0.11683917209636022,
+        "max": 0.1783508847815736,
+        "p95": 0.17835087954818504,
+        "rmse": 0.14434663785160687
+      },
+      "authoritative_samples": 0,
+      "drone_id": 2,
+      "epochs_aligned": [
+        0
+      ],
+      "frequency_hz": 48.59725685785536,
+      "gt_angular_samples": 3122,
+      "gt_fallback_ratio": 0.0,
+      "gt_fallback_samples": 0,
+      "gt_forced_samples": 3119,
+      "interarrival_sec": {
+        "count": 3118,
+        "mae": 0.02057729313662604,
+        "max": 0.6400000000000006,
+        "p95": 0.020000000000003126,
+        "rmse": 0.026075333700295848
+      },
+      "jitter_sec": {
+        "count": 3118,
+        "mae": 0.0005772931366286139,
+        "max": 0.620000000000001,
+        "p95": 3.552713678800501e-15,
+        "rmse": 0.01602595713574522
+      },
+      "latency_definition": "relative_to_first_sample_per_epoch",
+      "latency_sec": {
+        "count": 3119,
+        "mae": 0.08498957066170564,
+        "max": 0.8800144195556641,
+        "p95": 0.2999896049499512,
+        "rmse": 0.14985570507455956
+      },
+      "linear_velocity_error_mps": {
+        "count": 3119,
+        "mae": 0.008798408481590215,
+        "max": 1.5632031561796857,
+        "p95": 0.009799990664505433,
+        "rmse": 0.03080130149674955
+      },
+      "max_skew_sec": 0.020000000000010232,
+      "o_angle_rad": {
+        "count": 3119,
+        "mae": 1.1947298124200637e-06,
+        "max": 0.00012837263979693266,
+        "p95": 2.1073424255447017e-08,
+        "rmse": 1.0748907515096904e-05
+      },
+      "o_position_m": {
+        "count": 3119,
+        "mae": 8.2592525591196e-08,
+        "max": 8.086109203004324e-06,
+        "p95": 1.1102230246251565e-16,
+        "rmse": 7.21487554171804e-07
+      },
+      "o_yaw_rad": {
+        "count": 3119,
+        "mae": 4.506371613011802e-10,
+        "max": 3.482893840001111e-08,
+        "p95": 0.0,
+        "rmse": 3.812881192829842e-09
+      },
+      "orb_samples": 0,
+      "paired_samples": 3119,
+      "reference_switches": 1,
+      "revision_changes": 1,
+      "unpaired_samples": 0,
+      "w_angle_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_position_m": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_yaw_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      }
+    }
+  ]
+}

@@ -158,7 +158,9 @@ En paralelo, 8L crea una `SparseDenseCorrectionDatabase` para refinar la posici�
 
 La estrategia preferida es una sola misión sparse que genera DenseKF oportunistas mientras los drones se mueven. 8E/8G miden si esas nubes son suficientemente útiles. Si el movimiento produce geometría muy mala, no se inventan MapPoints ni se fuerza un acoplamiento: la arquitectura sigue funcionando con sparse primero y tareas estacionarias dense posteriores.
 
-Después de la primera misión, 8N analiza ROI/calidad y genera **necesidades geométricas**; el TaskManager de Fase 6 asigna drones. No se repite todo el entorno por defecto.
+Después de la primera misión, 8N analiza ROI/calidad y genera **necesidades
+geométricas**; `task_server` de Fase 6 asigna drones. No se repite todo el
+entorno por defecto.
 
 Casos correctivos:
 
@@ -192,7 +194,7 @@ No existe una subfase tardía para “hacerlo multi-dron”: la identidad comple
 | 8K | Grafo sparse+dense | constraints dense usando optimizador Fase 3 |
 | 8L | Dense→MapPoints | DB de correcciones derivadas consumida por GlobalMapBuilder |
 | 8M | Revalidación | relaciones inter-KF coherentes tras revisiones |
-| 8N | Coverage/quality | necesidades de densificación/recaptura para TaskManager |
+| 8N | Coverage/quality | necesidades de densificación/recaptura para `task_server` |
 | 8O | Captura HQ | varios pares estacionarios desde topics |
 | 8P | Integración HQ | recaptura DenseKF + patches para zonas sin KF |
 | 8Q | Planificación | sparse+dense+occupancy + depth local |

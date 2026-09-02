@@ -12,7 +12,8 @@ GuiDataModel::GuiDataModel()
   fiducials_(std::make_shared<const FiducialVector>()),
   trajectories_(std::make_shared<const TrajectoryMap>()),
   voxels_(std::make_shared<const VoxelVector>()),
-  tasks_(std::make_shared<const TaskStateMap>())
+  tasks_(std::make_shared<const TaskStateMap>()),
+  mission_regions_(std::make_shared<const MissionRegionVector>())
 {
 }
 
@@ -28,6 +29,7 @@ GuiSnapshot GuiDataModel::Snapshot() const
   snapshot.trajectories = trajectories_;
   snapshot.voxels = voxels_;
   snapshot.tasks = tasks_;
+  snapshot.mission_regions = mission_regions_;
   return snapshot;
 }
 
@@ -47,13 +49,44 @@ void GuiDataModel::SetKeyframes(KeyframeVector keyframes)
   BumpGenerationLocked();
 }
 
-void GuiDataModel::UpdateDrone(const DroneState & drone)
+bool GuiDataModel::UpdateDrone(const DroneState & drone)
 {
   std::lock_guard<std::mutex> lock(mutex_);
+  const auto current = drones_->find(drone.drone_id);
+  if (current != drones_->end() && !IsNewerDroneState(drone, current->second)) {
+    return false;
+  }
   auto next = std::make_shared<DroneStateMap>(*drones_);
   (*next)[drone.drone_id] = drone;
   drones_ = std::move(next);
   BumpGenerationLocked();
+  return true;
+}
+
+std::size_t GuiDataModel::MarkStaleDrones(
+  std::int64_t now_steady_ns, std::int64_t timeout_ns)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+  std::shared_ptr<DroneStateMap> next;
+  std::size_t changed = 0;
+  for (const auto & item : *drones_) {
+    const DroneState & drone = item.second;
+    if (drone.lost_or_unavailable || drone.received_steady_ns <= 0 ||
+      now_steady_ns - drone.received_steady_ns <= timeout_ns)
+    {
+      continue;
+    }
+    if (!next) {
+      next = std::make_shared<DroneStateMap>(*drones_);
+    }
+    (*next)[item.first].lost_or_unavailable = true;
+    ++changed;
+  }
+  if (next) {
+    drones_ = std::move(next);
+    BumpGenerationLocked();
+  }
+  return changed;
 }
 
 void GuiDataModel::SetFiducials(FiducialVector fiducials)
@@ -109,9 +142,32 @@ void GuiDataModel::ClearTask(std::uint32_t drone_id)
   BumpGenerationLocked();
 }
 
+void GuiDataModel::SetMissionRegions(MissionRegionVector regions)
+{
+  auto immutable = std::make_shared<const MissionRegionVector>(std::move(regions));
+  std::lock_guard<std::mutex> lock(mutex_);
+  mission_regions_ = std::move(immutable);
+  BumpGenerationLocked();
+}
+
 void GuiDataModel::BumpGenerationLocked()
 {
   ++generation_;
+}
+
+bool GuiDataModel::IsNewerDroneState(
+  const DroneState & incoming, const DroneState & current)
+{
+  if (incoming.map_epoch != current.map_epoch) {
+    return incoming.map_epoch > current.map_epoch;
+  }
+  if (incoming.sample_sequence != current.sample_sequence) {
+    return incoming.sample_sequence > current.sample_sequence;
+  }
+  if (incoming.pose_revision != current.pose_revision) {
+    return incoming.pose_revision > current.pose_revision;
+  }
+  return incoming.received_steady_ns > current.received_steady_ns;
 }
 
 }  // namespace multidron_gui_lib

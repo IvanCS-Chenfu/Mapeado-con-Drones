@@ -19,7 +19,8 @@ public:
 
   void SetSparsePoints(SparsePointVector points);
   void SetKeyframes(KeyframeVector keyframes);
-  void UpdateDrone(const DroneState & drone);
+  bool UpdateDrone(const DroneState & drone);
+  std::size_t MarkStaleDrones(std::int64_t now_steady_ns, std::int64_t timeout_ns);
   void SetFiducials(FiducialVector fiducials);
 
   // Slots de integración para Fase 6. No existe subscriber ROS de estos datos
@@ -29,9 +30,11 @@ public:
   void SetVoxels(VoxelVector voxels);
   void UpdateTask(const TaskVisual & task);
   void ClearTask(std::uint32_t drone_id);
+  void SetMissionRegions(MissionRegionVector regions);
 
 private:
   void BumpGenerationLocked();
+  static bool IsNewerDroneState(const DroneState & incoming, const DroneState & current);
 
   mutable std::mutex mutex_;
   std::uint64_t generation_ = 0;
@@ -43,6 +46,7 @@ private:
   std::shared_ptr<const TrajectoryMap> trajectories_;
   std::shared_ptr<const VoxelVector> voxels_;
   std::shared_ptr<const TaskStateMap> tasks_;
+  std::shared_ptr<const MissionRegionVector> mission_regions_;
 };
 
 }  // namespace multidron_gui_lib

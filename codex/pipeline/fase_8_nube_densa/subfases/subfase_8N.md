@@ -43,7 +43,8 @@ Además, leer específicamente:
 ```text
 codex/pipeline/fase_6_tareas_trayectorias/pipeline_fase_6_RESUMEN.md
 ```
-Localizar `TaskManager`/Mission Manager y contratos reales de task submission posteriores a Fase 6.
+Localizar `task_server`, `task_lib` y los contratos reales de task submission
+en `mission_msgs` posteriores a Fase 6.
 
 
 ## Diagnóstico de partida
@@ -84,7 +85,7 @@ OccupancyGrid3D
 DenseFusionMap
 DenseQualityMetrics
 DenseKeyFrameDatabase
-TaskManager / MissionManager de Fase 6
+task_server / task_lib / mission_msgs de Fase 6
 ```
 Nuevos componentes sugeridos:
 ```text
@@ -142,11 +143,10 @@ No se aceptan offsets, deformaciones, filtros visuales o copias de estado cuyo �
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh dense_map_multi dense_map_server <paquete_tareas_real> multidron_gui
+./codex/herramientas/build_selected_packages.sh dense_map_multi dense_map_server task_server multidron_gui
 ```
-Sustituir `<paquete_tareas_real>` tras localizar el paquete creado en Fase 6.
 
-Si la separación de Fase 2 está ya ejecutada, respetar sus builds por grupo (`dron`, `servidor`, `simulacion`) y la sincronización de las dos copias de `orbslam3_msgs`. Los comandos listados son el conjunto lógico esperado; el implementador debe usar el helper vigente y registrar en historial el comando real.
+Si la separación de Fase 2 está ya ejecutada, respetar sus builds por grupo (`dron`, `servidor`, `simulacion`) y la sincronización de las dos copias de `orbslam3_msgs` y `mission_msgs`. Los comandos listados son el conjunto lógico esperado; el implementador debe usar el helper vigente y registrar en historial el comando real.
 
 
 ## Pruebas Gazebo requeridas
@@ -165,7 +165,8 @@ Introducir una zona con fusión/registro de baja calidad y comprobar que se clas
 
 ### Prueba 4 — Ownership
 
-Verificar que `dense_map_multi` no elige `drone_id`; el TaskManager real recibe la necesidad y hace la asignación.
+Verificar que `dense_map_multi` no elige `drone_id`; `task_server` recibe la
+necesidad y hace la asignación.
 
 No arrancar Gazebo artificialmente para una prueba puramente unitaria/de componente. Cuando la subfase necesite integración visual, temporal o multi-nodo, usar `run_simulation.sh` y registrar el comando exacto solo en el historial real.
 
@@ -186,7 +187,7 @@ La subfase se considera `CONSEGUIDA` solo si:
 1. El analizador detecta huecos/zonas malas con datos del mapa, no GT.
 2. Las necesidades se agrupan en regiones útiles y no explotan en miles de microtareas.
 3. Un DenseKF BAD produce recaptura específica; una zona sin KF produce densificación de región.
-4. La asignación de drones permanece en Fase 6/TaskManager.
+4. La asignación de drones permanece en `task_server` de Fase 6.
 5. GUI puede inspeccionar el motivo/calidad si está conectada.
 
 

@@ -8,6 +8,7 @@
 #include <QMatrix4x4>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -137,10 +138,15 @@ RosDataBridge::RosDataBridge(
     declare_parameter<std::string>("navigation_topic_suffix", "orbslam/navigation_state");
   const std::string fiducial_config_path =
     declare_parameter<std::string>("fiducial_config_path", "");
+  const double stale_timeout_sec = declare_parameter<double>("drone_stale_timeout_sec", 1.0);
 
   if (drone_count <= 0) {
     throw std::invalid_argument("drone_count debe ser positivo");
   }
+  if (!std::isfinite(stale_timeout_sec) || stale_timeout_sec <= 0.0) {
+    throw std::invalid_argument("drone_stale_timeout_sec debe ser positivo y finito");
+  }
+  stale_timeout_ns_ = static_cast<std::int64_t>(stale_timeout_sec * 1e9);
 
   rclcpp::QoS map_qos(rclcpp::KeepLast(1));
   map_qos.reliable().transient_local();
@@ -150,6 +156,9 @@ RosDataBridge::RosDataBridge(
   keyframe_subscription_ = create_subscription<visualization_msgs::msg::MarkerArray>(
     keyframes_topic_, map_qos,
     std::bind(&RosDataBridge::OnKeyframes, this, std::placeholders::_1));
+  mission_subscription_ = create_subscription<mission_msgs::msg::MissionGeometry>(
+    "/mission/geometry", map_qos,
+    std::bind(&RosDataBridge::OnMissionGeometry, this, std::placeholders::_1));
 
   for (std::int64_t drone_id = 1; drone_id <= drone_count; ++drone_id) {
     std::string suffix = navigation_suffix;
@@ -177,10 +186,43 @@ RosDataBridge::RosDataBridge(
       "[GUI-FIDUCIALS] fiducial_config_path vacio; FiducialLayer queda vacia");
   }
 
+  stale_timer_ = create_wall_timer(
+    std::chrono::milliseconds(200), std::bind(&RosDataBridge::CheckStaleDrones, this));
+
   RCLCPP_INFO(
     get_logger(),
-    "[GUI-ROS-READY] sparse=%s keyframes=%s drones=%ld future_phase6_topics=none",
+    "[GUI-ROS-READY] sparse=%s keyframes=%s mission=/mission/geometry drones=%ld",
     sparse_topic_.c_str(), keyframes_topic_.c_str(), drone_count);
+}
+
+void RosDataBridge::OnMissionGeometry(
+  mission_msgs::msg::MissionGeometry::ConstSharedPtr geometry)
+{
+  if (!geometry) {
+    return;
+  }
+  MissionRegionVector regions;
+  regions.reserve(geometry->regions.size());
+  for (const auto & source : geometry->regions) {
+    MissionRegionVisual region;
+    region.region_id = source.region_id;
+    region.level_index = source.level_index;
+    switch (source.side) {
+      case mission_msgs::msg::BaseSubRoi::SIDE_AB: region.side = "AB"; break;
+      case mission_msgs::msg::BaseSubRoi::SIDE_BC: region.side = "BC"; break;
+      case mission_msgs::msg::BaseSubRoi::SIDE_CD: region.side = "CD"; break;
+      case mission_msgs::msg::BaseSubRoi::SIDE_DA: region.side = "DA"; break;
+      default: region.side = "?"; break;
+    }
+    region.min_world = ToVector(source.bounds.min);
+    region.max_world = ToVector(source.bounds.max);
+    regions.push_back(std::move(region));
+  }
+  const auto count = regions.size();
+  model_->SetMissionRegions(std::move(regions));
+  RCLCPP_INFO(get_logger(),
+    "[GUI-MISSION-GEOMETRY] mission=%s revision=%lu regions=%zu assigned=false",
+    geometry->mission_id.c_str(), geometry->config_revision, count);
 }
 
 void RosDataBridge::OnSparseCloud(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud)
@@ -202,6 +244,8 @@ void RosDataBridge::OnSparseCloud(sensor_msgs::msg::PointCloud2::ConstSharedPtr 
   const auto drone_field = FindField(*cloud, "drone_id");
   const auto epoch_low_field = FindField(*cloud, "map_epoch_low");
   const auto epoch_high_field = FindField(*cloud, "map_epoch_high");
+  const auto mp_id_low_field = FindField(*cloud, "local_mp_id_low");
+  const auto mp_id_high_field = FindField(*cloud, "local_mp_id_high");
 
   if (!x_field || !y_field || !z_field || cloud->point_step == 0U) {
     RCLCPP_ERROR_THROTTLE(
@@ -266,11 +310,35 @@ void RosDataBridge::OnSparseCloud(sensor_msgs::msg::PointCloud2::ConstSharedPtr 
         *cloud, base, epoch_high_field, sensor_msgs::msg::PointField::UINT32, &epoch_high);
       point.map_epoch = static_cast<std::uint64_t>(epoch_low) |
         (static_cast<std::uint64_t>(epoch_high) << 32U);
+      std::uint32_t mp_id_low = 0;
+      std::uint32_t mp_id_high = 0;
+      if (ReadScalar(
+          *cloud, base, mp_id_low_field, sensor_msgs::msg::PointField::UINT32,
+          &mp_id_low) &&
+        ReadScalar(
+          *cloud, base, mp_id_high_field, sensor_msgs::msg::PointField::UINT32,
+          &mp_id_high))
+      {
+        point.source_index = static_cast<std::uint64_t>(mp_id_low) |
+          (static_cast<std::uint64_t>(mp_id_high) << 32U);
+      }
       parsed.push_back(std::move(point));
     }
   }
 
+  float score_min = 1.0F;
+  float score_max = 0.0F;
+  for (const auto & point : parsed) {
+    score_min = std::min(score_min, point.score);
+    score_max = std::max(score_max, point.score);
+  }
+  const std::size_t count = parsed.size();
   model_->SetSparsePoints(std::move(parsed));
+  RCLCPP_INFO_THROTTLE(
+    get_logger(), *get_clock(), 2000,
+    "[GUI-SPARSE-UPDATE] points=%zu score_min=%.4f score_max=%.4f "
+    "color_source=score identity=drone_epoch_local_mp",
+    count, score_min, score_max);
 }
 
 void RosDataBridge::OnKeyframes(
@@ -316,7 +384,11 @@ void RosDataBridge::OnKeyframes(
       snapshot.push_back(item.second);
     }
   }
+  const std::size_t count = snapshot.size();
   model_->SetKeyframes(std::move(snapshot));
+  RCLCPP_INFO_THROTTLE(
+    get_logger(), *get_clock(), 2000,
+    "[GUI-KF-UPDATE] markers=%zu frame=world", count);
 }
 
 void RosDataBridge::OnNavigationState(
@@ -345,6 +417,8 @@ void RosDataBridge::OnNavigationState(
     output.tracking_state = state->tracking_state;
     output.pose_source = state->pose_source;
     output.global_status = state->global_status;
+    output.received_steady_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      std::chrono::steady_clock::now().time_since_epoch()).count();
 
     // Regla F7: la escena está en world y nunca usa GT como fuente funcional.
     // Si el mensaje vigente procede del fallback GT temporal de Fase 5, se conserva
@@ -361,9 +435,42 @@ void RosDataBridge::OnNavigationState(
       output.lost_or_unavailable = true;
     }
 
+    const auto current = drone_cache_.find(drone_id);
+    const bool newer = current == drone_cache_.end() ||
+      output.map_epoch > current->second.map_epoch ||
+      (output.map_epoch == current->second.map_epoch &&
+      output.sample_sequence > current->second.sample_sequence) ||
+      (output.map_epoch == current->second.map_epoch &&
+      output.sample_sequence == current->second.sample_sequence &&
+      output.pose_revision >= current->second.pose_revision);
+    if (!newer) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 2000,
+        "[GUI-DATA-STALE] kind=navigation drone_id=%u incoming_sequence=%lu current_sequence=%lu",
+        drone_id, state->sample_sequence, current->second.sample_sequence);
+      return;
+    }
     drone_cache_[drone_id] = output;
   }
-  model_->UpdateDrone(output);
+  (void)model_->UpdateDrone(output);
+  RCLCPP_INFO_THROTTLE(
+    get_logger(), *get_clock(), 2000,
+    "[GUI-DRONE-POSE] drone_id=%u epoch=%lu pose_revision=%lu available=%s stale=%s",
+    output.drone_id, output.map_epoch, output.pose_revision,
+    output.has_world_pose ? "true" : "false",
+    output.lost_or_unavailable ? "true" : "false");
+}
+
+void RosDataBridge::CheckStaleDrones()
+{
+  const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::steady_clock::now().time_since_epoch()).count();
+  const std::size_t changed = model_->MarkStaleDrones(now_ns, stale_timeout_ns_);
+  if (changed > 0U) {
+    RCLCPP_WARN(
+      get_logger(), "[GUI-DATA-STALE] kind=navigation changed=%zu timeout_ms=%ld",
+      changed, static_cast<long>(stale_timeout_ns_ / 1000000LL));
+  }
 }
 
 void RosDataBridge::LoadFiducialsFromConfig(const std::string & path)
@@ -379,7 +486,7 @@ void RosDataBridge::LoadFiducialsFromConfig(const std::string & path)
   const std::size_t count = objects.size();
   model_->SetFiducials(std::move(objects));
   RCLCPP_INFO(
-    get_logger(), "[GUI-FIDUCIALS-READY] path=%s objects=%zu",
+    get_logger(), "[GUI-FIDUCIAL-UPDATE] path=%s objects=%zu frame=world",
     path.c_str(), count);
 }
 

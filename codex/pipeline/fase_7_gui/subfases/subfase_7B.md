@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer
+conseguida
 ```
 
 ## Dependencia
@@ -53,11 +53,13 @@ No existe layout Fase 7. El `gui_tray_multi.py` legacy de simulación no es base
 ## Archivos permitidos a modificar
 
 ```text
-src/servidor/multidron_gui/src/main_window.*
-src/servidor/multidron_gui/include/multidron_gui/main_window.*
-src/servidor/multidron_gui/src/widgets/
-src/servidor/multidron_gui/include/multidron_gui/widgets/
-src/servidor/multidron_gui/CMakeLists.txt
+src/servidor/multidron_gui_lib/src/main_window.*
+src/servidor/multidron_gui_lib/include/multidron_gui_lib/main_window.*
+src/servidor/multidron_gui_lib/src/widgets/
+src/servidor/multidron_gui_lib/include/multidron_gui_lib/widgets/
+src/servidor/multidron_gui_lib/CMakeLists.txt
+src/servidor/multidron_gui/                  # integración ejecutable/launch si hace falta
+codex/contexto/paquetes/multidron_gui_lib/
 codex/contexto/paquetes/multidron_gui/
 ```
 
@@ -132,13 +134,14 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
 ```
 
 Si la separación de Fase 2 utiliza builds por grupo, usar el helper vigente para el grupo Servidor y, cuando haya pruebas de integración, los grupos Dron/Simulación correspondientes. Registrar el comando exacto solo en el historial real.

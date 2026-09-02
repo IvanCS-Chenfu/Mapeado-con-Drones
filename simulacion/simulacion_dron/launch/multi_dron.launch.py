@@ -79,11 +79,15 @@ def generate_launch_description():
         FindPackageShare('simulacion_dron'), 'rviz', 'sparse_global_debug.rviz'])
     pipeline_flow_web_root = PathJoinSubstitution([
         FindPackageShare('simulacion_dron'), 'web', 'pipeline_flow'])
+    mission_flow_web_root = PathJoinSubstitution([
+        FindPackageShare('simulacion_dron'), 'web', 'mission_flow'])
     system_architecture_web_root = PathJoinSubstitution([
         FindPackageShare('simulacion_dron'), 'web', 'system_architecture'])
     full_orb_vocabulary = PathJoinSubstitution([
         FindPackageShare('dron_individual'),
         'config', 'orbslam', 'vocabulary', 'ORBvoc.txt'])
+    mission_config = PathJoinSubstitution([
+        FindPackageShare('task_server'), 'config', 'mission_house.yaml'])
 
     rviz_environment = {}
     for key, value in os.environ.items():
@@ -102,6 +106,10 @@ def generate_launch_description():
     ld = LaunchDescription()
     ld.add_action(DeclareLaunchArgument('launch_gazebo_gui', default_value='true'))
     ld.add_action(DeclareLaunchArgument('launch_mission_gui', default_value='true'))
+    ld.add_action(DeclareLaunchArgument('launch_multidron_gui', default_value='true'))
+    ld.add_action(DeclareLaunchArgument('launch_rviz', default_value='false'))
+    ld.add_action(DeclareLaunchArgument('launch_phase6', default_value='true'))
+    ld.add_action(DeclareLaunchArgument('drone_stale_timeout_sec', default_value='1.0'))
     ld.add_action(DeclareLaunchArgument('spawn_fiducials', default_value='true'))
     ld.add_action(DeclareLaunchArgument('drone_start_stagger_sec', default_value='8.0'))
     ld.add_action(DeclareLaunchArgument(
@@ -117,6 +125,8 @@ def generate_launch_description():
         'debug_sparse_global_rviz',
         'debug_pipeline_flow_web',
         'debug_open_pipeline_flow_browser',
+        'debug_mission_flow_web',
+        'debug_open_mission_flow_browser',
         'debug_fase3_logs_terminal',
         'debug_system_architecture_web',
         'debug_open_system_architecture_browser',
@@ -131,7 +141,10 @@ def generate_launch_description():
         default_value=numeric_debug_default(
             'debug_fiducial_display_seconds')))
     ld.add_action(DeclareLaunchArgument('pipeline_flow_port', default_value='8765'))
+    ld.add_action(DeclareLaunchArgument('mission_flow_port', default_value='8785'))
     ld.add_action(DeclareLaunchArgument('system_architecture_port', default_value='8775'))
+    ld.add_action(DeclareLaunchArgument('mission_config', default_value=mission_config))
+    ld.add_action(DeclareLaunchArgument('mission_voxel_size', default_value='0.25'))
     ld.add_action(DeclareLaunchArgument(
         'fiducial_visual_min_distance_m', default_value='1.0'))
     ld.add_action(DeclareLaunchArgument(
@@ -256,6 +269,40 @@ def generate_launch_description():
         ]))))
 
     ld.add_action(Node(
+        package='simulacion_dron', executable='pipeline_flow_bridge.py',
+        name='mission_flow_bridge', parameters=[{
+            'use_sim_time': True,
+            'topic': '/mission/flow_events',
+            'port': LaunchConfiguration('mission_flow_port'),
+            'web_root': mission_flow_web_root,
+        }], output='screen',
+        condition=IfCondition(LaunchConfiguration('debug_mission_flow_web'))))
+
+    ld.add_action(Node(
+        package='simulacion_dron', executable='pipeline_flow_browser.py',
+        name='mission_flow_browser',
+        arguments=['--port', LaunchConfiguration('mission_flow_port'), '--timeout', '20.0'],
+        output='screen', condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration('debug_mission_flow_web'),
+            "'.lower() == 'true' and '",
+            LaunchConfiguration('debug_open_mission_flow_browser'),
+            "'.lower() == 'true'",
+        ]))))
+
+    ld.add_action(Node(
+        package='task_server', executable='task_server_node', name='task_server',
+        output='screen', parameters=[{
+            'use_sim_time': True,
+            'mission_config': LaunchConfiguration('mission_config'),
+            'voxel_size': ParameterValue(
+                LaunchConfiguration('mission_voxel_size'), value_type=float),
+            'mission_flow_events_enabled': ParameterValue(
+                LaunchConfiguration('debug_mission_flow_web'), value_type=bool),
+            'system_architecture_events_enabled': ParameterValue(
+                architecture_telemetry_enabled, value_type=bool),
+        }], condition=IfCondition(LaunchConfiguration('launch_phase6'))))
+
+    ld.add_action(Node(
         package='simulacion_dron',
         executable='pipeline_flow_bridge.py',
         name='pipeline_flow_bridge',
@@ -286,7 +333,24 @@ def generate_launch_description():
         arguments=['-d', sparse_global_rviz_config],
         parameters=[{'use_sim_time': True}], env=rviz_environment,
         output='screen',
-        condition=IfCondition(LaunchConfiguration('debug_sparse_global_rviz'))))
+        condition=IfCondition(PythonExpression([
+            "'", LaunchConfiguration('launch_rviz'), "'.lower() == 'true' or '",
+            LaunchConfiguration('debug_sparse_global_rviz'), "'.lower() == 'true'",
+        ]))))
+
+    ld.add_action(Node(
+        package='multidron_gui', executable='multidron_gui', name='multidron_gui',
+        parameters=[{
+            'use_sim_time': True,
+            'drone_count': default_n,
+            'drone_namespace_base': default_namespace_base,
+            'fiducial_config_path': fiducial_objects_config,
+            'drone_stale_timeout_sec': ParameterValue(
+                LaunchConfiguration('drone_stale_timeout_sec'), value_type=float),
+        }],
+        env=rviz_environment,
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('launch_multidron_gui'))))
 
     ld.add_action(Node(
         package='simulacion_dron', executable='gui_tray_multi.py',
@@ -361,6 +425,14 @@ def generate_launch_description():
                     'orb_navigation_prediction_mode': LaunchConfiguration(
                         'orb_navigation_prediction_mode'),
                 }.items()),
+            Node(
+                package='task_manager', executable='task_manager_node',
+                name='task_manager', output='screen', parameters=[{
+                    'use_sim_time': True,
+                    'drone_id': i,
+                    'system_architecture_events_enabled': ParameterValue(
+                        architecture_telemetry_enabled, value_type=bool),
+                }], condition=IfCondition(LaunchConfiguration('launch_phase6'))),
         ])
         if i == 1:
             ld.add_action(drone_group)

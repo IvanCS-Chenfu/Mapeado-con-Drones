@@ -6,13 +6,21 @@ groups:
       ORB_SLAM3: ORB_SLAM3
       dron_individual: dron_individual
       lib_tray: lib_tray
+      mission_msgs: mission_msgs
       orbslam3_ros2: orbslam3
       orbslam3_msgs: orbslam3_msgs
+      task_manager: task_manager
+      task_manager_lib: task_manager_lib
   servidor:
     packages:
+      multidron_gui: multidron_gui
+      multidron_gui_lib: multidron_gui_lib
+      mission_msgs: mission_msgs
       orbslam3_msgs: orbslam3_msgs
       orbslam3_multi: orbslam3_multi
       orbslam3_server: orbslam3_server
+      task_lib: task_lib
+      task_server: task_server
   simulacion:
     packages:
       simulacion_dron: simulacion_dron
@@ -21,9 +29,15 @@ groups:
 root_exceptions:
   - mi_tfg
 
-canonical_interfaces: servidor/orbslam3_msgs
-interface_replicas:
-  - dron/orbslam3_msgs
+interface_contracts:
+  - package: orbslam3_msgs
+    canonical: servidor/orbslam3_msgs
+    replicas:
+      - dron/orbslam3_msgs
+  - package: mission_msgs
+    canonical: servidor/mission_msgs
+    replicas:
+      - dron/mission_msgs
 
 # La igualdad de nombre de parámetro sólo se considera posible duplicación
 # semántica automática cuando cruza grupos. Dentro de un mismo grupo dos nodos
@@ -69,6 +83,8 @@ debug_flags:
   - debug_sparse_global_rviz
   - debug_pipeline_flow_web
   - debug_open_pipeline_flow_browser
+  - debug_mission_flow_web
+  - debug_open_mission_flow_browser
   - debug_fase3_logs_terminal
   - debug_system_architecture_web
   - debug_open_system_architecture_browser
@@ -94,3 +110,6 @@ system_architecture:
     - server_to_sim_backpressure
     - server_to_sim_sparse_map
     - server_to_sim_pipeline_flow
+    - task_manager_to_task_server
+    - task_server_to_gui_geometry
+    - task_server_to_sim_mission_flow

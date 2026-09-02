@@ -1,0 +1,4 @@
+geometry_msgs/Point position_world
+float64 yaw_rad
+float64 camera_pitch_rad
+builtin_interfaces/Duration time_from_start

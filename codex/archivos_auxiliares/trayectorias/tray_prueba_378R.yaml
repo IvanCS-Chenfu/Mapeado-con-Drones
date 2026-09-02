@@ -1,0 +1,17 @@
+name: fase_7_bloque_2_destino_sur_revision_manual
+description: "Dos drones a (0, -10, Z), yaw 90 grados, para revisar la GUI."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 180.0}
+steps:
+  - {name: espera_spawn, type: wait_for_bool, topic: /fiducial_spawn_ready, expected: true, timeout_sec: 90.0}
+  - {name: espera_tracking, type: wait, seconds: 16.0}
+  - name: destino_sur
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 18.0, ty: 18.0, tz: 18.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.3], yaw_deg: 90.0, tx: 18.0, ty: 18.0, tz: 18.0, tyaw: 8.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: integrar_destino, type: wait, seconds: 10.0}
+  - {name: revision_manual_gui, type: wait_for_bool, topic: /codex/f7_manual_review_done, expected: true, timeout_sec: 1800.0}
+  - {name: cierre_observacion, type: wait, seconds: 3.0}

@@ -13,8 +13,8 @@ FASE: SIN HACER
 Preparación documental: CERRADA
 Acuerdo cerrado: sí
 Autorización funcional de ejecución: PENDIENTE
-Prueba final acordada: operar y observar el sistema multi-dron desde la GUI propia, con datos reales de Fases 3–6 y sin depender de RViz2
-Dudas abiertas: ninguna en el contrato actual; cualquier duda funcional nueva debe consultarse al usuario
+Prueba final acordada: operar y observar el sistema multi-dron desde la GUI propia, con datos reales de Fases 3–6, Gazebo abierto y sin depender de RViz2
+Dudas abiertas: ninguna en el contrato actual; cualquier duda funcional nueva no cubierta debe consultarse al usuario
 ```
 
 Este pipeline es un **contrato documental**. No contiene resultados reales de build, simulación ni historial. Las carpetas de historial se entregan vacías de forma intencionada y solo se crearán MD de historial cuando exista una ejecución real.
@@ -42,19 +42,36 @@ C++
 
 La versión mayor concreta de Qt se decide en 7A según el entorno real. No se crea una página web, no se incrusta RViz2 y no se usa otro visualizador como núcleo de la aplicación.
 
-Se recomienda un paquete ROS 2 dedicado dentro de:
+La arquitectura cerrada usa dos paquetes ROS 2 dentro de:
 
 ```text
 src/servidor/
 ```
 
-con nombre de contrato propuesto:
+con nombres de contrato propuestos:
 
 ```text
-multidron_gui
+multidron_gui_lib  -> lógica, modelos, render, widgets y tests unitarios
+multidron_gui      -> orquestación, ejecutable y launch ROS 2/Qt
 ```
 
-Si al ejecutar 7A el workspace real ya contiene una abstracción equivalente, se reutiliza en lugar de duplicarla. La GUI no se integra dentro del proceso `global_map_server`; debe ser un proceso/nodo independiente para que sus dependencias gráficas, bloqueos o cierre no afecten al servidor de mapa.
+Si al ejecutar 7A el workspace real ya contiene una abstracción equivalente, se reutiliza en lugar de duplicarla. La GUI no se integra dentro del proceso `global_map_server`; debe ser un proceso/nodo independiente para que sus dependencias gráficas, bloqueos o cierre no afecten al servidor de mapa. Separar librería y ejecutable evita un monolito difícil de testear.
+
+## Ciclo iterativo con Fase 6
+
+Por decisión de trabajo posterior a Fase 5, Fases 6 y 7 avanzarán en bucle:
+
+```text
+avanzar Fase 7 hasta una dependencia real de Fase 6
+  -> volver a Fase 6 y crear el contrato/telemetría/acción necesario
+  -> repetir hasta cerrar ambas fases
+```
+
+Con Fases 1–5 disponibles, el primer tramo probable de Fase 7 es `7A`–`7F`,
+`7H` y partes testeables/sintéticas de `7L`. `7G` requiere trayectoria vigente
+de Fase 6, `7I` progreso/tarea real, `7J` `GO_TO`, `7K` tareas manuales de
+captura y `7M` la integración completa posterior a Fase 6. Cada salto entre
+fases conserva la puerta de preparación/autorización de `AGENTS.md`.
 
 ### Separación de threads y datos
 
@@ -189,6 +206,14 @@ La GUI **no calcula por su cuenta** el progreso de una tarea de mapeo. Lo repres
 Se acepta progreso discreto: por ejemplo incrementos por secciones/hitos de cobertura. No se exige que la barra sea suave ni que cambie cada frame.
 
 Cuando una tarea sencilla como `GO_TO` pueda proporcionar un porcentaje real/geométrico con cambios mínimos en su productor, Fase 6 puede publicarlo y la GUI lo representa. Si el productor no dispone de progreso fiable, no se simula mediante tiempo transcurrido.
+
+## Dron perdido o stale
+
+Si un dron queda perdido, stale o sin pose nueva válida, la GUI conserva la
+última pose `world` válida, muestra etiqueta `PERDIDO` o estado equivalente y
+dibuja ejes/representación con mayor transparencia. No reemplaza la pose por
+cero, no oculta silenciosamente el dron y no propaga una pose falsa como si
+fuera actual. Al recuperarse una pose válida, vuelve a la representación normal.
 
 ## Trayectoria actual
 
@@ -328,14 +353,15 @@ Las decisiones puramente técnicas que no cambian comportamiento funcional —es
 | `7G` | Trayectoria actual de cada dron | Curva/recta futura vigente publicada por Fase 6 y representada por dron. |
 | `7H` | Picking e inspector genérico | Selección de MapPoints y arquitectura extensible a KFs/drones/fiduciales. |
 | `7I` | Tarjetas de drones y progreso de tareas | Cards dinámicas, scroll y progreso real/discreto desde Fase 6. |
-| `7J` | Creación de `GO_TO` | Formulario world absoluto y envío seguro al TaskManager de Fase 6. |
+| `7J` | Creación de `GO_TO` | Formulario world absoluto y envío seguro a `task_server` en Fase 6. |
 | `7K` | `CAPTURE_SPARSE` y preparación `CAPTURE_DENSE` | Captura sparse sin forzar KF y contrato denso preparado para Fase 8. |
 | `7L` | `DenseMapLayer` y rendimiento | Capa densa preparada, buffers grandes y pruebas sintéticas de rendimiento. |
 | `7M` | Integración, validación visual y cierre | Prueba multi-dron completa, regresiones cruzadas y GUI desacoplada/robusta. |
 
 ## Prueba final de Fase 7
 
-La prueba final debe arrancar el sistema multi-dron real posterior a Fase 6 y la GUI propia. No se requiere RViz2 para operar ni validar la GUI.
+La prueba final debe arrancar el sistema multi-dron real posterior a Fase 6,
+Gazebo y la GUI propia. No se requiere RViz2 para operar ni validar la GUI.
 
 Secuencia mínima:
 
@@ -364,7 +390,8 @@ Toda anomalía visual debe clasificarse primero como **dato de origen** o **repr
 - No derivar progreso de tareas por tiempo transcurrido si el productor no lo conoce.
 - No forzar KeyFrames modificando ORB-SLAM3 para `CAPTURE_SPARSE`.
 - No implementar la nube densa real de Fase 8.
-- No saltarse TaskManager/planner/reservas enviando `TrayAction` directo desde la GUI.
+- No saltarse `task_server`/`task_manager`, planner ni reservas enviando
+  `TrayAction` directo desde la GUI.
 - No introducir correcciones visuales para ocultar defectos de fases anteriores.
 - No crear historiales ficticios.
 

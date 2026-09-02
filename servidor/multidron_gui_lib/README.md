@@ -4,7 +4,7 @@ Librería C++ de Fase 7 para la GUI multi-dron. Está preparada contra el `main`
 
 ## Entradas reales conectadas ahora
 
-- `/global_sparse_cloud` (`sensor_msgs/msg/PointCloud2`), QoS reliable + transient local. Se consumen `x`, `y`, `z`, `score`, `drone_id`, `map_epoch_low`, `map_epoch_high`. El `rgb` actual del servidor se ignora deliberadamente: el color por score se calcula en la GUI.
+- `/global_sparse_cloud` (`sensor_msgs/msg/PointCloud2`), QoS reliable + transient local. Se consumen `x`, `y`, `z`, `score`, `drone_id`, `map_epoch_low/high` y `local_mp_id_low/high`. El color por score se calcula en la GUI; el servidor ya no publica `rgb` de presentacion.
 - `/global_keyframes` (`visualization_msgs/msg/MarkerArray`), conservando pose, geometría y color publicados por el backend.
 - `/<namespace>_<id>/orbslam/navigation_state` (`orbslam3_msgs/msg/NavigationState`) para pose/estado por dron. La GUI usa `w_t_body` solo cuando la pose global es válida y la fuente no es el fallback Ground Truth.
 - `fiducial_config_path`: consume el YAML canónico de Fase 4 para visualizar los objetos fiduciales sin alterar `orbslam3_server`.

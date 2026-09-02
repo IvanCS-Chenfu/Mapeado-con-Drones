@@ -1,0 +1,239 @@
+material Fiducial/Tag101
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_101.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag102
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_102.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag103
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_103.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag104
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_104.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag105
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_105.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag201
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_201.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag202
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_202.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag203
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_203.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag204
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_204.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag205
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_205.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag301
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_301.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag302
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_302.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag303
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_303.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag304
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_304.png
+        filtering none
+      }
+    }
+  }
+}
+
+material Fiducial/Tag305
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture tag_305.png
+        filtering none
+      }
+    }
+  }
+}

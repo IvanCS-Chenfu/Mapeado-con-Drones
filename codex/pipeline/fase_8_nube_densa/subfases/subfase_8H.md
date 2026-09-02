@@ -41,7 +41,10 @@ Antes de modificar código, leer también los resúmenes/contratos **reales ya e
 
 Además, leer específicamente:
 
-Leer el contrato real de ROI/flight_bounds de Fase 6. `mapping_roi` define el volumen que interesa observar; no confundirlo con los límites de vuelo.
+Leer el contrato real de ROI de Fase 6. `mapping_roi` define el volumen que
+interesa observar y `hard_flight_volume = expand(mapping_roi,
+mapping_hysteresis)` el límite duro de vuelo; no existe `flight_bounds`
+independiente.
 
 
 ## Diagnóstico de partida
@@ -77,7 +80,7 @@ paquetes ajenos a la subfase                # salvo dependencia real localizada 
 ## Funciones, clases, nodos o interfaces que hay que localizar
 
 ```text
-mapping_roi / flight_bounds de Fase 6
+mapping_roi / mapping_hysteresis / hard_flight_volume de Fase 6
 DenseKeyFrameDatabase
 DenseQualityMetrics
 DepthResult / ray geometry

@@ -1,0 +1,9 @@
+mission_msgs/TrajectoryPlan plan
+---
+bool success
+uint8 final_state
+string reason
+---
+float32 progress
+uint8 state
+string detail

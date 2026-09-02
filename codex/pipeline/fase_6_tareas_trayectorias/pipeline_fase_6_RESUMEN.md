@@ -1,87 +1,139 @@
-# Resumen — Fase 6: Tareas y Trayectorias
+# Resumen - Fase 6: misiones y navegacion autonoma multi-dron
 
 ## Estado
 
 ```text
 sin hacer
-Preparación documental: cerrada
-Autorización de ejecución: pendiente
-Historial: vacío; no existen ejecuciones reales en este ZIP
+Preparacion documental: reconciliada con ambos ZIP el 2026-09-02
+Autorizacion funcional: pendiente
+Historial: vacio; no hay ejecuciones de Fase 6
 ```
 
-## Objetivo
+## Autoridad documental
 
-A partir de `tarea_principal.yaml`, el servidor debe generar y repartir una misión de mapeo sparse de todo lo accesible dentro de un ROI. Cada dron ejecuta la cobertura adaptándose a geometría desconocida, evitando obstáculos y manteniendo tracking; el servidor coordina exclusivamente Dron-Dron mediante reservas espaciales de trayectorias cortas.
+Este pipeline procede de:
 
-## Decisiones cerradas
+1. `Fase_1J_y_Fase_6_reestructurada_detallada.zip`;
+2. `Fase_6_complemento_post_zip_detallado.zip`.
 
-- `mapping_roi`: objetivo de reconstrucción, no zona de vuelo.
-- `flight_bounds`: límite duro independiente para no alejarse demasiado.
-- Ambos cuboides son axis-aligned en `world` (`min/max`).
-- `mapping_hysteresis`: permite seguir ligeramente geometría fuera del ROI sin convertirla en objetivo obligatorio.
-- La altura se divide por `level_height`; el resto se suma a la última rebanada.
-- El dron trabaja cerca del centro de la banda pero puede variar `z` por seguridad/percepción.
-- No se exige terminar un nivel antes de empezar otro; drones sobrantes suben.
-- `tasks_per_level` se mantiene; baseline: 4 esquinas o 8 puntos (esquinas + centros de lado).
-- Para B: tarea nominal A-B-C, con sentido elegido por cercanía/coste a A/C, no por distancia a B.
-- Las tareas vecinas se solapan deliberadamente: B=A-B-C y C=B-C-D comparten B-C.
-- `MAP_SECTION` es cobertura, no ruta rígida; debe funcionar igual en fachada, L, interior, pasillos y laberinto.
-- Todo lo accesible del ROI debe poder descubrirse. Regiones físicamente inaccesibles no bloquean eternamente.
-- Una tarea larga usa muchas trayectorias cortas. `task_id != trajectory_id`.
-- Cada waypoint contiene `(x,y,z,yaw)`; `lib_tray`/`TrayAction` se amplían sin borrar modos legacy.
-- Depth/estéreo local es autoridad de obstáculos; MapPoints ayudan a tracking/vista, no bastan para colisiones.
-- El z-buffer sparse simetrico de Fase 3P es solo una comprobacion temporal de
-  visibilidad entre subnubes de loop. Puede servir como prototipo de
-  proyeccion/oclusion/telemetria al preparar 6K, pero nunca como depth ni como
-  autoridad para autorizar una trayectoria.
-- Wrapper puede ampliarse para entregar tracking/soporte visual actual; no tocar ORB_SLAM3 sin necesidad demostrada y nuevo acuerdo.
-- Mismo algoritmo interior/exterior. Yaw se selecciona por calidad visual; los giros de inspección se abortan si cae soporte ORB.
-- Replanning receding-horizon: si aparece geometría, el dron para, cancela/libera y propone otra trayectoria sin cancelar la tarea.
-- El servidor procesa propuestas de trayectoria en una cola serializada.
-- Reservas Dron-Dron son puramente espaciales: si corredores se cruzan, la segunda se rechaza aunque los tiempos difieran.
-- Cada corredor incluye tamaño del dron + margen de seguridad/error. Dron parado también ocupa volumen.
-- El servidor puede sugerir `A-C-B`, pero C es solo un hint frente a otros drones. El dron lo valida contra paredes/tracking y vuelve a presentar la ruta completa.
-- `ANCHOR_SUBMAP`: búsqueda local conservadora de fiducial/loop sin perder tracking ni usar GT.
-- `GO_TO(x,y,z,yaw)`: máxima prioridad pendiente, **no** interrumpe una tarea `RUNNING`; usa el mismo planner/reservas.
-- Fase 6 no implementa nube densa global. Fase 8 reutilizará/mejorará las fuentes depth y la planificación perceptiva.
-- Deuda temporal heredada de Fase 5: retirar `GT_FALLBACK`, el source lock entre
-  goals, el handshake de frontera, el hold y el handoff angular SO(3) de
-  `control_calcular_fuerzas`. Las
-  tareas/recovery de Fase 6 deben proporcionar continuidad real sin dejar ese
-  codigo residual. Conservar como invariante que toda trayectoria comienza con
-  pose y velocidad de una misma muestra y con `ep=ev=er=ew=0`.
+El complemento es posterior y prevalece ante contradicciones. Las antiguas
+subfases basadas en `tasks_per_level`, puntos A-B-C, `orbslam3_msgs` como
+contrato de mision o implementacion dentro de `orbslam3_server` no son vigentes.
 
-## Secuencia
+## Arquitectura cerrada
 
 ```text
-6A  tarea_principal.yaml
-6B  ROI/rebanadas/puntos
-6C  generación MAP_SECTION
-6D  contratos lifecycle tareas
-6E  Task/Mission Manager
-6F  asignador por entradas/cercanía
-6G  TaskExecutor/control_trayectorias
-6H  contrato waypoints
-6I  lib_tray + TrayAction multi-waypoint
-6J  trayectorias cortas/lifecycle
-6K  depth local obstáculos
-6L  tracking/soporte visual ORB
-6M  yaw/next-view perceptivo
-6N  cobertura/frontiers adaptativa
-6O  replanning incremental
-6P  cola y reservas servidor
-6Q  conflicto espacial Dron-Dron
-6R  hints de desvío A-C-B
-6S  ANCHOR_SUBMAP + GO_TO
-6T  integración final N drones
+Servidor: task_server -> task_lib
+                         ^
+                         | interfaces ROS publicas de mapa/pose
+              orbslam3_server
+
+Interfaces: mission_msgs
+
+Dron: task_manager -> task_manager_lib -> dron_individual -> lib_tray
 ```
+
+- `task_server` y `orbslam3_server` son paquetes/nodos independientes.
+- `task_lib` no accede a `orbslam3_multi` ni a memoria interna del mapa.
+- `mission_msgs` no se mezcla con `orbslam3_msgs`.
+- Servidor y Dron usan la misma implementacion/version de `lib_tray`.
+- Los nodos gestionan ROS; las librerias concentran logica testeable.
+
+Workers iniciales de `task_server`:
+
+```text
+TaskWorker | VoxelMapWorker | PlanningWorker | ReservationWorker
+```
+
+Cada estado tiene un writer logico. Hay un `PlanningWorker` y un
+`ReservationWorker`, ambos seriales internamente y paralelos entre subsistemas.
+
+## Mision y volumen
+
+- `mapping_roi`: volumen `world` que debe mapearse.
+- `mapping_hysteresis`: extension de maniobra/observacion.
+- `hard_flight_volume = expand(mapping_roi, mapping_hysteresis)`.
+- No existe el parametro ni un tercer volumen `flight_bounds`.
+- Se conserva `level_height`; el resto vertical se suma al ultimo nivel.
+- Se elimina `tasks_per_level`.
+- Cada nivel crea cuatro subROIs solapadas asociadas a los lados AB/BC/CD/DA.
+- Una subROI es responsabilidad inicial, no ruta ni limite de movimiento.
+
+Las ramas descubiertas por frontiers tienen ownership 3D y pueden cruzar
+subROIs y niveles. Una segunda entrada a la misma region no repite coverage
+detallada: puede realizar una pasada simple para loops/covisibilidad y salir por
+el acceso mas conveniente.
+
+## Navegacion
+
+```text
+coverage/frontiers -> objetivo XYZ
+D* Lite 3D          -> ruta XYZ
+view planner        -> yaw/pitch
+lib_tray            -> trayectoria fisica
+ReservationWorker   -> validacion y commit
+task_manager        -> W->O una vez, reproduccion y ejecucion
+```
+
+- D* Lite usa 26-connectivity, `FREE` normal, `UNKNOWN` transitable penalizado
+  y `OCCUPIED` bloqueado.
+- Los planes son cortos por distancia/duracion, no por numero de waypoints.
+- `TrajectoryPlan` se expresa en W y transporta todos los datos deterministas.
+- El dron valida revision/alineamiento, convierte a O una sola vez y congela la
+  ejecucion local ante optimizaciones globales.
+- Los waypoints internos son estados dinamicos; objetivo inicial C2 y jerk
+  acotado/medido.
+
+## Seguridad, mapa y coordinacion
+
+- Voxel map global incremental con `occupancy/free` separado de `coverage`.
+- Evidencia reversible por procedencia: MP debil, depth endpoint ocupado,
+  depth ray libre, trayectoria estimada realmente recorrida libre y KF como
+  referencia/coverage, nunca obstaculo por si solo.
+- Depth se conserva relativo al KF; mover `W_T_KF` retira y reintegra.
+- Depth local es autoridad inmediata y puede ordenar `STOP` sin permiso.
+- `TRACKING_RISK` preventivo usa `VISUAL_RETREAT`; `STOP` tiene prioridad.
+- Reservas espaciales, swept volume con bounding box orientada y margen del
+  servidor; commit serial, reserva existente gana y reemplazo atomico.
+- Tras STOP se mantiene `HOLD_RESERVATION` hasta reemplazo seguro.
+
+## Telemetria web
+
+Desde 6A se crea un grafo web incremental inspirado en Fase 3, pero con la
+topologia real de Fase 6. Muestra workers, colas, revisiones e IDs correlables;
+crece al implementar cada subfase. Es opcional, no bloqueante y nunca controla
+la mision.
+
+## Secuencia vigente
+
+```text
+6A  arquitectura, paquetes y configuracion
+6B  geometria de subROIs y ownership 3D
+6C  mission_msgs, registro y lifecycle
+6D  mapa voxel reversible
+6E  gestor y asignador de tareas
+6F  base autonoma de task_manager
+6G  D* Lite y waypoints XYZ
+6H  frontiers, coverage y ramas
+6I  trayectorias multi-waypoint reproducibles
+6J  reservas y colisiones multi-dron
+6K  replanning incremental y handover
+6L  TRACKING_RISK, STOP y VISUAL_RETREAT
+6M  observacion yaw/pitch/distancia
+6N  GO_TO, ANCHOR_SUBMAP y fiduciales oportunistas
+6O  integracion y cierre
+```
+
+## Parametros a medir
+
+No fijar sin pruebas: voxel size, pesos/umbrales de evidencia y coverage,
+frontier clustering, distancia preferida, coste/velocidad en UNKNOWN, longitud
+de planes, lead time, safety margin, sampling swept-volume, dinamica STOP,
+limites VISUAL_RETREAT y thresholds de riesgo visual.
 
 ## Prueba final
 
-Dar el ROI de la casa y N drones en `tarea_principal.yaml`. Sin rutas de mapeo manuales, el sistema debe completar todas las tareas y dejar en RViz2 un sparse global de todo lo accesible dentro del ROI, con solape entre submapas, sin colisiones y sin GT funcional.
-
-Leer `pipeline_fase_6.md` y el MD de la subfase concreta antes de ejecutar. Tras Fase 5, localizar siempre los topics/frames/interfaces reales del workspace y reutilizarlos en vez de inventar duplicados.
-
-Al preparar 6K, releer tambien `fase_3_sparse_global/subfases/subfase_3P_especificacion.md`
-y su implementacion real vigente. Evaluar reutilizacion de interfaces solo si
-no acopla la seguridad local al worker secundario ni a MapPoints sparse.
+Mision con N drones, GUI Fase 7 y Gazebo, sin RViz2 como vista normal. Debe
+demostrar coverage accesible, ramas 3D, voxel reversible, D* incremental,
+reproduccion W/O, reservas, STOP/HOLD, riesgo visual, behaviors especiales y
+cierre sin colisiones, GT funcional, bucles infinitos ni dependencia de Fase 8.

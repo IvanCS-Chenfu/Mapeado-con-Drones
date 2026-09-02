@@ -44,6 +44,11 @@ if(BUILD_TESTING)
     TIMEOUT 30
   )
   ament_add_pytest_test(
+    mission_flow_contract
+    test/test_mission_flow_contract.py
+    TIMEOUT 30
+  )
+  ament_add_pytest_test(
     global_map_config_contract
     test/test_global_map_config.py
     TIMEOUT 30

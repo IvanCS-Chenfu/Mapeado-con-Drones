@@ -54,10 +54,15 @@ Cada subfase validó un bloque aislado. Falta demostrar la composición con N dr
 ## Archivos permitidos a modificar
 
 ```text
+src/servidor/multidron_gui_lib/
 src/servidor/multidron_gui/
 src/servidor/orbslam3_server/              # solo correcciones mínimas de integración/telemetría
-src/servidor/orbslam3_msgs/                # si contratos GUI/captura lo requieren
-src/dron/...                               # solo si se reabre Fase 5/6 por defecto demostrado
+src/servidor/task_server/                  # integración/telemetría de Fase 6
+src/servidor/task_lib/
+src/servidor/mission_msgs/                 # contratos GUI/captura
+src/dron/task_manager/
+src/dron/task_manager_lib/
+src/dron/mission_msgs/                     # réplica exacta de interfaces
 src/simulacion/simulacion_dron/launch/     # integración de arranque/prueba
 src/simulacion/simulacion_dron/config/scenarios/fase_7/
 codex/contexto/paquetes/
@@ -141,13 +146,22 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui orbslam3_server orbslam3_msgs dron_individual lib_tray orbslam3_ros2 orbslam3_multi simulacion_dron
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor orbslam3_msgs
+./codex/herramientas/build_selected_packages.sh --group servidor orbslam3_server
+./codex/herramientas/build_selected_packages.sh --group servidor orbslam3_multi
+./codex/herramientas/build_selected_packages.sh --group dron lib_tray
+./codex/herramientas/build_selected_packages.sh --group dron orbslam3_msgs
+./codex/herramientas/build_selected_packages.sh --group dron orbslam3_ros2
+./codex/herramientas/build_selected_packages.sh --group dron dron_individual
+./codex/herramientas/build_selected_packages.sh --group simulacion simulacion_dron
 ```
 
 Respetar la estrategia de build por grupos de Fase 2; el helper/comando exacto real puede dividirse en builds pequeños para paquetes pesados.
@@ -203,7 +217,8 @@ La subfase se considera `CONSEGUIDA` solo si:
 2. Viewport sigue siendo operable con carga real.
 3. Sparse/poses/KFs/fiduciales/trayectorias son visualmente coherentes y respaldados por mensajes correctos.
 4. Cards/progreso coinciden con Fase 6.
-5. GO_TO y CAPTURE_SPARSE operan por TaskManager/planner/reservas.
+5. GO_TO y CAPTURE_SPARSE operan por `task_server`/`task_manager`, planner y
+   reservas.
 6. CAPTURE_DENSE queda preparada sin implementación falsa.
 7. Cerrar/reabrir GUI no afecta al pipeline.
 8. No existe dependencia de RViz2 ni GT funcional.

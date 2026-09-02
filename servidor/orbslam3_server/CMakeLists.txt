@@ -93,6 +93,12 @@ if(BUILD_TESTING)
     test/test_backpressure_contract.py
     TIMEOUT 30
   )
+
+  ament_add_pytest_test(
+    test_sparse_cloud_contract
+    test/test_sparse_cloud_contract.py
+    TIMEOUT 30
+  )
 endif()
 
 ament_package()

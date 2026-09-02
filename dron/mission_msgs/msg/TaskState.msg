@@ -1,0 +1,19 @@
+uint8 PENDING=0
+uint8 ASSIGNED=1
+uint8 RUNNING=2
+uint8 PAUSED=3
+uint8 COMPLETED=4
+uint8 FAILED=5
+uint8 CANCELLED=6
+uint8 BLOCKED=7
+uint8 WAITING=8
+
+string task_id
+string task_type
+string region_id
+string base_owner_task_id
+string branch_owner_task_id
+uint32 assigned_drone_id
+uint8 state
+float32 progress
+string detail

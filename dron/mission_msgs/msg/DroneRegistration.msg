@@ -1,0 +1,13 @@
+uint64 CAPABILITY_SPARSE_MAPPING=1
+uint64 CAPABILITY_STEREO_DEPTH=2
+uint64 CAPABILITY_CAMERA_PITCH=4
+uint64 CAPABILITY_VISUAL_FIDUCIAL=8
+uint64 CAPABILITY_DENSE_CAPTURE=16
+
+uint32 drone_id
+geometry_msgs/Vector3 dimensions_m
+string vehicle_profile
+uint32 protocol_version
+string trajectory_generator_id
+uint32 trajectory_generator_version
+uint64 capability_mask

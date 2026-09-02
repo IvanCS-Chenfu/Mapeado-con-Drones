@@ -1,0 +1,16 @@
+{
+  "drone_id": 2,
+  "gt_alignment_skew_max": 0.021146536,
+  "gt_alignment_skew_mean": 0.008715699267080794,
+  "gt_alignment_skew_p50": 0.009993792,
+  "gt_alignment_skew_p95": 0.02001667,
+  "gt_alignment_skew_p99": 0.020051718,
+  "gt_causal_propagation_count": 3734,
+  "gt_interpolated_count": 0,
+  "max_consecutive_override_misses": 1,
+  "override_applied_count": 5474,
+  "override_applied_ratio": 0.9998173515981735,
+  "override_missed_count": 1,
+  "override_requested_count": 5475,
+  "override_valid_count": 5474
+}

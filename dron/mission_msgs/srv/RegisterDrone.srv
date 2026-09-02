@@ -1,0 +1,9 @@
+mission_msgs/DroneRegistration registration
+---
+bool accepted
+string reason
+string mission_id
+string mission_frame
+uint64 config_revision
+float64 voxel_size
+uint32 protocol_version

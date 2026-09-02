@@ -77,7 +77,9 @@ propuesto de poses ya optimizadas; solo hard permanece fijo permanentemente.
 Consenso server 3/60 fija soportes de forma privada durante el solve.
 
 3R configura score geometrico raw y bonus fused, emite telemetria live cada 25
-arrivals y conserva `score/rgb` rojo-amarillo-verde en la nube completa. La
+arrivals y conserva `score` en la nube completa. Desde 7E, el RGB temporal de
+presentacion se retiro: la GUI deriva el gradiente y la nube publica identidad
+estable `(drone_id,map_epoch,local_mp_id)` con `point_step=36`. La
 visibilidad sparse solo diagnostica; oclusion numerica queda para Fase 8.
 Los defaults de distancia dejan banda neutra 1-5 m con baseline `0.06 m`;
 prueba 194 cierra colas en cero con 99 near, 11.433 far y media `0.2596`.

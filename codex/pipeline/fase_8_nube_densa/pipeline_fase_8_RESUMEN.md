@@ -53,7 +53,8 @@ src/servidor/dense_map_server/
 - 8I reintegra contribuciones fusionadas tras cambios de poses.
 - 8J obtiene registros dense; 8K usa el mismo optimizador de Fase 3. No hay segundo pose optimizer.
 - `SparseDenseCorrectionDatabase` refina MPs solo en la salida de servidor; `RawMapDatabase` y ORB local quedan intactos.
-- Tras mapping, 8N detecta huecos/errores y TaskManager de Fase 6 asigna tareas correctivas.
+- Tras mapping, 8N detecta huecos/errores y `task_server` de Fase 6 asigna las
+  tareas correctivas.
 - Captura HQ parada usa topics L/R normales; no necesita KF nuevo.
 - Recaptura de DenseKF malo sustituye atómicamente su nube; la antigua se borra tras commit correcto.
 - Zona sin KF se integra por patches rígidos asociados a KFs, no punto-a-punto.

@@ -1,19 +1,26 @@
 # Ultima sesion
 
-Fecha: 2026-09-01
+## Fase 7 - Bloque 2
 
-Se completo la subfase 1K de limpieza y cierre de Fase 1. Se retiraron de
-`dron_individual` los ejecutables huérfanos `control_dron` y `clock`, junto a
-los prototipos no instalados ni referenciados de `src/vision/`.
+El 2026-09-02 se consiguieron 7E, 7F y 7H. La GUI renderiza sparse con gradiente
+y filtro por score, drones/KFs/fiduciales con labels D/F y picking generico con
+identidad segura. `GlobalMapServer` retiro el RGB temporal y publica score e
+identidad completa de MapPoint.
 
-`debug_fase_1=false` es ahora la puerta maestra de telemetria informativa F1:
-aplica nivel `warn` a los nodos de vuelo y bloquea `INFO` en plugins de motores,
-ground truth y pitch. Conserva warnings, errores y resultados de escenario.
+Builds: `multidron_gui_lib`, `multidron_gui`, `orbslam3_server` y
+`simulacion_dron` correctos. CTest GUI 9/9, servidor 13/13 y contrato sparse
+1/1. Smoke sintetico y rendimiento de 100k candidatos correctos.
 
-Builds: `dron_individual` y `simulacion_dron`, ambos codigo 0. Tests rapidos:
-24/24. La prueba 374 con flag apagado y la 375 con flag activo completaron 7/7
-pasos, vuelo GT a `(0,-10,1)`, yaw 90 y pitch `+30/-30/0`; solo 375 mostro la
-telemetria F1 esperada. Conclusion 1K: **CONSEGUIDA**.
+Pruebas: 378 se aborto por ruta descartada. 378R uso el destino corregido
+`(0,-10,Z), yaw=90`, permitio al usuario probar capas, score y picking real,
+pero expiro despues en la puerta manual. 378RR repitio la ruta y termino con
+`SIM-DONE success=true` y shutdown limpio. RViz no se ejecuto.
 
-La deuda de loops desde `marker_id=368` de la prueba 373 permanece apuntada en
-3Q y no se modifico. Siguiente punto de entrada: ciclo iterativo Fases 6/7.
+Después de esta sesión se corrigió documentalmente la Fase 6 desde sus dos ZIP
+autoritativos: la secuencia vigente es 6A-6O, con `task_server`/`task_lib`,
+`task_manager`/`task_manager_lib` y `mission_msgs`. Se retiraron 6P-6T y los
+conceptos válidos quedaron absorbidos en 6J, 6K, 6N y 6O. No hubo ejecución
+funcional de Fase 6.
+
+Siguiente punto: reagrupar bloques funcionales desde el pipeline 6A-6O
+corregido y preparar el primero, incluido el grafo web incremental desde 6A.

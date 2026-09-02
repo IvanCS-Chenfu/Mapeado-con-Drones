@@ -55,10 +55,10 @@ Fase 8 aún no existe funcionalmente en el orden del proyecto. Diseñar el rende
 ## Archivos permitidos a modificar
 
 ```text
-src/servidor/multidron_gui/src/render/dense_map_layer.*
-src/servidor/multidron_gui/src/render/point_cloud_buffer.*
-src/servidor/multidron_gui/src/gui_data_model.*
-src/servidor/multidron_gui/test/
+src/servidor/multidron_gui_lib/src/render/dense_map_layer.*
+src/servidor/multidron_gui_lib/src/render/point_cloud_buffer.*
+src/servidor/multidron_gui_lib/src/gui_data_model.*
+src/servidor/multidron_gui_lib/test/
 ```
 
 Las rutas nuevas son de contrato. Antes de crearlas, comprobar el árbol posterior a Fases 2–6. Si existe un componente equivalente, reutilizarlo en lugar de duplicarlo.
@@ -128,13 +128,14 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
 ```
 
 Si la separación de Fase 2 utiliza builds por grupo, usar el helper vigente para el grupo Servidor y, cuando haya pruebas de integración, los grupos Dron/Simulación correspondientes. Registrar el comando exacto solo en el historial real.

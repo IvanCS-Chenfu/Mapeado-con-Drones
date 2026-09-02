@@ -1,0 +1,190 @@
+{
+  "drones": [
+    {
+      "angular_velocity_error_radps": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "authoritative_samples": 0,
+      "drone_id": 1,
+      "epochs_aligned": [],
+      "frequency_hz": null,
+      "gt_angular_samples": 10764,
+      "gt_fallback_ratio": null,
+      "gt_fallback_samples": 0,
+      "interarrival_sec": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "jitter_sec": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "latency_definition": "relative_to_first_sample_per_epoch",
+      "latency_sec": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "linear_velocity_error_mps": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "max_skew_sec": null,
+      "o_angle_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "o_position_m": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "o_yaw_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "orb_samples": 0,
+      "paired_samples": 0,
+      "reference_switches": 0,
+      "revision_changes": 0,
+      "unpaired_samples": 10323,
+      "w_angle_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_position_m": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_yaw_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      }
+    },
+    {
+      "angular_velocity_error_radps": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "authoritative_samples": 0,
+      "drone_id": 2,
+      "epochs_aligned": [],
+      "frequency_hz": null,
+      "gt_angular_samples": 10415,
+      "gt_fallback_ratio": null,
+      "gt_fallback_samples": 0,
+      "interarrival_sec": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "jitter_sec": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "latency_definition": "relative_to_first_sample_per_epoch",
+      "latency_sec": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "linear_velocity_error_mps": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "max_skew_sec": null,
+      "o_angle_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "o_position_m": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "o_yaw_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "orb_samples": 0,
+      "paired_samples": 0,
+      "reference_switches": 0,
+      "revision_changes": 0,
+      "unpaired_samples": 9935,
+      "w_angle_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_position_m": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      },
+      "w_yaw_rad": {
+        "count": 0,
+        "mae": null,
+        "max": null,
+        "p95": null,
+        "rmse": null
+      }
+    }
+  ]
+}

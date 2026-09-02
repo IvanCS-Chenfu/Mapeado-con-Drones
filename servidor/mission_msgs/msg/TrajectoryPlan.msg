@@ -1,0 +1,15 @@
+string mission_id
+string task_id
+uint32 drone_id
+string plan_id
+uint64 plan_revision
+string trajectory_id
+uint64 map_epoch
+uint64 map_revision
+uint64 alignment_revision
+string generator_id
+uint32 generator_version
+float64 max_velocity_mps
+float64 max_acceleration_mps2
+float64 max_jerk_mps3
+mission_msgs/TrajectoryWaypoint[] waypoints

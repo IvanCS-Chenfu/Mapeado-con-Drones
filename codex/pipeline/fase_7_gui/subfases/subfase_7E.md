@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer
+conseguida
 ```
 
 ## Dependencia
@@ -69,11 +69,12 @@ infiere. Si solo falta RGB no es bloqueo porque 7E debe calcularlo desde score.
 ## Archivos permitidos a modificar
 
 ```text
-src/servidor/multidron_gui/src/render/sparse_map_layer.*
-src/servidor/multidron_gui/include/multidron_gui/render/sparse_map_layer.*
-src/servidor/multidron_gui/src/widgets/score_controls.*
-src/servidor/multidron_gui/src/gui_data_model.*
+src/servidor/multidron_gui_lib/src/render/sparse_map_layer.*
+src/servidor/multidron_gui_lib/include/multidron_gui_lib/render/sparse_map_layer.*
+src/servidor/multidron_gui_lib/src/widgets/score_controls.*
+src/servidor/multidron_gui_lib/src/gui_data_model.*
 src/servidor/orbslam3_server/               # retirar RGB temporal tras validar la GUI; preservar score/ID
+codex/contexto/paquetes/multidron_gui_lib/
 codex/contexto/paquetes/multidron_gui/
 codex/contexto/paquetes/orbslam3_server/     # si se toca
 ```
@@ -156,16 +157,18 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui orbslam3_server
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor orbslam3_server
 ```
 
-Si no se modifica `orbslam3_server`, compilar solo `multidron_gui`.
+Si no se modifica `orbslam3_server`, compilar solo `multidron_gui_lib` y `multidron_gui`.
 
 Si la separación de Fase 2 utiliza builds por grupo, usar el helper vigente para el grupo Servidor y, cuando haya pruebas de integración, los grupos Dron/Simulación correspondientes. Registrar el comando exacto solo en el historial real.
 

@@ -13,6 +13,7 @@ def generate_launch_description():
     sparse_topic = LaunchConfiguration('sparse_topic')
     keyframes_topic = LaunchConfiguration('keyframes_topic')
     fiducial_config_path = LaunchConfiguration('fiducial_config_path')
+    stale_timeout = LaunchConfiguration('drone_stale_timeout_sec')
 
     default_fiducials = PathJoinSubstitution([
         FindPackageShare('orbslam3_server'),
@@ -30,6 +31,7 @@ def generate_launch_description():
             'fiducial_config_path',
             default_value=default_fiducials,
             description='YAML canónico de objetos fiduciales de Fase 4.'),
+        DeclareLaunchArgument('drone_stale_timeout_sec', default_value='1.0'),
         Node(
             package='multidron_gui',
             executable='multidron_gui',
@@ -43,6 +45,7 @@ def generate_launch_description():
                 'keyframes_topic': keyframes_topic,
                 'fiducial_config_path': fiducial_config_path,
                 'navigation_topic_suffix': 'orbslam/navigation_state',
+                'drone_stale_timeout_sec': stale_timeout,
             }],
         ),
     ])

@@ -1,0 +1,150 @@
+{
+  "runs": [
+    {
+      "duration_sec": 85.35,
+      "file": "codex/archivos_auxiliares/metricas/prueba_350/dron_1_orb_visual_evidence.csv",
+      "frames": 1708,
+      "metrics": {
+        "depth_p50": {
+          "max": 7.144047737,
+          "median": 4.4526193145,
+          "min": 3.51468277,
+          "p10": 3.8236722466,
+          "p90": 6.504237175
+        },
+        "depth_p90": {
+          "max": 9.850630951,
+          "median": 7.02810483,
+          "min": 6.18407855,
+          "p10": 6.677882266099999,
+          "p90": 9.410653305
+        },
+        "disparity_p25": {
+          "max": 3.244354248,
+          "median": 3.02986145,
+          "min": 2.028945923,
+          "p10": 2.031028748,
+          "p90": 3.0897876736
+        },
+        "disparity_p50": {
+          "max": 4.63861084,
+          "median": 3.6615180965,
+          "min": 2.282073975,
+          "p10": 2.506568909,
+          "p90": 4.2637664799
+        },
+        "grid_coverage_ratio": {
+          "max": 1.0,
+          "median": 0.916666667,
+          "min": 0.5,
+          "p10": 0.5,
+          "p90": 1.0
+        },
+        "inlier_ratio": {
+          "max": 1.0,
+          "median": 1.0,
+          "min": 1.0,
+          "p10": 1.0,
+          "p90": 1.0
+        },
+        "n_tracking_inliers": {
+          "max": 465.0,
+          "median": 416.0,
+          "min": 148.0,
+          "p10": 278.70000000000005,
+          "p90": 430.0
+        },
+        "n_valid_stereo_depth": {
+          "max": 353.0,
+          "median": 294.0,
+          "min": 122.0,
+          "p10": 224.0,
+          "p90": 339.0
+        },
+        "stereo_depth_ratio": {
+          "max": 1.0,
+          "median": 0.702509421,
+          "min": 0.603818616,
+          "p10": 0.6604387886,
+          "p90": 0.9764367813999999
+        }
+      },
+      "tracking_counts": {
+        "2": 1708
+      }
+    },
+    {
+      "duration_sec": 76.598,
+      "file": "codex/archivos_auxiliares/metricas/prueba_350/dron_2_orb_visual_evidence.csv",
+      "frames": 1533,
+      "metrics": {
+        "depth_p50": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "depth_p90": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "disparity_p25": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "disparity_p50": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "grid_coverage_ratio": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "inlier_ratio": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "n_tracking_inliers": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "n_valid_stereo_depth": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "stereo_depth_ratio": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        }
+      },
+      "tracking_counts": {
+        "1": 1533
+      }
+    }
+  ]
+}

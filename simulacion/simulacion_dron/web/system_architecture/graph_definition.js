@@ -153,6 +153,34 @@ window.SYSTEM_ARCHITECTURE = {
     },
     {
       "data": {
+        "id": "multidron_gui",
+        "label": "multidron_gui",
+        "kind": "package",
+        "group": "servidor",
+        "parent": "group_servidor",
+        "role": "Proceso Qt de operacion y visualizacion"
+      },
+      "position": {
+        "x": 760,
+        "y": 180
+      }
+    },
+    {
+      "data": {
+        "id": "multidron_gui_lib",
+        "label": "multidron_gui_lib",
+        "kind": "package",
+        "group": "servidor",
+        "parent": "group_servidor",
+        "role": "Modelo ROS/Qt y renderer OpenGL"
+      },
+      "position": {
+        "x": 760,
+        "y": 300
+      }
+    },
+    {
+      "data": {
         "id": "simulacion_dron",
         "label": "simulacion_dron",
         "kind": "package",
@@ -164,9 +192,132 @@ window.SYSTEM_ARCHITECTURE = {
         "x": 960,
         "y": 280
       }
+    },
+    {
+      "data": {
+        "id": "mission_msgs_dron",
+        "label": "mission_msgs",
+        "kind": "package",
+        "group": "dron",
+        "parent": "group_dron",
+        "role": "Replica exacta de contratos de mision"
+      },
+      "position": {"x": 360, "y": 760}
+    },
+    {
+      "data": {
+        "id": "task_manager_lib",
+        "label": "task_manager_lib",
+        "kind": "package",
+        "group": "dron",
+        "parent": "group_dron",
+        "role": "Logica pura del agente de mision"
+      },
+      "position": {"x": 160, "y": 760}
+    },
+    {
+      "data": {
+        "id": "task_manager",
+        "label": "task_manager",
+        "kind": "package",
+        "group": "dron",
+        "parent": "group_dron",
+        "role": "Registro y lifecycle local"
+      },
+      "position": {"x": 160, "y": 870}
+    },
+    {
+      "data": {
+        "id": "mission_msgs_server",
+        "label": "mission_msgs",
+        "kind": "package",
+        "group": "servidor",
+        "parent": "group_servidor",
+        "role": "Contrato canonico de mision"
+      },
+      "position": {"x": 760, "y": 760}
+    },
+    {
+      "data": {
+        "id": "task_lib",
+        "label": "task_lib",
+        "kind": "package",
+        "group": "servidor",
+        "parent": "group_servidor",
+        "role": "Configuracion y geometria puras"
+      },
+      "position": {"x": 560, "y": 760}
+    },
+    {
+      "data": {
+        "id": "task_server",
+        "label": "task_server",
+        "kind": "package",
+        "group": "servidor",
+        "parent": "group_servidor",
+        "role": "Coordinador de mision multi-dron"
+      },
+      "position": {"x": 560, "y": 870}
     }
   ],
   "edges": [
+    {
+      "data": {"id": "task_manager_lib_to_manager", "source": "task_manager_lib", "target": "task_manager", "layer": "build", "label": "API local", "interface": "task_manager_lib", "activity_mode": "none", "interface_kind": "api"}
+    },
+    {
+      "data": {"id": "mission_msgs_dron_to_manager", "source": "mission_msgs_dron", "target": "task_manager", "layer": "build", "label": "contratos", "interface": "mission_msgs", "activity_mode": "none", "interface_kind": "api"}
+    },
+    {
+      "data": {"id": "task_lib_to_server", "source": "task_lib", "target": "task_server", "layer": "build", "label": "geometria", "interface": "task_lib", "activity_mode": "none", "interface_kind": "api"}
+    },
+    {
+      "data": {"id": "mission_msgs_server_to_task_server", "source": "mission_msgs_server", "target": "task_server", "layer": "build", "label": "contratos", "interface": "mission_msgs", "activity_mode": "none", "interface_kind": "api"}
+    },
+    {
+      "data": {"id": "mission_msgs_server_to_gui", "source": "mission_msgs_server", "target": "multidron_gui_lib", "layer": "build", "label": "geometria", "interface": "mission_msgs", "activity_mode": "none", "interface_kind": "api"}
+    },
+    {
+      "data": {"id": "mission_msgs_replica", "source": "mission_msgs_server", "target": "mission_msgs_dron", "layer": "deployment", "label": "replica exacta", "interface": "tree byte a byte", "activity_mode": "none", "interface_kind": "replica"}
+    },
+    {
+      "data": {"id": "sim_deploys_task_server", "source": "simulacion_dron", "target": "task_server", "layer": "deployment", "label": "launch", "interface": "launch_phase6", "activity_mode": "none", "interface_kind": "launch"}
+    },
+    {
+      "data": {"id": "sim_deploys_task_manager", "source": "simulacion_dron", "target": "task_manager", "layer": "deployment", "label": "launch por dron", "interface": "launch_phase6", "activity_mode": "none", "interface_kind": "launch"}
+    },
+    {
+      "data": {"id": "task_manager_to_task_server", "source": "task_manager", "target": "task_server", "layer": "runtime", "label": "registro", "interface": "/mission/register_drone", "activity_mode": "direct", "interface_kind": "service", "producer": "task_manager", "consumer": "task_server", "ttl_ms": 1800}
+    },
+    {
+      "data": {"id": "task_server_to_gui_geometry", "source": "task_server", "target": "multidron_gui_lib", "layer": "runtime", "label": "geometria", "interface": "/mission/geometry", "activity_mode": "direct", "interface_kind": "topic_publish", "producer": "task_server", "consumer": "RosDataBridge", "ttl_ms": 1800}
+    },
+    {
+      "data": {"id": "task_server_to_sim_mission_flow", "source": "task_server", "target": "simulacion_dron", "layer": "runtime", "label": "mission debug", "interface": "/mission/flow_events", "activity_mode": "direct", "interface_kind": "debug_topic", "producer": "task_server", "consumer": "mission_flow_bridge", "status": "debug_optional", "ttl_ms": 900}
+    },
+    {
+      "data": {
+        "id": "gui_lib_to_gui",
+        "source": "multidron_gui_lib",
+        "target": "multidron_gui",
+        "layer": "build",
+        "label": "Qt/ROS API",
+        "interface": "multidron_gui_lib",
+        "activity_mode": "none",
+        "interface_kind": "api"
+      }
+    },
+    {
+      "data": {
+        "id": "sim_deploys_gui",
+        "source": "simulacion_dron",
+        "target": "multidron_gui",
+        "layer": "deployment",
+        "label": "launch GUI",
+        "interface": "launch_multidron_gui",
+        "activity_mode": "none",
+        "interface_kind": "launch"
+      }
+    },
     {
       "data": {
         "id": "lib_to_dron",

@@ -47,6 +47,7 @@ struct DroneState
 
   bool has_world_pose = false;
   bool lost_or_unavailable = true;
+  std::int64_t received_steady_ns = 0;
   QVector3D position;
   QQuaternion orientation;
   double yaw_rad = 0.0;
@@ -100,6 +101,15 @@ struct TaskVisual
   std::string detail;
 };
 
+struct MissionRegionVisual
+{
+  std::string region_id;
+  std::uint32_t level_index = 0;
+  std::string side;
+  QVector3D min_world;
+  QVector3D max_world;
+};
+
 using SparsePointVector = std::vector<SparsePoint>;
 using KeyframeVector = std::vector<KeyframeVisual>;
 using DroneStateMap = std::map<std::uint32_t, DroneState>;
@@ -107,6 +117,7 @@ using FiducialVector = std::vector<FiducialObject>;
 using TrajectoryMap = std::map<std::uint32_t, TrajectoryVisual>;
 using VoxelVector = std::vector<VoxelVisual>;
 using TaskStateMap = std::map<std::uint32_t, TaskVisual>;
+using MissionRegionVector = std::vector<MissionRegionVisual>;
 
 struct GuiSnapshot
 {
@@ -118,6 +129,7 @@ struct GuiSnapshot
   std::shared_ptr<const TrajectoryMap> trajectories;
   std::shared_ptr<const VoxelVector> voxels;
   std::shared_ptr<const TaskStateMap> tasks;
+  std::shared_ptr<const MissionRegionVector> mission_regions;
 };
 
 }  // namespace multidron_gui_lib

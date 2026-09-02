@@ -118,14 +118,19 @@ class ArchitectureCheck:
             self.passed(check, f'{target.relative_to(SRC_ROOT)} replica exacta')
 
     def check_interfaces(self):
-        source = SRC_ROOT / self.policy['canonical_interfaces']
-        for target_path in self.policy['interface_replicas']:
-            self.compare_trees('interfaces', source, SRC_ROOT / target_path)
-        copies = list(SRC_ROOT.glob('*/orbslam3_msgs'))
-        if len(copies) != 2:
-            self.fail('interfaces', f'se esperaban 2 copias; encontradas {len(copies)}')
-        else:
-            self.passed('interfaces', 'exactamente dos copias de orbslam3_msgs')
+        for contract in self.policy['interface_contracts']:
+            source = SRC_ROOT / contract['canonical']
+            for target_path in contract['replicas']:
+                self.compare_trees('interfaces', source, SRC_ROOT / target_path)
+            copies = list(SRC_ROOT.glob(f"*/{contract['package']}"))
+            expected = 1 + len(contract['replicas'])
+            if len(copies) != expected:
+                self.fail('interfaces',
+                    f"{contract['package']}: se esperaban {expected} copias; "
+                    f'encontradas {len(copies)}')
+            else:
+                self.passed('interfaces',
+                    f"exactamente {expected} copias de {contract['package']}")
 
     @staticmethod
     def manifest_dependencies(path):
@@ -487,6 +492,8 @@ class ArchitectureCheck:
         package = SRC_ROOT / 'simulacion/simulacion_dron'
         required = (
             'web/pipeline_flow/index.html',
+            'web/mission_flow/index.html',
+            'web/mission_flow/graph_definition.js',
             'web/system_architecture/index.html',
             'web/system_architecture/graph_definition.js',
             'web/system_architecture/graph_metadata.js',

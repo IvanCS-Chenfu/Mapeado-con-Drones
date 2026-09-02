@@ -1,6 +1,8 @@
 #pragma once
 
 #include "multidron_gui_lib/types.hpp"
+#include "multidron_gui_lib/render_layer.hpp"
+#include "multidron_gui_lib/visualization_policy.hpp"
 
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
@@ -10,6 +12,7 @@
 #include <QPoint>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace multidron_gui_lib
@@ -31,6 +34,8 @@ public:
   void SetFiducialsVisible(bool visible);
   void SetTrajectoriesVisible(bool visible);
   void SetVoxelsVisible(bool visible);
+  void SetMissionRegionsVisible(bool visible);
+  void SelectMissionRegion(const QString & region_id);
 
   void SetScoreColorEnabled(bool enabled);
   void SetScoreFilterEnabled(bool enabled);
@@ -98,8 +103,11 @@ private:
   std::vector<Vertex> BuildVoxelWireVertices() const;
   std::vector<Vertex> BuildVoxelFillVertices() const;
   std::vector<Vertex> BuildSelectionVertices() const;
+  std::vector<Vertex> BuildSelectionFillVertices() const;
 
   void PickAt(const QPoint & screen_position);
+  bool SelectionStillExists(const EntityKey & key) const;
+  void DrawEntityLabels();
   bool ProjectToScreen(const QVector3D & world, QPointF * screen, float * depth = nullptr) const;
 
   static void AppendLine(
@@ -121,16 +129,21 @@ private:
     float size,
     const QColor & color,
     float alpha);
-  static QColor ScoreColor(float score);
-
+  static void AppendBoxTriangles(
+    std::vector<Vertex> * vertices,
+    const QVector3D & min,
+    const QVector3D & max,
+    const QColor & color,
+    float alpha);
   GuiSnapshot snapshot_;
 
-  bool sparse_visible_ = true;
-  bool keyframes_visible_ = true;
-  bool drones_visible_ = true;
-  bool fiducials_visible_ = true;
-  bool trajectories_visible_ = true;
-  bool voxels_visible_ = false;
+  RenderLayer sparse_render_layer_{"Sparse"};
+  RenderLayer keyframe_render_layer_{"KeyFrames"};
+  RenderLayer drone_render_layer_{"Drones"};
+  RenderLayer fiducial_render_layer_{"Fiducials"};
+  RenderLayer trajectory_render_layer_{"Trajectories"};
+  RenderLayer voxel_render_layer_{"Voxels", false};
+  RenderLayer mission_region_render_layer_{"Regiones de misión"};
   bool score_color_enabled_ = false;
   bool score_filter_enabled_ = false;
   float score_threshold_ = 0.0F;
@@ -144,8 +157,7 @@ private:
   Qt::MouseButtons pressed_buttons_;
   bool drag_happened_ = false;
 
-  bool selection_valid_ = false;
-  QVector3D selection_world_;
+  std::optional<SelectedEntity> selection_;
 
   QOpenGLShaderProgram shader_;
   int position_attribute_ = -1;
@@ -162,6 +174,7 @@ private:
   GpuLayer voxel_wire_layer_;
   GpuLayer voxel_fill_layer_;
   GpuLayer selection_layer_;
+  GpuLayer selection_fill_layer_;
 
   const void * sparse_identity_ = nullptr;
   const void * keyframe_identity_ = nullptr;
@@ -169,7 +182,9 @@ private:
   const void * fiducial_identity_ = nullptr;
   const void * trajectory_identity_ = nullptr;
   const void * voxel_identity_ = nullptr;
+  const void * mission_region_identity_ = nullptr;
   bool sparse_style_dirty_ = true;
+  std::uint64_t sparse_style_revision_ = 0;
   bool selection_dirty_ = true;
   bool grid_uploaded_ = false;
 };

@@ -60,25 +60,6 @@ double StampToSeconds(const builtin_interfaces::msg::Time & stamp)
   return static_cast<double>(stamp.sec) + static_cast<double>(stamp.nanosec) * 1e-9;
 }
 
-float PackRgb(float red, float green, float blue)
-{
-  const uint32_t packed =
-    (static_cast<uint32_t>(std::clamp(red, 0.0F, 1.0F) * 255.0F) << 16U) |
-    (static_cast<uint32_t>(std::clamp(green, 0.0F, 1.0F) * 255.0F) << 8U) |
-    static_cast<uint32_t>(std::clamp(blue, 0.0F, 1.0F) * 255.0F);
-  float value = 0.0F;
-  std::memcpy(&value, &packed, sizeof(value));
-  return value;
-}
-
-float ScoreRgb(float score)
-{
-  const float normalized = std::clamp(score, 0.0F, 1.0F);
-  const float red = normalized <= 0.5F ? 1.0F : 2.0F * (1.0F - normalized);
-  const float green = normalized <= 0.5F ? 2.0F * normalized : 1.0F;
-  return PackRgb(red, green, 0.0F);
-}
-
 sensor_msgs::msg::PointField MakePointField(
   const std::string & name, uint32_t offset, uint8_t datatype)
 {
@@ -2563,35 +2544,42 @@ private:
     cloud.width = static_cast<uint32_t>(build.points.size());
     cloud.is_bigendian = false;
     cloud.is_dense = true;
-    cloud.point_step = 32;
+    cloud.point_step = 36;
     cloud.row_step = cloud.point_step * cloud.width;
     cloud.fields.push_back(MakePointField("x", 0, sensor_msgs::msg::PointField::FLOAT32));
     cloud.fields.push_back(MakePointField("y", 4, sensor_msgs::msg::PointField::FLOAT32));
     cloud.fields.push_back(MakePointField("z", 8, sensor_msgs::msg::PointField::FLOAT32));
     cloud.fields.push_back(MakePointField("score", 12, sensor_msgs::msg::PointField::FLOAT32));
-    cloud.fields.push_back(MakePointField("rgb", 16, sensor_msgs::msg::PointField::FLOAT32));
-    cloud.fields.push_back(MakePointField("drone_id", 20, sensor_msgs::msg::PointField::UINT32));
+    cloud.fields.push_back(MakePointField("drone_id", 16, sensor_msgs::msg::PointField::UINT32));
     cloud.fields.push_back(
       MakePointField(
-        "map_epoch_low", 24, sensor_msgs::msg::PointField::UINT32));
+        "map_epoch_low", 20, sensor_msgs::msg::PointField::UINT32));
     cloud.fields.push_back(
       MakePointField(
-        "map_epoch_high", 28, sensor_msgs::msg::PointField::UINT32));
+        "map_epoch_high", 24, sensor_msgs::msg::PointField::UINT32));
+    cloud.fields.push_back(
+      MakePointField(
+        "local_mp_id_low", 28, sensor_msgs::msg::PointField::UINT32));
+    cloud.fields.push_back(
+      MakePointField(
+        "local_mp_id_high", 32, sensor_msgs::msg::PointField::UINT32));
     cloud.data.resize(cloud.row_step);
     for (size_t index = 0; index < build.points.size(); ++index) {
       const auto & point = build.points[index];
       const size_t offset = index * cloud.point_step;
-      const float rgb = ScoreRgb(point.score);
       const uint32_t epoch_low = static_cast<uint32_t>(point.mappoint_id.map_epoch);
       const uint32_t epoch_high = static_cast<uint32_t>(point.mappoint_id.map_epoch >> 32U);
+      const uint32_t mp_id_low = static_cast<uint32_t>(point.mappoint_id.local_mp_id);
+      const uint32_t mp_id_high = static_cast<uint32_t>(point.mappoint_id.local_mp_id >> 32U);
       WritePointField(&cloud.data, offset + 0, point.x);
       WritePointField(&cloud.data, offset + 4, point.y);
       WritePointField(&cloud.data, offset + 8, point.z);
       WritePointField(&cloud.data, offset + 12, point.score);
-      WritePointField(&cloud.data, offset + 16, rgb);
-      WritePointField(&cloud.data, offset + 20, point.mappoint_id.drone_id);
-      WritePointField(&cloud.data, offset + 24, epoch_low);
-      WritePointField(&cloud.data, offset + 28, epoch_high);
+      WritePointField(&cloud.data, offset + 16, point.mappoint_id.drone_id);
+      WritePointField(&cloud.data, offset + 20, epoch_low);
+      WritePointField(&cloud.data, offset + 24, epoch_high);
+      WritePointField(&cloud.data, offset + 28, mp_id_low);
+      WritePointField(&cloud.data, offset + 32, mp_id_high);
     }
     return cloud;
   }
@@ -2744,7 +2732,7 @@ private:
       "backfilled_submaps=%zu backfilled_kfs=%zu backfilled_mps=%zu "
       "skip_unanchored=%zu skip_bad=%zu skip_invalid=%zu skip_no_world_kf=%zu "
       "reference_assoc=%zu fallback_assoc=%zu fallback_submap=%zu "
-      "frame=world score_field=true rgb_field=true identity_fields=true",
+      "frame=world score_field=true rgb_field=false identity_fields=true",
       arrival_id, build.publication_revision, raw.submap_revision,
       build.pose_revision, build.score_revision, build.points.size(), build.keyframes.size(),
       build.dirty_keyframes, build.dirty_mappoints, build.recalculated_keyframes,

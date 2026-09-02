@@ -101,8 +101,8 @@ Solo con la puerta cerrada, usar el contrato `subfase_*.md` y seguir:
 | 3 | `actual` | Mapa sparse global multi-dron | Reabierta solo en 3Q para corregir optimizaciones observadas en la prueba 213. |
 | 4 | `realizado` | Fiducial real sin ground truth funcional | Cerrada con 4A-4H; 4I queda aplazada como regresión opcional. |
 | 5 | `conseguida` | Pose global de cada dron sin ground truth | 351 demuestra degradación visual causal; ruta favorable gobernada por ORB pasa 3/3 en 353-355. |
-| 6 | `sin hacer` | Tareas y trayectorias de mapeo | Generará misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |
-| 7 | `sin hacer` | GUI 3D propia de operación | GUI C++/Qt/OpenGL independiente de RViz2 y del visualizador web entregado en Fase 3. |
+| 6 | `actual` | Tareas y trayectorias de mapeo | Avanzará intercalada con Fase 7: misiones desde ROI/YAML, replanning, obstáculos locales y reservas dron-dron. |
+| 7 | `actual` | GUI 3D propia de operación | 7A-7F y 7H conseguidas; espera contratos reales de Fase 6 para trayectoria, tareas y progreso. |
 | 8 | `sin hacer` | Nube densa global multi-dron | Reconstrucción dense en servidor a partir de estéreo, poses globales y sparse. |
 | 9 | `opcional` | Mejoras avanzadas y robustez | Placeholder futuro; sus subfases se definirán cuando toque avanzar ahí. |
 
@@ -279,20 +279,31 @@ vigente de 3Q. Cada subfase funcional requiere preparación y autorización.
 ### Fase 6 — Tareas y trayectorias
 
 Generar y coordinar misiones de mapeo sparse desde `tarea_principal.yaml`, ROI,
-trayectorias cortas, percepción local de obstáculos y reservas espaciales entre
-drones.
+`hard_flight_volume = ROI + mapping_hysteresis`, trayectorias cortas,
+percepción local de obstáculos y reservas espaciales entre drones.
 
-No ejecutar ni completar su pipeline específico mientras Fase 3 siga activa,
-salvo petición explícita del usuario.
+La secuencia autoritativa es 6A-6O. El servidor usa paquetes independientes
+`task_server`/`task_lib`, cada dron `task_manager`/`task_manager_lib`, y los
+contratos pertenecen a `mission_msgs`. No existen `flight_bounds`,
+`tasks_per_level` ni rutas rígidas A-B-C: cada nivel se divide en cuatro
+subROIs solapadas que expresan responsabilidad regional.
+
+Por petición explícita del usuario, Fase 6 puede avanzar intercalada con Fase 7
+aunque permanezca apuntada la deuda 3Q. Si la GUI demuestra un dato de origen
+incorrecto en sparse/KFs/loops, se vuelve a la fase propietaria antes de
+maquillarlo en GUI.
 
 ### Fase 7 — GUI propia
 
-Crear una GUI 3D de escritorio en C++/Qt/OpenGL para operación multi-dron. El
-visualizador JavaScript entregado en Fase 3 es diagnostico de flujo de datos y no sustituye
+Crear una GUI 3D de escritorio en C++/Qt/OpenGL para operación multi-dron. La
+arquitectura acordada usa `multidron_gui_lib` y `multidron_gui`. El visualizador
+JavaScript entregado en Fase 3 es diagnostico de flujo de datos y no sustituye
 esta GUI funcional.
 
-No ejecutar ni completar su pipeline específico mientras Fase 3 siga activa,
-salvo petición explícita del usuario.
+El ciclo acordado avanza primero Fase 7 hasta donde permitan Fases 1-5 y vuelve
+a Fase 6 cuando falten contratos de tareas, progreso, trayectoria vigente o
+voxeles. Desde este punto, las pruebas integradas se observan con GUI Fase 7 +
+Gazebo en vez de RViz2, salvo depuración auxiliar explícita.
 
 ### Fase 8 — Nube densa global
 

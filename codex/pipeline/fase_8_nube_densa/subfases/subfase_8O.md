@@ -78,7 +78,7 @@ paquetes ajenos a la subfase                # salvo dependencia real localizada 
 ## Funciones, clases, nodos o interfaces que hay que localizar
 
 ```text
-TaskExecutor / TaskManager de Fase 6
+task_server / task_manager de Fase 6
 tipo de tarea/acción de captura definido por Fase 7/6 (`CAPTURE_DENSE` o equivalente real)
 camera/left + camera/right topics normales
 pose global/estado de movimiento de Fase 5
@@ -134,10 +134,10 @@ No se aceptan offsets, deformaciones, filtros visuales o copias de estado cuyo �
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh dense_map_multi dense_map_server <paquete_tareas_real> dron_individual
+./codex/herramientas/build_selected_packages.sh dense_map_multi dense_map_server task_server task_manager dron_individual
 ```
 
-Si la separación de Fase 2 está ya ejecutada, respetar sus builds por grupo (`dron`, `servidor`, `simulacion`) y la sincronización de las dos copias de `orbslam3_msgs`. Los comandos listados son el conjunto lógico esperado; el implementador debe usar el helper vigente y registrar en historial el comando real.
+Si la separación de Fase 2 está ya ejecutada, respetar sus builds por grupo (`dron`, `servidor`, `simulacion`) y la sincronización de las dos copias de `orbslam3_msgs` y `mission_msgs`. Los comandos listados son el conjunto lógico esperado; el implementador debe usar el helper vigente y registrar en historial el comando real.
 
 
 ## Pruebas Gazebo requeridas

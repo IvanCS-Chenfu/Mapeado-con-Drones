@@ -19,10 +19,15 @@ Fase 5: CONSEGUIDA; 5H integracion, 5I estabilizacion y 5J cierre 2/2
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA como regresion opcional futura
-Subfase actual: 1K CONSEGUIDA tras pruebas 374 y 375
+Subfase actual: reagrupar el primer bloque funcional desde la Fase 6 corregida
 Fase 1: cierre tecnico 1A-1K conseguido
-Siguiente punto de entrada: preparar ciclo iterativo Fases 6/7
-Despues de 1K: iniciar el ciclo iterativo Fases 6/7
+Fase 6: pipeline documental reestructurado 6A-6O; ejecucion funcional pendiente
+Fase 7: bloques 1 (`7A`-`7D`) y 2 (`7E`,`7F`,`7H`) conseguidos
+Siguiente punto de entrada: redefinir los bloques funcionales desde 6A-6O y
+preparar el primero, que inicia arquitectura, contratos y grafo web incremental;
+no ejecutar hasta cerrar preparacion y autorizacion
+Modo de prueba futuro: abrir GUI propia de Fase 7 y Gazebo; RViz2 solo como
+debug auxiliar explícito
 Revision visual humana de prueba 200: confirmada correcta
 Cierre de Fase 2: completo
 ```

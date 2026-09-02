@@ -1,0 +1,8 @@
+mission_id: house_mapping
+drones: [1, 2]
+mapping_roi:
+  frame_id: world
+  min: [-12.0, -12.0, 0.2]
+  max: [12.0, 12.0, 6.2]
+mapping_hysteresis: [2.0, 2.0, 0.8]
+level_height: 2.0

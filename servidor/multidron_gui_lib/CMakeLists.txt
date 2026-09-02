@@ -11,6 +11,7 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(ament_cmake REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(mission_msgs REQUIRED)
 find_package(orbslam3_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -30,12 +31,16 @@ endif()
 
 add_library(${PROJECT_NAME} SHARED
   include/multidron_gui_lib/types.hpp
+  include/multidron_gui_lib/render_layer.hpp
+  include/multidron_gui_lib/visualization_policy.hpp
   include/multidron_gui_lib/gui_data_model.hpp
   include/multidron_gui_lib/fiducial_config_loader.hpp
   include/multidron_gui_lib/ros_data_bridge.hpp
   include/multidron_gui_lib/scene3d_widget.hpp
   include/multidron_gui_lib/main_window.hpp
   src/gui_data_model.cpp
+  src/render_layer.cpp
+  src/visualization_policy.cpp
   src/fiducial_config_loader.cpp
   src/ros_data_bridge.cpp
   src/scene3d_widget.cpp
@@ -50,6 +55,7 @@ target_include_directories(${PROJECT_NAME}
 
 ament_target_dependencies(${PROJECT_NAME}
   geometry_msgs
+  mission_msgs
   orbslam3_msgs
   rclcpp
   sensor_msgs
@@ -85,7 +91,7 @@ ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME})
 ament_export_dependencies(
-  geometry_msgs orbslam3_msgs rclcpp sensor_msgs std_msgs visualization_msgs yaml-cpp)
+  geometry_msgs mission_msgs orbslam3_msgs rclcpp sensor_msgs std_msgs visualization_msgs yaml-cpp)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
@@ -101,6 +107,19 @@ if(BUILD_TESTING)
 
   ament_add_gtest(test_fiducial_config_loader test/test_fiducial_config_loader.cpp)
   target_link_libraries(test_fiducial_config_loader ${PROJECT_NAME})
+
+  ament_add_gtest(test_render_layer test/test_render_layer.cpp)
+  target_link_libraries(test_render_layer ${PROJECT_NAME})
+
+  ament_add_gtest(test_visualization_policy test/test_visualization_policy.cpp)
+  target_link_libraries(test_visualization_policy ${PROJECT_NAME})
+
+  ament_add_gtest(test_main_window test/test_main_window.cpp)
+  target_link_libraries(test_main_window ${PROJECT_NAME})
+  set_tests_properties(test_main_window PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+  add_executable(gui_synthetic_smoke test/gui_synthetic_smoke.cpp)
+  target_link_libraries(gui_synthetic_smoke ${PROJECT_NAME})
 endif()
 
 ament_package()

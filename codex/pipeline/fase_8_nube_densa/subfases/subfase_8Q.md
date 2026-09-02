@@ -85,7 +85,7 @@ yaw/side-look logic de Fase 6
 OccupancyGrid3D query
 DenseFusionMap query
 SparseGlobalMap query
-TaskManager/reservas
+task_server/task_manager/reservas
 ```
 
 

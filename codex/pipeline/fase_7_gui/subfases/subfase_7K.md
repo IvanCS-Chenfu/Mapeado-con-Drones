@@ -41,7 +41,10 @@ No asumir que los nombres de topics/messages del snapshot documental siguen sien
 
 ## Diagnóstico de partida
 
-Fase 6 solo cerró baseline `MAP_SECTION`, `GO_TO` y `ANCHOR_SUBMAP`. `CAPTURE_SPARSE/DENSE` son ampliaciones de Fase 7. ORB-SLAM3 decide cuándo insertar KFs; no existe acuerdo para forzarlos. La interfaz real del wrapper/server para detectar KFs nuevos debe localizarse.
+El contrato de Fase 6 define el baseline `MAP_SECTION`, `GO_TO` y
+`ANCHOR_SUBMAP`. `CAPTURE_SPARSE/DENSE` son ampliaciones de Fase 7. ORB-SLAM3
+decide cuándo insertar KFs; no existe acuerdo para forzarlos. La interfaz real
+del wrapper/server para detectar KFs nuevos debe localizarse.
 
 ## Invariantes y decisiones cerradas
 
@@ -57,12 +60,14 @@ Fase 6 solo cerró baseline `MAP_SECTION`, `GO_TO` y `ANCHOR_SUBMAP`. `CAPTURE_S
 ## Archivos permitidos a modificar
 
 ```text
-src/servidor/multidron_gui/src/widgets/task_creation_panel.*
-src/servidor/multidron_gui/src/ros_command_bridge.*
-src/servidor/orbslam3_server/              # TaskManager/observador de KFs si es propietario
-src/servidor/orbslam3_msgs/
-src/dron/orbslam3_msgs/                    # réplica de interfaces si aplica
-src/dron/dron_individual/                  # solo si TaskExecutor necesita handler y tras respetar ownership Fase 6
+src/servidor/multidron_gui_lib/src/widgets/task_creation_panel.*
+src/servidor/multidron_gui_lib/src/ros_command_bridge.*
+src/servidor/task_server/                  # misión y observación pública de KFs
+src/servidor/task_lib/
+src/servidor/mission_msgs/
+src/dron/mission_msgs/                     # réplica exacta de interfaces
+src/dron/task_manager/                     # ejecución de CAPTURE_SPARSE
+src/dron/task_manager_lib/
 codex/contexto/paquetes/
 ```
 
@@ -94,7 +99,7 @@ Además:
 ## Funciones, clases, nodos o interfaces que hay que localizar
 
 ```text
-Task contract/TaskManager de Fase 6
+mission_msgs / task_server / task_manager de Fase 6
 GO_TO handler
 (drone_id,map_epoch,local_kf_id) / stream de KFs de Fase 3
 pose de KF global y timestamp si existe
@@ -109,7 +114,9 @@ Los nombres de componentes nuevos definidos por este contrato pueden implementar
 
 1. Extender el contrato de tareas compartido con `CAPTURE_SPARSE` y `CAPTURE_DENSE` sin romper copias Dron/Servidor ni tipos anteriores.
 2. En GUI, mostrar ambos tipos con selector de dron y campos X/Y/Z/Yaw.
-3. Implementar `CAPTURE_SPARSE` como composición/estado del TaskManager: navegación por la misma cadena de `GO_TO`, luego estado `WAITING_FOR_KF` o equivalente.
+3. Implementar `CAPTURE_SPARSE` como composición/estado del sistema de misión:
+   navegación por la misma cadena de `GO_TO`, luego estado `WAITING_FOR_KF` o
+   equivalente.
 4. Capturar al entrar en espera el `map_epoch` y la frontera temporal/ID para distinguir KFs nuevos.
 5. Aceptar únicamente un KF posterior y del mismo dron/epoch. Usar pose/tolerancias existentes para asociarlo cuando estén disponibles.
 6. Definir timeout configurable. Reutilizar convenciones existentes; si fijar un nuevo valor funcional no está cubierto por parámetros previos, preguntar al usuario durante preparación antes de elegirlo.
@@ -137,13 +144,18 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui orbslam3_msgs orbslam3_server dron_individual
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor orbslam3_msgs
+./codex/herramientas/build_selected_packages.sh --group servidor orbslam3_server
+./codex/herramientas/build_selected_packages.sh --group dron orbslam3_msgs
+./codex/herramientas/build_selected_packages.sh --group dron dron_individual
 ```
 
 Reducir el conjunto si el handler de tarea queda enteramente en Servidor; respetar builds por grupo de Fase 2.

@@ -82,7 +82,7 @@ DenseKeyFrameDatabase
 DenseRegistrationManager
 GlobalPoseStore / KFs próximos
 DenseRegionNeed
-TaskManager GO_TO/CAPTURE_DENSE
+task_server/task_manager GO_TO/CAPTURE_DENSE
 ```
 Nuevos componentes sugeridos:
 ```text
@@ -142,10 +142,10 @@ No se aceptan offsets, deformaciones, filtros visuales o copias de estado cuyo �
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh dense_map_multi dense_map_server <paquete_tareas_real> orbslam3_multi
+./codex/herramientas/build_selected_packages.sh dense_map_multi dense_map_server task_server task_manager orbslam3_multi
 ```
 
-Si la separación de Fase 2 está ya ejecutada, respetar sus builds por grupo (`dron`, `servidor`, `simulacion`) y la sincronización de las dos copias de `orbslam3_msgs`. Los comandos listados son el conjunto lógico esperado; el implementador debe usar el helper vigente y registrar en historial el comando real.
+Si la separación de Fase 2 está ya ejecutada, respetar sus builds por grupo (`dron`, `servidor`, `simulacion`) y la sincronización de las dos copias de `orbslam3_msgs` y `mission_msgs`. Los comandos listados son el conjunto lógico esperado; el implementador debe usar el helper vigente y registrar en historial el comando real.
 
 
 ## Pruebas Gazebo requeridas

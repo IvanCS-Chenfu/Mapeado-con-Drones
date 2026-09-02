@@ -124,6 +124,98 @@ window.SYSTEM_ARCHITECTURE_METADATA = {
       "status": "canonical",
       "docs": "codex/contexto/paquetes/orbslam3_msgs/00_summary.md"
     },
+    "multidron_gui": {
+      "path": "servidor/multidron_gui",
+      "ros_name": "multidron_gui",
+      "executables": [
+        "multidron_gui"
+      ],
+      "owned_yaml": [],
+      "dependencies": [
+        "multidron_gui_lib"
+      ],
+      "cross_group": [
+        "simulacion_dron (deployment)"
+      ],
+      "status": "active",
+      "docs": "codex/contexto/paquetes/multidron_gui/00_summary.md"
+    },
+    "multidron_gui_lib": {
+      "path": "servidor/multidron_gui_lib",
+      "ros_name": "multidron_gui_lib",
+      "executables": [
+        "multidron_gui_lib shared library"
+      ],
+      "owned_yaml": [],
+      "dependencies": [
+        "orbslam3_msgs"
+      ],
+      "cross_group": [
+        "orbslam3 navigation topics"
+      ],
+      "status": "active",
+      "docs": "codex/contexto/paquetes/multidron_gui_lib/00_summary.md"
+    },
+    "mission_msgs_dron": {
+      "path": "dron/mission_msgs",
+      "ros_name": "mission_msgs",
+      "executables": [],
+      "owned_yaml": [],
+      "dependencies": [],
+      "cross_group": ["replica exacta de Servidor"],
+      "status": "verified replica",
+      "docs": "codex/contexto/paquetes/mission_msgs/00_summary.md"
+    },
+    "task_manager_lib": {
+      "path": "dron/task_manager_lib",
+      "ros_name": "task_manager_lib",
+      "executables": ["task_manager_lib shared library"],
+      "owned_yaml": [],
+      "dependencies": ["mission_msgs"],
+      "cross_group": [],
+      "status": "active",
+      "docs": "codex/contexto/paquetes/task_manager_lib/00_summary.md"
+    },
+    "task_manager": {
+      "path": "dron/task_manager",
+      "ros_name": "task_manager",
+      "executables": ["task_manager_node"],
+      "owned_yaml": [],
+      "dependencies": ["mission_msgs", "task_manager_lib"],
+      "cross_group": ["task_server (runtime)"],
+      "status": "active",
+      "docs": "codex/contexto/paquetes/task_manager/00_summary.md"
+    },
+    "mission_msgs_server": {
+      "path": "servidor/mission_msgs",
+      "ros_name": "mission_msgs",
+      "executables": [],
+      "owned_yaml": [],
+      "dependencies": [],
+      "cross_group": ["contrato canonico para Dron"],
+      "status": "canonical",
+      "docs": "codex/contexto/paquetes/mission_msgs/00_summary.md"
+    },
+    "task_lib": {
+      "path": "servidor/task_lib",
+      "ros_name": "task_lib",
+      "executables": ["task_lib shared library"],
+      "owned_yaml": [],
+      "dependencies": [],
+      "cross_group": [],
+      "status": "active",
+      "docs": "codex/contexto/paquetes/task_lib/00_summary.md"
+    },
+    "task_server": {
+      "path": "servidor/task_server",
+      "ros_name": "task_server",
+      "executables": ["task_server_node"],
+      "owned_yaml": ["mission_house.yaml", "navigation.yaml"],
+      "dependencies": ["mission_msgs", "task_lib"],
+      "cross_group": ["task_manager", "multidron_gui_lib", "simulacion_dron"],
+      "status": "active",
+      "docs": "codex/contexto/paquetes/task_server/00_summary.md"
+    },
     "simulacion_dron": {
       "path": "simulacion/simulacion_dron",
       "ros_name": "simulacion_dron",
@@ -151,6 +243,24 @@ window.SYSTEM_ARCHITECTURE_METADATA = {
     }
   },
   "edges": {
+    "task_manager_to_task_server": {
+      "message_type": "mission_msgs/srv/RegisterDrone",
+      "namespace": "/mission/register_drone",
+      "qos": "service ROS 2 reliable",
+      "data_transferred": "identidad, dimensiones, perfil, versiones y capabilities"
+    },
+    "task_server_to_gui_geometry": {
+      "message_type": "mission_msgs/msg/MissionGeometry",
+      "namespace": "/mission/geometry",
+      "qos": "reliable transient local keep last 1",
+      "data_transferred": "ROI, volumen duro, niveles y cuatro subROI sin asignar"
+    },
+    "task_server_to_sim_mission_flow": {
+      "message_type": "std_msgs/msg/String",
+      "namespace": "/mission/flow_events",
+      "qos": "reliable keep last 100",
+      "data_transferred": "eventos JSON opcionales y geometria 2D de observabilidad"
+    },
     "sim_to_orbslam_stereo": {
       "message_type": "sensor_msgs/msg/Image (x2)",
       "namespace": "/dron_X/sensor/camara_{izq,der}/image_raw",

@@ -8,7 +8,9 @@ sin hacer
 
 ## Dependencia
 
-7B, 7C y Fase 6 con lifecycle/progreso disponible.
+7B, 7C y Fase 6 con lifecycle/progreso disponible. El bloque F6 6A-6C puede
+adelantar `MissionRegionLayer` y la seleccion de geometria no asignada, pero no
+cuenta como tarea por dron ni como cierre de 7I.
 
 ## Objetivo técnico
 
@@ -18,7 +20,13 @@ Conectar el panel derecho a los estados reales de drones/tareas. Crear/actualiza
 
 Las tarjetas aparecen/desaparecen según el conjunto real de drones o misión, sin número fijo. La barra representa `progress` del productor: puede saltar por bloques (10%, 20%, etc.) si el planificador de cobertura actualiza por hitos. Para `GO_TO`, si el backend publica progreso geométrico fácil, se refleja de forma más continua.
 
-La GUI no deduce porcentaje por tiempo ni por distancia si el TaskManager no lo declara como progreso real.
+Al clicar la tarea real de una tarjeta, la GUI selecciona su `BaseSubRoi` y
+resalta el prisma completo mediante `MissionRegionLayer`. Otra tarea u objeto
+sustituye la seleccion; clicar vacio la limpia. Si la tarea desaparece o cambia
+de mision/revision, la seleccion se invalida de forma segura.
+
+La GUI no deduce porcentaje por tiempo ni por distancia si `task_server` no lo
+declara como progreso real.
 
 ## Contexto obligatorio a leer
 
@@ -45,24 +53,32 @@ Fase 6 define campos conceptuales de estado/progreso, pero la implementación re
 
 ## Invariantes y decisiones cerradas
 
-- El servidor/TaskManager es autoridad de estado/progreso.
+- `task_server` es autoridad de estado/progreso global; `task_manager` reporta
+  la ejecución local.
 - Progreso discreto es válido.
 - No exigir 100% suave ni update por frame.
 - No inventar batería/latencia si no existe sensor/contrato.
 - Tracking/pose validity proviene de Fase 5 si se muestra.
 - Scroll solo afecta visualización, no orden/prioridad de drones.
 - No añadir pause/resume/cancel.
+- El panel de tarjetas/regiones permanece a la derecha.
+- Antes de 6E solo se muestran `Regiones de mision` no asignadas; no se inventa
+  una tarea o un owner para anticipar esta subfase.
 
 ## Archivos permitidos a modificar
 
 ```text
-src/servidor/multidron_gui/src/widgets/drone_card.*
-src/servidor/multidron_gui/src/widgets/drone_cards_panel.*
-src/servidor/multidron_gui/src/ros_data_bridge.*
-src/servidor/multidron_gui/src/gui_data_model.*
-src/servidor/orbslam3_server/              # solo si falta estado/progreso canónico y se reabre Fase 6
-src/servidor/orbslam3_msgs/
-src/dron/orbslam3_msgs/
+src/servidor/multidron_gui_lib/src/widgets/drone_card.*
+src/servidor/multidron_gui_lib/src/widgets/drone_cards_panel.*
+src/servidor/multidron_gui_lib/src/ros_data_bridge.*
+src/servidor/multidron_gui_lib/src/gui_data_model.*
+src/servidor/multidron_gui_lib/src/scene3d_widget.*
+src/servidor/multidron_gui_lib/src/render/mission_region_layer.*
+src/servidor/task_server/                  # estado/progreso canónico de misión
+src/servidor/task_lib/
+src/servidor/mission_msgs/
+src/dron/task_manager/
+src/dron/mission_msgs/                     # réplica exacta de interfaces
 ```
 
 Las rutas nuevas son de contrato. Antes de crearlas, comprobar el árbol posterior a Fases 2–6. Si existe un componente equivalente, reutilizarlo en lugar de duplicarlo.
@@ -95,7 +111,7 @@ Además:
 task_id / task type / state / progress / result / failure reason de Fase 6
 drone_id/namespaces reales
 estado pose/tracking de Fase 5 si aparece en card
-TaskManager / TaskExecutor productor de feedback
+task_server / task_manager productor de feedback
 DroneCard / DroneCardsPanel
 ```
 
@@ -112,6 +128,8 @@ Los nombres de componentes nuevos definidos por este contrato pueden implementar
 7. Mostrar fallo/razón cuando exista, sin ocultar la última tarea detrás de “0%”.
 8. Probar 20+ tarjetas sintéticas y N drones reales.
 9. Añadir logs `GUI-TASK-CARD`, `GUI-TASK-PROGRESS` agregados/configurables.
+10. Reutilizar la seleccion de regiones preparada en 6B y enlazarla mediante
+    identidad estable con la tarea asignada, sin duplicar geometria.
 
 ## Cambios prohibidos
 
@@ -133,16 +151,18 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
 ```
 
-Si Fase 6 necesita exponer estado/progreso, compilar también interfaces/TaskManager modificados después de reabrir esa fase.
+Si Fase 6 necesita exponer estado/progreso, compilar también `mission_msgs`,
+`task_server` y/o `task_manager` modificados después de reabrir esa fase.
 
 Si la separación de Fase 2 utiliza builds por grupo, usar el helper vigente para el grupo Servidor y, cuando haya pruebas de integración, los grupos Dron/Simulación correspondientes. Registrar el comando exacto solo en el historial real.
 
@@ -163,6 +183,12 @@ Con muchas tarjetas, recorrer la lista mientras el formulario de tareas sigue ac
 ### Prueba 4 — Fallo de tarea
 
 Inyectar/observar un estado `FAILED` con motivo. La tarjeta debe mostrar estado/razón sin traducirlo a éxito parcial.
+
+### Prueba 5 — Seleccion de subROI
+
+Clicar tareas de distintos drones y comprobar que cambia el prisma resaltado.
+Seleccionar otra entidad y clicar vacio para verificar sustitucion y limpieza;
+el solape geometrico no debe resaltar una tarea distinta.
 
 No arrancar Gazebo artificialmente para una prueba puramente gráfica/unitaria. Cuando se use simulación, el comando base es:
 
@@ -193,6 +219,8 @@ La subfase se considera `CONSEGUIDA` solo si:
 4. Scroll funciona con muchas tarjetas.
 5. No existe progreso inventado ni botones no acordados.
 6. Cualquier error de lifecycle/progreso de Fase 6 se corrige allí y se revalida.
+7. La tarea seleccionada resalta solo su subROI y la seleccion no sobrevive a
+   una identidad/revision desaparecida.
 
 Además, todo build requerido debe devolver `0`, todas las pruebas obligatorias deben ejecutarse, no puede haber errores graves no explicados y la documentación/historial real debe quedar sincronizada.
 

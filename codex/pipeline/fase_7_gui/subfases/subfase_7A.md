@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer
+conseguida
 ```
 
 ## Dependencia
@@ -16,9 +16,9 @@ Estudiar el workspace real posterior a Fases 3–6 y cerrar la arquitectura téc
 
 ## Comportamiento esperado
 
-Al terminar debe existir un paquete GUI independiente dentro de `src/servidor/` —nombre de contrato `multidron_gui`, salvo equivalente ya existente— con un ejecutable mínimo capaz de iniciar ROS 2 + Qt y cerrarse limpiamente. Debe existir un inventario explícito de entradas/salidas para sparse, score, KFs, fiduciales, pose/tracking, tarea/progreso, trayectoria y futura dense.
+Al terminar deben existir dos paquetes GUI independientes dentro de `src/servidor/` —`multidron_gui_lib` para lógica/modelos/render/widgets y `multidron_gui` para orquestación/ejecutable/launch, salvo equivalente ya existente— con un ejecutable mínimo capaz de iniciar ROS 2 + Qt y cerrarse limpiamente. Debe existir un inventario explícito de entradas/salidas para sparse, score, KFs, fiduciales, pose/tracking, tarea/progreso, trayectoria y futura dense.
 
-El `global_map_server` y los nodos de Dron deben funcionar aunque `multidron_gui` no se construya/ejecute en runtime. Las dependencias gráficas no deben introducirse dentro del proceso crítico de mapa.
+El `global_map_server` y los nodos de Dron deben funcionar aunque `multidron_gui` no se ejecute en runtime. Las dependencias gráficas no deben introducirse dentro del proceso crítico de mapa.
 
 ## Contexto obligatorio a leer
 
@@ -47,6 +47,8 @@ El snapshot original ya publica `/global_sparse_cloud` y `/global_keyframes`, pe
 
 - La GUI pertenece físicamente a `src/servidor/`.
 - Debe ser proceso/nodo independiente del backend de mapa.
+- La separación acordada es `multidron_gui_lib` + `multidron_gui`, para poder
+  testear modelos/render/widgets sin acoplarlos al `main()`.
 - C++ + Qt Widgets + OpenGL es la dirección acordada; elegir Qt5/Qt6 según el entorno real, sin cambiar de toolkit a web.
 - `world` es el frame funcional de la escena y de los objetivos manuales.
 - ROS 2 proporciona datos/órdenes; RViz2 no es una dependencia.
@@ -56,7 +58,8 @@ El snapshot original ya publica `/global_sparse_cloud` y `/global_keyframes`, pe
 ## Archivos permitidos a modificar
 
 ```text
-src/servidor/multidron_gui/                  # paquete nuevo propuesto
+src/servidor/multidron_gui_lib/              # paquete nuevo propuesto para lógica/render/widgets
+src/servidor/multidron_gui/                  # paquete nuevo propuesto para ejecutable/launch
 src/servidor/orbslam3_server/                # solo telemetría/contrato mínimo si falta
 src/servidor/orbslam3_msgs/                  # solo si un contrato compartido real necesita ampliarse
 src/dron/orbslam3_msgs/                      # réplica si Fase 2 exige sincronía
@@ -110,7 +113,7 @@ Los nombres de componentes nuevos definidos por este contrato pueden implementar
 ## Cambios requeridos
 
 1. Inventariar físicamente productores, tipos ROS, frames, frecuencias, QoS y lifecycle de todos los datos que usará la GUI.
-2. Crear la estructura mínima del paquete `multidron_gui` o reutilizar equivalente, con `package.xml`, `CMakeLists.txt` y ejecutable ROS 2/Qt vacío pero funcional.
+2. Crear la estructura mínima de `multidron_gui_lib` y `multidron_gui` o reutilizar equivalente, con `package.xml`, `CMakeLists.txt`, dependencia correcta entre ambos y ejecutable ROS 2/Qt vacío pero funcional.
 3. Determinar Qt5/Qt6 y módulos OpenGL disponibles en el entorno objetivo; documentar dependencias de sistema y ROS sin meterlas en otros paquetes.
 4. Definir que el thread principal sea el event loop Qt y que ROS 2 use un executor/thread separado o mecanismo equivalente no bloqueante; ningún callback tocará widgets directamente.
 5. Definir el `GuiDataModel`/snapshot como frontera de thread.
@@ -139,13 +142,14 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
 ```
 
 Si 7A añade únicamente telemetría mínima a otro paquete, incluirlo en el build real y justificarlo.
@@ -156,7 +160,7 @@ Si la separación de Fase 2 utiliza builds por grupo, usar el helper vigente par
 
 ### Prueba 1 — Build y arranque mínimo sin simulación
 
-Compilar `multidron_gui` y ejecutar el nodo con ROS 2 sin topics de datos. Debe abrir una ventana mínima, mantener vivo el executor y cerrar limpiamente sin crash ni esperar a ningún publisher.
+Compilar `multidron_gui_lib` y `multidron_gui`, y ejecutar el nodo con ROS 2 sin topics de datos. Debe abrir una ventana mínima, mantener vivo el executor y cerrar limpiamente sin crash ni esperar a ningún publisher.
 
 ### Prueba 2 — Backend sin GUI
 
@@ -180,7 +184,7 @@ El mecanismo exacto para arrancar `multidron_gui` junto a ese launch se fija en 
 ## Patrones de reducción de logs
 
 ```text
-GUI-BOOT|GUI-ROS-READY|GUI-SHUTDOWN|Qt|OpenGL|multidron_gui|global_sparse_cloud|global_keyframes|task|trajectory|ERROR|FATAL|Segmentation fault|Killed
+GUI-BOOT|GUI-ROS-READY|GUI-SHUTDOWN|Qt|OpenGL|multidron_gui_lib|multidron_gui|global_sparse_cloud|global_keyframes|task|trajectory|ERROR|FATAL|Segmentation fault|Killed
 ```
 
 Los logs completos solo alimentan reductores. Si falta evidencia, regenerar el reducido con patrones más precisos; no abrir el log completo directamente.
@@ -189,7 +193,7 @@ Los logs completos solo alimentan reductores. Si falta evidencia, regenerar el r
 
 La subfase se considera `CONSEGUIDA` solo si:
 
-1. Existe un proceso GUI mínimo independiente en Servidor.
+1. Existen los paquetes `multidron_gui_lib` y `multidron_gui`, con proceso GUI mínimo independiente en Servidor.
 2. La versión/toolchain Qt/OpenGL queda cerrada y compilable.
 3. Existe inventario completo de interfaces reales de Fases 3–6 o una lista explícita de gaps con ownership.
 4. Cerrar/no abrir GUI no afecta al backend.

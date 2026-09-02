@@ -1,0 +1,283 @@
+{
+  "runs": [
+    {
+      "duration_sec": 118.05,
+      "file": "codex/archivos_auxiliares/metricas/prueba_355/dron_1_orb_visual_evidence.csv",
+      "frames": 2362,
+      "metrics": {
+        "depth_p50": {
+          "max": 7.717807055,
+          "median": 2.9087902305,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 4.5484299659000005
+        },
+        "depth_p90": {
+          "max": 13.608701706,
+          "median": 3.0547940254999997,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 7.2806994102
+        },
+        "disparity_p25": {
+          "max": 10.090087891,
+          "median": 4.1159181595,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 9.9740486143
+        },
+        "disparity_p50": {
+          "max": 10.147186279,
+          "median": 4.424194335999999,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 10.018294143499999
+        },
+        "grid_coverage_ratio": {
+          "max": 1.0,
+          "median": 0.833333333,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 1.0
+        },
+        "inlier_ratio": {
+          "max": 0.988188976,
+          "median": 0.8797293835,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.9575207431000001
+        },
+        "n_tracking_inliers": {
+          "max": 494.0,
+          "median": 249.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 413.0
+        },
+        "n_valid_stereo_depth": {
+          "max": 448.0,
+          "median": 185.5,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 304.0
+        },
+        "stereo_depth_ratio": {
+          "max": 1.0,
+          "median": 0.7115004565,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.832890532
+        }
+      },
+      "tracking_counts": {
+        "1": 570,
+        "2": 1792
+      },
+      "tracking_ok_frames": 1792,
+      "tracking_ok_metrics": {
+        "depth_p50": {
+          "max": 7.717807055,
+          "median": 3.568135142,
+          "min": 1.606676459,
+          "p10": 1.62490952,
+          "p90": 5.196369171400001
+        },
+        "depth_p90": {
+          "max": 13.608701706,
+          "median": 3.866628635,
+          "min": 1.620680523,
+          "p10": 1.6444306442,
+          "p90": 7.549393868499999
+        },
+        "disparity_p25": {
+          "max": 10.090087891,
+          "median": 4.414794922,
+          "min": 1.884887695,
+          "p10": 2.8055345530999998,
+          "p90": 9.9927610397
+        },
+        "disparity_p50": {
+          "max": 10.147186279,
+          "median": 4.5691223139999995,
+          "min": 2.112426758,
+          "p10": 3.1374301911,
+          "p90": 10.033325195
+        },
+        "grid_coverage_ratio": {
+          "max": 1.0,
+          "median": 0.916666667,
+          "min": 0.333333333,
+          "p10": 0.666666667,
+          "p90": 1.0
+        },
+        "inlier_ratio": {
+          "max": 0.988188976,
+          "median": 0.896090121,
+          "min": 0.0,
+          "p10": 0.8318784625,
+          "p90": 0.9613749959
+        },
+        "n_tracking_inliers": {
+          "max": 494.0,
+          "median": 300.0,
+          "min": 0.0,
+          "p10": 198.0,
+          "p90": 427.0
+        },
+        "n_valid_stereo_depth": {
+          "max": 448.0,
+          "median": 234.0,
+          "min": 101.0,
+          "p10": 154.0,
+          "p90": 307.0
+        },
+        "stereo_depth_ratio": {
+          "max": 1.0,
+          "median": 0.753031305,
+          "min": 0.557457213,
+          "p10": 0.6674328044,
+          "p90": 0.8392137153999999
+        }
+      }
+    },
+    {
+      "duration_sec": 109.95100000000001,
+      "file": "codex/archivos_auxiliares/metricas/prueba_355/dron_2_orb_visual_evidence.csv",
+      "frames": 2200,
+      "metrics": {
+        "depth_p50": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "depth_p90": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "disparity_p25": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "disparity_p50": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "grid_coverage_ratio": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "inlier_ratio": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "n_tracking_inliers": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "n_valid_stereo_depth": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "stereo_depth_ratio": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        }
+      },
+      "tracking_counts": {
+        "1": 2200
+      },
+      "tracking_ok_frames": 0,
+      "tracking_ok_metrics": {
+        "depth_p50": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "depth_p90": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "disparity_p25": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "disparity_p50": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "grid_coverage_ratio": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "inlier_ratio": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "n_tracking_inliers": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "n_valid_stereo_depth": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        },
+        "stereo_depth_ratio": {
+          "max": 0.0,
+          "median": 0.0,
+          "min": 0.0,
+          "p10": 0.0,
+          "p90": 0.0
+        }
+      }
+    }
+  ]
+}

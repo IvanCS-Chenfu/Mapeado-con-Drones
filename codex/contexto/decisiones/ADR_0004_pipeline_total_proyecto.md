@@ -130,9 +130,14 @@ No se permite usar GT como entrada del algoritmo.
 
 Objetivo:
 
-Generar y coordinar misiones de mapeo sparse desde YAML, ROI, tareas por nivel,
-trayectorias cortas, percepción local de obstáculos y reservas espaciales entre
-drones.
+Generar y coordinar misiones de mapeo sparse desde YAML y ROI mediante cuatro
+subROIs solapadas por nivel, trayectorias cortas, percepción local de obstáculos
+y reservas espaciales entre drones. El volumen duro de vuelo es
+`expand(mapping_roi, mapping_hysteresis)`; no existe `flight_bounds` separado.
+
+La responsabilidad se separa en `task_server`/`task_lib` en servidor y
+`task_manager`/`task_manager_lib` en cada dron. `mission_msgs` es el contrato
+canónico de misiones, tareas, planes y reservas.
 
 Resultado esperado:
 

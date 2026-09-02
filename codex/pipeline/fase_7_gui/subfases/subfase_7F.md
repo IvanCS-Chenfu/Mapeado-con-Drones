@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer
+conseguida
 ```
 
 ## Dependencia
@@ -41,7 +41,7 @@ No asumir que los nombres de topics/messages del snapshot documental siguen sien
 
 ## Diagnóstico de partida
 
-El snapshot tiene `/global_keyframes` orientado a RViz y Fase 5 todavía era documental. Tras ejecutar Fases 4/5 pueden existir nuevas interfaces más adecuadas. Debe localizarse la fuente real. También pueden aparecer estados degradados de pose que no tienen una representación visual acordada; si ocurre, preguntar al usuario.
+El snapshot tiene `/global_keyframes` orientado a RViz y Fase 5 todavía era documental. Tras ejecutar Fases 4/5 pueden existir nuevas interfaces más adecuadas. Debe localizarse la fuente real. Los estados degradados de pose usan la política cerrada de dron perdido/stale cuando aplique.
 
 ## Invariantes y decisiones cerradas
 
@@ -50,16 +50,18 @@ El snapshot tiene `/global_keyframes` orientado a RViz y Fase 5 todavía era doc
 - KFs se colocan según pose global aceptada, no raw local si ya existe globalización.
 - Fiduciales son observaciones/anchors absolutos de Fase 4; no loops.
 - Toggle de una layer no cambia su productor.
-- No decidir automáticamente cómo dibujar un dron perdido/stale; consultar si aparece el caso.
+- Dron perdido/stale/sin pose nueva válida: conservar última pose `world`
+  válida, mostrar tag `PERDIDO` y dibujar ejes/representación más transparentes;
+  no borrar el dron ni moverlo a cero.
 
 ## Archivos permitidos a modificar
 
 ```text
-src/servidor/multidron_gui/src/render/drone_pose_layer.*
-src/servidor/multidron_gui/src/render/keyframe_layer.*
-src/servidor/multidron_gui/src/render/fiducial_layer.*
-src/servidor/multidron_gui/src/gui_data_model.*
-src/servidor/multidron_gui/src/ros_data_bridge.*
+src/servidor/multidron_gui_lib/src/render/drone_pose_layer.*
+src/servidor/multidron_gui_lib/src/render/keyframe_layer.*
+src/servidor/multidron_gui_lib/src/render/fiducial_layer.*
+src/servidor/multidron_gui_lib/src/gui_data_model.*
+src/servidor/multidron_gui_lib/src/ros_data_bridge.*
 src/servidor/orbslam3_server/              # solo si falta telemetría canónica y se acuerda
 src/dron/...                               # solo mediante retorno a fase propietaria si falta pose/estado
 ```
@@ -133,13 +135,14 @@ La GUI es herramienta de observación, no capa de maquillaje. Para cualquier ano
 
 Ejemplos de ownership: sparse/KFs Fase 3, fiduciales Fase 4, pose/tracking Fase 5, tarea/progreso/trayectoria Fase 6.
 
-Si aparece una duda funcional no acordada —incluido cómo representar un dron perdido, stale o sin pose válida— Codex debe parar y preguntarle al usuario. No escoger arbitrariamente una representación.
+Si aparece una duda funcional no acordada por este contrato, Codex debe parar y preguntarle al usuario. Para dron perdido/stale/sin pose nueva válida ya rige la decisión cerrada: conservar última pose válida, mostrar `PERDIDO` y usar representación más transparente.
 
 
 ## Paquetes a compilar
 
 ```bash
-./codex/herramientas/build_selected_packages.sh multidron_gui
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui_lib
+./codex/herramientas/build_selected_packages.sh --group servidor multidron_gui
 ```
 
 Añadir `orbslam3_server` u otro productor solo si 7F modifica telemetría después de aplicar la puerta de fase anterior.
@@ -162,7 +165,7 @@ Pasar por un fiducial real/simulado visual de Fase 4 y comprobar pose/ID. Si se 
 
 ### Prueba 4 — Estado degradado encontrado
 
-Si durante pruebas aparece un dron perdido/stale y el comportamiento visual no está acordado, detener la subfase y preguntar al usuario; esta situación no se resuelve inventando un estilo.
+Si durante pruebas aparece un dron perdido/stale, aplicar la política acordada: última pose válida, tag `PERDIDO` y opacidad reducida. Si aparece otro estado no cubierto por esa política, detener la subfase y preguntar.
 
 No arrancar Gazebo artificialmente para una prueba puramente gráfica/unitaria. Cuando se use simulación, el comando base es:
 
@@ -208,7 +211,8 @@ Además, todo build requerido debe devolver `0`, todas las pruebas obligatorias 
 
 - Mezclar frames local/world.
 - Interpretar `MarkerArray` RViz de forma frágil si existe un mensaje estructurado mejor.
-- Dibujar último estado stale como válido sin semántica acordada.
+- Dibujar último estado stale como válido normal, sin tag `PERDIDO` ni opacidad
+  reducida.
 - Introducir estilos que oculten desalineaciones reales.
 
 ## Documentación a actualizar

@@ -82,6 +82,12 @@ Paquete de launch, escenarios y observabilidad Gazebo. Integra servidor y, de
 forma configurable, RViz2, `pipeline_flow` y `system_architecture`; tambien
 ofrece replay sin Gazebo ni GT live.
 
+Desde Fase 7 bloque 1, `multi_dron.launch.py` inicia `multidron_gui` por defecto
+con `launch_multidron_gui=true`, mientras `launch_rviz=false` deja RViz2 fuera
+del flujo normal. Ambos son overrides independientes y el backend conserva el
+modo headless. El launch pasa numero/namespaces de drones, YAML fiducial y
+`drone_stale_timeout_sec=1.0`, y sanea el entorno Snap del proceso Qt.
+
 El grafo `system_architecture` usa una topología, metadata y layout declarativos
 separados. Su composición sitúa Simulación/Servidor arriba y Dron abajo para
 facilitar la lectura de interfaces entre despliegues.

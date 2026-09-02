@@ -4,10 +4,18 @@ window.SYSTEM_ARCHITECTURE_LAYOUT = {
     "orbslam3_multi": {"x": 610, "y": 90},
     "orbslam3_server": {"x": 610, "y": 210},
     "orbslam3_msgs_server": {"x": 870, "y": 210},
+    "multidron_gui": {"x": 1040, "y": 90},
+    "multidron_gui_lib": {"x": 1040, "y": 210},
     "dron_individual": {"x": 290, "y": 520},
     "lib_tray": {"x": 290, "y": 650},
     "orbslam3": {"x": 570, "y": 520},
     "ORB_SLAM3": {"x": 570, "y": 650},
-    "orbslam3_msgs_dron": {"x": 850, "y": 520}
+    "orbslam3_msgs_dron": {"x": 850, "y": 520},
+    "mission_msgs_dron": {"x": 850, "y": 680},
+    "task_manager_lib": {"x": 290, "y": 800},
+    "task_manager": {"x": 570, "y": 800},
+    "mission_msgs_server": {"x": 870, "y": 380},
+    "task_lib": {"x": 610, "y": 420},
+    "task_server": {"x": 820, "y": 800}
   }
 };

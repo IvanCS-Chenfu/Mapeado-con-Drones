@@ -27,6 +27,9 @@ RUNTIME_EDGES = {
     'server_to_sim_backpressure',
     'server_to_sim_sparse_map',
     'server_to_sim_pipeline_flow',
+    'task_manager_to_task_server',
+    'task_server_to_gui_geometry',
+    'task_server_to_sim_mission_flow',
 }
 
 

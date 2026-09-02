@@ -84,7 +84,7 @@ paquetes ajenos a la subfase                # salvo dependencia real localizada 
 
 ```text
 launch multi-dron final
-TaskManager/MissionManager Fase 6
+task_server/task_lib/task_manager Fase 6
 multidron_gui
 DenseMapServer / DenseMapMulti
 GlobalMapServer / orbslam3_multi

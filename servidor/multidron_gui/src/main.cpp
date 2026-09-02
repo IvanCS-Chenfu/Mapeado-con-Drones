@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QSurfaceFormat>
+#include <QTimer>
 #include <QtGlobal>
 
 #include <atomic>
@@ -81,6 +82,15 @@ int main(int argc, char ** argv)
 
   multidron_gui_lib::MainWindow window(model);
   window.show();
+
+  QTimer ros_liveness_timer;
+  ros_liveness_timer.setInterval(100);
+  QObject::connect(&ros_liveness_timer, &QTimer::timeout, &app, [&app]() {
+    if (!rclcpp::ok()) {
+      app.quit();
+    }
+  });
+  ros_liveness_timer.start();
 
   const int result = app.exec();
 
