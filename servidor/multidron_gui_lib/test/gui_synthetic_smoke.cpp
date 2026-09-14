@@ -5,6 +5,7 @@
 #include <QCheckBox>
 #include <QDoubleSpinBox>
 #include <QDir>
+#include <QPushButton>
 #include <QTimer>
 
 #include <cmath>
@@ -64,10 +65,49 @@ int main(int argc, char ** argv)
   fiducial.position = QVector3D(0.0F, 0.0F, 1.0F);
   model->SetFiducials({fiducial});
 
+  multidron_gui_lib::MissionRegionVector regions;
+  for (std::uint32_t level = 0; level < 3U; ++level) {
+    const float z_min = static_cast<float>(level) * 2.0F;
+    const float z_max = z_min + 2.0F;
+    regions.push_back(
+      {"level_" + std::to_string(level) + "_AB", level, "AB",
+        QVector3D(-10.0F, -10.0F, z_min), QVector3D(10.0F, 0.0F, z_max)});
+    regions.push_back(
+      {"level_" + std::to_string(level) + "_BC", level, "BC",
+        QVector3D(0.0F, -10.0F, z_min), QVector3D(10.0F, 10.0F, z_max)});
+    regions.push_back(
+      {"level_" + std::to_string(level) + "_CD", level, "CD",
+        QVector3D(-10.0F, 0.0F, z_min), QVector3D(10.0F, 10.0F, z_max)});
+    regions.push_back(
+      {"level_" + std::to_string(level) + "_DA", level, "DA",
+        QVector3D(-10.0F, -10.0F, z_min), QVector3D(0.0F, 10.0F, z_max)});
+  }
+  model->SetMissionRegions(std::move(regions));
+
+  model->SetVoxels(
+  {
+    {0, -1, 2, QVector3D(0.25F, -0.25F, 0.75F), 0.5F,
+      multidron_gui_lib::VoxelState::Occupied, 0.85F},
+    {1, -1, 2, QVector3D(0.75F, -0.25F, 0.75F), 0.5F,
+      multidron_gui_lib::VoxelState::Free, 0.0F},
+    {2, -1, 2, QVector3D(1.25F, -0.25F, 0.75F), 0.5F,
+      multidron_gui_lib::VoxelState::Reserved, 0.0F}});
+  multidron_gui_lib::TaskVisual task;
+  task.drone_id = 1U;
+  task.task_id = "map_section_level_0_AB";
+  task.task_type = "MAP_SECTION";
+  task.region_id = "level_0_AB";
+  task.state = "ASSIGNED";
+  task.detail = "Confirmada localmente";
+  model->UpdateTask(task);
+
   multidron_gui_lib::MainWindow window(model);
   window.show();
   for (auto * checkbox : window.findChildren<QCheckBox *>()) {
-    if (checkbox->text() == "Color por score" || checkbox->text() == "Filtrar score") {
+    if (checkbox->text() == "Color por score" || checkbox->text() == "Filtrar score" ||
+      checkbox->text() == "Ocupados" || checkbox->text() == "Libres" ||
+      checkbox->text() == "Reservados")
+    {
       checkbox->setChecked(true);
     }
   }
@@ -77,10 +117,21 @@ int main(int argc, char ** argv)
     }
   }
   QTimer::singleShot(
-    1200, [&window]() {
-      const QString output = QDir::temp().filePath("multidron_gui_block1_synthetic.png");
+    700, [&window]() {
+      for (const char * name : {
+      "missionRegionToggle_level_1_BC", "missionRegionToggle_level_1_DA"})
+      {
+        auto * region = window.findChild<QAction *>(name);
+        if (region) {
+          region->trigger();
+        }
+      }
+    });
+  QTimer::singleShot(
+    1400, [&window]() {
+      const QString output = QDir::temp().filePath("multidron_gui_block3_synthetic.png");
       window.grab().save(output);
     });
-  QTimer::singleShot(1800, &app, &QApplication::quit);
+  QTimer::singleShot(2000, &app, &QApplication::quit);
   return app.exec();
 }

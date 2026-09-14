@@ -2,56 +2,75 @@
 
 ## Estado
 
+PARCIAL, con la cadena fisica ya validada. Esta migracion conserva la cadena y
+cambia unicamente el productor de objetivos: de metas `UNKNOWN` a tramos de
+fachada confirmados `FREE`.
+
+## Objetivo
+
+Convertir una polilinea XYZ de D* en una trayectoria fisica reproducible en
+servidor, dron y GUI mediante la misma `Pol3Waypoints`, sin controladores ni
+sistemas de referencia paralelos.
+
+## Contrato estable
+
 ```text
-sin hacer
+candidato de fachada -> D* -> polilinea XYZ -> Pol3Waypoints
+                     -> validacion -> reserva -> ACTIVE
+                     -> action del dron -> terminal normal
 ```
 
-## Dependencia
+- `TrajectoryPlan` se expresa en W y transporta waypoints y tiempos acumulados.
+- El dron convierte W->O una vez al aceptar el plan y congela esa ejecucion.
+- Servidor y dron usan la misma version de `lib_tray`.
+- Los waypoints cercanos se simplifican, conservando siempre el destino final.
+- Cada tramo respeta `trajectory_min_segment_duration_sec=8.0`; el empalme C1
+  usa `trajectory_waypoint_blend_sec=3.0`.
+- Las rutas normales conservan el yaw/pitch de observacion recibido. D* solo
+  planifica XYZ.
+- La GUI muestra exclusivamente el `TrajectoryPlan ACTIVE`.
+- `gen_tray` publica `control/trajectory_active` como fuente comun de
+  ocupacion fisica, tambien para goals externos al servidor. Ninguna nueva
+  inspeccion ni subtarea ordinaria puede sustituir una trayectoria activa;
+  solo los protocolos STOP autorizados conservan esa capacidad.
 
-6C, 6F, 6G y contratos finales de control/lib_tray tras 1J/F5.
+## STOP
 
-## Objetivo tecnico
+STOP es una orden local, no una ruta D* degenerada. El dron captura su pose
+canonica, ejecuta una trayectoria normal al mismo punto durante
+`stop_duration_sec=5.0` y comunica el terminal ordinario de la action. No existe
+`stop_completed` ni una segunda maquina de estados.
 
-Extender `lib_tray`/`TrayAction` sin romper modos legacy y hacer que servidor y
-dron reproduzcan exactamente una trayectoria continua desde `TrajectoryPlan`.
+Al iniciar STOP se retira la polilinea visible y la reserva movil; queda solo la
+reserva HOLD del volumen fisico del dron. Tras el terminal, el servidor vuelve a
+encolarlo y genera el siguiente movimiento.
 
-## Contrato
+## Integracion con fachada
 
-Un waypoint interno es estado dinamico: posicion, velocidad, aceleracion, yaw,
-pitch y derivadas necesarias. Objetivo inicial: continuidad C2 en posicion y
-jerk acotado/medido. Los planes son cortos por distancia/duracion y no envian
-miles de samples.
-
-`task_server` genera/valida en W con la misma implementacion de `lib_tray`. El
-dron comprueba version/revision, transforma W->O una sola vez y reproduce la
-misma curva. `camera_pitch` es referencia articular, no pose world.
-
-Ante cambio de estado inicial, solo se regenera el prefijo hasta el primer
-waypoint estable identico; se insertan estados intermedios si el enlace no es
-viable. No se modifica el sufijo sin necesidad.
+- Solo se ejecuta el prefijo cuyo swept volume completo ha sido confirmado
+  `FREE` por 6N.
+- `OCCUPIED`/inflacion o una reserva ajena que afecten cualquier parte de la
+  ruta activa pueden ordenar STOP y replan.
+- Cambios `UNKNOWN -> FREE` fuera de esa condicion no cancelan la trayectoria.
+- La orientacion de inspeccion es constante durante el tramo; una correccion
+  visual local no acumula coverage y debe restaurarla antes de continuar.
 
 ## Cambios requeridos
 
-1. Crear generador multi-waypoint compatible con pol3/veltrap/elipse legacy.
-2. Versionar perfil, limites, timings y estados necesarios en `mission_msgs`.
-3. Implementar W->O para posicion, derivadas lineales y yaw; preservar tiempos/pitch.
-4. Detectar mismatch de alineamiento/start state/generador antes de ejecutar.
-5. Samplear en servidor para occupancy, footprint, corredor y reservas.
-6. Implementar prefijo reparable e insercion de enlaces.
-7. Probar igualdad muestra a muestra entre builds Server/Dron.
-
-## Limites
-
-No encadenar actions legacy con parada por waypoint, no transmitir samples como
-plan y no convertir con una revision W/O distinta a la validada.
+1. Eliminar referencias y parametros de metas `UNKNOWN` y fallback volumetrico.
+2. Aceptar el candidato/prefijo de fachada sin alterar `Pol3Waypoints`.
+3. Conservar la secuencia atomica plan-validacion-reserva-despacho.
+4. Mantener telemetria causal de cada STOP y terminal por `trajectory_id`.
+5. Aplazar `InspectFacade` mientras `control/trajectory_active=true`, sin
+   contarlo como fallo de depth ni reasignar la tarea.
 
 ## Pruebas
 
-Recta, curvas, C2/jerk, distintos estados iniciales, enlaces, limites,
-compatibilidad legacy, sampling/corredor, W->O y paridad estricta servidor-dron.
-Prueba fisica con GUI+Gazebo sin RViz y continuidad entre planes.
+Unitarias de simplificacion, tiempos y empalme; integracion con un prefijo
+`FREE`; STOP por ocupacion real del corredor; terminal normal y reencolado; GUI
+sin adelantar la siguiente polilinea.
 
 ## Criterio de exito
 
-La trayectoria reservada y ejecutada coincide dentro de tolerancia, no se para
-en cada waypoint, conserva continuidad y rechaza contextos incompatibles.
+La trayectoria ejecutada coincide con la publicada y reservada, no presenta
+movimientos bruscos, y toda retirada fisica pasa por STOP antes de replanificar.

@@ -169,6 +169,8 @@ def test_debug_profile_controls_simulation_and_server_producers():
         'debug_sparse_global_rviz',
         'debug_pipeline_flow_web',
         'debug_open_pipeline_flow_browser',
+        'debug_mission_flow_web',
+        'debug_open_mission_flow_browser',
         'debug_fase3_logs_terminal',
         'debug_system_architecture_web',
         'debug_open_system_architecture_browser',

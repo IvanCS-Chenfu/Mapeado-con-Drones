@@ -1,5 +1,7 @@
 #include "multidron_gui_lib/scene3d_widget.hpp"
 
+#include "orbslam3_msgs/msg/navigation_state.hpp"
+
 #include <QDebug>
 #include <QMouseEvent>
 #include <QOpenGLContext>
@@ -48,9 +50,28 @@ QString VoxelStateName(VoxelState state)
   switch (state) {
     case VoxelState::Occupied: return "occupied";
     case VoxelState::Free: return "free";
+    case VoxelState::Reserved: return "reserved";
     case VoxelState::Unknown:
     default: return "unknown";
   }
+}
+
+QColor MissionRegionColor(std::size_t index)
+{
+  return QColor::fromHsv(static_cast<int>((index * 47U) % 360U), 185, 255);
+}
+
+QString MissionRegionDescription(const MissionRegionVisual & region)
+{
+  return QString(
+    "REGIÓN DE MISIÓN\nregion_id: %1\nnivel: %2\nlado: %3\n"
+    "min: (%4, %5, %6)\nmax: (%7, %8, %9)\nasignación: ninguna")
+         .arg(QString::fromStdString(region.region_id))
+         .arg(region.level_index)
+         .arg(QString::fromStdString(region.side))
+         .arg(region.min_world.x(), 0, 'f', 2).arg(region.min_world.y(), 0, 'f', 2)
+         .arg(region.min_world.z(), 0, 'f', 2).arg(region.max_world.x(), 0, 'f', 2)
+         .arg(region.max_world.y(), 0, 'f', 2).arg(region.max_world.z(), 0, 'f', 2);
 }
 
 QPoint MousePosition(const QMouseEvent * event)
@@ -120,9 +141,14 @@ void Scene3DWidget::SetTrajectoriesVisible(bool visible)
   update();
 }
 
-void Scene3DWidget::SetMissionRegionsVisible(bool visible)
+void Scene3DWidget::SetVisibleMissionRegions(const QSet<QString> & region_ids)
 {
-  mission_region_render_layer_.SetVisible(visible);
+  if (visible_mission_region_ids_ == region_ids) {
+    return;
+  }
+  visible_mission_region_ids_ = region_ids;
+  mission_regions_dirty_ = true;
+  qInfo().noquote() << "[GUI-REGION-VISIBILITY] count=" << visible_mission_region_ids_.size();
   update();
 }
 
@@ -142,13 +168,7 @@ void Scene3DWidget::SelectMissionRegion(const QString & region_id)
   const auto index = static_cast<std::uint64_t>(
     std::distance(snapshot_.mission_regions->begin(), match));
   const QVector3D center = 0.5F * (match->min_world + match->max_world);
-  const QString description = QString(
-    "REGIÓN DE MISIÓN\nregion_id: %1\nnivel: %2\nlado: %3\n"
-    "min: (%4, %5, %6)\nmax: (%7, %8, %9)\nasignación: ninguna")
-    .arg(region_id).arg(match->level_index).arg(QString::fromStdString(match->side))
-    .arg(match->min_world.x(), 0, 'f', 2).arg(match->min_world.y(), 0, 'f', 2)
-    .arg(match->min_world.z(), 0, 'f', 2).arg(match->max_world.x(), 0, 'f', 2)
-    .arg(match->max_world.y(), 0, 'f', 2).arg(match->max_world.z(), 0, 'f', 2);
+  const QString description = MissionRegionDescription(*match);
   selection_ = SelectedEntity{
     EntityKey{EntityType::MissionRegion, 0U, 0U, index}, center, description,
     snapshot_.generation};
@@ -161,6 +181,27 @@ void Scene3DWidget::SelectMissionRegion(const QString & region_id)
 void Scene3DWidget::SetVoxelsVisible(bool visible)
 {
   voxel_render_layer_.SetVisible(visible);
+  update();
+}
+
+void Scene3DWidget::SetOccupiedVoxelsVisible(bool visible)
+{
+  occupied_voxels_visible_ = visible;
+  ++voxel_style_revision_;
+  update();
+}
+
+void Scene3DWidget::SetFreeVoxelsVisible(bool visible)
+{
+  free_voxels_visible_ = visible;
+  ++voxel_style_revision_;
+  update();
+}
+
+void Scene3DWidget::SetReservedVoxelsVisible(bool visible)
+{
+  reserved_voxels_visible_ = visible;
+  ++voxel_style_revision_;
   update();
 }
 
@@ -279,6 +320,14 @@ void Scene3DWidget::paintGL()
   const QMatrix4x4 mvp = MvpMatrix();
 
   DrawLayer(grid_layer_, mvp);
+  if (!visible_mission_region_ids_.isEmpty()) {
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glDepthMask(GL_FALSE);
+    DrawLayer(mission_region_fill_layer_, mvp);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_CULL_FACE);
+  }
   if (voxel_render_layer_.IsVisible()) {
     DrawLayer(voxel_wire_layer_, mvp);
     glDepthMask(GL_FALSE);
@@ -302,11 +351,9 @@ void Scene3DWidget::paintGL()
   }
 
   glDisable(GL_DEPTH_TEST);
-  if (mission_region_render_layer_.IsVisible()) {
-    glDepthMask(GL_FALSE);
-    DrawLayer(selection_fill_layer_, mvp);
-    glDepthMask(GL_TRUE);
-  }
+  glLineWidth(3.0F);
+  DrawLayer(mission_region_wire_layer_, mvp);
+  glLineWidth(1.0F);
   DrawLayer(selection_layer_, mvp);
   glEnable(GL_DEPTH_TEST);
   DrawEntityLabels();
@@ -388,8 +435,9 @@ void Scene3DWidget::CleanupGl()
   makeCurrent();
   for (GpuLayer * layer : {
       &grid_layer_, &sparse_layer_, &keyframe_layer_, &drone_layer_,
-      &fiducial_layer_, &trajectory_layer_, &voxel_wire_layer_,
-      &voxel_fill_layer_, &selection_layer_, &selection_fill_layer_})
+      &fiducial_layer_, &trajectory_layer_, &voxel_wire_layer_, &voxel_fill_layer_,
+      &mission_region_wire_layer_, &mission_region_fill_layer_,
+      &selection_layer_, &selection_fill_layer_})
   {
     if (layer->created) {
       layer->buffer.destroy();
@@ -444,8 +492,9 @@ void Scene3DWidget::EnsureLayerBuffers()
 {
   for (GpuLayer * layer : {
       &grid_layer_, &sparse_layer_, &keyframe_layer_, &drone_layer_,
-      &fiducial_layer_, &trajectory_layer_, &voxel_wire_layer_,
-      &voxel_fill_layer_, &selection_layer_, &selection_fill_layer_})
+      &fiducial_layer_, &trajectory_layer_, &voxel_wire_layer_, &voxel_fill_layer_,
+      &mission_region_wire_layer_, &mission_region_fill_layer_,
+      &selection_layer_, &selection_fill_layer_})
   {
     if (!layer->created) {
       layer->created = layer->buffer.create();
@@ -540,17 +589,32 @@ void Scene3DWidget::SynchronizeGpuData()
   }
 
   const void * voxels = snapshot_.voxels.get();
-  if (voxel_render_layer_.NeedsUpload(voxels)) {
+  if (voxel_render_layer_.NeedsUpload(voxels, voxel_style_revision_)) {
     UploadLayer(&voxel_wire_layer_, BuildVoxelWireVertices(), GL_LINES);
     UploadLayer(&voxel_fill_layer_, BuildVoxelFillVertices(), GL_TRIANGLES);
     voxel_identity_ = voxels;
-    voxel_render_layer_.MarkUploaded(voxels);
+    voxel_render_layer_.MarkUploaded(voxels, voxel_style_revision_);
   }
 
   const void * mission_regions = snapshot_.mission_regions.get();
   if (mission_regions != mission_region_identity_) {
     mission_region_identity_ = mission_regions;
     selection_dirty_ = true;
+    mission_regions_dirty_ = true;
+  }
+
+  const void * tasks = snapshot_.tasks.get();
+  if (tasks != task_identity_) {
+    task_identity_ = tasks;
+    selection_dirty_ = true;
+  }
+
+  if (mission_regions_dirty_) {
+    const auto wire_vertices = BuildMissionRegionWireVertices();
+    const auto fill_vertices = BuildMissionRegionFillVertices();
+    UploadLayer(&mission_region_wire_layer_, wire_vertices, GL_LINES);
+    UploadLayer(&mission_region_fill_layer_, fill_vertices, GL_TRIANGLES);
+    mission_regions_dirty_ = false;
   }
 
   if (selection_dirty_) {
@@ -687,11 +751,22 @@ std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildVoxelWireVertices() const
     return vertices;
   }
   for (const auto & voxel : *snapshot_.voxels) {
+    if ((voxel.state == VoxelState::Occupied && !occupied_voxels_visible_) ||
+      (voxel.state == VoxelState::Free && !free_voxels_visible_) ||
+      (voxel.state == VoxelState::Reserved && !reserved_voxels_visible_) ||
+      voxel.state == VoxelState::Unknown)
+    {
+      continue;
+    }
     const float size = std::max(voxel.size_m, 0.001F);
     const QColor color = voxel.state == VoxelState::Occupied ?
-      QColor(210, 220, 230, 115) : QColor(185, 198, 210, 45);
+      QColor(210, 220, 230, 115) : (voxel.state == VoxelState::Reserved ?
+      QColor(255, 193, 7, 190) : QColor(185, 198, 210, 45));
     AppendBoxEdges(
-      &vertices, voxel.center_world, QVector3D(size, size, size), QQuaternion(), color);
+      &vertices, voxel.center_world, QVector3D(size, size, size), QQuaternion(
+        1.0F, 0.0F, 0.0F,
+        0.0F),
+      color);
   }
   return vertices;
 }
@@ -703,14 +778,54 @@ std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildVoxelFillVertices() const
     return vertices;
   }
   for (const auto & voxel : *snapshot_.voxels) {
-    if (voxel.state != VoxelState::Occupied) {
+    if ((voxel.state == VoxelState::Occupied && !occupied_voxels_visible_) ||
+      (voxel.state == VoxelState::Reserved && !reserved_voxels_visible_) ||
+      (voxel.state != VoxelState::Occupied && voxel.state != VoxelState::Reserved))
+    {
       // Free/unknown: relleno completamente transparente por contrato visual F7.
       continue;
     }
-    const float alpha = 0.15F + 0.75F * std::clamp(voxel.score, 0.0F, 1.0F);
+    const float alpha = voxel.state == VoxelState::Occupied ?
+      0.15F + 0.75F * std::clamp(voxel.score, 0.0F, 1.0F) : 0.42F;
     AppendCubeTriangles(
       &vertices, voxel.center_world, std::max(voxel.size_m, 0.001F),
-      QColor(205, 215, 225), alpha);
+      voxel.state == VoxelState::Occupied ? QColor(205, 215, 225) : QColor(255, 193, 7), alpha);
+  }
+  return vertices;
+}
+
+std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildMissionRegionWireVertices() const
+{
+  std::vector<Vertex> vertices;
+  if (!snapshot_.mission_regions) {
+    return vertices;
+  }
+  for (std::size_t index = 0; index < snapshot_.mission_regions->size(); ++index) {
+    const auto & region = snapshot_.mission_regions->at(index);
+    if (!visible_mission_region_ids_.contains(QString::fromStdString(region.region_id))) {
+      continue;
+    }
+    AppendBoxEdges(
+      &vertices, 0.5F * (region.min_world + region.max_world),
+      region.max_world - region.min_world, QQuaternion(1.0F, 0.0F, 0.0F, 0.0F),
+      MissionRegionColor(index));
+  }
+  return vertices;
+}
+
+std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildMissionRegionFillVertices() const
+{
+  std::vector<Vertex> vertices;
+  if (!snapshot_.mission_regions) {
+    return vertices;
+  }
+  for (std::size_t index = 0; index < snapshot_.mission_regions->size(); ++index) {
+    const auto & region = snapshot_.mission_regions->at(index);
+    if (!visible_mission_region_ids_.contains(QString::fromStdString(region.region_id))) {
+      continue;
+    }
+    AppendBoxTriangles(
+      &vertices, region.min_world, region.max_world, MissionRegionColor(index), 0.22F);
   }
   return vertices;
 }
@@ -726,8 +841,21 @@ std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildSelectionVertices() const
     selection_->key.id < snapshot_.mission_regions->size())
   {
     const auto & region = snapshot_.mission_regions->at(selection_->key.id);
-    AppendBoxEdges(&vertices, 0.5F * (region.min_world + region.max_world),
-      region.max_world - region.min_world, QQuaternion(), color);
+    AppendBoxEdges(
+      &vertices, 0.5F * (region.min_world + region.max_world),
+      region.max_world - region.min_world, QQuaternion(1.0F, 0.0F, 0.0F, 0.0F), color);
+    if (snapshot_.tasks) {
+      const auto coverage_color = MissionRegionColor(selection_->key.id);
+      for (const auto & task : *snapshot_.tasks) {
+        if (task.second.region_id != region.region_id) {
+          continue;
+        }
+        for (const auto & interval : task.second.coverage_intervals) {
+          AppendLine(
+            &vertices, interval.start_world, interval.end_world, coverage_color);
+        }
+      }
+    }
     return vertices;
   }
   constexpr float half = 0.22F;
@@ -746,14 +874,6 @@ std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildSelectionVertices() const
 std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildSelectionFillVertices() const
 {
   std::vector<Vertex> vertices;
-  if (!selection_ || selection_->key.type != EntityType::MissionRegion ||
-    !snapshot_.mission_regions || selection_->key.id >= snapshot_.mission_regions->size())
-  {
-    return vertices;
-  }
-  const auto & region = snapshot_.mission_regions->at(selection_->key.id);
-  AppendBoxTriangles(
-    &vertices, region.min_world, region.max_world, QColor(38, 198, 218), 0.18F);
   return vertices;
 }
 
@@ -855,7 +975,6 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
         .arg(fiducial.position.z(), 0, 'f', 3));
     }
   }
-
   if (trajectory_render_layer_.IsVisible() && snapshot_.trajectories) {
     for (const auto & item : *snapshot_.trajectories) {
       const auto & trajectory = item.second;
@@ -866,7 +985,7 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
             EntityType::Trajectory, trajectory.drone_id, 0U,
             trajectory.plan_revision},
           QString(
-            "TRAJECTORY\ndrone_id: %1\ntask_id: %2\ntrajectory_id: %3\n"
+            "PLAN PREVISTO\ndrone_id: %1\ntask_id: %2\ntrajectory_id: %3\n"
             "plan_revision: %4\nmap_revision: %5\nalignment_revision: %6")
           .arg(trajectory.drone_id)
           .arg(QString::fromStdString(trajectory.task_id))
@@ -917,6 +1036,51 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
         .arg(point.position.x(), 0, 'f', 3)
         .arg(point.position.y(), 0, 'f', 3)
         .arg(point.position.z(), 0, 'f', 3));
+    }
+  }
+
+  if (description.isEmpty() && snapshot_.mission_regions &&
+    !visible_mission_region_ids_.isEmpty())
+  {
+    for (std::size_t index = 0; index < snapshot_.mission_regions->size(); ++index) {
+      const auto & region = snapshot_.mission_regions->at(index);
+      if (!visible_mission_region_ids_.contains(QString::fromStdString(region.region_id))) {
+        continue;
+      }
+      const QVector3D min = region.min_world;
+      const QVector3D max = region.max_world;
+      const std::array<QVector3D, 8> corners{{
+        {min.x(), min.y(), min.z()}, {max.x(), min.y(), min.z()},
+        {min.x(), max.y(), min.z()}, {max.x(), max.y(), min.z()},
+        {min.x(), min.y(), max.z()}, {max.x(), min.y(), max.z()},
+        {min.x(), max.y(), max.z()}, {max.x(), max.y(), max.z()}}};
+      QRectF bounds;
+      bool projected = false;
+      float center_depth = 0.0F;
+      for (const auto & corner : corners) {
+        QPointF screen;
+        if (!ProjectToScreen(corner, &screen)) {
+          continue;
+        }
+        if (!projected) {
+          bounds = QRectF(screen, screen);
+          projected = true;
+        } else {
+          bounds = bounds.united(QRectF(screen, screen));
+        }
+      }
+      QPointF center_screen;
+      if (!projected || !ProjectToScreen(0.5F * (min + max), &center_screen, &center_depth) ||
+        !bounds.adjusted(-5.0, -5.0, 5.0, 5.0).contains(QPointF(screen_position)))
+      {
+        continue;
+      }
+      if (center_depth < best_depth) {
+        best_depth = center_depth;
+        best_world = 0.5F * (min + max);
+        best_key = EntityKey{EntityType::MissionRegion, 0U, 0U, index};
+        description = MissionRegionDescription(region);
+      }
     }
   }
 
@@ -987,7 +1151,15 @@ void Scene3DWidget::DrawEntityLabels()
         continue;
       }
       painter.setPen(drone.lost_or_unavailable ? QColor(255, 183, 77) : QColor(225, 232, 240));
-      painter.drawText(screen + QPointF(7.0, -7.0), QString("D%1").arg(drone.drone_id));
+      QString label = QString("D%1").arg(drone.drone_id);
+      if (drone.lost_or_unavailable) {
+        label += " [PERDIDO]";
+      } else if (drone.pose_source == orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FORCED) {
+        label += " [GT]";
+      } else if (drone.pose_source == orbslam3_msgs::msg::NavigationState::POSE_SOURCE_ORB) {
+        label += " [ORB]";
+      }
+      painter.drawText(screen + QPointF(7.0, -7.0), label);
     }
   }
 
@@ -1000,6 +1172,22 @@ void Scene3DWidget::DrawEntityLabels()
       }
     }
   }
+  if (snapshot_.mission_regions && !visible_mission_region_ids_.isEmpty()) {
+    for (std::size_t index = 0; index < snapshot_.mission_regions->size(); ++index) {
+      const auto & region = snapshot_.mission_regions->at(index);
+      if (!visible_mission_region_ids_.contains(QString::fromStdString(region.region_id))) {
+        continue;
+      }
+      QPointF screen;
+      if (!ProjectToScreen(0.5F * (region.min_world + region.max_world), &screen)) {
+        continue;
+      }
+      painter.setPen(MissionRegionColor(index));
+      painter.drawText(
+        screen + QPointF(8.0, -8.0),
+        QString("N%1 %2").arg(region.level_index).arg(QString::fromStdString(region.side)));
+    }
+  }
   if (selection_ && selection_->key.type == EntityType::MissionRegion &&
     snapshot_.mission_regions && selection_->key.id < snapshot_.mission_regions->size())
   {
@@ -1007,7 +1195,8 @@ void Scene3DWidget::DrawEntityLabels()
     QPointF screen;
     if (ProjectToScreen(selection_->world_position, &screen)) {
       painter.setPen(QColor(38, 198, 218));
-      painter.drawText(screen + QPointF(8.0, -8.0),
+      painter.drawText(
+        screen + QPointF(8.0, -8.0),
         QString("Nivel %1 - %2").arg(region.level_index).arg(
           QString::fromStdString(region.side)));
     }

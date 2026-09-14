@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer
+CONSEGUIDA el 2026-09-07
 ```
 
 ## Dependencia
@@ -44,8 +44,9 @@ region sin conectividad conocida no provoca busqueda infinita.
 
 Desde este bloque `task_server` publica un snapshot real de geometria
 `reliable+transient_local`. Antes de 6E contiene regiones de mision sin
-asignacion, no tareas ficticias. `mission_flow` muestra una vista 2D del nivel
-seleccionado y la GUI prepara una `MissionRegionLayer` con el prisma 3D.
+asignacion, no tareas ficticias. `mission_flow` conserva el flujo y eventos;
+la GUI F7 muestra los prismas mediante `MissionRegionLayer` y el menu superior
+`Regiones` permite activar varias regiones coloreadas a la vez.
 
 ## Cambios requeridos
 
@@ -57,10 +58,12 @@ seleccionado y la GUI prepara una `MissionRegionLayer` con el prisma 3D.
 5. Formalizar merge de dos entradas y pasada secundaria ligera.
 6. Emitir resumen `MISSION_GEOMETRY_READY` y snapshot de geometria sin puntos,
    tareas ni assignments ficticios.
-7. Añadir en el panel derecho `Regiones de mision`; clicar una resalta el
-   prisma con relleno translucido, contorno y etiqueta `Nivel N - lado`.
-8. Mantener seleccion unica: otra region/entidad la sustituye y clicar vacio la
-   limpia. En 6E/7I la misma identidad se enlazara con la tarea real del dron.
+7. Añadir el menu superior `Regiones`, agrupado por nivel, con acciones
+   multiseleccionables, colores estables y controles de mostrar/ocultar.
+8. Renderizar cada prisma visible con relleno translucido, contorno y etiqueta
+   `Nivel N - lado`. Clicar un prisma solo abre su inspector; no altera la
+   visibilidad elegida en el menu. En 6E/7I la misma identidad se enlazara con
+   la tarea real del dron.
 
 ## Limites
 
@@ -83,3 +86,12 @@ No asignar regiones a drones ni declarar 7I conseguida antes de 6E.
 Cuatro responsabilidades del 50 % por nivel, intersecciones demostradas,
 snapshot real y seleccion GUI coherente, sin `tasks_per_level`, puntos A-B-C,
 rutas rigidas ni assignments prematuros.
+
+## Evidencia vigente
+
+- Unitarios de geometria: niveles, resto vertical, mitades, solapes y ownership
+  base; `task_lib` 5/5.
+- Smoke Qt/OpenGL y CTest `multidron_gui_lib` 9/9 correctos.
+- En 603 la GUI recibio 3 niveles y 12 regiones; la interaccion real verifico
+  visibilidad individual, mostrar todas y ocultar todas. Revision humana de
+  los prismas, etiquetas y colores: correcta.

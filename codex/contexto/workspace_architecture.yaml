@@ -80,6 +80,8 @@ official_scenario: simulacion/simulacion_dron/config/scenarios/prueba_tipica_rod
 
 debug_profile: simulacion/simulacion_dron/config/debug.yaml
 debug_flags:
+  - debug_fase_1
+  - debug_fase_5
   - debug_sparse_global_rviz
   - debug_pipeline_flow_web
   - debug_open_pipeline_flow_browser
@@ -90,6 +92,8 @@ debug_flags:
   - debug_open_system_architecture_browser
   - debug_architecture_telemetry
   - debug_fiducial_visualization
+  - debug_orb_control_state
+  - debug_orb_visual_evidence
 debug_numeric_parameters:
   debug_fiducial_display_seconds: 5.0
 
@@ -104,6 +108,7 @@ system_architecture:
     - dron_to_sim_motors
     - orbslam_to_server_delta
     - wrapper_to_server_fiducial_observations
+    - orbslam3_server_to_task_server_fiducial_primary
     - fiducial_config_server_to_wrapper
     - server_to_orbslam_snapshot_request
     - orbslam_to_server_snapshot_response
@@ -111,5 +116,12 @@ system_architecture:
     - server_to_sim_sparse_map
     - server_to_sim_pipeline_flow
     - task_manager_to_task_server
+    - task_manager_to_task_server_task_report
+    - task_manager_to_orbslam_capture_depth
+    - orbslam3_multi_to_task_server_sparse
+    - task_server_to_task_manager
+    - task_server_to_task_manager_inspect_facade
     - task_server_to_gui_geometry
+    - task_server_to_gui_voxels
+    - task_server_to_gui_planned_route
     - task_server_to_sim_mission_flow

@@ -27,6 +27,8 @@ Argumentos:
 - `local_map_frame`;
 - `orb_vocabulary_path`;
 - `use_sim_time`.
+- `waypoint_blend_sec`: ventana de empalme C1 de `Pol3Waypoints`, `3.0 s` por
+  defecto; no afecta un destino único ni STOP.
 
 Carga por nodo `config/trajectory.yaml`, `config/physical.yaml`,
 `config/control.yaml` y `config/actuators.yaml`. Los booleanos operativos de
@@ -140,3 +142,21 @@ por defecto y solo se usa en la bateria diagnostica 321 para aislar p/v.
 - Si se cambian nombres de topics de cámara, actualizar remappings.
 - El vocabulario completo se prepara fuera de `src/` mediante
   `codex/herramientas/bootstrap_orbvoc.sh` y se instala con el paquete.
+# Debug de riesgo visual
+
+`generar_dron.launch.py` reenvia `debug_visual_risk_display` y
+`visual_risk_empty_region_fraction=0.75` a `orbslam_use.launch.py`. La
+fraccion define las franjas LEFT `[0,fW]`, RIGHT `[(1-f)W,W]`, TOP `[0,fH]` y
+BOTTOM `[(1-f)H,H]` usadas por la evidencia ORB. Con el debug
+activo se crea `visual_risk_visualizer`, separado de GUI F7, sobre
+`orbslam/visual_tracking_debug/image` y activado solo por evento visual.
+
+## Filtro depth 6N
+
+Ambos launches propagan al nodo estereo
+`depth_max_disparity_gradient_px_per_pixel=2.0`,
+`depth_min_texture_gradient=8.0` y
+`depth_texture_window_radius_px=2`. Estos parametros rechazan una muestra
+depth completa antes de publicarla cuando hay salto fuerte de disparidad o
+textura local insuficiente; no llega al servidor ni su endpoint `OCCUPIED` ni
+el rayo `FREE` asociado.

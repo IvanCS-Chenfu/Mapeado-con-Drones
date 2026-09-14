@@ -1,0 +1,12 @@
+std_msgs/Header header
+uint32 drone_id
+uint64 frame_id
+uint8 tracking_state
+uint32 image_width
+uint32 image_height
+uint32 tracking_inlier_count
+float64 directional_region_fraction
+uint32 left_directional_inlier_count
+uint32 right_directional_inlier_count
+uint32 top_directional_inlier_count
+uint32 bottom_directional_inlier_count

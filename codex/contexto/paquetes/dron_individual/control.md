@@ -119,17 +119,24 @@ Notas:
 ## `navigation_state_mux`
 
 El mux recibe desde `orbslam3_ros2` el estado ORB ya filtrado y propagado a
-50 Hz. No estima, filtra ni predice pose o velocidad. Selecciona ORB o fallback,
-aplica la transformacion rigida al frame O continuo y publica
-`orbslam/navigation_state`. `[F5H-SOURCE-CONTINUITY]` mide el salto SE(3)
-exacto al cambiar fuente.
+50 Hz y, en simulacion, GT. No estima, filtra ni predice pose o velocidad.
+`phase5_navigation_source=orb|gt` decide la unica fuente canonica que publica
+en `orbslam/navigation_state`; GUI, controlador y trayectorias consumen ese
+topic. `[F5H-SOURCE-CONTINUITY]` mide el salto SE(3) exacto al cambiar fuente
+en una frontera de trayectoria.
 
-Al pasar `ORB -> GT_FALLBACK`, `ContinuousSourcePose::Update` calcula una
-alineacion fija de GT contra el ultimo O y conserva exactamente el frame del
-goal activo. La pose world GT viaja temporalmente en `w_t_body` con
-`global_valid=false`; solo `gen_tray` la usa para componer `O_T_W` de fallback.
-GT queda retenido hasta la frontera y ORB solo puede volver en el siguiente
-goal si cumple tracking, anchor y cualificacion.
+En modo `gt`, el mux publica `POSE_SOURCE_GT_FORCED`, `w_t_body`, pose local
+continua y velocidad GT. En modo `orb`, exige tracking y anclaje world
+autoritativo. Si deja de cumplirse, publica `TRACKING_LOST`/estado no valido;
+no existe `ORB -> GT_FALLBACK` automatico. `gen_tray` congela la referencia por
+`orb_loss_hold_sec=10 s` y aborta el goal si la perdida persiste.
+
+En GT, el control no deja de usar la pose y velocidad GT. No obstante,
+`EpochAnchorLatch` sigue recibiendo el estado ORB en sombra: una vez que el
+epoch queda anclado, el `NavigationState` GT se publica como global y
+`AUTHORITATIVE`. Esto permite que `task_server` espere el mismo anclaje real en
+GT y ORB antes de asignar una `MAP_SECTION`; un nuevo epoch sin ancla vuelve a
+ser no global.
 
 5J retiro forcing de fuente, shadow manual y overrides parciales GT/ORB. El
 topic `control/orb_authority_confirmed` refleja autoridad ORB real del mux. No
@@ -167,11 +174,10 @@ predicados no pertenecientes al source gate. La traza distingue ademas
 `ORB_QUALIFYING` y `TRAJECTORY_SOURCE_LOCKED`, estado del lock, edad, epoch,
 Kref y samples de entrada/salida. No cambia la politica del mux.
 
-El mux recibe temporalmente `sensor/GT/pose` y `sensor/GT/vel`. En fallback
-reenvia ambas medidas exactas, expresadas mediante la misma rotacion rigida en
-el O continuo; no pasan por filtros ni predictores. Suscripcion, transporte,
-lock, hold y alineacion GT llevan `TODO FASE 6` porque desaparecen junto con el
-fallback.
+El mux recibe `sensor/GT/pose` y `sensor/GT/vel` solo para la fuente GT de
+simulacion. El binario no lee el YAML de simulacion: fuera de ella el parametro
+declara `orb` por defecto. Ambas medidas se reenvian sin filtros ni predictores
+cuando la fuente configurada es GT.
 
 Referencia:
 
@@ -406,3 +412,10 @@ Resultados: 349AR3 aplica R/omega GT en `5474/5475` publicaciones ORB y 349B
 aplica p/v GT en `3778/3778`. Ambos experimentos fallan funcionalmente, lo que
 clasifica defectos independientes en los dos bloques ORB. Esta infraestructura
 es temporal de Fase 5 y no debe convertirse en ruta productiva.
+
+Diagnóstico F6I: `control_calcular_fuerzas` acepta
+`debug_f6i_trajectory=false` por defecto. Cuando está activo, al recibir un
+nuevo par `trajectory_id`/`diagnostic_piece_index` publica exactamente una
+traza `F6I-CONTROL-REFERENCE-APPLIED` con pose/velocidad de referencia y
+pose/velocidad canónicas actuales. No cambia ganancias, fuerzas, torques ni el
+orden de callbacks.

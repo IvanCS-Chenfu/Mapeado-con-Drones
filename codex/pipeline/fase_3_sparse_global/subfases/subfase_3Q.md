@@ -20,6 +20,22 @@ world alto aislado entre candidatos consecutivos ya alineados puede entrar en
 el historial. El usuario acepta continuar sin otra correccion inmediata y deja
 3Q `A REVISAR`: solo se reabrira si el fallo vuelve a aparecer.
 
+## Incidencia critica diferida: prueba 688 de Fase 6
+
+Durante la prueba prolongada 688 de Fase 6, una optimizacion asociada a un
+fiducial degrado gravemente el mapa que el usuario observaba en GUI F7. La
+prueba se detuvo para evitar seguir usando ese estado. No se ha reducido ni
+analizado su log, por lo que todavia no se atribuye la causa a admision de la
+constraint, seleccion de ventana, solver, validator, commit, propagacion de
+poses o reintegracion de consumidores.
+
+Esta incidencia obliga a reabrir 3Q para diagnostico despues de concluir Fase
+6. La investigacion debe reproducir el evento y verificar atomicidad de apply,
+inmutabilidad de fiduciales hard, deltas publicados, `pose_revision`, dirty
+sets y la reintegracion de mapa/consumidores. Hasta entonces no se modifica la
+politica de optimizacion por fiducial ni se interpreta la prueba 688 como
+evidencia de una causa concreta.
+
 El punto de reentrada no es cambiar la ventana ni dejar de optimizar las tres
 relaciones. Las tres regiones compatibles ya entran como `CurrentLoop` y deben
 seguir intentando error cero sobre la ventana completa. El fallo pendiente es

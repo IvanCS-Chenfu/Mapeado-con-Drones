@@ -1,68 +1,97 @@
-# Subfase 6N - GO_TO, ANCHOR_SUBMAP y fiduciales oportunistas
+# Subfase 6N - Inspeccion depth bajo demanda
 
 ## Estado
 
-```text
-sin hacer
-```
+MIGRACION AUTORIZADA. Sustituye completamente el depth automatico por KeyFrame.
+La nube densa global sigue perteneciendo a Fase 8.
 
-## Dependencia
+## Objetivo
 
-6E-6M y contratos finales de Fases 4/5.
+Antes de cada tramo de fachada, confirmar espacio `FREE`, estimar la orientacion
+de la fachada y devolver al servidor un unico resultado compacto. Depth
+persistente aporta solo evidencia `FREE`; los MapPoints ORB cualificados son la
+unica fuente `OCCUPIED`.
 
-## Objetivo tecnico
+## Servicio de inspeccion
 
-Integrar comportamientos especiales usando exactamente el mismo pipeline de
-mapa, D*, trayectoria y reservas, sin canales directos alternativos.
+El servidor solicita al dron inspeccionar un objetivo W. Dentro de una sola
+operacion entre servidor y dron:
 
-## GO_TO
+1. Capturar depth mirando la fachada actual y estimar su normal.
+2. Girar hacia el punto solicitado por el servidor.
+3. Esperar el terminal de esa trayectoria local y capturar el segundo depth.
+4. Volver a la orientacion de fachada obtenida en la primera captura.
+5. Devolver ambos productos, sus referencias KF/camara, yaw/pitch, calidad,
+   motivo de fallo y si el segundo frame fue disparado por `TRACKING_RISK`.
 
-Objetivo `(x,y,z,yaw)` en W, con prioridad alta entre pendientes. No preempta
-una tarea `RUNNING`; si no hay dron libre espera. Se valida contra
-`hard_flight_volume`, mapa, dinamica, reservas, depth y riesgo visual. La GUI F7
-nunca llama `TrayAction` directamente.
+El movimiento posterior mantiene yaw/pitch de la primera captura. En una
+esquina con dos normales pronunciadas se orientan al mismo semiespacio y se usa
+su media ponderada por soporte valido del plano y confianza del ajuste.
 
-## ANCHOR_SUBMAP
+La operacion no puede comenzar mientras `gen_tray` informe una trayectoria
+fisica activa, aunque esa trayectoria proceda de un cliente externo al
+servidor. En ese caso responde `drone_busy`; el servidor conserva tarea,
+runtime y contador de fallos, y vuelve a intentarlo tras el terminal ordinario.
 
-Cuando tracking local sigue valido pero falta anclaje global:
+## Captura exacta ante TRACKING_RISK
 
-```text
-MAP_SECTION RUNNING -> PAUSED -> ANCHOR_SUBMAP -> RUNNING
-```
+El wrapper conserva un buffer pequeno de pares estereo rectificados indexado
+por `frame_id`. Si el riesgo persiste durante la mirada al objetivo, la segunda
+captura usa exclusivamente el par exacto del frame que dispara el evento. No se
+calcula ni transmite depth de frames anteriores. Cero inliers ORB no es FREE;
+solo disparidad valida aporta evidencia.
 
-La tarea/branch ownership se conserva. LOST real usa primero recovery F5. La
-primera version reconoce garantia global debilitada durante movimiento relativo:
-no introduce automaticamente global lock ni detiene todos los drones; documenta
-la limitacion y puede usar region de incertidumbre en una mejora futura.
+## Muestreo y voxelizacion
 
-## Fiducial oportunista
+- Muestrear uniformemente dentro de la mascara proyectada del corredor; nunca
+  cortar un recorrido row-major al alcanzar `max_points`.
+- Mantener la banda fiable depth acordada de 1--5 m.
+- Recorrer cada rayo mediante voxel supercover/DDA para no dejar huecos.
+- Rellenar huecos entre rayos vecinos solo cuando sus profundidades sean
+  coherentes y no exista discontinuidad.
+- Los filtros de textura/discontinuidad siguen siendo parametrizables, pero no
+  deben impedir confirmar un corredor visible.
+- El servidor conserva la evidencia relativa al KF y la retira/reintegra al
+  cambiar `W_T_KF`.
+- FREE depth nunca degrada `OCCUPIED` respaldado por sparse cualificado.
 
-Una deteccion F4 de geometria pobre puede crear subobjetivo temporal si el
-beneficio compensa coste/riesgo. Se aproxima mediante el pipeline normal,
-intenta mejorar observacion y retoma la misma `MAP_SECTION/task_id`. No se
-persigue si ruta, reservas, tracking, coste o evidencia previa lo desaconsejan.
+## Fallos
+
+Si no se obtiene depth/normal fiable, se reintenta hasta tres veces. Tras el
+tercer fallo, la tarea pasa a `TO_FINISH`, se desasigna y el dron vuelve a la
+cola general. No se inventa FREE ni se bloquea el dron.
+
+`drone_busy` no es un fallo de inspeccion y no consume ninguno de esos tres
+intentos.
+
+El resultado conserva por separado los fallos de giro al objetivo, captura
+objetivo y restauracion de fachada. Una restauracion correcta no puede
+sobrescribir el error anterior ni producir `success=false, reason=ok`.
+
+Antes de anclarse, una captura depth solo puede provocar STOP local por peligro;
+no publica evidencia global persistente.
+
+## Fiduciales
+
+La inspeccion puede detectar un fiducial, pero no duplica Fase 3/4. Si ese ID no
+ha sido visto por el mismo `(drone_id,map_epoch)`, activa la interrupcion de 6O
+y el pipeline fiducial normal. Si ya fue visto por ese submapa, se ignora.
 
 ## Cambios requeridos
 
-1. API de encolado GO_TO y estado visible para GUI/progreso.
-2. Validacion/planificacion/reserva normal, sin bypass.
-3. Lifecycle PAUSED/ANCHOR/reanudacion con ownership intacto.
-4. Auditar y reutilizar recovery, anchors e hints F4/F5 existentes.
-5. Modelar subobjetivo fiducial y retorno al target previo.
-6. Exponer eventos correlacionados al grafo y GUI.
-
-## Limites
-
-No preemption arbitraria, no control directo, no nuevo recovery paralelo y no
-perseguir fiduciales sin utilidad/seguridad demostrable.
+1. Retirar el enqueue automatico por KF y sus parametros runtime.
+2. Anadir captura exacta bajo demanda y el servicio compuesto de inspeccion.
+3. Calcular normales/soporte/confianza localmente.
+4. Integrar solo FREE reversible en `VoxelMapWorker` con precedencia sparse.
+5. Anadir tests de muestreo uniforme, DDA, huecos y normal ponderada.
 
 ## Pruebas
 
-GO_TO con dron libre/todos ocupados/fuera de volumen; no preemption; perdida de
-ancla con tracking; LOST; pausa/ownership; fiducial util/no util y retorno a la
-tarea. Todo con GUI+Gazebo+grafo, sin RViz ni GT funcional.
+Prueba normal de barrido con GUI F7 y Gazebo; prueba dirigida a textura pobre
+para forzar `TRACKING_RISK`; retirada/reintegracion por revision de KF; ausencia
+de falsos `OCCUPIED` depth; confirmacion del prefijo FREE completo.
 
 ## Criterio de exito
 
-Los tres comportamientos reutilizan el pipeline normal, mantienen lifecycle y
-ownership correctos y no crean atajos inseguros.
+La inspeccion produce evidencia FREE sin huecos relevantes, orientacion estable
+y una respuesta correlacionada, sin depth por KF ni trafico continuo.

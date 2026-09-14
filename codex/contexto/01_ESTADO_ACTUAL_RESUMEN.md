@@ -16,11 +16,46 @@ Fase 5: CONSEGUIDA; 5H integracion, 5I estabilizacion y 5J cierre 2/2
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA; regresion opcional futura
-Subfase actual: 5J CONSEGUIDA; limitacion de observabilidad transferida a Fase 6
-Preparacion 5J: CERRADA y autorizacion consumida
-Siguiente punto de entrada: preparar Fase 6 y retirada progresiva de GT fallback
-Trabajo funcional activo: ninguno; 279-281 siguen detenidas
-Punto de entrada siguiente: preparar Fase 6 y retirar progresivamente GT fallback
+Subfases actuales: 6A-6C, 6E-6G, 6L y 6M CONSEGUIDAS; 6D, 6H-6K y 6N PARCIALES; 6O GO_TO/ANCHOR y 6P cierre pendientes; 7G PARCIAL
+Migracion 6N: el barrido lateral de fachada esta implementado y los builds/tests dirigidos son correctos. 737 valida que `InspectFacade` respeta cualquier trayectoria fisica activa. 738 queda parcial: confirma el motivo `target_capture_failed:exact_frame_not_buffered`, pero D2 retuvo el frente de la cola global e impidio avanzar a D1. Faltan arbitraje independiente por dron, retencion del frame exacto y validacion integrada hasta D*, movimiento, coverage y `TO_FINISH`.
+Fase 6: `Pol3Waypoints` y `VelTrapWaypoints` sustituyen el ejecutor quintico provisional de 6I. El protocolo STOP está CONSEGUIDO: `task_server` envía una orden explícita sin waypoints, el dron ejecuta hover Pol3 local de 5 s y el terminal normal habilita el replan posterior sin `async_cancel_goal`.
+Validación 678: el mapa sparse exige cuatro MapPoints distintos con score >= 0.2 antes de crear `OCCUPIED`, de forma reversible. `Pol3Waypoints` usa aristas nominales y empalmes cúbicos C1 de 6 s alrededor de guías interiores; el servidor impone 8 s mínimos por tramo. Con GT, D1, GUI F7 y Gazebo, el escenario terminó `SIM-DONE success=true`, con `blend_sec=3.000`, una ruta mínima de 8 s y continuidad de pose/velocidad en fronteras. Builds y CTest dirigidos correctos; no quedaron procesos. 6I mantiene estado PARCIAL por validación física prolongada, barrido/límites y política de inflación de corredor.
+Validación 679: la capa principal de trayectorias de GUI F7 muestra exclusivamente `ACTIVE`; ignora candidatos `PLANNED` y solo limpia la geometría si coincide su `trajectory_id`. Build de `multidron_gui_lib` y CTest 9/9 correctos. En GT, D1 mantuvo la ruta activa mientras los candidatos pendientes quedaron registrados como ignorados y el escenario terminó `SIM-DONE success=true`. La corrección visual está CONSEGUIDA; los estados agregados 6I/7G continúan PARCIALES por alcances independientes.
+Validación 683: `ReservationOverlay` y `ExecutionRuntime[drone_id]` permiten subtareas concurrentes sin mezclar callbacks. 682 detectó un interbloqueo FIFO/HOLD; 683 lo corrige reanudando al propietario de HOLD antes de la espera ajena, tras lo cual D1 liberó y D2 recibió su reserva/ruta. `task_server` 7/7, `task_lib` 10/10 y `SIM-DONE success=true`; 6J/6K siguen PARCIALES por sampler curvo compartido, prioridades generales y reparación de rutas.
+Punto de entrada siguiente: acordar el siguiente bloque de Fase 6 o retomar
+las limitaciones explicitas de 6J/6K y 6L/6M; no reabrir STOP salvo regresion
+observada.
+Validacion 697: la revision 6L usa franjas ORB solapadas del 75 % y requiere
+cero inliers hacia el sector de movimiento durante tres frames. D1/GT llego al
+fiducial 2 y ejecuto 120 s de coverage con GUI F7 y Gazebo: hubo rutas D* y
+STOPs por ocupacion, pero cero `TRACKING_RISK` porque ninguna franja dirigida
+quedo vacia. Es evidencia de ausencia de falso positivo; falta activar el caso
+para cerrar 6L. 6M conserva la validacion de yaw/pitch de 696.
+Validaciones 698/699: D1/GT se anclo en fiducial 2 y envio rutas explicitas por
+`PlanRoute(dispatch_execution=true)`, que atraviesa D*, reservas y action sin
+habilitar la cola automatica. Ambas terminaron `success=true` y mantuvieron el
+epoch; no generaron una franja visual vacia, por lo que sus STOPs fueron de
+corredor ocupado. 6L sigue PARCIAL hasta medir la correccion visual configurable
+de 25 grados; 6M queda CONSEGUIDA solo como transporte, sin orientacion ordinaria.
+Validaciones 700/701 corrigen esa ultima limitacion de transporte: el servidor
+persiste la orientacion ordinaria por dron/epoch y la copia a cada waypoint D*.
+Con D1/GT/fiducial 2, tres tramos X+ y tres Z+ conservaron yaw cercano a 90
+grados y pitch cero. 701 tambien valida que un STOP por corredor publica su
+terminal físico antes del siguiente paso. No hubo franja visual vacia, por lo
+que 6L sigue PARCIAL y 6M sigue CONSEGUIDA sin politica de vista ordinaria.
+Validaciones 717/718: un YAML aislado amplia el ROI solo para el ensayo sin
+quitar vetos D*. 717 activa una franja horizontal vacia real con D1/GT,
+`map_epoch=0`, STOP y reorientacion yaw `90 -> 115 grados`; la cadena queda
+validada. 718 completa doce ascensos Z+ y STOPs de corredor sin activar una
+franja TOP/BOTTOM, por lo que el giro de pitch de 25 grados sigue pendiente.
+Validacion 719: un YAML vertical aislado activa TOP/BOTTOM real, pero revela
+que una reorientacion a XYZ fijo no debe ser un plan servido ni vigilado por el
+servidor. La 720 quedo invalidada por suspension del ordenador. La 721 repite
+limpia: D1/GT conserva `map_epoch=0`, detecta sector 4 vacio, hace STOP y luego
+pitch local `-25 grados` durante 5 s. El runner recibe su terminal local y el
+servidor persiste `F6M-ORIENTATION-UPDATED local=true`, sin ruta ni reserva
+`reorient_*`. 6L queda CONSEGUIDA; retreat, veto por precaucion y calibracion
+amplia quedan como mejoras futuras.
 Revision visual de prueba 200: confirmada correcta por el usuario
 Pendiente de Fase 2: ninguno
 Autorizacion 4A+4B: concedida y consumida

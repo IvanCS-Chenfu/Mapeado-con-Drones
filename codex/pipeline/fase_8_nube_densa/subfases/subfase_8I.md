@@ -112,7 +112,7 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 - No usar Ground Truth para calcular disparity/depth, colocar la nube densa, fusionar, corregir poses, refinar MapPoints, decidir ocupación o validar online una trayectoria. GT solo puede aparecer como métrica externa de simulación.
 - No modificar datos raw de ORB-SLAM3 en `RawMapDatabase`.
 - No devolver MapPoints corregidos al ORB-SLAM3 que corre en el dron.
-- No ejecutar reconstrucción densa pesada en el dron: el dron se limita a capturar y enviar información.
+- No fusionar, optimizar ni construir un mapa global en el dron. El cálculo depth/nube/normales local por KF y el filtrado mínimo sí pertenecen al dron.
 - No convertir `orbslam3_server` ni `dense_map_server` en un backend algorítmico monolítico; los algoritmos densos pertenecen a `dense_map_multi`.
 - No bloquear ingesta sparse, pose, control, GUI o ejecución de tareas mientras se calcula disparity, registro, voxelización, fusión o reintegración.
 - No almacenar imágenes L/R permanentemente como parte de `DenseKeyFrameDatabase`; si una zona queda mal, la estrategia acordada es volver a observarla/recapturarla.

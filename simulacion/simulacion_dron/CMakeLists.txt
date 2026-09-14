@@ -18,6 +18,7 @@ find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(dron_individual REQUIRED)
+find_package(mission_msgs REQUIRED)
 find_package(orbslam3_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -138,7 +139,7 @@ ament_target_dependencies(graficar_GTvsTray rclcpp std_msgs dron_individual)
 add_executable(scenario_runner_node src/control_tray/scenario_runner_node.cpp)
 ament_target_dependencies(
   scenario_runner_node rclcpp rclcpp_action geometry_msgs std_msgs std_srvs
-  sensor_msgs trajectory_msgs dron_individual orbslam3_msgs Eigen3 ament_index_cpp)
+  sensor_msgs trajectory_msgs dron_individual mission_msgs orbslam3_msgs Eigen3 ament_index_cpp)
 target_link_libraries(scenario_runner_node yaml-cpp)
 
 

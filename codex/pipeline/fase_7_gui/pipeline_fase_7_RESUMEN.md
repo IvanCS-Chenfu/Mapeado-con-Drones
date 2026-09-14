@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-en curso: bloques 1 y 2 conseguidos
+en curso: bloques 1-3 conseguidos, tramo inicial de 7I conseguido y 7G parcial
 Preparación documental: actualizada para ciclo iterativo con Fase 6
 Bloque 1 (7A-7D): conseguido el 2026-09-02
 Bloque 2 (7E, 7F, 7H): conseguido el 2026-09-02
@@ -76,9 +76,17 @@ Ante una duda funcional nueva no cubierta por este contrato, Codex debe parar y 
 7M  integración, validación visual y cierre
 ```
 
-Estado ejecutado: `7A`-`7F` y `7H` conseguidas. `7G` y `7I`-`7M` permanecen
-pendientes. El siguiente bloqueo real es Fase 6: trayectoria vigente, estado y
-progreso de tareas y acciones operativas para continuar la GUI.
+Estado ejecutado: `7A`-`7F`, `7H` y el tramo habilitado de `7I` conseguidas.
+Las tarjetas reciben tarea/estado real y seleccionan su subROI; progreso y
+errores completos quedan condicionados por 6H/6I. En la casa exterior validada,
+la ausencia de una tarjeta `BLOCKED_BRANCH` no es un defecto visual: no existe
+una entrada conectada real a rama y el interior tras pared ocupada es
+inaccesible. El lifecycle de ramas se comprobará en una topología futura que lo
+produzca de forma natural. `7G` muestra la trayectoria ejecutable vigente:
+solo acepta `ACTIVE`, ignora `PLANNED` pendiente y protege los clears por
+`trajectory_id`. Sigue parcial hasta que 6I cierre los alcances físicos y la
+representación completa de su trayectoria continua. Resto de `7I` y
+`7J`-`7M` permanecen pendientes.
 
 ## Prueba final
 

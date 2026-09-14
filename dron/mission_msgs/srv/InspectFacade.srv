@@ -1,0 +1,13 @@
+string mission_id
+string task_id
+uint32 drone_id
+uint64 map_epoch
+geometry_msgs/Point target_world
+---
+bool success
+string reason
+mission_msgs/DenseKFObservation facade_observation
+mission_msgs/DenseKFObservation target_observation
+float64 facade_yaw_rad
+float64 facade_camera_pitch_rad
+bool target_tracking_risk

@@ -1,4 +1,6 @@
 mission_msgs/TrajectoryPlan plan
+# Orden interna: el dron frena hacia su pose actual; plan solo aporta identidad.
+bool stop_at_current_pose
 ---
 bool success
 uint8 final_state

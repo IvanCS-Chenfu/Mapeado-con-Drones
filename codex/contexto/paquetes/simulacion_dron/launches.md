@@ -91,7 +91,58 @@ orb_vocabulary_path=<ORBvoc.txt completo>
 dron_spawn_override_enabled=false
 dron_spawn_y=-10.8
 dron_spawn_yaw_deg=90.0
+phase6_execution_timing_factor=2.0
+phase6_trajectory_waypoint_min_separation_m=1.0
+phase6_trajectory_min_segment_duration_sec=8.0
+phase6_waypoint_blend_sec=3.0
+phase6_min_occupied_mappoints_per_voxel=4
+phase6_extra_obstacle_clearance_voxels=2
+phase6_voxel_worker_coalesce_ms=100
+phase6_execute_facade_sweeps=false
+phase6_facade_preferred_wall_distance_m=2.5
+phase6_facade_preferred_displacement_m=2.0
+phase6_facade_wall_distance_weight=1.0
+phase6_facade_displacement_weight=1.0
+phase6_facade_height_weight=1.0
+phase6_facade_completion_ratio=0.99
+phase6_facade_candidate_step_m=0.25
+phase6_facade_min_free_prefix_m=1.0
+phase6_facade_orientation_tolerance_deg=25.0
+phase6_facade_max_inspection_failures=3
+phase6_facade_worker_period_ms=250
+phase6_reservation_sweep_sample_step_voxels=0.5
+phase6_depth_inspection_enabled=false
+phase6_depth_evidence_enabled=false
 ```
+
+Cuando se habilita la ejecucion 6I, el launch entrega
+`phase6_execution_timing_factor`,
+`phase6_trajectory_waypoint_min_separation_m` y
+`phase6_trajectory_min_segment_duration_sec`, y
+`phase6_min_occupied_mappoints_per_voxel` a `task_server`, y
+`phase6_waypoint_blend_sec` a cada `gen_tray`. Los parametros de ruta
+depuran de forma segura una cadena D* y acotan inferiormente la duración de
+cada tramo antes de construir `Pol3Waypoints`; el ultimo define la ventana de
+empalme C1 a cada lado de una guía interior. La velocidad nominal es
+`phase6_execution_nominal_velocity_mps=0.8` y define el tiempo de cada arista
+como `factor * distancia / vel_max`. El ejecutor retemporiza solo una
+desviacion inicial tolerable; si el inicio ya es obsoleto, rechaza y el servidor
+replanifica.
+
+Los argumentos `phase6_facade_*` controlan el barrido exterior: tres preferencias
+bilaterales, paso de candidatos, prefijo FREE minimo, tolerancia de orientacion,
+umbral de coverage lineal, reintentos y periodo del worker. No existe una meta
+UNKNOWN ni un analizador de completion volumetrico. La inspeccion depth se
+activa por separado y solo bajo demanda con
+`phase6_depth_inspection_enabled`; `phase6_depth_evidence_enabled` permite al
+servidor integrar su producto exclusivamente como FREE reversible.
+
+`phase6_extra_obstacle_clearance_voxels` se suma al radio fisico ya voxelizado
+del dron y sustituye al clearance metrico anterior.
+`phase6_voxel_worker_coalesce_ms` agrupa cambios antes de un commit incremental.
+`phase6_reservation_sweep_sample_step_voxels` controla la separación máxima de
+las muestras que convierten la polilínea D* inflada en la reserva espacial;
+actualmente no representa aún el sampler curvo final de `lib_tray`.
 
 El override de spawn de 5B está desactivado por defecto. Cuando se habilita,
 `multi_dron.launch.py` coloca X en `-1/+1` según dron y pasa Y/yaw al
@@ -137,6 +188,12 @@ Perfiles validados:
 La prueba 137 confirmo seis goals, tres anchors, 141 KFs activos y 7981 puntos
 con tres drones y stagger 0/8/16 s. `config/sim_dron.yaml` se restauro despues
 a dos drones y la prueba visual 138 verifico el estado normal.
+
+Para diagnóstico puntual de 6I, `multi_dron.launch.py` expone
+`phase6_debug_trajectory_diagnostics=false`. Al activarlo lo propaga a
+`task_server` como `debug_trajectory_diagnostics` y a cada `gen_tray` y
+`control_calcular_fuerzas` como `debug_f6i_trajectory`; no activa RViz, otra
+GUI ni cambia las rutas D*.
 
 ## `f3f_replay.launch.py`
 
@@ -191,3 +248,28 @@ tray_prueba_139.yaml -> dos drones: fiducial 2, x=-8 y regreso; observacion
 
 Ruta de diagnostico visual aislada: bridge y helper de navegador, sin Gazebo,
 drones, servidor global ni RViz2.
+## Parametros 6L/6M
+
+`multi_dron.launch.py` expone `phase6_visual_risk_enabled`,
+`phase6_debug_visual_risk_display`,
+`phase6_visual_risk_empty_region_fraction=0.75`,
+`phase6_visual_risk_persistence_frames` y
+`phase6_visual_risk_reorientation_grace_sec=6.0`, junto a
+`phase6_visual_risk_reorientation_step_deg=25.0`. La fraccion crea las cuatro
+franjas direccionales solapadas de la evidencia ORB; el riesgo exige cero
+inliers en la franja hacia la que se mueve el dron.
+
+## Calidad depth 6N
+
+`multi_dron.launch.py` expone
+`phase6_depth_max_disparity_gradient_px_per_pixel=2.0`,
+`phase6_depth_min_texture_gradient=8.0` y
+`phase6_depth_texture_window_radius_px=2` y los reenvia a cada worker
+estereo. El primero limita discontinuidades de disparidad; los dos ultimos
+exigen textura local suficiente en la imagen izquierda rectificada. Se aplican
+solo cuando `CaptureDepth` procesa una peticion: no existe calculo automatico
+por KF. Una muestra descartada no forma parte de `DenseKFObservation`, de los
+rayos FREE derivados ni del calculo de proximidad de esa captura. Depth no
+genera endpoints OCCUPIED. Son umbrales experimentales independientes de
+`phase6_depth_min_confidence`, que el servidor aplica solo a observaciones ya
+filtradas.

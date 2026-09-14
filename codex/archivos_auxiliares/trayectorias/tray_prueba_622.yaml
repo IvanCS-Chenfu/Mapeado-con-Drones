@@ -1,0 +1,15 @@
+name: fase_6G_dstar_objetivo_cercano_servicio_verificado
+description: "GT lleva ambos drones al fiducial 2; se verifica PlanRoute antes de buscar un objetivo cercano con clearance."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 300.0}
+steps:
+  - {name: espera_estabilizacion, type: wait, seconds: 20.0}
+  - name: aproximacion_fiducial_2_gt
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [-0.5, -10.0, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.5, -10.0, 1.3], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: observacion_fiducial_y_materializacion_free_voxel, type: wait, seconds: 50.0}
+  - {name: ventana_diagnostico_servicio_y_objetivo_cercano, type: wait, seconds: 190.0}

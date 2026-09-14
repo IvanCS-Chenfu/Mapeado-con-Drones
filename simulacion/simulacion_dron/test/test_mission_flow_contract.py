@@ -1,4 +1,4 @@
-import json
+import re
 from pathlib import Path
 
 
@@ -6,31 +6,29 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PACKAGE_ROOT.parents[1]
 
 
-def load_graph():
-    source = (
-        PACKAGE_ROOT / 'web/mission_flow/graph_definition.js'
-    ).read_text(encoding='utf-8').strip()
-    prefix = 'window.FLOW_GRAPH = '
-    assert source.startswith(prefix)
-    return json.loads(source[len(prefix):].removesuffix(';'))
+def graph_source():
+    source = (PACKAGE_ROOT / 'web/mission_flow/graph_definition.js').read_text(
+        encoding='utf-8').strip()
+    assert source.startswith('window.FLOW_GRAPH = ')
+    return source
 
 
 def test_graph_starts_with_four_workers_and_versioned_transport():
-    graph = load_graph()
-    nodes = {node['id'] for node in graph['nodes']}
+    source = graph_source()
+    nodes = set(re.findall(r'\{id: "([^"]+)", label:', source))
     assert {'task_worker', 'voxel_worker', 'planning_worker',
             'reservation_worker'} <= nodes
-    edges = {edge['id'] for edge in graph['edges']}
+    edges = set(re.findall(r'\{id: "([^"]+)", source:', source))
     assert {'manager_to_registration', 'registration_to_task_worker',
             'task_worker_geometry'} <= edges
 
 
-def test_level_view_consumes_runtime_regions_without_hardcoded_roi():
+def test_flow_keeps_events_without_a_duplicate_subroi_view():
     app = (PACKAGE_ROOT / 'web/mission_flow/app.js').read_text(encoding='utf-8')
     html = (PACKAGE_ROOT / 'web/mission_flow/index.html').read_text(encoding='utf-8')
-    assert 'payload.regions' in app
-    assert 'level-select' in html
-    assert 'level-canvas' in html
+    assert 'payload.regions' not in app
+    assert 'level-select' not in html
+    assert 'level-canvas' not in html
     assert 'new EventSource' in app
     assert 'mapping_roi' not in app
     assert (PACKAGE_ROOT / 'web/mission_flow/vendor/cytoscape.min.js').is_file()
@@ -47,7 +45,7 @@ def test_launch_gates_phase6_and_both_observers_without_rviz_dependency():
     assert "'launch_rviz', default_value='false'" in launch
 
 
-def test_phase6_sources_do_not_consume_ground_truth_or_assign_regions():
+def test_phase6_sources_gate_assignment_by_explicit_pose_authority():
     sources = [
         SRC_ROOT / 'servidor/task_server/src/task_server_node.cpp',
         SRC_ROOT / 'dron/task_manager/src/task_manager_node.cpp',
@@ -55,8 +53,13 @@ def test_phase6_sources_do_not_consume_ground_truth_or_assign_regions():
     combined = '\n'.join(path.read_text(encoding='utf-8') for path in sources)
     assert 'sensor/GT' not in combined
     assert 'ground_truth' not in combined.lower()
-    assert 'assigned_drone_id =' not in combined
-    assert 'PublishEmptyTaskState' in combined
+    assert "phase5_navigation_source" in combined
+    assert 'assigned_drone_id =' in combined
+    assert 'PublishTaskStates' in combined
+    assert 'POSE_SOURCE_GT_FORCED' in combined
+    assert 'GLOBAL_STATUS_AUTHORITATIVE' in combined
+    assert '/mission/register_drone' in combined
+    assert '/mission/geometry' in combined
 
 
 def test_mission_interfaces_are_exact_server_drone_replicas():

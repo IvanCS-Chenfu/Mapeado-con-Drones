@@ -10,13 +10,13 @@ sin hacer
 
 ## Objetivo técnico
 
-Medir y acotar el coste real de la Fase 8 en dron/red/servidor. Mantener al dron ligero, garantizar que dense no bloquea sparse/control, dimensionar colas y mapas, y decidir con evidencia si hace falta compresión de imágenes/transporte u otras optimizaciones.
+Medir y acotar el coste real de la Fase 8 en dron/red/servidor. Mantener el worker local por KF acotado, garantizar que dense no bloquea sparse/control, dimensionar colas y mapas, y decidir con evidencia si hace falta compresión del producto DenseKF/transporte u otras optimizaciones.
 
 
 ## Invariantes y decisiones cerradas
 
 - No elegir compresión antes de medir tráfico real.
-- La optimización de red no puede trasladar reconstrucción pesada al dron.
+- La optimización de red no puede convertir el cálculo local por KF en trabajo periódico por frame, ni trasladar al dron fusión, mapa global u optimización.
 - El pipeline principal debe seguir operativo bajo backlog dense.
 - Los mapas coarse/fine y selección de DenseKF son herramientas principales para controlar memoria.
 
@@ -45,7 +45,7 @@ Leer política de worker/backpressure de Fase 3 y herramientas de logs. Revisar 
 
 ## Diagnóstico de partida
 
-Imágenes estéreo y clouds pueden saturar red/CPU/RAM si se envían todos los KFs o se acumulan tareas HQ. Tras implementar funcionalidad completa hay que medir tasa de KFs, MB/s, latencia de disparity/registro, bloques voxel y backlog antes de escoger compresión o límites.
+Los productos DenseKF/rayos pueden saturar red/CPU/RAM si se generan para todos los KFs o se acumulan tareas HQ. Tras implementar funcionalidad completa hay que medir tasa de KFs, MB/s, latencia local de disparity/depth, latencia de integración/registro, bloques voxel y backlog antes de escoger compresión o límites.
 
 
 ## Archivos permitidos a modificar
@@ -96,8 +96,8 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 ## Cambios requeridos
 
 1. Instrumentar tasa de imágenes/KFs, bytes/s por dron, tamaño de mensaje, cola, drops, latencia end-to-end y edad de datos.
-2. Medir CPU/RAM servidor por disparity, quality, voxel integration, registration, reintegration y análisis de cobertura.
-3. Medir carga adicional del dron exclusivamente por copia/serialización/transporte; no reconstrucción.
+2. Medir CPU/RAM servidor por quality, voxel integration, registration, reintegration y análisis de cobertura.
+3. Medir CPU/RAM del dron por disparity/depth/normales local por KF, copia/serialización/transporte, garantizando que tracking/control no quedan bloqueados.
 4. Definir colas acotadas y política de drop/prioridad: control/sparse no espera dense; captura HQ puede tener semántica distinta de DenseKF oportunista.
 5. Medir memoria de DenseKeyFrameDatabase, occupancy y DenseFusionMap en prueba larga.
 6. Solo si la red es un cuello de botella, probar compresión/transporte (por ejemplo mecanismo ROS compatible) y comparar calidad/CPU/latencia antes/después; si no aporta, mantener baseline sencillo.
@@ -110,7 +110,7 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 - No usar Ground Truth para calcular disparity/depth, colocar la nube densa, fusionar, corregir poses, refinar MapPoints, decidir ocupación o validar online una trayectoria. GT solo puede aparecer como métrica externa de simulación.
 - No modificar datos raw de ORB-SLAM3 en `RawMapDatabase`.
 - No devolver MapPoints corregidos al ORB-SLAM3 que corre en el dron.
-- No ejecutar reconstrucción densa pesada en el dron: el dron se limita a capturar y enviar información.
+- No fusionar, optimizar ni construir un mapa global en el dron. El cálculo depth/nube/normales local por KF y el filtrado mínimo sí pertenecen al dron.
 - No convertir `orbslam3_server` ni `dense_map_server` en un backend algorítmico monolítico; los algoritmos densos pertenecen a `dense_map_multi`.
 - No bloquear ingesta sparse, pose, control, GUI o ejecución de tareas mientras se calcula disparity, registro, voxelización, fusión o reintegración.
 - No almacenar imágenes L/R permanentemente como parte de `DenseKeyFrameDatabase`; si una zona queda mal, la estrategia acordada es volver a observarla/recapturarla.

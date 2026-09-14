@@ -82,9 +82,19 @@ def generate_launch_description():
         DeclareLaunchArgument('debug_fase_5', default_value='false'),
         DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
         DeclareLaunchArgument('debug_orb_visual_evidence', default_value='false'),
+        DeclareLaunchArgument('debug_visual_risk_display', default_value='false'),
+        DeclareLaunchArgument('visual_risk_empty_region_fraction', default_value='0.75'),
         DeclareLaunchArgument('orb_visual_evidence_output_dir', default_value=''),
         DeclareLaunchArgument(
             'orb_navigation_prediction_mode', default_value='dynamic'),
+        DeclareLaunchArgument('depth_observation_enabled', default_value='false'),
+        DeclareLaunchArgument('depth_max_points', default_value='128'),
+        DeclareLaunchArgument('depth_max_disparity_gradient_px_per_pixel', default_value='2.0'),
+        DeclareLaunchArgument('depth_min_texture_gradient', default_value='8.0'),
+        DeclareLaunchArgument('depth_texture_window_radius_px', default_value='2'),
+        DeclareLaunchArgument('depth_stop_enabled', default_value='false'),
+        DeclareLaunchArgument('depth_stop_distance_m', default_value='1.2'),
+        DeclareLaunchArgument('depth_stop_cooldown_sec', default_value='5.0'),
         DeclareLaunchArgument('camera_pitch_enabled', default_value='false'),
     ]
 
@@ -106,10 +116,21 @@ def generate_launch_description():
     debug_fase_5 = LaunchConfiguration('debug_fase_5')
     debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
     debug_orb_visual_evidence = LaunchConfiguration('debug_orb_visual_evidence')
+    debug_visual_risk_display = LaunchConfiguration('debug_visual_risk_display')
+    visual_risk_empty_region_fraction = LaunchConfiguration('visual_risk_empty_region_fraction')
     orb_visual_evidence_output_dir = LaunchConfiguration(
         'orb_visual_evidence_output_dir')
     orb_navigation_prediction_mode = LaunchConfiguration(
         'orb_navigation_prediction_mode')
+    depth_stop_enabled = LaunchConfiguration('depth_stop_enabled')
+    depth_stop_distance_m = LaunchConfiguration('depth_stop_distance_m')
+    depth_stop_cooldown_sec = LaunchConfiguration('depth_stop_cooldown_sec')
+    depth_observation_enabled = LaunchConfiguration('depth_observation_enabled')
+    depth_max_points = LaunchConfiguration('depth_max_points')
+    depth_max_disparity_gradient_px_per_pixel = LaunchConfiguration(
+        'depth_max_disparity_gradient_px_per_pixel')
+    depth_min_texture_gradient = LaunchConfiguration('depth_min_texture_gradient')
+    depth_texture_window_radius_px = LaunchConfiguration('depth_texture_window_radius_px')
     camera_pitch_enabled = LaunchConfiguration('camera_pitch_enabled')
 
     common_params = {
@@ -141,8 +162,25 @@ def generate_launch_description():
         ]), value_type=bool)
     stereo_params['orb_visual_evidence_output_dir'] = ParameterValue(
         orb_visual_evidence_output_dir, value_type=str)
+    stereo_params['debug_visual_risk_display'] = ParameterValue(
+        debug_visual_risk_display, value_type=bool)
+    stereo_params['visual_risk_empty_region_fraction'] = ParameterValue(
+        visual_risk_empty_region_fraction, value_type=float)
     stereo_params['navigation_prediction_mode'] = ParameterValue(
         orb_navigation_prediction_mode, value_type=str)
+    stereo_params['depth_observation_enabled'] = ParameterValue(
+        depth_observation_enabled, value_type=bool)
+    stereo_params['depth_max_points'] = ParameterValue(depth_max_points, value_type=int)
+    stereo_params['depth_max_disparity_gradient_px_per_pixel'] = ParameterValue(
+        depth_max_disparity_gradient_px_per_pixel, value_type=float)
+    stereo_params['depth_min_texture_gradient'] = ParameterValue(
+        depth_min_texture_gradient, value_type=float)
+    stereo_params['depth_texture_window_radius_px'] = ParameterValue(
+        depth_texture_window_radius_px, value_type=int)
+    stereo_params['depth_stop_enabled'] = ParameterValue(depth_stop_enabled, value_type=bool)
+    stereo_params['depth_stop_distance_m'] = ParameterValue(depth_stop_distance_m, value_type=float)
+    stereo_params['depth_stop_cooldown_sec'] = ParameterValue(
+        depth_stop_cooldown_sec, value_type=float)
     stereo_params['body_camera_transform_mode'] = ParameterValue(
         PythonExpression([
             "'tf' if '", camera_pitch_enabled,
@@ -186,5 +224,20 @@ def generate_launch_description():
                 debug_fiducial_display_seconds, value_type=float),
         }])
 
+    visual_risk_visualizer_node = Node(
+        condition=IfCondition(debug_visual_risk_display),
+        package='orbslam3', executable='fiducial_visualizer',
+        name='visual_risk_visualizer', output='screen',
+        additional_env=orbslam_environment,
+        parameters=[{
+            'use_sim_time': ParameterValue(use_sim_time, value_type=bool),
+            'drone_id': ParameterValue(drone_id, value_type=int),
+            'drone_name': ParameterValue(drone_name, value_type=str),
+            'display_seconds': 15.0,
+            'image_topic': 'orbslam/visual_tracking_debug/image',
+            'window_suffix': 'tracking risk',
+            'trigger_on_visual_risk': True,
+        }])
+
     return LaunchDescription(
-        args + [mono_node, stereo_node, fiducial_visualizer_node])
+        args + [mono_node, stereo_node, fiducial_visualizer_node, visual_risk_visualizer_node])

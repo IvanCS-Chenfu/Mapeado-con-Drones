@@ -7,13 +7,22 @@ uint8 FAILED=5
 uint8 CANCELLED=6
 uint8 BLOCKED=7
 uint8 WAITING=8
+uint8 BLOCKED_BRANCH=9
+uint8 SUPERSEDED=10
+uint8 TO_FINISH=11
 
 string task_id
 string task_type
 string region_id
 string base_owner_task_id
 string branch_owner_task_id
+string lineage_id
+string[] portal_voxel_ids
+string resolution_task_id
 uint32 assigned_drone_id
 uint8 state
+uint64 state_revision
 float32 progress
+bool progress_known
+mission_msgs/FacadeCoverageInterval[] coverage_intervals
 string detail

@@ -1,5 +1,19 @@
 # 00_summary - simulacion_dron
 
+Para 6G/7G, los grafos web describen el `PlanningWorker` y la ruta de
+`/mission/planned_routes` hasta `RosDataBridge`; el launch de validacion usa
+Gazebo y una unica GUI F7, sin RViz2 ni la GUI legacy. La prueba 615 valido un
+plan y un replan D* cortos con fuente GT; 616 solo verifico el arranque limpio
+del worker porque no se pudieron emitir sus solicitudes de servicio.
+
+Para 6D/6I, `multi_dron.launch.py` propaga
+`phase6_min_occupied_mappoints_per_voxel=4` a `task_server`, además del score
+mínimo de ocupación. También fija
+`phase6_trajectory_min_segment_duration_sec=8.0` y
+`phase6_waypoint_blend_sec=3.0` para el recorrido multi-waypoint. La prueba
+678 verificó esos valores con D1/GT, GUI F7 y Gazebo; D2 permaneció sin
+dispatch físico y el escenario terminó correctamente.
+
 Los overrides GT/ORB y el servicio shadow usados en los laboratorios 321-349
 fueron retirados en 5J. Los YAML historicos se conservan como evidencia, pero
 no son escenarios runtime vigentes.
@@ -35,11 +49,11 @@ launch expone `phase5_global_pose_rviz_enabled=false` y el modo de prueba
 `use_legacy_gt_goal_policy_for_simulation=false`; este último gobierna solo el
 control legacy GT y no alimenta las poses estimadas.
 
-Preparacion 1J vigente: `multi_dron.launch.py` expone
-`phase5_navigation_source=gt|orb` y lo propaga al
-`navigation_state_mux` de cada dron, separado de la politica de
-fallback. En modo GT ORB permanece activo en sombra y los fiduciales siguen
-siendo exclusivamente visuales.
+`multi_dron.launch.py` expone `phase5_navigation_source=gt|orb` y lo propaga
+al `navigation_state_mux` de cada dron. El default del binario y del launch es
+`orb`; las pruebas GT lo inyectan explicitamente. En modo GT ORB permanece
+activo en sombra y los fiduciales siguen siendo exclusivamente visuales. El
+fallback GT legado queda desactivado por defecto.
 
 Los goals YAML pueden sobrescribir esa fuente con
 `navigation_source: None|GT|ORB`. `None` hereda el launch y `ORB` conserva la
@@ -88,9 +102,19 @@ del flujo normal. Ambos son overrides independientes y el backend conserva el
 modo headless. El launch pasa numero/namespaces de drones, YAML fiducial y
 `drone_stale_timeout_sec=1.0`, y sanea el entorno Snap del proceso Qt.
 
-El grafo `system_architecture` usa una topología, metadata y layout declarativos
-separados. Su composición sitúa Simulación/Servidor arriba y Dron abajo para
-facilitar la lectura de interfaces entre despliegues.
+`multidron_gui_start_delay_sec` permite retrasar de forma explicita el GUI F7
+sin retrasar Gazebo ni la mision. Las pruebas con reintento de Gazebo lo usan
+para no abrir una instancia Qt en un intento transitorio que el helper vaya a
+descartar. `run_simulation.sh` limpia las GUI de prueba y espera al proceso
+raiz de `ros2 launch` antes de reintentar o cerrar, evitando que una instancia
+anterior se superponga al GUI de la ejecucion estable.
+
+El grafo `system_architecture` usa una topologia, metadata y layout declarativos
+separados. Su composicion fija tres bandas horizontales `Dron -> Simulacion ->
+Servidor`, que deja visibles las aristas entre despliegues. Desde 6A-6C, el
+grafo incorpora `mission_msgs`, `task_server`, `task_lib`, `task_manager` y
+`task_manager_lib`; el grafo `mission_flow` complementario muestra los workers
+de mision y sus eventos, sin duplicar la vista de subROIs de la GUI F7.
 
 Desde 3T contiene en `config/global_map/` el perfil de parámetros controlables
 por el despliegue simulado. Es una copia exacta del perfil del servidor durante

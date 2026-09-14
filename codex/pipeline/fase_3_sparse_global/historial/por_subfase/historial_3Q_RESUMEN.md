@@ -134,3 +134,16 @@ determinar si el selector descarta ventanas que deberian ser optimizables. No
 se autoriza diagnostico adicional, cambio de runtime ni repeticion ahora.
 
 Detalle cronologico: `historial_3Q.md`.
+
+## Incidencia critica diferida: prueba 688 de Fase 6
+
+La prueba 688, ejecutada para revisar cobertura y coordinacion de Fase 6, fue
+detenida por el usuario al observar que una optimizacion por fiducial degrado
+gravemente el mapa en GUI F7. No se analizo el log ni se modifico codigo: la
+evidencia disponible es visual y el mecanismo exacto sigue indeterminado.
+
+Al terminar Fase 6 se reabrira 3Q para reproducir y diagnosticar el evento.
+Se deberan correlacionar la observacion fiducial, propuesta, solve, validacion,
+commit atomico, `pose_revision`, dirty sets y reintegracion posterior. No
+atribuirlo prematuramente a la constraint fiducial ni ocultarlo tras la
+evidencia positiva anterior de 3Q.

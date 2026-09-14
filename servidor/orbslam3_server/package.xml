@@ -15,6 +15,7 @@
   <depend>sensor_msgs</depend>
   <depend>eigen</depend>
   <depend>geometry_msgs</depend>
+  <depend>mission_msgs</depend>
   <depend>orbslam3_msgs</depend>
   <depend>orbslam3_multi</depend>
   <depend>std_msgs</depend>

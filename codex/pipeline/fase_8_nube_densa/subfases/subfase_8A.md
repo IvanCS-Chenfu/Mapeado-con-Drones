@@ -10,12 +10,13 @@ sin hacer
 
 ## Objetivo técnico
 
-Cerrar la geometría métrica y el ownership de la reconstrucción densa antes de generar mapas: inventariar cámaras estéreo, intrínsecos, baseline, rectificación, extrínsecos y frames; validar que la profundidad reconstruida tiene escala correcta; y crear la infraestructura mínima de servidor `dense_map_multi` + `dense_map_server` sobre la que se desarrollará el resto de la fase. Todo el procesamiento denso se ejecuta en el servidor.
+Cerrar la geometría métrica y el ownership de la reconstrucción densa antes de generar mapas: inventariar cámaras estéreo, intrínsecos, baseline, rectificación, extrínsecos y frames; validar que la profundidad reconstruida tiene escala correcta; y crear la infraestructura local por KeyFrame y de servidor sobre la que se desarrollará el resto de la fase. El dron calcula depth/nube/normales locales una vez por KF; el servidor integra, mantiene occupancy reversible, fusiona y optimiza el producto global.
 
 
 ## Invariantes y decisiones cerradas
 
-- El dron realiza el mínimo procesamiento posible: captura y transporte de imágenes/datos; disparity, depth, point cloud, voxelización, registro y fusión se calculan en el servidor.
+- El dron calcula disparity, depth, nube/rayos y normales locales una vez por KF en una cola acotada; nunca realiza fusión, mapa global ni optimización.
+- El servidor recibe el producto DenseKF filtrado, mantiene la evidencia voxel reversible, registra/fusiona y deriva los productos globales.
 - `dense_map_multi` es una librería algorítmica C++ análoga en responsabilidad a `orbslam3_multi`; no es el nodo ROS.
 - `dense_map_server` es el adaptador/coordinador ROS 2 de la parte densa y usa clases/métodos de `dense_map_multi`.
 - La nube final no usa GT. Las dimensiones conocidas del mundo/Gazebo pueden usarse solo como métrica externa de prueba.
@@ -52,7 +53,7 @@ Revisar los experimentos legacy de profundidad/ICP/TSDF solo como fuente de idea
 
 ## Diagnóstico de partida
 
-La guía maestra exige RGB+disparidad/depth, escala métrica, OpenCV/Open3D y coherencia con poses globales, pero el pipeline activo todavía no posee un backend denso de servidor. El wrapper ya carga intrínsecos/baseline y rectifica para ORB-SLAM3; existen scripts experimentales antiguos de profundidad/TSDF, pero no son arquitectura vigente. Antes de continuar debe demostrarse una cadena estéreo reproducible y documentada.
+La guía maestra exige RGB+disparidad/depth, escala métrica, OpenCV/Open3D y coherencia con poses globales, pero el pipeline activo todavía no posee una cadena DenseKF local ni una integración global densa. El wrapper ya carga intrínsecos/baseline y rectifica para ORB-SLAM3; existen scripts experimentales antiguos de profundidad/TSDF, pero no son arquitectura vigente. Antes de continuar debe demostrarse una cadena estéreo reproducible y documentada.
 
 
 ## Archivos permitidos a modificar
@@ -61,7 +62,7 @@ La guía maestra exige RGB+disparidad/depth, escala métrica, OpenCV/Open3D y co
 src/servidor/dense_map_multi/                    # nuevo paquete/librería propuesto
 src/servidor/dense_map_server/                   # nuevo paquete/nodo propuesto
 src/servidor/orbslam3_server/                    # solo lectura/integración mínima si hace falta descubrir frames/poses
-src/dron/orbslam3_ros2/                          # solo si hace falta exponer calibración ya disponible; no extraer imágenes de KF todavía
+src/dron/orbslam3_ros2/                          # asociación exacta KF/par, worker depth local y calibración
 src/dron/dron_individual/config/                 # parámetros de cámara si Fase 2 los mantiene aquí
 src/simulacion/simulacion_dron/                  # solo recursos/pruebas/calibración simulada
 codex/archivos_auxiliares/                       # artefactos de test reducidos, no datos funcionales
@@ -110,11 +111,12 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 
 1. Inventariar de extremo a extremo resolución, encoding, sincronización, intrínsecos, baseline y rectificación de la cámara estéreo real/simulada; documentar una única convención.
 2. Definir explícitamente los frames de entrada/salida del denso (`camera_left` o equivalente, `base_link`, `world`) y las transformaciones conocidas; no duplicar TF si ya existe.
-3. Crear `dense_map_multi` como librería C++ de servidor, sin dependencia ROS innecesaria en el núcleo algorítmico siempre que el código real lo permita.
-4. Crear `dense_map_server` como nodo ROS 2 ligero que recibirá imágenes/poses y delegará algoritmos en `dense_map_multi`; todavía sin lógica de mapa global compleja.
-5. Configurar dependencias mínimas de OpenCV y Open3D en servidor según el entorno real y comprobar versiones instaladas antes de fijarlas.
-6. Implementar una prueba métrica mínima de estéreo sobre un plano/objeto conocido para validar signo de disparity, `Z = f*B/d` o formulación equivalente, ejes y unidades.
-7. Añadir markers `DENSE-CALIBRATION-READY`, `DENSE-STEREO-SCALE` y errores explícitos para calibración incompleta/no finita.
+3. Definir la interfaz, límites de cola y dependencias del worker local por KF en el dron para disparity/depth/normales; su asociación exacta se implementa en 8B y su cálculo en 8C, sin bloquear tracking.
+4. Crear `dense_map_multi` como librería C++ de servidor para integración/fusión, sin dependencia ROS innecesaria en el núcleo algorítmico siempre que el código real lo permita.
+5. Crear `dense_map_server` como nodo ROS 2 ligero que reciba DenseKF/rayos/poses y delegue integración/fusión en `dense_map_multi`; todavía sin lógica de mapa global compleja.
+6. Configurar dependencias mínimas de OpenCV y Open3D en el lado que las necesite según el entorno real y comprobar versiones instaladas antes de fijarlas.
+7. Implementar una prueba métrica mínima de estéreo sobre un plano/objeto conocido para validar signo de disparity, `Z = f*B/d` o formulación equivalente, ejes y unidades.
+8. Añadir markers `DENSE-CALIBRATION-READY`, `DENSE-STEREO-SCALE` y errores explícitos para calibración incompleta/no finita.
 
 
 ## Cambios prohibidos
@@ -122,7 +124,7 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 - No usar Ground Truth para calcular disparity/depth, colocar la nube densa, fusionar, corregir poses, refinar MapPoints, decidir ocupación o validar online una trayectoria. GT solo puede aparecer como métrica externa de simulación.
 - No modificar datos raw de ORB-SLAM3 en `RawMapDatabase`.
 - No devolver MapPoints corregidos al ORB-SLAM3 que corre en el dron.
-- No ejecutar reconstrucción densa pesada en el dron: el dron se limita a capturar y enviar información.
+- No fusionar, optimizar ni construir un mapa global en el dron. El cálculo depth/nube/normales local por KF y el filtrado mínimo sí pertenecen al dron.
 - No convertir `orbslam3_server` ni `dense_map_server` en un backend algorítmico monolítico; los algoritmos densos pertenecen a `dense_map_multi`.
 - No bloquear ingesta sparse, pose, control, GUI o ejecución de tareas mientras se calcula disparity, registro, voxelización, fusión o reintegración.
 - No almacenar imágenes L/R permanentemente como parte de `DenseKeyFrameDatabase`; si una zona queda mal, la estrategia acordada es volver a observarla/recapturarla.

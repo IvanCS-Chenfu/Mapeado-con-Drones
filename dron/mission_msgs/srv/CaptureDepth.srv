@@ -1,0 +1,7 @@
+# Local drone service. requested_frame_id=0 captures the newest stereo pair.
+uint64 requested_frame_id
+bool require_exact_frame
+---
+bool success
+string reason
+mission_msgs/DenseKFObservation observation

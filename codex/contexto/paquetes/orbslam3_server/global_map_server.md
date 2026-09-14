@@ -267,6 +267,12 @@ orbslam3_server/launch/global_orb_map_server.launch.py
 
 No publica desde callbacks, snapshots ni el worker secundario.
 
+Desde la actualizacion 664, cada commit publicable emite tambien
+`/global_sparse_map_delta` reliable/transient-local con `map_revision`,
+`snapshot`, `upserts` y `deletes` de la vista global coherente del builder.
+`/global_sparse_cloud` se mantiene para compatibilidad y bootstrap; un
+consumidor incremental no debe convertirlo en un reset por cada publicacion.
+
 ## Color de keyframes
 
 `SubmapColor(drone_id,map_epoch)` vive en

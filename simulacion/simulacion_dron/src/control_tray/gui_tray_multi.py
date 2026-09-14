@@ -64,7 +64,7 @@ class TrayActionGUI(Node):
         self.defaults = {
             "drone_i": 1,
             "tipo_trayectoria": 0,
-            "x": 0.0, "y": 0.0, "z": 1.0, "yaw_deg": 0.0,
+            "x": 0.0, "y": 0.0, "z": 1.0, "yaw_deg": 0.0, "pitch_deg": 0.0,
             "tx": 20.0, "ty": 20.0, "tz": 20.0, "tyaw": 20.0,
             "absoluto_x": True,
             "absoluto_y": True,
@@ -154,6 +154,7 @@ class TrayActionGUI(Node):
         self.var_y = tk.DoubleVar(value=self.defaults["y"])
         self.var_z = tk.DoubleVar(value=self.defaults["z"])
         self.var_yaw = tk.DoubleVar(value=self.defaults["yaw_deg"])
+        self.var_pitch = tk.DoubleVar(value=self.defaults["pitch_deg"])
         self.var_tx = tk.DoubleVar(value=self.defaults["tx"])
         self.var_ty = tk.DoubleVar(value=self.defaults["ty"])
         self.var_tz = tk.DoubleVar(value=self.defaults["tz"])
@@ -205,6 +206,8 @@ class TrayActionGUI(Node):
         add_slider(
             r, "yaw (deg)", self.var_yaw, (-180.0, 180.0),
             fmt="{:.0f}", absoluto_var=self.var_absoluto_yaw)
+        r += 1
+        add_slider(r, "pitch camara (deg)", self.var_pitch, (-70.0, 70.0), fmt="{:.0f}")
         r += 1
 
         ttk.Separator(frm, orient="horizontal").grid(
@@ -261,6 +264,7 @@ class TrayActionGUI(Node):
         y = float(self.var_y.get())
         z = float(self.var_z.get())
         yaw_deg = float(self.var_yaw.get())
+        pitch_deg = float(self.var_pitch.get())
         tx = float(self.var_tx.get())
         ty = float(self.var_ty.get())
         tz = float(self.var_tz.get())
@@ -298,6 +302,7 @@ class TrayActionGUI(Node):
         goal.absoluto_y = absoluto_y
         goal.absoluto_z = absoluto_z
         goal.absoluto_yaw = absoluto_yaw
+        goal.target_camera_pitch_rad = math.radians(max(-70.0, min(70.0, pitch_deg)))
 
         def send_goal_thread():
             if not client.wait_for_server(timeout_sec=2.0):
@@ -307,7 +312,7 @@ class TrayActionGUI(Node):
             self.get_logger().info(
                 f"Enviando goal a {full_action_name}: "
                 f"tipo_trayectoria={self._tipo_trayectoria_txt(tipo_trayectoria)}, "
-                f"pos=({x:.2f},{y:.2f},{z:.2f}), yaw={yaw_deg:.1f}deg, "
+                f"pos=({x:.2f},{y:.2f},{z:.2f}), yaw={yaw_deg:.1f}deg, pitch={pitch_deg:.1f}deg, "
                 f"tx={tx:.1f}, ty={ty:.1f}, tz={tz:.1f}, tyaw={tyaw:.1f}, "
                 f"absoluto_x={absoluto_x}, absoluto_y={absoluto_y}, "
                 f"absoluto_z={absoluto_z}, absoluto_yaw={absoluto_yaw}"

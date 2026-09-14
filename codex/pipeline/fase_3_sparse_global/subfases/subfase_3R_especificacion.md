@@ -48,6 +48,21 @@ Solo se aplica a puntos con madurez ORB minima, evitando penalizar
 inmediatamente el frente de crecimiento del mapa. Se recalcula en las celdas
 espaciales afectadas cuando un punto aparece, se mueve o desaparece.
 
+Una evolucion futura, aun no implementada, revisara esta penalizacion para
+reducir de forma mas marcada el score de MapPoints persistentemente aislados y
+para incorporar evidencia geometrica de KeyFrames cercanos de otro dron. Debe
+ser una entrada incremental, idempotente y recuperable al cambiar geometria o
+vecindad; no pertenece a `task_server`, no usa GT y no altera la formula 3R
+vigente hasta que exista contrato y prueba especificos.
+
+Esa evolucion se coordinara con 6D: el score final de cada MapPoint seguira
+siendo una salida de este manager, pero no sera por si solo una decision de
+ocupacion. `VoxelMapWorker` agregara reversiblemente los scores de identidades
+contenidas en cada voxel y comparara esa evidencia espacial con un umbral de
+ocupacion propio. La suma no podra duplicarse por republicaciones y debera
+revertirse por move/delete/cambio de score. Los filtros transitorios de 6D se
+retiraran en esa migracion conjunta, no antes.
+
 Un raw no anclado usa factores `1`. Si ORB-SLAM3 cambia calidad o posicion, o
 si cambia el anchor/pose de su submapa, el score se vuelve a calcular y puede
 bajar o recuperarse.

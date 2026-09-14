@@ -312,6 +312,7 @@ terminate_scenario() {
 }
 
 terminate_launch() {
+  local launch_pid="$LAUNCH_PID"
   if launch_is_alive; then
     log "[SIM-CLEANUP] Enviando SIGINT launch PID=$LAUNCH_PID process_group=$LAUNCH_USES_PROCESS_GROUP"
     signal_launch_tree INT
@@ -330,8 +331,21 @@ terminate_launch() {
     fi
   fi
 
+  if [ -n "${launch_pid:-}" ]; then
+    wait "$launch_pid" 2>/dev/null || true
+  fi
+
   LAUNCH_PID=""
   LAUNCH_USES_PROCESS_GROUP=false
+}
+
+terminate_test_guis() {
+  log "[SIM-GUI-CLEANUP] closing multidron_gui and gui_tray_multi"
+  killall -TERM multidron_gui >> "$LOG_FILE" 2>&1 || true
+  pkill -TERM -f '/gui_tray_multi\.py' >> "$LOG_FILE" 2>&1 || true
+  sleep 2
+  killall -KILL multidron_gui >> "$LOG_FILE" 2>&1 || true
+  pkill -KILL -f '/gui_tray_multi\.py' >> "$LOG_FILE" 2>&1 || true
 }
 
 kill_gazebo_processes() {
@@ -449,6 +463,7 @@ cleanup() {
   local exit_code=$?
   terminate_scenario
   terminate_launch
+  terminate_test_guis
   stop_resource_monitor
   log "[SIM-EXIT-CODE] $exit_code"
 }
@@ -490,6 +505,8 @@ source_runtime_setup "/opt/ros/${ROS_DISTRO:-iron}/setup.bash" || exit 2
 source_runtime_setup "$WS_DIR/install/dron/local_setup.bash" || exit 2
 source_runtime_setup "$WS_DIR/install/servidor/local_setup.bash" || exit 2
 source_runtime_setup "$WS_DIR/install/simulacion/local_setup.bash" || exit 2
+
+terminate_test_guis
 
 attempt=0
 while [ "$attempt" -le "$MAX_GAZEBO_RETRIES" ]; do

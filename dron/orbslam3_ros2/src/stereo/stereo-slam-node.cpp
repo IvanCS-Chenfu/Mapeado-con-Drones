@@ -97,6 +97,18 @@ StereoSlamNode::StereoSlamNode(
     this->declare_parameter<bool>("debug_architecture_telemetry", false);
     this->declare_parameter<int>("fiducial_queue_capacity", 4);
     this->declare_parameter<bool>("debug_fiducial_visualization", false);
+    this->declare_parameter<bool>("depth_observation_enabled", false);
+    this->declare_parameter<int>("depth_frame_buffer_capacity", 12);
+    this->declare_parameter<double>("depth_min_distance_m", 1.0);
+    this->declare_parameter<double>("depth_max_distance_m", 5.0);
+    this->declare_parameter<int>("depth_pixel_stride", 8);
+    this->declare_parameter<int>("depth_max_points", 256);
+    this->declare_parameter<double>("depth_max_disparity_gradient_px_per_pixel", 2.0);
+    this->declare_parameter<double>("depth_min_texture_gradient", 8.0);
+    this->declare_parameter<int>("depth_texture_window_radius_px", 2);
+    this->declare_parameter<bool>("depth_stop_enabled", false);
+    this->declare_parameter<double>("depth_stop_distance_m", 1.2);
+    this->declare_parameter<double>("depth_stop_cooldown_sec", 5.0);
     this->declare_parameter<double>("body_T_camera_x", 0.0);
     this->declare_parameter<double>("body_T_camera_y", 0.0);
     this->declare_parameter<double>("body_T_camera_z", 0.0);
@@ -154,6 +166,8 @@ StereoSlamNode::StereoSlamNode(
         "orb_state_filter.rejected_motion_decay_acceleration_radps2", 4.0);
     this->declare_parameter<bool>("debug_orb_control_state", false);
     this->declare_parameter<bool>("debug_orb_visual_evidence", false);
+    this->declare_parameter<bool>("debug_visual_risk_display", false);
+    this->declare_parameter<double>("visual_risk_empty_region_fraction", 0.75);
     this->declare_parameter<std::string>("orb_visual_evidence_output_dir", "");
     this->declare_parameter<int>("orb_reference_gate.confirmation_frames", 3);
     this->declare_parameter<int>("orb_reference_gate.max_pending_frames", 6);
@@ -343,6 +357,16 @@ StereoSlamNode::StereoSlamNode(
         this->get_parameter("debug_orb_control_state").as_bool();
     debug_orb_visual_evidence_ =
         this->get_parameter("debug_orb_visual_evidence").as_bool();
+    debug_visual_risk_display_ =
+        this->get_parameter("debug_visual_risk_display").as_bool();
+    visual_risk_empty_region_fraction_ =
+        this->get_parameter("visual_risk_empty_region_fraction").as_double();
+    if (visual_risk_empty_region_fraction_ < 0.5 ||
+        visual_risk_empty_region_fraction_ > 1.0)
+    {
+        throw std::invalid_argument(
+            "visual_risk_empty_region_fraction debe estar en [0.5, 1.0]");
+    }
     orb_visual_evidence_output_dir_ =
         this->get_parameter("orb_visual_evidence_output_dir").as_string();
     if (debug_orb_visual_evidence_ && !orb_visual_evidence_output_dir_.empty())
@@ -368,9 +392,33 @@ StereoSlamNode::StereoSlamNode(
             debug_orb_visual_evidence_ = false;
         }
     }
+    visual_tracking_evidence_pub_ =
+        this->create_publisher<orbslam3_msgs::msg::VisualTrackingEvidence>(
+        "orbslam/visual_tracking_evidence", rclcpp::QoS(10).best_effort());
+    if (debug_visual_risk_display_)
+    {
+        visual_tracking_debug_image_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
+            "orbslam/visual_tracking_debug/image", rclcpp::QoS(1).best_effort());
+    }
 
     fiducial_queue_capacity_ =
         this->get_parameter("fiducial_queue_capacity").as_int();
+    depth_observation_enabled_ = this->get_parameter("depth_observation_enabled").as_bool();
+    depth_frame_buffer_capacity_ = this->get_parameter("depth_frame_buffer_capacity").as_int();
+    depth_parameters_.min_depth_m = this->get_parameter("depth_min_distance_m").as_double();
+    depth_parameters_.max_depth_m = this->get_parameter("depth_max_distance_m").as_double();
+    depth_parameters_.pixel_stride = this->get_parameter("depth_pixel_stride").as_int();
+    depth_parameters_.max_points = static_cast<std::size_t>(std::max<std::int64_t>(
+        1, this->get_parameter("depth_max_points").as_int()));
+    depth_parameters_.max_disparity_gradient_px_per_pixel =
+        this->get_parameter("depth_max_disparity_gradient_px_per_pixel").as_double();
+    depth_parameters_.min_texture_gradient =
+        this->get_parameter("depth_min_texture_gradient").as_double();
+    depth_parameters_.texture_window_radius_px =
+        this->get_parameter("depth_texture_window_radius_px").as_int();
+    depth_stop_enabled_ = this->get_parameter("depth_stop_enabled").as_bool();
+    depth_stop_distance_m_ = this->get_parameter("depth_stop_distance_m").as_double();
+    depth_stop_cooldown_sec_ = this->get_parameter("depth_stop_cooldown_sec").as_double();
     debug_fiducial_visualization_ =
         this->get_parameter("debug_fiducial_visualization").as_bool();
 
@@ -381,6 +429,23 @@ StereoSlamNode::StereoSlamNode(
     if (fiducial_queue_capacity_ <= 0)
     {
         fiducial_queue_capacity_ = 4;
+    }
+    if (depth_frame_buffer_capacity_ <= 0)
+    {
+        depth_frame_buffer_capacity_ = 12;
+    }
+    if (depth_parameters_.min_depth_m <= 0.0 ||
+        depth_parameters_.max_depth_m <= depth_parameters_.min_depth_m ||
+        depth_parameters_.pixel_stride <= 0 ||
+        depth_parameters_.max_disparity_gradient_px_per_pixel <= 0.0 ||
+        depth_parameters_.min_texture_gradient < 0.0 ||
+        depth_parameters_.texture_window_radius_px < 0)
+    {
+        throw std::invalid_argument("parametros depth invalidos");
+    }
+    if (depth_stop_distance_m_ <= 0.0 || depth_stop_cooldown_sec_ < 0.0)
+    {
+        throw std::invalid_argument("parametros de STOP depth invalidos");
     }
     LoadCameraInfoFromSettings(strSettingsFile);
 
@@ -401,6 +466,13 @@ StereoSlamNode::StereoSlamNode(
             orbslam3_msgs::msg::FiducialKeyFrameObservations>(
             "orbslam/fiducial_keyframe_observations",
             rclcpp::QoS(rclcpp::KeepLast(32)).reliable().durability_volatile());
+    capture_depth_service_ = this->create_service<mission_msgs::srv::CaptureDepth>(
+        "orbslam/capture_depth",
+        std::bind(
+            &StereoSlamNode::HandleCaptureDepth, this,
+            std::placeholders::_1, std::placeholders::_2));
+    depth_safety_event_pub_ = this->create_publisher<mission_msgs::msg::SafetyEvent>(
+        "/mission/safety_events", rclcpp::QoS(20).reliable());
 
     // ============================================================
     // Publicador de pose local actual de cámara
@@ -642,6 +714,16 @@ StereoSlamNode::StereoSlamNode(
         debug_fiducial_visualization_ ? "true" : "false",
         fiducial_debug_image_pub_
             ? "orbslam/fiducial_debug/image" : "disabled");
+    RCLCPP_INFO(
+        this->get_logger(),
+        "[F6N-DEPTH-INIT] enabled=%s frame_buffer_capacity=%d mode=on_demand range=(%.2f,%.2f) stride=%d max_points=%zu "
+        "max_disp_gradient=%.3f min_texture=%.3f texture_radius=%d",
+        depth_observation_enabled_ ? "true" : "false", depth_frame_buffer_capacity_,
+        depth_parameters_.min_depth_m, depth_parameters_.max_depth_m,
+        depth_parameters_.pixel_stride, depth_parameters_.max_points,
+        depth_parameters_.max_disparity_gradient_px_per_pixel,
+        depth_parameters_.min_texture_gradient,
+        depth_parameters_.texture_window_radius_px);
 }
 
 
@@ -933,6 +1015,201 @@ void StereoSlamNode::FiducialWorkerLoop()
     }
 }
 
+void StereoSlamNode::StoreStereoFrame(
+    const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
+    const cv::Mat& right_effective, const builtin_interfaces::msg::Time& stamp)
+{
+    if (!depth_observation_enabled_)
+    {
+        return;
+    }
+    if (!receipt.camera.valid || receipt.image_left_effective.empty() || right_effective.empty() ||
+        receipt.image_left_effective.size() != right_effective.size() || camera_fx_ <= 0.0F ||
+        camera_fy_ <= 0.0F || camera_bf_ <= 0.0F)
+    {
+        RCLCPP_WARN(
+            this->get_logger(),
+            "[F6N-DEPTH-FRAME-SKIP] drone_id=%u frame_id=%lu reason=invalid_stereo_receipt",
+            drone_id_, static_cast<unsigned long>(receipt.frame_id));
+        return;
+    }
+
+    StereoFrame frame;
+    frame.drone_id = drone_id_;
+    frame.map_epoch = map_epoch_;
+    frame.frame_id = receipt.frame_id;
+    frame.reference_keyframe_id = receipt.reference_keyframe_id;
+    frame.reference_keyframe_valid = receipt.reference_keyframe_valid;
+    frame.tcr_valid = receipt.tcr_valid;
+    frame.tcr = receipt.Tcr;
+    frame.stamp = stamp;
+    frame.left = receipt.image_left_effective.clone();
+    frame.right = right_effective.clone();
+    frame.fx = camera_fx_;
+    frame.fy = camera_fy_;
+    frame.cx = camera_cx_;
+    frame.cy = camera_cy_;
+    frame.baseline_m = static_cast<double>(camera_bf_) / static_cast<double>(camera_fx_);
+
+    std::lock_guard<std::mutex> lock(depth_frame_buffer_mutex_);
+    if (depth_frame_buffer_.size() >= static_cast<std::size_t>(depth_frame_buffer_capacity_))
+    {
+        depth_frame_buffer_.pop_front();
+    }
+    depth_frame_buffer_.push_back(std::move(frame));
+}
+
+void StereoSlamNode::HandleCaptureDepth(
+    const std::shared_ptr<mission_msgs::srv::CaptureDepth::Request> request,
+    std::shared_ptr<mission_msgs::srv::CaptureDepth::Response> response)
+{
+    if (!depth_observation_enabled_)
+    {
+        response->success = false;
+        response->reason = "depth_disabled";
+        return;
+    }
+    ++depth_captures_requested_;
+    StereoFrame frame;
+    bool found = false;
+    {
+        std::lock_guard<std::mutex> lock(depth_frame_buffer_mutex_);
+        if (request->requested_frame_id == 0U && !depth_frame_buffer_.empty())
+        {
+            frame = depth_frame_buffer_.back();
+            found = true;
+        }
+        else
+        {
+            const auto item = std::find_if(
+                depth_frame_buffer_.begin(), depth_frame_buffer_.end(),
+                [&request](const auto& candidate) {
+                    return candidate.frame_id == request->requested_frame_id;
+                });
+            if (item != depth_frame_buffer_.end())
+            {
+                frame = *item;
+                found = true;
+            }
+        }
+    }
+    if (!found)
+    {
+        response->success = false;
+        response->reason = request->require_exact_frame ?
+            "exact_frame_not_buffered" : "no_stereo_frame";
+        return;
+    }
+    const auto started = std::chrono::steady_clock::now();
+    const auto result = orbslam3_ros2::ComputeDepthObservation(
+        frame.left, frame.right, frame.fx, frame.fy, frame.cx, frame.cy,
+        frame.baseline_m, depth_parameters_);
+    response->observation = BuildDepthObservation(frame, result);
+    response->success = response->observation.valid;
+    response->reason = response->observation.failure_reason;
+    ++depth_captures_completed_;
+    if (depth_stop_enabled_ && result.nearest_depth_m <= depth_stop_distance_m_)
+    {
+        PublishDepthEmergency(frame, result.nearest_depth_m);
+    }
+    const auto elapsed_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - started).count();
+    RCLCPP_INFO(
+        get_logger(),
+        "[F6N-DEPTH-CAPTURE] drone_id=%u epoch=%lu frame_id=%lu reference_kf=%lu "
+        "exact=%s candidates=%zu texture_rejected=%zu discontinuity_rejected=%zu "
+        "accepted=%zu confidence=%.3f normal=%s support=%zu latency_ms=%.3f",
+        frame.drone_id, static_cast<unsigned long>(frame.map_epoch),
+        static_cast<unsigned long>(frame.frame_id),
+        static_cast<unsigned long>(frame.reference_keyframe_id),
+        request->require_exact_frame ? "true" : "false", result.raw_valid_points,
+        result.texture_rejected_points, result.discontinuity_rejected_points,
+        result.points_k.size(), result.confidence, result.normal_valid ? "true" : "false",
+        result.normal_support, elapsed_ms);
+}
+
+void StereoSlamNode::PublishDepthEmergency(const StereoFrame& frame, double nearest_depth_m)
+{
+    if (!depth_safety_event_pub_)
+    {
+        return;
+    }
+    const auto now_steady = std::chrono::steady_clock::now();
+    if (depth_last_stop_ != std::chrono::steady_clock::time_point{} &&
+        now_steady - depth_last_stop_ < std::chrono::duration<double>(depth_stop_cooldown_sec_))
+    {
+        return;
+    }
+    depth_last_stop_ = now_steady;
+    mission_msgs::msg::SafetyEvent event;
+    event.header.stamp = frame.stamp;
+    event.drone_id = frame.drone_id;
+    event.map_epoch = frame.map_epoch;
+    event.event_type = mission_msgs::msg::SafetyEvent::DEPTH_EMERGENCY;
+    std::ostringstream detail;
+    detail << "depth_nearest_m=" << nearest_depth_m << " frame_id=" << frame.frame_id;
+    event.detail = detail.str();
+    depth_safety_event_pub_->publish(event);
+    RCLCPP_WARN(
+        get_logger(), "[F6N-DEPTH-EMERGENCY] drone_id=%u epoch=%lu frame_id=%lu nearest_m=%.3f",
+        frame.drone_id, static_cast<unsigned long>(frame.map_epoch),
+        static_cast<unsigned long>(frame.frame_id), nearest_depth_m);
+}
+
+mission_msgs::msg::DenseKFObservation StereoSlamNode::BuildDepthObservation(
+    const StereoFrame& frame, const orbslam3_ros2::DepthObservationResult& result)
+{
+    mission_msgs::msg::DenseKFObservation observation;
+    observation.header.stamp = frame.stamp;
+    observation.header.frame_id = drone_name_ + "/camera_left_optical_frame";
+    observation.drone_id = frame.drone_id;
+    observation.map_epoch = frame.map_epoch;
+    observation.local_keyframe_id = frame.reference_keyframe_id;
+    observation.source_revision = 1U;
+    observation.tracking_frame_id = frame.frame_id;
+    observation.valid = frame.reference_keyframe_valid && frame.tcr_valid &&
+        !result.points_k.empty() && result.normal_valid;
+    observation.failure_reason = observation.valid ? "ok" :
+        (!frame.reference_keyframe_valid || !frame.tcr_valid ?
+        "missing_reference_keyframe" :
+        (result.points_k.empty() ? "no_valid_depth" : "unreliable_normal"));
+    const Sophus::SE3f k_t_camera = frame.tcr.inverse();
+    observation.k_t_camera = SophusToPoseMsg(k_t_camera);
+    observation.fx = static_cast<float>(frame.fx);
+    observation.fy = static_cast<float>(frame.fy);
+    observation.cx = static_cast<float>(frame.cx);
+    observation.cy = static_cast<float>(frame.cy);
+    observation.baseline_m = static_cast<float>(frame.baseline_m);
+    observation.min_depth_m = static_cast<float>(depth_parameters_.min_depth_m);
+    observation.max_depth_m = static_cast<float>(depth_parameters_.max_depth_m);
+    observation.confidence = static_cast<float>(result.confidence);
+    observation.camera_yaw_rad = 0.0;
+    observation.camera_pitch_rad = 0.0;
+    observation.normal_valid = result.normal_valid;
+    observation.normal_support = static_cast<std::uint32_t>(result.normal_support);
+    observation.normal_confidence = static_cast<float>(result.normal_confidence);
+    const Eigen::Vector3f normal_camera(
+        static_cast<float>(result.normal_camera[0]),
+        static_cast<float>(result.normal_camera[1]),
+        static_cast<float>(result.normal_camera[2]));
+    const Eigen::Vector3f normal_k = k_t_camera.so3() * normal_camera;
+    observation.normal_k.x = normal_k.x();
+    observation.normal_k.y = normal_k.y();
+    observation.normal_k.z = normal_k.z();
+    observation.points_k.reserve(result.points_k.size());
+    for (const auto& point_camera : result.points_k)
+    {
+        const Eigen::Vector3f point_k = k_t_camera * Eigen::Vector3f(
+            point_camera.x, point_camera.y, point_camera.z);
+        geometry_msgs::msg::Point32 point;
+        point.x = point_k.x();
+        point.y = point_k.y();
+        point.z = point_k.z();
+        observation.points_k.push_back(point);
+    }
+    return observation;
+}
+
 
 void StereoSlamNode::PublishFiducialObservations(
     const FiducialJob& job,
@@ -1139,7 +1416,8 @@ void StereoSlamNode::GrabStereo(
         Utility::StampToSec(msgLeft->header.stamp);
 
     ORB_SLAM3::System::StereoTrackingReceipt tracking_receipt;
-    tracking_receipt.collect_visual_evidence = debug_orb_visual_evidence_;
+    // Esta evidencia compacta alimenta el guard preventivo 6L; no depende del CSV de debug.
+    tracking_receipt.collect_visual_evidence = true;
     Sophus::SE3f Tcw =
         m_SLAM->TrackStereo(
             imLeftForTracking,
@@ -1151,6 +1429,8 @@ void StereoSlamNode::GrabStereo(
     WriteVisualEvidence(
         msgLeft->header.stamp, tracking_receipt,
         this->get_clock()->now().seconds());
+    PublishVisualTrackingEvidence(msgLeft->header.stamp, tracking_receipt);
+    StoreStereoFrame(tracking_receipt, imRightForTracking, msgLeft->header.stamp);
 
     // Detectar cambio de mapa una sola vez. Antes se llamaba aquí y de
     // nuevo más abajo, de forma que la primera llamada podía consumir el
@@ -2130,6 +2410,104 @@ void StereoSlamNode::WriteVisualEvidence(
         << tcr_translation.z() << ',' << tcr_orientation.x() << ','
         << tcr_orientation.y() << ',' << tcr_orientation.z() << ','
         << tcr_orientation.w() << '\n';
+}
+
+void StereoSlamNode::PublishVisualTrackingEvidence(
+    const builtin_interfaces::msg::Time& stamp,
+    const ORB_SLAM3::System::StereoTrackingReceipt& receipt)
+{
+    if (!visual_tracking_evidence_pub_)
+        return;
+
+    const int width = receipt.camera.valid ?
+        static_cast<int>(receipt.camera.image_width) : image_width_;
+    const int height = receipt.camera.valid ?
+        static_cast<int>(receipt.camera.image_height) : image_height_;
+    orbslam3_msgs::msg::VisualTrackingEvidence evidence;
+    evidence.header.stamp = stamp;
+    evidence.header.frame_id = camera_frame_;
+    evidence.drone_id = drone_id_;
+    evidence.frame_id = receipt.frame_id;
+    evidence.tracking_state = static_cast<uint8_t>(std::max(0, receipt.tracking_state));
+    evidence.image_width = static_cast<uint32_t>(std::max(0, width));
+    evidence.image_height = static_cast<uint32_t>(std::max(0, height));
+    evidence.directional_region_fraction = visual_risk_empty_region_fraction_;
+    const float directional_fraction =
+        static_cast<float>(visual_risk_empty_region_fraction_);
+    const float right_start = static_cast<float>(width) * (1.0F - directional_fraction);
+    const float bottom_start = static_cast<float>(height) * (1.0F - directional_fraction);
+
+    cv::Mat annotated;
+    if (debug_visual_risk_display_ && !receipt.image_left_effective.empty())
+    {
+        if (receipt.image_left_effective.channels() == 1)
+            cv::cvtColor(receipt.image_left_effective, annotated, cv::COLOR_GRAY2BGR);
+        else
+            annotated = receipt.image_left_effective.clone();
+    }
+    for (std::size_t index = 0U; index < receipt.frame_keypoints.size(); ++index)
+    {
+        const bool matched = index < receipt.frame_has_map_point.size() &&
+            receipt.frame_has_map_point[index] != 0U;
+        const bool outlier = index < receipt.frame_is_outlier.size() &&
+            receipt.frame_is_outlier[index] != 0U;
+        if (!matched || outlier)
+            continue;
+        ++evidence.tracking_inlier_count;
+        const auto& point = receipt.frame_keypoints[index].pt;
+        if (point.x < static_cast<float>(width) * directional_fraction)
+            ++evidence.left_directional_inlier_count;
+        if (point.x >= right_start)
+            ++evidence.right_directional_inlier_count;
+        if (point.y < static_cast<float>(height) * directional_fraction)
+            ++evidence.top_directional_inlier_count;
+        if (point.y >= bottom_start)
+            ++evidence.bottom_directional_inlier_count;
+        if (!annotated.empty())
+            cv::circle(annotated, point, 2, cv::Scalar(0, 220, 0), -1, cv::LINE_AA);
+    }
+    visual_tracking_evidence_pub_->publish(evidence);
+    if (!annotated.empty() && visual_tracking_debug_image_pub_)
+    {
+        const int directional_width = static_cast<int>(std::lround(width * directional_fraction));
+        const int directional_height = static_cast<int>(std::lround(height * directional_fraction));
+        const int right_start_px = width - directional_width;
+        const int bottom_start_px = height - directional_height;
+        cv::line(annotated, cv::Point(directional_width, 0), cv::Point(directional_width, height),
+            cv::Scalar(255, 200, 0), 1, cv::LINE_AA);
+        cv::line(annotated, cv::Point(right_start_px, 0), cv::Point(right_start_px, height),
+            cv::Scalar(255, 200, 0), 1, cv::LINE_AA);
+        cv::line(annotated, cv::Point(0, directional_height), cv::Point(width, directional_height),
+            cv::Scalar(255, 200, 0), 1, cv::LINE_AA);
+        cv::line(annotated, cv::Point(0, bottom_start_px), cv::Point(width, bottom_start_px),
+            cv::Scalar(255, 200, 0), 1, cv::LINE_AA);
+        const auto shade_if_empty = [&annotated](const cv::Rect& region, uint32_t count) {
+            if (count != 0U) {
+                return;
+            }
+            cv::Mat overlay = annotated(region).clone();
+            overlay.setTo(cv::Scalar(0, 0, 180));
+            cv::addWeighted(overlay, 0.28, annotated(region), 0.72, 0.0, annotated(region));
+        };
+        shade_if_empty(cv::Rect(0, 0, directional_width, height),
+            evidence.left_directional_inlier_count);
+        shade_if_empty(cv::Rect(right_start_px, 0, directional_width, height),
+            evidence.right_directional_inlier_count);
+        shade_if_empty(cv::Rect(0, 0, width, directional_height),
+            evidence.top_directional_inlier_count);
+        shade_if_empty(cv::Rect(0, bottom_start_px, width, directional_height),
+            evidence.bottom_directional_inlier_count);
+        const std::string label = "inliers=" + std::to_string(evidence.tracking_inlier_count) +
+            " f=" + std::to_string(evidence.directional_region_fraction) +
+            " L=" + std::to_string(evidence.left_directional_inlier_count) +
+            " R=" + std::to_string(evidence.right_directional_inlier_count) +
+            " T=" + std::to_string(evidence.top_directional_inlier_count) +
+            " B=" + std::to_string(evidence.bottom_directional_inlier_count);
+        cv::putText(annotated, label, cv::Point(8, 22), cv::FONT_HERSHEY_SIMPLEX,
+            0.5, cv::Scalar(0, 255, 255), 1, cv::LINE_AA);
+        auto message = cv_bridge::CvImage(evidence.header, "bgr8", annotated).toImageMsg();
+        visual_tracking_debug_image_pub_->publish(*message);
+    }
 }
 
 void StereoSlamNode::PublishPredictedNavigationState()

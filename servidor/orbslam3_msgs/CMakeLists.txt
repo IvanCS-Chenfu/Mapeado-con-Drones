@@ -42,6 +42,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/FiducialTagObservation.msg"
   "msg/FiducialKeyFrameObservations.msg"
   "msg/NavigationState.msg"
+  "msg/VisualTrackingEvidence.msg"
   "msg/GlobalKeyFramePose.msg"
 
   "srv/GetOrbMap.srv"

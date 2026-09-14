@@ -472,18 +472,33 @@ bool GlobalMapBuilder::UpdateFusedTrack(
   return true;
 }
 
-void GlobalMapBuilder::PopulateOutput(GlobalMapBuildResult * result) const
+void GlobalMapBuilder::PopulateOutput(GlobalMapBuildResult * result)
 {
   result->points.reserve(point_slot_by_id_.size() + fused_point_cache_.size());
+  std::map<RawMapPointId, GlobalSparsePoint> current_points;
   for (const auto & slot : sparse_point_slots_) {
     if (slot.has_value()) {
       result->points.push_back(slot->point);
+      current_points.emplace(slot->point.mappoint_id, slot->point);
     }
   }
   for (const auto & [id, cached] : fused_point_cache_) {
     (void)id;
     result->points.push_back(cached.point);
+    current_points[cached.point.mappoint_id] = cached.point;
   }
+  for (const auto & [id, point] : current_points) {
+    const auto previous = published_point_cache_.find(id);
+    if (previous == published_point_cache_.end() || !PointEquivalent(previous->second, point)) {
+      result->delta_upserts.push_back(point);
+    }
+  }
+  for (const auto & [id, point] : published_point_cache_) {
+    if (current_points.find(id) == current_points.end()) {
+      result->delta_deletes.push_back(point);
+    }
+  }
+  published_point_cache_ = std::move(current_points);
   result->keyframes.reserve(keyframe_world_cache_.size());
   for (const auto & [id, keyframe] : keyframe_world_cache_) {
     (void)id;

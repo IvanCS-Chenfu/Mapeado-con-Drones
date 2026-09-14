@@ -132,22 +132,26 @@ MissionGeometry BuildMissionGeometry(const MissionConfig & config)
       config.mapping_roi.max.z : z_min + config.level_height;
     geometry.levels.push_back(MappingLevel{index, z_min, z_max});
     const std::string prefix = "level_" + std::to_string(index) + "_";
-    geometry.regions.push_back(BaseSubRoi{
-      prefix + "AB", index, BaseSide::AB,
-      AxisAlignedBox{{config.mapping_roi.min.x, config.mapping_roi.min.y, z_min},
-        {config.mapping_roi.max.x, y_mid, z_max}}});
-    geometry.regions.push_back(BaseSubRoi{
-      prefix + "BC", index, BaseSide::BC,
-      AxisAlignedBox{{x_mid, config.mapping_roi.min.y, z_min},
-        {config.mapping_roi.max.x, config.mapping_roi.max.y, z_max}}});
-    geometry.regions.push_back(BaseSubRoi{
-      prefix + "CD", index, BaseSide::CD,
-      AxisAlignedBox{{config.mapping_roi.min.x, y_mid, z_min},
-        {config.mapping_roi.max.x, config.mapping_roi.max.y, z_max}}});
-    geometry.regions.push_back(BaseSubRoi{
-      prefix + "DA", index, BaseSide::DA,
-      AxisAlignedBox{{config.mapping_roi.min.x, config.mapping_roi.min.y, z_min},
-        {x_mid, config.mapping_roi.max.y, z_max}}});
+    geometry.regions.push_back(
+      BaseSubRoi{
+        prefix + "AB", index, BaseSide::AB,
+        AxisAlignedBox{{config.mapping_roi.min.x, config.mapping_roi.min.y, z_min},
+          {config.mapping_roi.max.x, y_mid, z_max}}});
+    geometry.regions.push_back(
+      BaseSubRoi{
+        prefix + "BC", index, BaseSide::BC,
+        AxisAlignedBox{{x_mid, config.mapping_roi.min.y, z_min},
+          {config.mapping_roi.max.x, config.mapping_roi.max.y, z_max}}});
+    geometry.regions.push_back(
+      BaseSubRoi{
+        prefix + "CD", index, BaseSide::CD,
+        AxisAlignedBox{{config.mapping_roi.min.x, y_mid, z_min},
+          {config.mapping_roi.max.x, config.mapping_roi.max.y, z_max}}});
+    geometry.regions.push_back(
+      BaseSubRoi{
+        prefix + "DA", index, BaseSide::DA,
+        AxisAlignedBox{{config.mapping_roi.min.x, config.mapping_roi.min.y, z_min},
+          {x_mid, config.mapping_roi.max.y, z_max}}});
   }
   return geometry;
 }

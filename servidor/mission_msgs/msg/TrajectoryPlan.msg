@@ -12,4 +12,11 @@ uint32 generator_version
 float64 max_velocity_mps
 float64 max_acceleration_mps2
 float64 max_jerk_mps3
+uint8 EXECUTION_STATE_PLANNED=0
+uint8 EXECUTION_STATE_ACTIVE=1
+uint8 EXECUTION_STATE_COMPLETED=2
+uint8 EXECUTION_STATE_CANCELED=3
+uint8 EXECUTION_STATE_REJECTED=4
+uint8 execution_state
+string execution_detail
 mission_msgs/TrajectoryWaypoint[] waypoints

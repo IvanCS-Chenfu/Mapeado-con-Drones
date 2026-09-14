@@ -10,15 +10,24 @@ sin hacer
 
 ## Objetivo técnico
 
-Integrar el mapa sparse, la geometría dense y la occupancy voxel en la planificación de trayectorias de Fase 6, manteniendo además comprobaciones locales de depth durante el vuelo para detectar obstáculos aún no mapeados. Si el dron se desplaza lateralmente hacia una dirección desconocida, debe orientar la cámara/comprobar profundidad antes de asumir que el corredor está libre, reutilizando el mecanismo ya existente en Fase 6 cuando esté implementado.
+Integrar sparse, geometría dense y occupancy voxel en la planificación de Fase
+6, reutilizando el depth local por KF validado experimentalmente en 6N y sus
+orientaciones normales. Si un dron se
+desplaza hacia zona desconocida, la siguiente ruta toma la orientación del
+último DenseKF y la evidencia del KF siguiente actualiza mapa/STOP; no se crea
+un denso periódico por frame.
 
 
 ## Invariantes y decisiones cerradas
 
-- Planificación global usa mapa vigente; seguridad local sigue usando depth reciente.
+- Planificación global usa mapa vigente; seguridad local usa el último
+  resultado depth válido de KF y los KFs se vuelven frecuentes cerca de pared.
 - Un voxel FREE puede existir sin punto dense porque un rayo lo atravesó.
 - Depth de seguridad puede actualizar occupancy aunque no genere DenseKF.
 - Fase 8 no reimplementa desde cero obstacle avoidance/yaw/look-side si Fase 6 ya lo hace; amplía su fuente de mapa y valida regresión.
+- Si el ensayo desmontable de 6N no supera sus métricas de calidad, coste o
+  estabilidad, 8Q no lo presupone como dependencia: parte de la cadena densa
+  canónica de 8A--8C y vuelve a validar la misma interfaz de seguridad local.
 
 
 ## Contexto obligatorio a leer
@@ -98,7 +107,8 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 1. Crear API de consulta de occupancy/dense eficiente y snapshot-consistent para el planner, sin darle acceso mutable a las DBs.
 2. Incluir OCCUPIED/superficies dense como obstáculos globales y FREE observado como información de corredor; UNKNOWN conserva incertidumbre y no se trata como libre garantizado.
 3. Reutilizar el planificador/replanning de Fase 6 para trayectorias cortas y reservas Dron-Dron; dense no crea una ruta paralela.
-4. Mantener comprobaciones depth cada intervalo/evento acordado durante el vuelo; cualquier observación válida actualiza occupancy con raycast de 8H.
+4. Mantener comprobaciones depth al producir cada KF; cualquier resultado válido
+   actualiza occupancy con raycast de 8H.
 5. Para desplazamiento lateral con lateral desconocido, reutilizar comportamiento de orientar/mirar y verificar depth antes de continuar; si ya existe un KF/mapa fiable de esa dirección, puede usarlo como información previa sin omitir seguridad si la política real exige sensor reciente.
 6. Si aparece obstáculo no mapeado, detener/cancelar/liberar/replanificar según Fase 6 y conservar la nueva evidencia occupancy.
 7. Añadir markers `DENSE-PLAN-QUERY`, `OCCUPANCY-PLAN`, `LOCAL-DEPTH-OCCUPANCY`, `SIDE-LOOK-CHECK`.
@@ -109,7 +119,8 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 - No usar Ground Truth para calcular disparity/depth, colocar la nube densa, fusionar, corregir poses, refinar MapPoints, decidir ocupación o validar online una trayectoria. GT solo puede aparecer como métrica externa de simulación.
 - No modificar datos raw de ORB-SLAM3 en `RawMapDatabase`.
 - No devolver MapPoints corregidos al ORB-SLAM3 que corre en el dron.
-- No ejecutar reconstrucción densa pesada en el dron: el dron se limita a capturar y enviar información.
+- No fusionar ni optimizar en el dron. Depth/nube local por KF y filtrado mínimo
+  se calculan en el dron; occupancy y fusión global pertenecen al servidor.
 - No convertir `orbslam3_server` ni `dense_map_server` en un backend algorítmico monolítico; los algoritmos densos pertenecen a `dense_map_multi`.
 - No bloquear ingesta sparse, pose, control, GUI o ejecución de tareas mientras se calcula disparity, registro, voxelización, fusión o reintegración.
 - No almacenar imágenes L/R permanentemente como parte de `DenseKeyFrameDatabase`; si una zona queda mal, la estrategia acordada es volver a observarla/recapturarla.

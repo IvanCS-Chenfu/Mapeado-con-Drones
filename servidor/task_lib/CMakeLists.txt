@@ -11,7 +11,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(ament_cmake REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
-add_library(${PROJECT_NAME} SHARED src/mission_config.cpp)
+add_library(${PROJECT_NAME} SHARED src/mission_config.cpp src/voxel_map.cpp
+  src/dstar_lite.cpp src/facade_coverage.cpp src/reservation_overlay.cpp)
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
@@ -38,6 +39,14 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
   ament_add_gtest(test_mission_config test/test_mission_config.cpp)
   target_link_libraries(test_mission_config ${PROJECT_NAME})
+  ament_add_gtest(test_voxel_map test/test_voxel_map.cpp)
+  target_link_libraries(test_voxel_map ${PROJECT_NAME})
+  ament_add_gtest(test_dstar_lite test/test_dstar_lite.cpp)
+  target_link_libraries(test_dstar_lite ${PROJECT_NAME})
+  ament_add_gtest(test_facade_coverage test/test_facade_coverage.cpp)
+  target_link_libraries(test_facade_coverage ${PROJECT_NAME})
+  ament_add_gtest(test_reservation_overlay test/test_reservation_overlay.cpp)
+  target_link_libraries(test_reservation_overlay ${PROJECT_NAME})
 endif()
 
 ament_package()

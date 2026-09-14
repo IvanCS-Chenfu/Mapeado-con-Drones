@@ -57,6 +57,12 @@ TEST(GuiDataModel, KeepsOneCurrentTrajectoryPerDrone)
   EXPECT_EQ(snapshot.trajectories->at(1U).trajectory_id, "traj_B");
   EXPECT_EQ(snapshot.trajectories->at(1U).plan_revision, 2U);
   EXPECT_EQ(snapshot.trajectories->at(1U).samples_world.size(), 4U);
+
+  EXPECT_FALSE(model.ClearTrajectory(1U, "traj_A"));
+  ASSERT_EQ(model.Snapshot().trajectories->size(), 1U);
+  EXPECT_EQ(model.Snapshot().trajectories->at(1U).trajectory_id, "traj_B");
+  EXPECT_TRUE(model.ClearTrajectory(1U, "traj_B"));
+  EXPECT_TRUE(model.Snapshot().trajectories->empty());
 }
 
 TEST(GuiDataModel, StoresAllVoxelStatesForOneGlobalToggle)
@@ -66,13 +72,15 @@ TEST(GuiDataModel, StoresAllVoxelStatesForOneGlobalToggle)
   voxels.push_back(VoxelVisual{0, 0, 0, QVector3D(0, 0, 0), 0.5F, VoxelState::Unknown, 0.0F});
   voxels.push_back(VoxelVisual{1, 0, 0, QVector3D(0.5F, 0, 0), 0.5F, VoxelState::Free, 0.0F});
   voxels.push_back(VoxelVisual{2, 0, 0, QVector3D(1.0F, 0, 0), 0.5F, VoxelState::Occupied, 0.8F});
+  voxels.push_back(VoxelVisual{3, 0, 0, QVector3D(1.5F, 0, 0), 0.5F, VoxelState::Reserved, 0.0F});
   model.SetVoxels(voxels);
 
   const auto snapshot = model.Snapshot();
-  ASSERT_EQ(snapshot.voxels->size(), 3U);
+  ASSERT_EQ(snapshot.voxels->size(), 4U);
   EXPECT_EQ(snapshot.voxels->at(0).state, VoxelState::Unknown);
   EXPECT_EQ(snapshot.voxels->at(1).state, VoxelState::Free);
   EXPECT_EQ(snapshot.voxels->at(2).state, VoxelState::Occupied);
+  EXPECT_EQ(snapshot.voxels->at(3).state, VoxelState::Reserved);
 }
 
 TEST(GuiDataModel, DroneUpdatePreservesExplicitLostRepresentation)
@@ -135,7 +143,8 @@ TEST(GuiDataModel, StoresRealUnassignedMissionRegionsAsSnapshot)
 {
   GuiDataModel model;
   MissionRegionVector regions;
-  regions.push_back(MissionRegionVisual{
+  regions.push_back(
+    MissionRegionVisual{
     "level_0_AB", 0U, "AB", QVector3D(-10.0F, -10.0F, 0.0F),
     QVector3D(10.0F, 0.0F, 2.0F)});
   model.SetMissionRegions(regions);

@@ -1,0 +1,14 @@
+name: fase_6H_coverage_superficial_gui
+description: "GT acerca ambos drones al fiducial 2 para producir FREE y superficie sparse; valida lifecycle y progreso de coverage en GUI F7."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 180.0}
+steps:
+  - {name: espera_registro_y_tareas, type: wait, seconds: 25.0}
+  - name: aproximacion_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [-0.5, -8.5, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.5, -8.5, 1.3], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: observacion_sparse_y_coverage, type: wait, seconds: 40.0}

@@ -61,6 +61,9 @@ hidden_raw_members_               miembros raw sustituidos por un track
   reutilizan la matriz validada y evitan locks, conversiones e inversas.
 - `Update()` incrementa `publication_revision` solo si cambia la vista publica
   y devuelve cloud/KFs de la misma revision.
+- `PopulateOutput()` compara la vista publicable actual con una cache por
+  identidad estable y devuelve, junto a la nube compatible, `delta_upserts` y
+  `delta_deletes` de esa misma `publication_revision`.
 - La telemetria distingue IDs diferidos y entidades recuperadas por backfill.
 
 ## Referencias

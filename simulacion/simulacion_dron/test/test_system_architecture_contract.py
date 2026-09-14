@@ -66,16 +66,17 @@ def test_layout_places_deployments_in_readable_architecture_bands():
         if node['data']['kind'] == 'package'}
     assert set(positions) == package_ids
 
-    assert positions['simulacion_dron']['x'] < positions['orbslam3_server']['x']
-    assert positions['simulacion_dron']['y'] < positions['dron_individual']['y']
-    assert positions['orbslam3_server']['y'] < positions['orbslam3']['y']
-    assert positions['orbslam3_multi']['y'] < positions['orbslam3_server']['y']
-    assert positions['orbslam3_msgs_server']['x'] > positions['orbslam3_server']['x']
-
-    assert positions['dron_individual']['x'] < positions['orbslam3']['x']
-    assert positions['orbslam3']['x'] < positions['orbslam3_msgs_dron']['x']
-    assert positions['lib_tray']['y'] > positions['dron_individual']['y']
-    assert positions['ORB_SLAM3']['y'] > positions['orbslam3']['y']
+    dron_x = [positions[node]['x'] for node in (
+        'lib_tray', 'dron_individual', 'mission_msgs_dron', 'task_manager_lib',
+        'task_manager', 'ORB_SLAM3', 'orbslam3', 'orbslam3_msgs_dron')]
+    server_x = [positions[node]['x'] for node in (
+        'multidron_gui', 'multidron_gui_lib', 'mission_msgs_server', 'task_server',
+        'task_lib', 'orbslam3_msgs_server', 'orbslam3_server', 'orbslam3_multi')]
+    assert max(dron_x) < positions['simulacion_dron']['x'] < min(server_x)
+    assert positions['lib_tray']['x'] < positions['dron_individual']['x']
+    assert positions['task_manager_lib']['x'] < positions['task_manager']['x']
+    assert positions['multidron_gui']['x'] < positions['multidron_gui_lib']['x']
+    assert positions['task_server']['x'] < positions['task_lib']['x']
 
 
 def test_edges_use_four_semantic_layers_and_only_runtime_can_pulse():
@@ -233,14 +234,14 @@ def test_dron_individual_does_not_build_removed_experimental_nodes():
     assert 'add_executable(clock src/otros/clock.cpp)' not in cmake
 
 
-def test_phase5_profile_enables_explicit_gt_fallback_switch():
+def test_phase5_profile_disables_legacy_gt_fallback_by_default():
     multi_launch = (
         PACKAGE_ROOT / 'launch/multi_dron.launch.py'
     ).read_text(encoding='utf-8')
     drone_launch = (
         SRC_ROOT / 'dron/dron_individual/launch/generar_dron.launch.py'
     ).read_text(encoding='utf-8')
-    assert "'gt_fallback_enabled', default_value='true'" in multi_launch
+    assert "'gt_fallback_enabled', default_value='false'" in multi_launch
     assert "'gt_fallback_enabled', default_value='false'" in drone_launch
     assert "'phase5_navigation_source', default_value='orb'" in multi_launch
     assert "'phase5_navigation_source', default_value='orb'" in drone_launch

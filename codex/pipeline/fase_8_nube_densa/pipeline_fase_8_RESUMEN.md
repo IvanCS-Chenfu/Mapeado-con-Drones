@@ -11,14 +11,14 @@ Historial: vacío; no existen ejecuciones reales en este ZIP
 
 ## Objetivo
 
-Crear en servidor una reconstrucción densa global a partir de estéreo, relacionada con el mapa sparse pero sin fusionar ambos en una única nube ni modificar datos raw de ORB-SLAM3. La geometría densa se construye como subnubes locales a KFs, voxels/blocks derivados y capturas estacionarias correctivas.
+Crear una reconstrucción densa global en servidor a partir de productos estéreo locales por KF, relacionada con el mapa sparse pero sin fusionar ambos en una única nube ni modificar datos raw de ORB-SLAM3. La geometría densa se construye como subnubes locales a KFs, voxels/blocks derivados y capturas estacionarias correctivas.
 
 ## Arquitectura
 
 ```text
-Dron: captura/transporte mínimo
-  -> wrapper envía L/R exactas cuando nace un KF
-  -> topics L/R normales para capturas/seguridad
+Dron: depth local por KF y transporte filtrado
+  -> wrapper asocia L/R exactas, calcula DenseKF/rayos y normales
+  -> entrega identidad KF, calidad y geometria local al servidor
 
 Servidor:
   dense_map_server -> coordinación ROS
@@ -35,7 +35,19 @@ src/servidor/dense_map_server/
 
 ## Decisiones cerradas
 
-- Todo disparity/depth/nube/fusión se calcula en servidor.
+- Disparity/depth/nube local se calcula en el dron una vez por KF, en worker
+  acotado; integración reversible, fusión, calidad global y optimización se
+  calculan en servidor.
+- La Fase 6N ensaya antes ese cálculo por KF como seguridad local y evidencia
+  voxel reversible. Si sus métricas de calidad/coste lo validan, Fase 8
+  reutiliza el mismo producto local identificado por KF; no crea un segundo
+  cálculo depth por frame. Si 6N se retira por no superar su prueba
+  experimental, 8A--8C conservan la responsabilidad de reconstruir la cadena
+  densa canónica.
+- El transporte de 6N es una única observación por KF con nube filtrada,
+  identidad, calibración y `K_T_C` autoritativa; rayos FREE, occupancy y
+  representación global se derivan e integran en servidor. Yaw/pitch son
+  metadatos de inspección, no una autoridad geométrica alternativa.
 - DenseKF clave `(drone_id,map_epoch,kf_id)` y nube local al propio KF.
 - No se guardan imágenes L/R permanentemente.
 - La pose `world` de una subnube siempre se deriva de la pose global vigente del KF.

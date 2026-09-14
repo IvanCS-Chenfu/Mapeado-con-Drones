@@ -2,21 +2,30 @@
 
 #include "multidron_gui_lib/scene3d_widget.hpp"
 
+#include "orbslam3_msgs/msg/navigation_state.hpp"
+
 #include <QAction>
 #include <QCheckBox>
+#include <QColor>
 #include <QDockWidget>
 #include <QDoubleSpinBox>
 #include <QFontDatabase>
 #include <QFrame>
 #include <QGroupBox>
+#include <QIcon>
+#include <QMenu>
+#include <QPixmap>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSlider>
 #include <QStatusBar>
 #include <QTimer>
 #include <QToolBar>
+#include <QToolButton>
 
 #include <algorithm>
+#include <cstddef>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -43,9 +52,11 @@ QString TrackingName(std::int8_t state)
 QString PoseSourceName(std::uint8_t source)
 {
   switch (source) {
-    case 1: return "ORB";
-    case 2: return "GLOBAL";
-    case 3: return "GT_FALLBACK (no usado por GUI)";
+    case orbslam3_msgs::msg::NavigationState::POSE_SOURCE_ORB: return "ORB";
+    case orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GLOBAL: return "GLOBAL";
+    case orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FALLBACK:
+      return "GT_FALLBACK";
+    case orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FORCED: return "GT";
     default: return "INVALID";
   }
 }
@@ -109,9 +120,37 @@ void MainWindow::BuildToolbar()
   add_layer_action("KeyFrames", true, &Scene3DWidget::SetKeyframesVisible);
   add_layer_action("Drones", true, &Scene3DWidget::SetDronesVisible);
   add_layer_action("Fiduciales", true, &Scene3DWidget::SetFiducialsVisible);
-  add_layer_action("Trayectorias", true, &Scene3DWidget::SetTrajectoriesVisible);
+  add_layer_action("Plan previsto", true, &Scene3DWidget::SetTrajectoriesVisible);
   add_layer_action("Vóxeles", false, &Scene3DWidget::SetVoxelsVisible);
-  add_layer_action("Regiones", true, &Scene3DWidget::SetMissionRegionsVisible);
+  auto * occupied_voxels = new QCheckBox("Ocupados", toolbar);
+  occupied_voxels->setChecked(true);
+  occupied_voxels->setToolTip("Mostrar evidencia OCCUPIED del mapa voxel");
+  toolbar->addWidget(occupied_voxels);
+  connect(
+    occupied_voxels, &QCheckBox::toggled,
+    scene_, &Scene3DWidget::SetOccupiedVoxelsVisible);
+  auto * free_voxels = new QCheckBox("Libres", toolbar);
+  free_voxels->setChecked(true);
+  free_voxels->setToolTip("Mostrar evidencia FREE del mapa voxel");
+  toolbar->addWidget(free_voxels);
+  connect(
+    free_voxels, &QCheckBox::toggled,
+    scene_, &Scene3DWidget::SetFreeVoxelsVisible);
+  auto * reserved_voxels = new QCheckBox("Reservados", toolbar);
+  reserved_voxels->setChecked(true);
+  reserved_voxels->setToolTip("Mostrar reservas transitorias de trayectorias activas");
+  toolbar->addWidget(reserved_voxels);
+  connect(
+    reserved_voxels, &QCheckBox::toggled,
+    scene_, &Scene3DWidget::SetReservedVoxelsVisible);
+  mission_regions_button_ = new QToolButton(toolbar);
+  mission_regions_button_->setObjectName("missionRegionsMenuButton");
+  mission_regions_button_->setText("Regiones");
+  mission_regions_button_->setPopupMode(QToolButton::InstantPopup);
+  mission_regions_menu_ = new QMenu(mission_regions_button_);
+  mission_regions_button_->setMenu(mission_regions_menu_);
+  mission_regions_button_->setEnabled(false);
+  toolbar->addWidget(mission_regions_button_);
 
   toolbar->addSeparator();
   auto * score_color = new QCheckBox("Color por score", toolbar);
@@ -164,6 +203,7 @@ void MainWindow::BuildToolbar()
 void MainWindow::BuildDroneDock()
 {
   auto * dock = new QDockWidget("Drones", this);
+  drone_dock_ = dock;
   dock->setObjectName("droneDock");
   dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
   dock->setMinimumWidth(300);
@@ -180,23 +220,7 @@ void MainWindow::BuildDroneDock()
   drone_cards_layout_->addStretch(1);
   scroll->setWidget(drone_cards_container_);
 
-  auto * panel = new QWidget(dock);
-  auto * panel_layout = new QVBoxLayout(panel);
-  panel_layout->setContentsMargins(0, 0, 0, 0);
-  panel_layout->setSpacing(8);
-  panel_layout->addWidget(scroll, 1);
-
-  auto * region_group = new QGroupBox("Regiones de misión", panel);
-  region_group->setObjectName("missionRegionsGroup");
-  mission_regions_layout_ = new QVBoxLayout(region_group);
-  mission_regions_container_ = region_group;
-  auto * waiting = new QLabel("Esperando geometría de misión", region_group);
-  waiting->setObjectName("missionRegionsWaiting");
-  waiting->setWordWrap(true);
-  mission_regions_layout_->addWidget(waiting);
-  panel_layout->addWidget(region_group, 0);
-
-  dock->setWidget(panel);
+  dock->setWidget(scroll);
   addDockWidget(Qt::RightDockWidgetArea, dock);
 }
 
@@ -275,7 +299,7 @@ void MainWindow::RefreshFromModel()
   const GuiSnapshot snapshot = model_->Snapshot();
   scene_->SetSnapshot(snapshot);
   UpdateDroneCards(snapshot);
-  UpdateMissionRegions(snapshot);
+  UpdateMissionRegionMenu(snapshot);
 
   const std::size_t sparse = snapshot.sparse_points ? snapshot.sparse_points->size() : 0U;
   const std::size_t keyframes = snapshot.keyframes ? snapshot.keyframes->size() : 0U;
@@ -292,48 +316,78 @@ void MainWindow::RefreshFromModel()
     .arg(static_cast<qulonglong>(fiducials))
     .arg(static_cast<qulonglong>(trajectories))
     .arg(static_cast<qulonglong>(voxels))
-    .arg(static_cast<qulonglong>(
-      snapshot.mission_regions ? snapshot.mission_regions->size() : 0U)));
+    .arg(
+      static_cast<qulonglong>(
+        snapshot.mission_regions ? snapshot.mission_regions->size() : 0U)));
 }
 
-void MainWindow::UpdateMissionRegions(const GuiSnapshot & snapshot)
+void MainWindow::UpdateMissionRegionMenu(const GuiSnapshot & snapshot)
 {
   const void * identity = snapshot.mission_regions.get();
-  if (identity == mission_regions_identity_ || !mission_regions_layout_) {
+  if (identity == mission_regions_identity_ || !mission_regions_menu_) {
     return;
   }
   mission_regions_identity_ = identity;
-  while (QLayoutItem * item = mission_regions_layout_->takeAt(0)) {
-    if (item->widget()) {
-      item->widget()->deleteLater();
-    }
-    delete item;
-  }
+  mission_regions_menu_->clear();
+  mission_region_actions_.clear();
+  visible_mission_region_ids_.clear();
   if (!snapshot.mission_regions || snapshot.mission_regions->empty()) {
-    auto * waiting = new QLabel("Esperando geometría de misión", mission_regions_container_);
-    waiting->setWordWrap(true);
-    mission_regions_layout_->addWidget(waiting);
+    mission_regions_button_->setEnabled(false);
+    ApplyMissionRegionVisibility();
     return;
   }
+
+  mission_regions_button_->setEnabled(true);
   std::uint32_t current_level = std::numeric_limits<std::uint32_t>::max();
+  QMenu * level_menu = nullptr;
+  std::size_t region_index = 0U;
   for (const auto & region : *snapshot.mission_regions) {
     if (region.level_index != current_level) {
       current_level = region.level_index;
-      auto * level = new QLabel(QString("Nivel %1").arg(current_level), mission_regions_container_);
-      level->setStyleSheet("color:#8ecae6;font-weight:600;");
-      mission_regions_layout_->addWidget(level);
+      level_menu = mission_regions_menu_->addMenu(QString("Nivel %1").arg(current_level));
     }
-    auto * button = new QPushButton(
-      QString::fromStdString(region.side), mission_regions_container_);
-    button->setObjectName(QString("missionRegion_%1").arg(
-      QString::fromStdString(region.region_id)));
-    button->setToolTip(QString::fromStdString(region.region_id));
-    connect(button, &QPushButton::clicked, scene_,
-      [this, id = QString::fromStdString(region.region_id)]() {
-        scene_->SelectMissionRegion(id);
+    const QString id = QString::fromStdString(region.region_id);
+    QAction * action = level_menu->addAction(QString::fromStdString(region.side));
+    action->setObjectName(QString("missionRegionToggle_%1").arg(id));
+    action->setToolTip(id);
+    action->setCheckable(true);
+    QPixmap swatch(12, 12);
+    swatch.fill(QColor::fromHsv(static_cast<int>((region_index * 47U) % 360U), 185, 255));
+    action->setIcon(QIcon(swatch));
+    connect(
+      action, &QAction::toggled, this, [this, id](bool visible) {
+        if (visible) {
+          visible_mission_region_ids_.insert(id);
+        } else {
+          visible_mission_region_ids_.remove(id);
+        }
+        ApplyMissionRegionVisibility();
       });
-    mission_regions_layout_->addWidget(button);
+    mission_region_actions_.insert(id, action);
+    ++region_index;
   }
+
+  mission_regions_menu_->addSeparator();
+  QAction * show_all = mission_regions_menu_->addAction("Mostrar todas");
+  connect(
+    show_all, &QAction::triggered, this, [this]() {
+      for (auto * action : mission_region_actions_) {
+        action->setChecked(true);
+      }
+    });
+  QAction * hide_all = mission_regions_menu_->addAction("Ocultar todas");
+  connect(
+    hide_all, &QAction::triggered, this, [this]() {
+      for (auto * action : mission_region_actions_) {
+        action->setChecked(false);
+      }
+    });
+  ApplyMissionRegionVisibility();
+}
+
+void MainWindow::ApplyMissionRegionVisibility()
+{
+  scene_->SetVisibleMissionRegions(visible_mission_region_ids_);
 }
 
 void MainWindow::ShowSelection(const QString & description)
@@ -347,6 +401,7 @@ void MainWindow::UpdateDroneCards(const GuiSnapshot & snapshot)
     return;
   }
 
+  bool has_assigned_task = false;
   for (const auto & item : *snapshot.drones) {
     const std::uint32_t drone_id = item.first;
     const DroneState & drone = item.second;
@@ -387,14 +442,73 @@ void MainWindow::UpdateDroneCards(const GuiSnapshot & snapshot)
     if (snapshot.tasks) {
       const auto task = snapshot.tasks->find(drone_id);
       if (task != snapshot.tasks->end()) {
-        task_text = QString("%1 | %2\n%3")
+        has_assigned_task = true;
+        task_text = QString("%1 | %2\n%3\n%4")
           .arg(QString::fromStdString(task->second.task_type))
           .arg(QString::fromStdString(task->second.state))
+          .arg(QString::fromStdString(task->second.region_id))
           .arg(QString::fromStdString(task->second.detail));
       }
     }
     card.task->setText(task_text);
+    if (card.progress != nullptr) {
+      bool known = false;
+      float progress = 0.0F;
+      if (snapshot.tasks) {
+        const auto task = snapshot.tasks->find(drone_id);
+        if (task != snapshot.tasks->end() && task->second.progress_known) {
+          known = true;
+          progress = task->second.progress;
+        }
+      }
+      card.progress->setVisible(known);
+      if (known) {
+        card.progress->setValue(static_cast<int>(std::lround(progress * 100.0F)));
+      }
+    }
+    if (snapshot.tasks) {
+      const auto task = snapshot.tasks->find(drone_id);
+      card.task->setProperty(
+        "mission_region_id", task == snapshot.tasks->end() ? QString{} :
+        QString::fromStdString(task->second.region_id));
+    }
   }
+
+  if (has_assigned_task) {
+    ApplyInitialDroneDockWidth();
+  }
+}
+
+void MainWindow::ApplyInitialDroneDockWidth()
+{
+  if (drone_dock_initial_width_applied_ || drone_dock_ == nullptr ||
+    drone_cards_container_ == nullptr || drone_cards_layout_ == nullptr)
+  {
+    return;
+  }
+
+  drone_cards_layout_->activate();
+  int widest_card = 0;
+  for (const DroneCard & card : drone_cards_) {
+    if (card.root != nullptr) {
+      widest_card = std::max(widest_card, card.root->sizeHint().width());
+    }
+  }
+  if (widest_card <= 0) {
+    return;
+  }
+
+  const QMargins margins = drone_cards_layout_->contentsMargins();
+  const int dock_chrome = std::max(0, drone_dock_->width() - drone_dock_->contentsRect().width());
+  const int target_width = std::max(
+    drone_dock_->minimumWidth(), widest_card + margins.left() + margins.right() + dock_chrome);
+  drone_dock_initial_width_applied_ = true;
+  QTimer::singleShot(
+    0, this, [this, target_width]() {
+      if (drone_dock_ != nullptr) {
+        resizeDocks({drone_dock_}, {target_width}, Qt::Horizontal);
+      }
+    });
 }
 
 MainWindow::DroneCard MainWindow::CreateDroneCard(std::uint32_t drone_id)
@@ -409,15 +523,31 @@ MainWindow::DroneCard MainWindow::CreateDroneCard(std::uint32_t drone_id)
   card.state = new QLabel("Esperando NavigationState", group);
   card.pose = new QLabel("x —   y —   z —\nyaw —", group);
   card.tracking = new QLabel("tracking: —", group);
-  card.task = new QLabel("Fase 6: sin datos de tarea", group);
+  card.task = new QPushButton("Fase 6: sin datos de tarea", group);
+  card.task->setObjectName(QString("droneTask_%1").arg(drone_id));
+  card.task->setFlat(true);
+  card.task->setToolTip("Seleccionar el subROI de esta tarea en el inspector");
+  card.task->setStyleSheet("text-align:left;padding:4px;");
+  card.progress = new QProgressBar(group);
+  card.progress->setObjectName(QString("droneTaskProgress_%1").arg(drone_id));
+  card.progress->setRange(0, 100);
+  card.progress->setFormat("Coverage %p%");
+  card.progress->setVisible(false);
+  connect(
+    card.task, &QPushButton::clicked, this, [this, task_button = card.task]() {
+      const QString region_id = task_button->property("mission_region_id").toString();
+      if (!region_id.isEmpty()) {
+        scene_->SelectMissionRegion(region_id);
+      }
+    });
   card.pose->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
   card.tracking->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-  card.task->setWordWrap(true);
 
   layout->addWidget(card.state);
   layout->addWidget(card.pose);
   layout->addWidget(card.tracking);
   layout->addWidget(card.task);
+  layout->addWidget(card.progress);
   drone_cards_.insert(drone_id, card);
   return card;
 }

@@ -4,6 +4,9 @@
 
 #include "orbslam3_msgs/msg/navigation_state.hpp"
 #include "mission_msgs/msg/mission_geometry.hpp"
+#include "mission_msgs/msg/task_state_array.hpp"
+#include "mission_msgs/msg/trajectory_plan.hpp"
+#include "mission_msgs/msg/voxel_map.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
@@ -33,6 +36,9 @@ private:
     std::uint32_t configured_drone_id,
     orbslam3_msgs::msg::NavigationState::ConstSharedPtr state);
   void OnMissionGeometry(mission_msgs::msg::MissionGeometry::ConstSharedPtr geometry);
+  void OnTaskStates(mission_msgs::msg::TaskStateArray::ConstSharedPtr tasks);
+  void OnVoxelMap(mission_msgs::msg::VoxelMap::ConstSharedPtr voxels);
+  void OnPlannedRoute(mission_msgs::msg::TrajectoryPlan::ConstSharedPtr route);
 
   void LoadFiducialsFromConfig(const std::string & path);
   void CheckStaleDrones();
@@ -45,6 +51,9 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sparse_subscription_;
   rclcpp::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr keyframe_subscription_;
   rclcpp::Subscription<mission_msgs::msg::MissionGeometry>::SharedPtr mission_subscription_;
+  rclcpp::Subscription<mission_msgs::msg::TaskStateArray>::SharedPtr task_subscription_;
+  rclcpp::Subscription<mission_msgs::msg::VoxelMap>::SharedPtr voxel_subscription_;
+  rclcpp::Subscription<mission_msgs::msg::TrajectoryPlan>::SharedPtr planned_route_subscription_;
   std::vector<rclcpp::Subscription<orbslam3_msgs::msg::NavigationState>::SharedPtr>
   navigation_subscriptions_;
 

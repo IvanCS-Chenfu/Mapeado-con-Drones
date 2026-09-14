@@ -1,0 +1,14 @@
+name: fase_6_ruta_unknown_suave_d1_gt
+description: "D1 se ancla con GT en fiducial 2 y ejecuta coverage UNKNOWN a 0.4 m/s; valida inicio retemporizado, cancelacion propagada y replanificacion."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 390.0}
+steps:
+  - {name: espera_registro_y_mapa, type: wait, seconds: 22.0}
+  - name: anclaje_fiducial_2_d1
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: habilitar_exploracion_unknown_d1, type: call_set_bool, service: /mission/set_coverage_execution_enabled, value: true, timeout_sec: 20.0}
+  - {name: observar_rutas_unknown_y_reparacion_d1, type: wait, seconds: 240.0}

@@ -61,6 +61,8 @@ struct GlobalMapBuildResult
   size_t fallback_associations = 0;
   size_t fallback_submap_points = 0;
   std::vector<GlobalSparsePoint> points;
+  std::vector<GlobalSparsePoint> delta_upserts;
+  std::vector<GlobalSparsePoint> delta_deletes;
   std::vector<GlobalKeyFrameView> keyframes;
 };
 
@@ -128,7 +130,7 @@ private:
   bool RemovePoint(const RawMapPointId & id);
   bool RemoveKeyFrame(const RawKeyFrameId & id);
   void StorePoint(CachedPoint point);
-  void PopulateOutput(GlobalMapBuildResult * result) const;
+  void PopulateOutput(GlobalMapBuildResult * result);
 
   std::map<RawKeyFrameId, GlobalKeyFrameView> keyframe_world_cache_;
   std::map<RawKeyFrameId, CachedProjection> keyframe_projection_cache_;
@@ -137,6 +139,7 @@ private:
   std::map<RawMapPointId, size_t> point_slot_by_id_;
   std::map<RawKeyFrameId, std::set<RawMapPointId>> keyframe_to_mappoints_;
   std::map<FusedTrackId, CachedPoint> fused_point_cache_;
+  std::map<RawMapPointId, GlobalSparsePoint> published_point_cache_;
   std::map<RawKeyFrameId, std::set<FusedTrackId>> keyframe_to_fused_tracks_;
   std::set<RawKeyFrameId> dirty_keyframes_;
   std::set<RawMapPointId> dirty_mappoints_;

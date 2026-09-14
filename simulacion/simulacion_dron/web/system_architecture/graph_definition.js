@@ -292,6 +292,30 @@ window.SYSTEM_ARCHITECTURE = {
       "data": {"id": "task_server_to_gui_geometry", "source": "task_server", "target": "multidron_gui_lib", "layer": "runtime", "label": "geometria", "interface": "/mission/geometry", "activity_mode": "direct", "interface_kind": "topic_publish", "producer": "task_server", "consumer": "RosDataBridge", "ttl_ms": 1800}
     },
     {
+      "data": {"id": "orbslam3_multi_to_task_server_sparse", "source": "orbslam3_multi", "target": "task_server", "layer": "runtime", "label": "sparse global", "interface": "/global_sparse_cloud", "activity_mode": "direct", "interface_kind": "topic_subscribe", "producer": "orbslam3_multi", "consumer": "task_server", "ttl_ms": 1800}
+    },
+    {
+      "data": {"id": "task_server_to_task_manager", "source": "task_server", "target": "task_manager", "layer": "runtime", "label": "tareas", "interface": "/mission/task_states", "activity_mode": "direct", "interface_kind": "topic_publish", "producer": "task_server", "consumer": "task_manager", "ttl_ms": 1800}
+    },
+    {
+      "data": {"id": "task_manager_to_task_server_task_report", "source": "task_manager", "target": "task_server", "layer": "runtime", "label": "confirmacion", "interface": "/mission/task_reports", "activity_mode": "direct", "interface_kind": "topic_publish", "producer": "task_manager", "consumer": "task_server", "ttl_ms": 1800}
+    },
+    {
+      "data": {"id": "task_server_to_task_manager_inspect_facade", "source": "task_server", "target": "task_manager", "layer": "runtime", "label": "inspeccion fachada", "interface": "/dron_X/inspect_facade", "activity_mode": "direct", "interface_kind": "service", "producer": "task_server", "consumer": "task_manager", "ttl_ms": 1800}
+    },
+    {
+      "data": {"id": "task_manager_to_orbslam_capture_depth", "source": "task_manager", "target": "orbslam3", "layer": "runtime", "label": "captura depth", "interface": "/dron_X/orbslam/capture_depth", "activity_mode": "direct", "interface_kind": "service", "producer": "task_manager", "consumer": "orbslam3 stereo", "ttl_ms": 1800}
+    },
+    {
+      "data": {"id": "orbslam3_server_to_task_server_fiducial_primary", "source": "orbslam3_server", "target": "task_server", "layer": "runtime", "label": "fiducial primary", "interface": "/mission/fiducial_primary_observations", "activity_mode": "direct", "interface_kind": "topic_publish", "producer": "orbslam3_server", "consumer": "task_server", "ttl_ms": 1800}
+    },
+    {
+      "data": {"id": "task_server_to_gui_voxels", "source": "task_server", "target": "multidron_gui_lib", "layer": "runtime", "label": "voxeles y tareas", "interface": "/mission/{voxel_map,task_states}", "activity_mode": "direct", "interface_kind": "topic_publish", "producer": "task_server", "consumer": "RosDataBridge", "ttl_ms": 1800}
+    },
+    {
+      "data": {"id": "task_server_to_gui_planned_route", "source": "task_server", "target": "multidron_gui_lib", "layer": "runtime", "label": "plan previsto", "interface": "/mission/planned_routes", "activity_mode": "direct", "interface_kind": "topic_publish", "producer": "task_server", "consumer": "RosDataBridge", "ttl_ms": 1800}
+    },
+    {
       "data": {"id": "task_server_to_sim_mission_flow", "source": "task_server", "target": "simulacion_dron", "layer": "runtime", "label": "mission debug", "interface": "/mission/flow_events", "activity_mode": "direct", "interface_kind": "debug_topic", "producer": "task_server", "consumer": "mission_flow_bridge", "status": "debug_optional", "ttl_ms": 900}
     },
     {

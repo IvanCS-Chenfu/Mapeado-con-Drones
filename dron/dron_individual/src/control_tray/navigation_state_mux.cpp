@@ -60,6 +60,7 @@ public:
   : Node("navigation_state_mux")
   {
     declare_parameter<double>("gt_timeout_sec", 0.5);
+    declare_parameter<double>("orb_loss_hold_sec", 10.0);
     declare_parameter<bool>("gt_fallback_enabled", false);
     declare_parameter<std::string>("phase5_navigation_source", "orb");
     declare_parameter<int64_t>("orb_qualification_samples", 20);
@@ -67,6 +68,7 @@ public:
     declare_parameter<int64_t>("drone_id", 0);
     declare_parameter<std::string>("body_frame", "base_link");
     gt_timeout_sec_ = get_parameter("gt_timeout_sec").as_double();
+    orb_loss_hold_sec_ = get_parameter("orb_loss_hold_sec").as_double();
     gt_fallback_enabled_ = get_parameter("gt_fallback_enabled").as_bool();
     const std::string configured_source =
       get_parameter("phase5_navigation_source").as_string();
@@ -82,6 +84,9 @@ public:
         2, get_parameter("orb_qualification_samples").as_int()));
     if (gt_timeout_sec_ <= 0.0) {
       gt_timeout_sec_ = 0.5;
+    }
+    if (orb_loss_hold_sec_ <= 0.0) {
+      orb_loss_hold_sec_ = 10.0;
     }
     debug_architecture_telemetry_ =
       get_parameter("debug_architecture_telemetry").as_bool();
@@ -258,7 +263,10 @@ private:
       return;
     }
 
-    decision = goal_source_lock_.Apply(decision);
+    if (decision.source != NavigationSource::ORB) {
+      PublishOrbLost(*raw, decision.fallback_reason);
+      return;
+    }
 
     RigidPose source_pose;
     if (decision.source == NavigationSource::ORB) {
@@ -465,10 +473,13 @@ private:
     output.drone_id = drone_id_;
     output.sample_sequence = output_sequence_++;
     output.pose_source = NavigationState::POSE_SOURCE_GT_FORCED;
-    output.global_status = NavigationState::GLOBAL_STATUS_INVALID;
     output.local_valid = true;
     output.local_continuity_valid = true;
-    output.global_valid = false;
+    // GT drives control, while ORB remains the authority for this epoch's anchor.
+    const bool anchored = last_orb_state_valid_ && anchor_latch_.anchored();
+    output.global_status = anchored ? NavigationState::GLOBAL_STATUS_AUTHORITATIVE :
+      NavigationState::GLOBAL_STATUS_INVALID;
+    output.global_valid = anchored;
     output.velocity_valid = true;
     const RigidPose continuous_pose = continuous_pose_.Update(
       NavigationSource::GT_FORCED, FromMessage(pose_message.pose));
@@ -483,6 +494,25 @@ private:
     PublishOrbAuthority(false);
   }
 
+  void PublishOrbLost(const NavigationState & raw, FallbackReason reason)
+  {
+    NavigationState output = raw;
+    output.sample_sequence = output_sequence_++;
+    output.tracking_state = NavigationState::TRACKING_LOST;
+    output.pose_source = NavigationState::POSE_SOURCE_INVALID;
+    output.local_valid = false;
+    output.local_continuity_valid = false;
+    output.global_valid = false;
+    output.velocity_valid = false;
+    output.global_status = NavigationState::GLOBAL_STATUS_INVALID;
+    publisher_->publish(output);
+    PublishOrbAuthority(false);
+    RCLCPP_ERROR_THROTTLE(
+      get_logger(), *get_clock(), 2000,
+      "[F5-ORB-LOST] reason=%s hold_sec=%.1f action=hold_then_abort",
+      dron_individual::FallbackReasonName(reason), orb_loss_hold_sec_);
+  }
+
   void PublishOrbAuthority(bool confirmed)
   {
     std_msgs::msg::Bool message;
@@ -492,6 +522,7 @@ private:
 
   std::mutex mutex_;
   double gt_timeout_sec_{0.5};
+  double orb_loss_hold_sec_{10.0};
   bool gt_valid_{false};
   bool gt_velocity_valid_{false};
   bool gt_fallback_enabled_{false};

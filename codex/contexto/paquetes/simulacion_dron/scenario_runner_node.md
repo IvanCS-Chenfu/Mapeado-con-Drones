@@ -19,9 +19,41 @@ validas, tolerancias XYZ/yaw y permanencia `hold_sec`. Recibe `drone_id`,
 `target`, `yaw_deg`, `position_tolerance_m`, `yaw_tolerance_deg`, `hold_sec` y
 `timeout_sec`; emite marcadores `POSE-GATE-WAIT/DONE/TIMEOUT/ERROR`.
 
+El paso `plan_route` solicita `/mission/plan_route` con `drone_id`, `task_id`,
+`target: [x,y,z]`, `dispatch_execution` y `timeout_sec`. Cuando el ultimo vale
+`true`, sirve para pruebas de integración: el servidor genera y ejecuta la
+ruta mediante su runtime normal, no mediante un goal directo a
+`AccionTrayectoria`. Sus marcadores son `PLAN-DONE`, `PLAN-REJECT` y
+`PLAN-TIMEOUT`.
+
+Cada invocacion emite una sola solicitud ROS y espera el mismo futuro hasta su
+timeout; no reenvia una ruta si D* tarda mas de un segundo en responder. El
+unico reintento permitido es el rechazo transitorio literal por pose canonica
+no autorizada del paso relativo. `plan_route_relative_until_visual_risk` lee la
+pose global autorizada despues de cada terminal, suma su offset de 2 m y
+continua desde esa pose real. Se detiene con exito solo despues de la
+reorientacion visual local reportada por el dron o falla al agotar el limite
+explicito de pasos.
+
+`wait_for_plan_terminal` consume el ultimo `trajectory_id` despachado por
+dron desde `/mission/planned_routes` con QoS reliable + transient-local. Espera
+su terminal normal; si la ruta original termina por `visual_risk` o por el
+marcador canonico `TRACKING_RISK`, observa `VisualRiskEvent` y espera el
+terminal local `REORIENTATION_COMPLETED` correlacionado con la trayectoria de
+origen antes de continuar. No espera un plan `visual_risk_reorient`, que ya no
+existe en el servidor. Un
+STOP no visual en curso (`STOP solicitado` o `replaced_by_stop`) no es aun
+terminal: espera el mensaje posterior `STOP completado`, que confirma que el
+dron ya esta estable. Un terminal no visual distinto se declara fallo del
+escenario en vez de lanzar el siguiente paso sobre una trayectoria aun activa.
+Sus marcadores son
+`EXECUTION-WAIT`, `EXECUTION-DONE`, `REORIENT-DONE`,
+`STOP-DONE`, `STOP-FAILED`, `EXECUTION-STOP-NONVISUAL`,
+`REORIENT-FAILED` y `EXECUTION-TIMEOUT`.
+
 ```text
 simulacion_dron/src/control_tray/scenario_runner_node.cpp
-rg -n "navigation_source|PrepareNavigationSource|wait_for_navigation_pose|POSE-GATE|wait_for_bool|READY-WAIT|mapping_backpressure|MOVE-GATE-WAIT" simulacion/simulacion_dron/src/control_tray/scenario_runner_node.cpp
+rg -n "navigation_source|PrepareNavigationSource|plan_route|wait_for_plan_terminal|PLAN-DONE|EXECUTION-WAIT|wait_for_navigation_pose|POSE-GATE|wait_for_bool|READY-WAIT|mapping_backpressure|MOVE-GATE-WAIT" simulacion/simulacion_dron/src/control_tray/scenario_runner_node.cpp
 ```
 
 `wait_for_bool` recibe `topic`, `expected` y `timeout_sec`. Crea una

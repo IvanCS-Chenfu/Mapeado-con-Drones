@@ -4,3 +4,7 @@
     crear.tray.v_max_lin: 0.8
     crear.tray.v_max_ang: 0.5
     crear.tray.t_a: 5.0
+    # Frenado local de 6I: conserva la pose canonica y termina en hover.
+    stop_duration_sec: 5.0
+    # Ventana a cada lado de un waypoint guía para el empalme Pol3 C1.
+    waypoint_blend_sec: 3.0

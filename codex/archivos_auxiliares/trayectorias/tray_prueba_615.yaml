@@ -1,0 +1,9 @@
+name: fase_6G_replan_Dstar_estable
+description: Mantiene Gazebo y GUI F7 para validar un plan D* corto seguido de un replan incremental estable.
+steps:
+  - name: espera_pose_canonica
+    type: wait
+    seconds: 25
+  - name: revision_plan_previsto
+    type: wait
+    seconds: 120

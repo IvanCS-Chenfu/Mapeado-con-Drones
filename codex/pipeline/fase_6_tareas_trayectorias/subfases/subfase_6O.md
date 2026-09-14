@@ -1,59 +1,43 @@
-# Subfase 6O - Integracion y validacion final multidron
+# Subfase 6O - GO_TO, ANCHOR_SUBMAP y fiduciales oportunistas
 
 ## Estado
 
-```text
-sin hacer
-```
+PENDIENTE, con integracion fiducial minima incluida en la migracion de fachada.
 
-## Dependencia
+## Objetivo
 
-6A-6N conseguidas y GUI F7 integrada hasta las vistas necesarias.
+Conservar los objetivos operativos de prioridad alta y permitir que una
+inspeccion de fachada pause su tarea cuando aparece un fiducial nuevo para el
+submapa actual.
 
-## Objetivo tecnico
+## Fiducial oportunista acordado
 
-Demostrar Fase 6 completa como sistema autonomo multi-dron y cerrar parametros
-experimentales mediante evidencia, no por conveniencia.
+- La identidad es `(drone_id,map_epoch,fiducial_id)`.
+- `visto` significa observacion primaria valida interpretada por
+  `orbslam3_server`, aunque una optimizacion posterior falle.
+- Si el fiducial no fue visto por ese submapa, se ordena STOP, se libera la
+  reserva movil y se usa el pipeline fiducial normal.
+- Si ya fue visto, se ignora y continua el barrido.
+- No se modifica el optimizador de Fase 3 ni se usa su exito para validar 6O.
+- Mientras la interrupcion permanezca pendiente, el dron no puede recibir una
+  nueva `MAP_SECTION`. Primero termina la inspeccion/action anterior, se limpia
+  su runtime y su entrada `ready`, y solo despues vuelve a la cola general.
+  Esto impide que el cierre de una tarea antigua retire la subtarea de la nueva.
 
-## Escenarios obligatorios
+## GO_TO y ANCHOR_SUBMAP
 
-1. Exterior/interior con varios drones, cuatro subROIs por nivel y coverage.
-2. Rama 3D con entrada unica; puerta cerrada sin busqueda infinita.
-3. Dos entradas a misma region: merge, pasada ligera y salida conveniente.
-4. MP/KF/depth movido: retirar/reintegrar voxel sin fantasmas.
-5. Obstaculo global futuro: repair incremental y handover sin parada si hay margen.
-6. Depth inesperado: STOP, hover, HOLD, map update y replan.
-7. Start-state mismatch: reparar solo prefijo e insertar enlaces.
-8. TRACKING_RISK antes de LOST, VISUAL_RETREAT y alternativa.
-9. LOST real integrado con F5 y ANCHOR_SUBMAP con PAUSED.
-10. Yaw/pitch y observacion lateral sobre superficies utiles.
-11. Tamaños distintos y conflictos/reservas seriales.
-12. GO_TO pendiente sin preemptar RUNNING y fiducial oportunista.
-13. Cambios de mapa que afectan/no afectan corredor y queue coalesced.
-
-## Metricas
-
-D* inicial/repair, coverage target, lib_tray, sampling, collision check, queue,
-commit, plans/replans, segments reused, STOP/braking, risk/retreat/lost,
-distancia a superficies, occupancy/coverage, conflictos, memoria y trafico
-`mission_msgs`. El grafo web debe mostrar workers/colas/revisiones en vivo.
+`GO_TO` mantiene prioridad alta entre tareas pendientes, pero no preempta una
+action normal salvo peligro. `ANCHOR_SUBMAP` exige tracking valido y usa la
+autoridad habitual de Fases 4-5. Ambos respetan D*, reservas, STOP y volumen de
+vuelo.
 
 ## Pruebas
 
-Todas las integraciones se realizan con Gazebo y GUI F7 abiertos; RViz solo si
-se acuerda como debug auxiliar. El scenario runner prepara condiciones, no
-precalcula la autonomia. Logs completos se reducen antes de leer y cada intento
-se conserva cronologicamente.
+Fiducial nuevo/visto en el mismo epoch, reinicio de epoch, STOP sin lifecycle
+huerfano y reentrada posterior en asignacion. El fallo conocido de optimizacion
+fiducial de Fase 3 no bloquea esta validacion.
 
 ## Criterio de exito
 
-La mision termina cubriendo lo accesible sin colisiones, reservas inconsistentes,
-voxel fantasma, paradas por waypoint, divergencia servidor/dron, busquedas
-infinitas, GT funcional ni dependencia de Fase 8. GUI y grafo son observadores:
-cerrarlos no afecta mision/control.
-
-## Criterio de fallo
-
-Cualquier tarea cerrada falsamente, region accesible abandonada, reserva
-huerfana, STOP tardio, trayectoria no reproducible o dependencia de GT impide
-cerrar. El resultado final distingue `IMPLEMENTADO`, `PROBADO` y `CONSEGUIDO`.
+Un fiducial nuevo pausa la tarea exactamente una vez por submapa y uno ya visto
+no rompe el barrido.

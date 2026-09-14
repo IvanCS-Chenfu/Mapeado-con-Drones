@@ -23,6 +23,13 @@ status, `pose_revision` y `W_T_KF`. 5E amplía `NavigationState` con estado
 global `INVALID/PROVISIONAL/AUTHORITATIVE` y revisión. En 5C-5F solo
 `AUTHORITATIVE` activa `global_valid`; los goals absolutos siguen deshabilitados.
 
+6L añade `VisualTrackingEvidence`: evidencia compacta del mismo frame que ORB
+usa para tracking, con cantidad total de inliers, la fraccion direccional y
+los conteos de las franjas solapadas LEFT/RIGHT/TOP/BOTTOM. Con fraccion 0.75,
+son `[0,0.75W]`, `[0.25W,W]`, `[0,0.75H]` y `[0.25H,H]`. El wrapper la publica
+para el estimador local de riesgo; no sustituye `NavigationState`, no contiene
+video y sus dos replicas Dron/Servidor deben seguir siendo identicas.
+
 Uso: publicadas por `orbslam3_ros2`, consumidas por `orbslam3_server` y `orbslam3_multi`.
 
 Fase 4D usa `FiducialTagConfig` para `tag_id/size_m` y

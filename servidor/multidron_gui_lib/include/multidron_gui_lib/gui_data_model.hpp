@@ -26,7 +26,7 @@ public:
   // Slots de integración para Fase 6. No existe subscriber ROS de estos datos
   // hasta que los contratos reales de task_server/mission_msgs estén cerrados.
   void ReplaceTrajectory(const TrajectoryVisual & trajectory);
-  void ClearTrajectory(std::uint32_t drone_id);
+  bool ClearTrajectory(std::uint32_t drone_id, const std::string & trajectory_id);
   void SetVoxels(VoxelVector voxels);
   void UpdateTask(const TaskVisual & task);
   void ClearTask(std::uint32_t drone_id);

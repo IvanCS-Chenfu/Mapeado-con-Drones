@@ -22,6 +22,15 @@ pose local Twc + mapa ORB interno
 PublishLocalPose / PublishOrbMapDelta / get_full_map
 ```
 
+## Evidencia direccional 6L
+
+`PublishVisualTrackingEvidence()` publica solo los inliers que ORB uso para
+tracking en el mismo frame. `visual_risk_empty_region_fraction=0.75` cuenta
+cuatro franjas solapadas LEFT `[0,0.75W]`, RIGHT `[0.25W,W]`, TOP `[0,0.75H]`
+y BOTTOM `[0.25H,H]`; no publica ni usa un umbral de inliers por mitad. En
+debug dibuja esas fronteras y sombrea exclusivamente las franjas cuyo conteo
+es cero. La decision de persistencia y STOP pertenece a `task_manager`.
+
 ## Frontera camara-body y auditoria 1J
 
 `TrackStereo()` y los `OrbKeyFrame` trabajan en pose de camara. Esa semantica
@@ -107,6 +116,17 @@ Responsabilidades:
 ## `GrabStereo(msgLeft, msgRight)`
 
 Callback principal.
+
+## Evidencia visual 6L
+
+Tras el tracking, `StereoSlamNode` publica
+`orbslam/visual_tracking_evidence` con el recuento de inliers realmente usados
+por ORB en las mitades LEFT/RIGHT/TOP/BOTTOM del mismo frame. No emplea todos
+los keypoints detectados. Con `debug_visual_risk_display=true` publica además
+el frame anotado en `orbslam/visual_tracking_debug/image`; el visualizador
+separado guarda su ultimo frame y, con `trigger_on_visual_risk=true`, solo lo
+muestra al recibir `EVENT_STOP_STARTED` del mismo dron. El wrapper no decide
+STOP ni crea ventanas de control.
 
 Hace:
 
@@ -885,3 +905,30 @@ Está desactivada por defecto, no publica estado alternativo y no interviene en
 gates, predictor, mux ni control. Las métricas geométricas viven en
 `visual-evidence-metrics.cpp`; localizar con
 `rg "WriteVisualEvidence|debug_orb_visual_evidence|ComputeVisualEvidenceMetrics"`.
+
+## Calidad local depth 6N
+
+`src/stereo/depth-observation-processor.cpp` ->
+`ComputeDepthObservation`, localizar con
+`rg "HandleCaptureDepth|StoreStereoFrame|F6N-DEPTH-CAPTURE"`. Cada frame
+estereo valido se guarda en un buffer local acotado, pero no dispara ningun
+calculo depth. `orbslam/capture_depth` selecciona el ultimo frame o un
+`frame_id` exacto y solo entonces llama a `ComputeDepthObservation`.
+
+El procesador comprueba la textura local de la imagen izquierda rectificada y
+la discontinuidad de disparidad contra los cuatro vecinos. Los parametros
+configurables son
+`depth_max_disparity_gradient_px_per_pixel=2.0`,
+`depth_min_texture_gradient=8.0` y
+`depth_texture_window_radius_px=2`.
+
+Un rechazo descarta la muestra: no forma parte de la nube devuelta ni de los
+rayos que derivara el servidor. La confianza es
+`accepted / raw_valid_points`; los candidatos raw son los que ya pasaron
+geometria y banda de profundidad, antes de ambos filtros. El log por captura
+separa candidatos, rechazos por textura, rechazos por discontinuidad,
+aceptados, confianza, normal y latencia.
+
+El wrapper no clasifica voxeles. `DenseKFObservation` es el producto compacto
+de la captura y `task_server` decide su integracion como evidencia depth FREE.
+No existe un worker que publique depth automaticamente por cada KeyFrame.

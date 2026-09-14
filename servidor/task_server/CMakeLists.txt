@@ -11,7 +11,11 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 find_package(mission_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(orbslam3_msgs REQUIRED)
 find_package(task_lib REQUIRED)
 
 add_library(drone_registry SHARED src/drone_registry.cpp)
@@ -22,7 +26,7 @@ ament_target_dependencies(drone_registry mission_msgs)
 
 add_executable(task_server_node src/task_server_node.cpp)
 ament_target_dependencies(task_server_node
-  ament_index_cpp mission_msgs rclcpp std_msgs task_lib)
+  ament_index_cpp mission_msgs orbslam3_msgs rclcpp rclcpp_action sensor_msgs std_msgs std_srvs task_lib)
 target_link_libraries(task_server_node drone_registry)
 
 install(TARGETS drone_registry task_server_node

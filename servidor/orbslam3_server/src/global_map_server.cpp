@@ -4,6 +4,8 @@
 #include "orbslam3_server/submap_color.hpp"
 
 #include "orbslam3_multi/sparse_global_backend.hpp"
+#include "mission_msgs/msg/global_sparse_map_delta.hpp"
+#include "mission_msgs/msg/fiducial_primary_observation.hpp"
 #include "orbslam3_msgs/msg/fiducial_key_frame_observations.hpp"
 #include "orbslam3_msgs/msg/global_key_frame_pose.hpp"
 #include "orbslam3_msgs/msg/orb_map.hpp"
@@ -371,6 +373,11 @@ public:
     map_qos.reliable().transient_local();
     sparse_cloud_publisher_ = create_publisher<sensor_msgs::msg::PointCloud2>(
       "/global_sparse_cloud", map_qos);
+    sparse_delta_publisher_ = create_publisher<mission_msgs::msg::GlobalSparseMapDelta>(
+      "/global_sparse_map_delta", map_qos);
+    fiducial_primary_publisher_ =
+      create_publisher<mission_msgs::msg::FiducialPrimaryObservation>(
+      "/mission/fiducial_primary_observations", rclcpp::QoS(64).reliable());
     keyframes_publisher_ = create_publisher<visualization_msgs::msg::MarkerArray>(
       "/global_keyframes", map_qos);
 
@@ -1153,6 +1160,22 @@ private:
       match.keyframe_id.local_kf_id, primary.object_id,
       interpretation.primary_visit_id, primary.tags.size(), primary.quality,
       primary.distance_m);
+
+    mission_msgs::msg::FiducialPrimaryObservation primary_event;
+    primary_event.header = match.batch.header;
+    primary_event.drone_id = match.keyframe_id.drone_id;
+    primary_event.map_epoch = match.keyframe_id.map_epoch;
+    primary_event.local_keyframe_id = match.keyframe_id.local_kf_id;
+    primary_event.object_id = primary.object_id;
+    primary_event.visit_id = interpretation.primary_visit_id;
+    primary_event.quality = static_cast<float>(primary.quality);
+    primary_event.distance_m = static_cast<float>(primary.distance_m);
+    fiducial_primary_publisher_->publish(primary_event);
+    if (architecture_telemetry_enabled_) {
+      EmitArchitectureActivity(
+        "orbslam3_server_to_task_server_fiducial_primary",
+        "/mission/fiducial_primary_observations", match.keyframe_id.drone_id);
+    }
 
     orbslam3_multi::FiducialObservation observation;
     observation.arrival_id = match.raw_first_arrival_id;
@@ -2584,6 +2607,37 @@ private:
     return cloud;
   }
 
+  mission_msgs::msg::GlobalSparseMapDelta BuildSparseDelta(
+    const orbslam3_multi::GlobalMapBuildResult & build, const rclcpp::Time & stamp) const
+  {
+    mission_msgs::msg::GlobalSparseMapDelta delta;
+    delta.header.stamp = stamp;
+    delta.header.frame_id = "world";
+    delta.map_revision = build.publication_revision;
+    delta.snapshot = false;
+    const auto append = [](const orbslam3_multi::GlobalSparsePoint & point,
+        std::vector<mission_msgs::msg::GlobalSparsePoint> * output) {
+        mission_msgs::msg::GlobalSparsePoint message;
+        message.drone_id = point.mappoint_id.drone_id;
+        message.map_epoch = point.mappoint_id.map_epoch;
+        message.local_mappoint_id = point.mappoint_id.local_mp_id;
+        message.x = point.x;
+        message.y = point.y;
+        message.z = point.z;
+        message.score = point.score;
+        output->push_back(std::move(message));
+      };
+    delta.upserts.reserve(build.delta_upserts.size());
+    for (const auto & point : build.delta_upserts) {
+      append(point, &delta.upserts);
+    }
+    delta.deletes.reserve(build.delta_deletes.size());
+    for (const auto & point : build.delta_deletes) {
+      append(point, &delta.deletes);
+    }
+    return delta;
+  }
+
   visualization_msgs::msg::MarkerArray BuildKeyFrameMarkers(
     const orbslam3_multi::GlobalMapBuildResult & build,
     const rclcpp::Time & stamp)
@@ -2705,12 +2759,14 @@ private:
     const auto stamp = get_clock()->now();
     const auto cloud = BuildPointCloud(build, stamp);
     const auto markers = BuildKeyFrameMarkers(build, stamp);
+    const auto sparse_delta = BuildSparseDelta(build, stamp);
     sparse_cloud_publisher_->publish(cloud);
+    sparse_delta_publisher_->publish(sparse_delta);
     keyframes_publisher_->publish(markers);
     if (architecture_telemetry_enabled_) {
       EmitArchitectureActivity(
         "server_to_sim_sparse_map",
-        "/global_sparse_cloud + /global_keyframes",
+        "/global_sparse_cloud + /global_sparse_map_delta + /global_keyframes",
         raw.submap_id.drone_id);
     }
     F2_PIPELINE_FLOW_EVENT(
@@ -3036,6 +3092,9 @@ private:
   std::map<std::string, std::chrono::steady_clock::time_point> architecture_last_emit_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr backpressure_publisher_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr sparse_cloud_publisher_;
+  rclcpp::Publisher<mission_msgs::msg::GlobalSparseMapDelta>::SharedPtr sparse_delta_publisher_;
+  rclcpp::Publisher<mission_msgs::msg::FiducialPrimaryObservation>::SharedPtr
+    fiducial_primary_publisher_;
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr keyframes_publisher_;
   rclcpp::Service<orbslam3_msgs::srv::GetGlobalKeyFramePose>::SharedPtr
     global_pose_service_;

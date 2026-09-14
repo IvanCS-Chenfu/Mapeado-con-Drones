@@ -7,7 +7,8 @@
 namespace task_server
 {
 
-DroneRegistry::DroneRegistry(std::vector<std::uint32_t> allowed_drones,
+DroneRegistry::DroneRegistry(
+  std::vector<std::uint32_t> allowed_drones,
   std::uint32_t protocol_version, std::string generator_id,
   std::uint32_t generator_version, std::uint64_t required_capabilities)
 : allowed_drones_(std::move(allowed_drones)), protocol_version_(protocol_version),
@@ -65,7 +66,8 @@ std::vector<mission_msgs::msg::DroneRegistration> DroneRegistry::Snapshot() cons
   return snapshot;
 }
 
-bool DroneRegistry::SameRegistration(const mission_msgs::msg::DroneRegistration & lhs,
+bool DroneRegistry::SameRegistration(
+  const mission_msgs::msg::DroneRegistration & lhs,
   const mission_msgs::msg::DroneRegistration & rhs) const
 {
   return lhs.drone_id == rhs.drone_id && lhs.dimensions_m.x == rhs.dimensions_m.x &&

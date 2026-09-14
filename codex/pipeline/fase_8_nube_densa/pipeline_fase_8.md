@@ -43,8 +43,8 @@ Responsabilidades:
 ```text
 Dron
   cámaras + ORB-SLAM3/wrapper
-  -> envía imágenes/identidad/estado
-  -> mínimo procesamiento
+  -> al crear KF calcula depth/nube local y normales en worker acotado
+  -> envía DenseKF filtrado/rayos + identidad/estado
 
 Servidor
   dense_map_server
@@ -52,7 +52,6 @@ Servidor
     -> delega algoritmos
 
   dense_map_multi
-    -> disparity/depth
     -> DenseKeyFrameDatabase
     -> quality/filtros
     -> occupancy
@@ -70,7 +69,7 @@ Servidor
 
 `dense_map_multi` **no** posee un optimizador paralelo de poses. Las medidas dense de 8J se convierten en constraints en 8K y se resuelven con el optimizador vigente de Fase 3. Solo si la implementación real demuestra un acoplamiento que obliga a una refactorización material se volverá a consultar al usuario antes de extraer una librería compartida de pose graph.
 
-## Entrada de imágenes: dos caminos
+## Entrada depth por KeyFrame
 
 ### A. Mapping sparse normal
 
@@ -79,9 +78,9 @@ camera L/R
   -> StereoSlamNode::GrabStereo
   -> TrackStereo
   -> ORB crea KF_i
-  -> wrapper identifica el KF exacto
-  -> envía L/R exactas + (drone_id,map_epoch,kf_id)
-  -> servidor calcula disparity/depth
+  -> wrapper asocia par exacto y calcula depth local acotado
+  -> DenseKF/rayos locales + (drone_id,map_epoch,kf_id)
+  -> servidor valida, integra y fusiona
   -> DenseSubcloud_i local a KF_i
 ```
 
@@ -91,13 +90,16 @@ No se asocia por timestamp aproximado ni a un KF cercano. La nube nace directame
 
 ```text
 topics camera L/R normales
-  -> servidor
-  -> depth
-  -> (a) solo occupancy/seguridad
-  -> o (b) DenseHQCapture estacionaria
+  -> worker local del dron asociado al KF o captura HQ
+  -> depth/normales/rayos locales acotados
+  -> DenseKF filtrado al servidor
+  -> (a) occupancy/seguridad por evidencia reversible
+  -> o (b) integración de DenseHQCapture estacionaria
 ```
 
-La captura HQ no necesita que ORB cree un KF.
+La captura HQ no necesita que ORB cree un KF, pero su cálculo sigue siendo local
+y acotado; el servidor solo recibe su producto referido a la pose/captura y lo
+integra.
 
 ## Fuente de verdad y almacenamiento
 
@@ -110,7 +112,10 @@ DenseKeyFrameDatabase
 
 Las imágenes se consumen y se descartan. Si una nube queda mal, el sistema genera una recaptura/densificación; no se conserva un archivo de imágenes para reprocesar indefinidamente.
 
-La nube global **no** es una concatenación persistente adicional de todos los puntos raw. Se construyen productos derivados que añaden información.
+La nube global **no** es una concatenación persistente adicional de todos los
+puntos raw. Se construyen productos derivados que añaden información. El dron
+no fusiona ni optimiza: solo calcula el producto local por KF, normals para la
+orientacion de Fase 6 y lo entrega filtrado al servidor.
 
 ## Dos escalas voxel complementarias
 

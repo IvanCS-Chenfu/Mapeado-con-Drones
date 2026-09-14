@@ -108,6 +108,13 @@ gap 2 s. Cada primary se entrega al `FiducialAnchorManager` existente mediante
 la subscription, buffer, conversion body-camera, parametros y grafo GT
 fiducial; el GT de control/Fase 5 permanece independiente.
 
+Fase 6 publica ademas `/mission/fiducial_primary_observations` inmediatamente
+despues de validar la interpretacion primary y antes de entregarla al backend.
+El mensaje permite que `task_server` interrumpa un barrido exterior si el
+objeto aun no habia sido visto por ese `(drone_id,map_epoch)`. Es una frontera
+de coordinacion: no modifica el `FiducialAnchorManager`, la cola secundaria, el
+solver ni la politica de commit de Fase 3.
+
 3S añade el argumento launch `log_level`. `multi_dron.launch.py` pasa `error`
 cuando `fase3_logs_terminal=false` e `info` cuando esta activo. Asi se ocultan
 los diagnosticos `[F3*]` sin silenciar errores o fallos reales del nodo.
@@ -126,6 +133,7 @@ publishers:    /global_mapping/backpressure_active
                /global_mapping/flow_events
                /global_sparse_cloud
                /global_keyframes
+               /mission/fiducial_primary_observations
 ```
 
 ## Validacion

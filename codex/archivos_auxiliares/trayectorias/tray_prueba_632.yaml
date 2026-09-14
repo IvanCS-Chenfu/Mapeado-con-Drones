@@ -1,0 +1,14 @@
+name: fase_6I_free_discreto_anclado
+description: "GT ancla ambos drones ante fiducial 2 y cruza voxeles para validar FREE discreto reversible."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 240.0}
+steps:
+  - {name: espera_anclaje_inicial, type: wait, seconds: 25.0}
+  - name: cruce_lateral_voxeles_tras_ancla
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [-0.75, -10.0, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.75, -10.0, 1.3], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: observacion_fiducial_y_reintegracion_free, type: wait, seconds: 50.0}

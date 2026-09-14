@@ -1,0 +1,32 @@
+name: fase_6N_depth_coverage_anclado_gt_d1
+description: "D1 llega con GT al fiducial 2, espera evidencia de anclaje y explora su subROI para producir KFs depth posteriores y voxeles reversibles."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 420.0}
+steps:
+  - {name: espera_spawn, type: wait_for_bool, topic: /fiducial_spawn_ready, expected: true, timeout_sec: 90.0}
+  - {name: espera_registro, type: wait, seconds: 22.0}
+  - name: salida_exterior_oeste_d1
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, navigation_source: GT, retry_on_rejected: true, tipo_trayectoria: 0, target: [-12.0, -8.0, 1.5], yaw_deg: 90.0, tx: 10.0, ty: 10.0, tz: 10.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - name: salida_exterior_sur_d1
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, navigation_source: GT, retry_on_rejected: true, tipo_trayectoria: 0, target: [-12.0, -12.0, 1.5], yaw_deg: 90.0, tx: 10.0, ty: 10.0, tz: 8.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - name: aproximacion_sur_fiducial_2_d1
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, navigation_source: GT, retry_on_rejected: true, tipo_trayectoria: 0, target: [0.0, -12.0, 1.5], yaw_deg: 90.0, tx: 18.0, ty: 10.0, tz: 8.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - name: llegada_gt_fiducial_2_d1
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, navigation_source: GT, retry_on_rejected: true, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 8.0, ty: 8.0, tz: 8.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: confirma_fiducial_2, type: wait_for_navigation_pose, drone_id: 1, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, position_tolerance_m: 0.15, yaw_tolerance_deg: 3.0, hold_sec: 1.0, timeout_sec: 24.0}
+  - {name: ventana_anclaje_orb, type: wait, seconds: 25.0}
+  - {name: activa_coverage_d1, type: call_set_bool, service: /mission/set_coverage_execution_enabled, value: true, timeout_sec: 20.0}
+  - {name: explora_subroi_con_depth, type: wait, seconds: 100.0}

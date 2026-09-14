@@ -1,0 +1,15 @@
+name: fase_6I_temporizado_mru_gt_fiducial_2
+description: "GT completa el anclaje de ambos drones y D1 ejecuta segmentos D* temporizados por task_server con factor 2; D2 permanece en hover."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 300.0}
+steps:
+  - {name: espera_registro_y_tareas, type: wait, seconds: 22.0}
+  - name: anclaje_fiducial_2
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.3], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: habilitar_ejecucion_automatica_d1, type: call_set_bool, service: /mission/set_coverage_execution_enabled, value: true, timeout_sec: 20.0}
+  - {name: observacion_segmentos_temporizados, type: wait, seconds: 70.0}

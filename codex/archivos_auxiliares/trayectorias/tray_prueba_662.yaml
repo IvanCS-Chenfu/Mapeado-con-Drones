@@ -1,0 +1,14 @@
+name: fase_6H_6I_escape_inicial_d2_gt
+description: "D2 se ancla con GT al fiducial 2. La exploracion automatica debe usar el escape inicial local de D* y ejecutar el primer candidato UNKNOWN seguro."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 335.0}
+steps:
+  - {name: espera_registro_y_tareas, type: wait, seconds: 22.0}
+  - name: anclaje_fiducial_2_d2
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.3], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: habilitar_exploracion_automatica_d2, type: call_set_bool, service: /mission/set_coverage_execution_enabled, value: true, timeout_sec: 20.0}
+  - {name: observar_escape_plan_ejecucion_y_coverage_d2, type: wait, seconds: 220.0}

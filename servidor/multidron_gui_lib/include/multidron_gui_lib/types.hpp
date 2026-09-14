@@ -79,6 +79,7 @@ enum class VoxelState : std::uint8_t
   Unknown = 0,
   Free = 1,
   Occupied = 2,
+  Reserved = 3,
 };
 
 struct VoxelVisual
@@ -94,11 +95,22 @@ struct VoxelVisual
 
 struct TaskVisual
 {
+  struct CoverageInterval
+  {
+    QVector3D start_world;
+    QVector3D end_world;
+  };
+
   std::uint32_t drone_id = 0;
   std::string task_id;
   std::string task_type;
+  std::string region_id;
   std::string state;
   std::string detail;
+  std::uint64_t state_revision = 0;
+  float progress = 0.0F;
+  bool progress_known = false;
+  std::vector<CoverageInterval> coverage_intervals;
 };
 
 struct MissionRegionVisual

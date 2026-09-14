@@ -282,7 +282,7 @@ Generar y coordinar misiones de mapeo sparse desde `tarea_principal.yaml`, ROI,
 `hard_flight_volume = ROI + mapping_hysteresis`, trayectorias cortas,
 percepción local de obstáculos y reservas espaciales entre drones.
 
-La secuencia autoritativa es 6A-6O. El servidor usa paquetes independientes
+La secuencia autoritativa es 6A-6O y 6P como integracion final. El servidor usa paquetes independientes
 `task_server`/`task_lib`, cada dron `task_manager`/`task_manager_lib`, y los
 contratos pertenecen a `mission_msgs`. No existen `flight_bounds`,
 `tasks_per_level` ni rutas rígidas A-B-C: cada nivel se divide en cuatro

@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(mission_msgs REQUIRED)
 find_package(orbslam3_msgs REQUIRED)
 find_package(orbslam3_multi REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -28,7 +29,7 @@ target_link_libraries(fiducial_object_interpreter Eigen3::Eigen yaml-cpp)
 add_executable(global_map_server src/global_map_server.cpp)
 target_include_directories(global_map_server PRIVATE include)
 ament_target_dependencies(
-  global_map_server geometry_msgs orbslam3_msgs orbslam3_multi rclcpp sensor_msgs
+  global_map_server geometry_msgs mission_msgs orbslam3_msgs orbslam3_multi rclcpp sensor_msgs
   std_msgs visualization_msgs)
 target_link_libraries(global_map_server Eigen3::Eigen fiducial_object_interpreter)
 

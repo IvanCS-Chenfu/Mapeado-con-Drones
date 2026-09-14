@@ -10,6 +10,7 @@
 #include <QOpenGLShaderProgram>
 #include <QOpenGLWidget>
 #include <QPoint>
+#include <QSet>
 
 #include <memory>
 #include <optional>
@@ -34,7 +35,10 @@ public:
   void SetFiducialsVisible(bool visible);
   void SetTrajectoriesVisible(bool visible);
   void SetVoxelsVisible(bool visible);
-  void SetMissionRegionsVisible(bool visible);
+  void SetOccupiedVoxelsVisible(bool visible);
+  void SetFreeVoxelsVisible(bool visible);
+  void SetReservedVoxelsVisible(bool visible);
+  void SetVisibleMissionRegions(const QSet<QString> & region_ids);
   void SelectMissionRegion(const QString & region_id);
 
   void SetScoreColorEnabled(bool enabled);
@@ -102,6 +106,8 @@ private:
   std::vector<Vertex> BuildTrajectoryVertices() const;
   std::vector<Vertex> BuildVoxelWireVertices() const;
   std::vector<Vertex> BuildVoxelFillVertices() const;
+  std::vector<Vertex> BuildMissionRegionWireVertices() const;
+  std::vector<Vertex> BuildMissionRegionFillVertices() const;
   std::vector<Vertex> BuildSelectionVertices() const;
   std::vector<Vertex> BuildSelectionFillVertices() const;
 
@@ -143,7 +149,10 @@ private:
   RenderLayer fiducial_render_layer_{"Fiducials"};
   RenderLayer trajectory_render_layer_{"Trajectories"};
   RenderLayer voxel_render_layer_{"Voxels", false};
-  RenderLayer mission_region_render_layer_{"Regiones de misión"};
+  bool occupied_voxels_visible_ = true;
+  bool free_voxels_visible_ = true;
+  bool reserved_voxels_visible_ = true;
+  std::uint64_t voxel_style_revision_ = 0;
   bool score_color_enabled_ = false;
   bool score_filter_enabled_ = false;
   float score_threshold_ = 0.0F;
@@ -173,6 +182,8 @@ private:
   GpuLayer trajectory_layer_;
   GpuLayer voxel_wire_layer_;
   GpuLayer voxel_fill_layer_;
+  GpuLayer mission_region_wire_layer_;
+  GpuLayer mission_region_fill_layer_;
   GpuLayer selection_layer_;
   GpuLayer selection_fill_layer_;
 
@@ -183,9 +194,12 @@ private:
   const void * trajectory_identity_ = nullptr;
   const void * voxel_identity_ = nullptr;
   const void * mission_region_identity_ = nullptr;
+  const void * task_identity_ = nullptr;
+  QSet<QString> visible_mission_region_ids_;
   bool sparse_style_dirty_ = true;
   std::uint64_t sparse_style_revision_ = 0;
   bool selection_dirty_ = true;
+  bool mission_regions_dirty_ = true;
   bool grid_uploaded_ = false;
 };
 

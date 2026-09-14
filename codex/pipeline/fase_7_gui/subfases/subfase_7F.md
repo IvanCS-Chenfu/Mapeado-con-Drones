@@ -53,6 +53,9 @@ El snapshot tiene `/global_keyframes` orientado a RViz y Fase 5 todavía era doc
 - Dron perdido/stale/sin pose nueva válida: conservar última pose `world`
   válida, mostrar tag `PERDIDO` y dibujar ejes/representación más transparentes;
   no borrar el dron ni moverlo a cero.
+- La GUI consume exclusivamente la `NavigationState` del mux: en simulación
+  puede mostrar la fuente canónica `GT`; en real usa ORB por defecto. Para ORB
+  muestra W solo cuando está anclada y autoritativa; no consulta GT directamente.
 
 ## Archivos permitidos a modificar
 
@@ -114,6 +117,12 @@ Los nombres de componentes nuevos definidos por este contrato pueden implementar
 6. Añadir toggles independientes `Drones`, `KeyFrames`, `Fiducials`.
 7. Probar aparición/desaparición dinámica de drones/submapas sin recrear toda la ventana.
 8. Añadir markers `GUI-DRONE-POSE`, `GUI-KF-UPDATE`, `GUI-FIDUCIAL-UPDATE` con counts/IDs agregados.
+9. Al activar la capa voxel, dibujar exclusivamente las celdas `OCCUPIED` y
+   `FREE` solicitadas por sus toggles, sin retícula 2D/3D adicional: el
+   rendimiento de interacción prevalece sobre la visualización de la
+   discretización espacial.
+10. Mostrar en tarjetas/inspector la fuente canonica real: `GT` para
+    `POSE_SOURCE_GT_FORCED`, `ORB` para ORB y `INVALID` solo si el mensaje lo es.
 
 ## Cambios prohibidos
 

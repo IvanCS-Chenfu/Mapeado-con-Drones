@@ -1,64 +1,53 @@
-# Subfase 6L - Proteccion visual, STOP y VISUAL_RETREAT
+# Subfase 6L - TRACKING_RISK y reorientacion local
 
 ## Estado
 
-```text
-sin hacer
-```
+CONSEGUIDA para deteccion direccional, STOP y reorientacion local. La migracion
+la integra con la inspeccion de fachada sin cambiar su autoridad.
 
-## Dependencia
+## Deteccion
 
-6F, 6I-6K y auditoria del recovery/soporte visual final de Fase 5.
+Para LEFT, RIGHT, TOP y BOTTOM se examina una region solapada que ocupa el 75 %
+del ancho o alto de la imagen. Si no contiene ningun keypoint ORB usado para
+tracking, el dron se mueve o gira hacia ella y la condicion persiste tres
+frames, se activa `TRACKING_RISK`.
 
-## Objetivo tecnico
+Con el flag de debug de Fase 6 se publica/muestra el frame con los keypoints y
+la region pobre marcada. Esta imagen no pertenece a la GUI F7.
 
-Crear fast paths locales que eviten colision inmediata y prevengan
-`TRACKING_LOST`, sin duplicar el recovery de F5.
+## Protocolo
 
-## TRACKING_RISK
+1. El dron ordena STOP local sin esperar permiso del servidor.
+2. Comunica el evento para retirar lifecycle, ruta y reserva movil.
+3. Reorienta yaw o pitch en incrementos configurables de 25 grados, evitando
+   exclusivamente el primer sector pobre.
+4. Clasifica esa direccion como precaucion local.
+5. En una inspeccion de fachada, restaura despues el yaw/pitch de fachada.
 
-`VisualRiskEstimator` no usa solo numero de features. Considera distribucion
-espacial, movimiento/yaw/pitch previstos, flujo disponible y tendencia para
-estimar soporte visible futuro. Umbrales e historial quedan `A MEDIR`.
+Yaw y pitch son autoridad local del dron durante la maniobra. El servidor no
+cancela una reorientacion porque no tiene corredor XYZ.
 
-Ante riesgo: cancelar plan normal, ejecutar `VISUAL_RETREAT` por la trayectoria
-realmente recorrida hasta el ultimo estado visual estable, informar contexto y
-penalizar zona/direccion/orientacion para no repetir el intento.
+## Integracion con depth bajo demanda
 
-## STOP
-
-Depth local puede ordenar STOP sin permiso del servidor. `dron_individual`
-genera frenado dinamico desde estado actual, sin salto instantaneo a velocidad
-cero, y termina en hover. Despues `task_manager` reporta, servidor mantiene
-HOLD, integra obstaculo y replanifica.
-
-Si depth se vuelve peligroso durante retreat: `STOP > VISUAL_RETREAT`. Si la
-prevencion falla y llega LOST, se usa recovery F5; despues puede intervenir
-ANCHOR_SUBMAP en 6N.
-
-## Cambios requeridos
-
-1. Auditar señales reales F5 y definir estimator predictivo en `task_manager_lib`.
-2. Mantener historial corto de estados recorridos y calidad visual.
-3. Implementar decision local/cancelacion y reportes `mission_msgs`.
-4. Extender `dron_individual/lib_tray` con STOP y retreat dinamicos.
-5. Priorizar safety y aislarlo de red, voxelizacion y grafo.
-6. Registrar contexto del intento y evitar ciclos riesgo-retreat-retry.
-7. Actualizar telemetria con counts/distancia/tiempo, sin samples masivos.
+Si `TRACKING_RISK` ocurre al mirar el objetivo de una inspeccion, solo el frame
+exacto que dispara la persistencia se usa como segunda captura depth. Un buffer
+estereo local y acotado permite recuperarlo por `frame_id`; no se procesan ni se
+transmiten los frames anteriores. Ausencia de inliers no implica espacio FREE:
+solo disparidad valida genera rayos.
 
 ## Limites
 
-No interpretar MPs en el controlador, no invertir velocidad sin seguir corredor,
-no esperar servidor para STOP y no crear segundo mecanismo LOST.
+No se implementa `VISUAL_RETREAT` ni politica permanente de zonas prohibidas.
+LOST conserva el HOLD de Fase 5 durante 10 s y no hace fallback ORB->GT.
 
 ## Pruebas
 
-Obstaculo depth inesperado y frenado; risk antes de LOST; features laterales;
-retreat sobre recorrido real; transicion suave; riesgo depth durante retreat;
-ruta/orientacion alternativa; LOST/recovery F5. Medir braking y thresholds con
-GUI+Gazebo+grafo.
+- Persistencia y regiones LEFT/RIGHT/TOP/BOTTOM.
+- STOP y giro local sin cambio de `map_epoch`.
+- Inspeccion pobre: confirmar que el frame disparador es la segunda captura y
+  que se restaura la orientacion de fachada.
 
 ## Criterio de exito
 
-STOP siempre domina y alcanza hover seguro; TRACKING_RISK actua preventivamente,
-retreat no abandona corredor y el sistema no repite indefinidamente el intento.
+El riesgo se detecta antes de LOST, la parada es segura, la correccion evita el
+sector pobre y la trayectoria/coverage no quedan huerfanos.

@@ -12,17 +12,23 @@ Config/Launch: `config/*.yaml`, `launch/` con `orbslam_use.launch.py`.
 Relación: consume `lib_tray`, es lanzado por `simulacion_dron`.
 
 Fase 5H hace que `gen_tray` y `control_calcular_fuerzas` consuman exclusivamente
-`orbslam/navigation_state`. `navigation_state_mux` selecciona ORB o
-`GT_FALLBACK` y publica el estado comun sin filtrar ni predecir. La estimacion
-ORB corregida a 50 Hz llega ya preparada desde `orbslam3_ros2`; GT usa pose y
+`orbslam/navigation_state`. `navigation_state_mux` publica la fuente canonica
+ORB o GT forzado de simulacion, sin filtrar ni predecir. La estimacion ORB
+corregida a 50 Hz llega ya preparada desde `orbslam3_ros2`; GT usa pose y
 velocidad exactas. Tambien ofrece el servicio namespaced
 `control/set_trajectory_active` para congelar la fuente durante cada goal.
 Tres servicios `Trigger` permiten preparar por goal `none|gt|orb`; `none`
 hereda `phase5_navigation_source` y la seleccion pendiente se aplica al abrir
 una frontera. ORB sigue cualificandose en sombra durante GT_FORCED.
-`GT -> ORB` solo ocurre en frontera; una perdida permite `ORB -> GT` inmediata y
-retiene GT hasta terminar sin cambiar el frame O activo. La cualificacion usa
+`GT -> ORB` solo ocurre en frontera. Una perdida ORB no conmuta a GT: el mux
+publica `PERDIDO`, la trayectoria conserva su ultima referencia durante
+`orb_loss_hold_sec` (10 s por defecto) y se aborta. La cualificacion usa
 tracking+anchor consecutivos, no errores frente a GT.
+
+Durante GT_FORCED, el mux conserva pose y velocidad GT para el vuelo, pero
+propaga `global_valid` y `AUTHORITATIVE` solo despues del anclaje ORB en sombra
+del epoch actual. Asi los consumidores de mision no asignan trabajo por el
+mero hecho de que exista ground truth.
 
 La prueba 253 demostro que un predictor uniforme en el mux desestabiliza GT; esa
 responsabilidad ya no pertenece a este paquete.
@@ -61,9 +67,8 @@ omega de movimiento publicadas por `orbslam3_ros2`, sin filtros compensatorios.
 La ventana comun 266 deja torque total disipativo (`-0.001945 J`), aunque el
 ciclo tardio moderate vuelve a crecer y fuerza fallback; no se cambian gains.
 
-Los goals absolutos pueden usar global valida, un frame C_T_W cacheado del mismo
-epoch o el fallback temporal Fase 5. El perfil general conserva fallback
-desactivado; `multi_dron.launch.py` lo activa explicitamente para la validacion.
+Los goals absolutos usan la pose canonica valida de su fuente. El perfil general
+y `multi_dron.launch.py` conservan el fallback GT legado desactivado.
 
 Para pruebas dirigidas existe
 `use_legacy_gt_goal_policy_for_simulation=false`. Al activarlo se omite por
@@ -87,6 +92,17 @@ La configuracion vigente separa `physical.yaml`, `control.yaml`,
 `hardware.yaml`, `tray_dron.yaml` y `usar_veltrap` ya no forman parte del
 runtime. Standalone usa `use_sim_time=false`; Simulacion lo sobrescribe a
 `true`. Los procesos ORB limitan arenas glibc con `MALLOC_ARENA_MAX=2`.
+
+Para 6I, `trajectory.yaml` declara `waypoint_blend_sec=3.0`. El launch puede
+sustituirlo y lo entrega a `gen_tray`: las rutas con varios destinos usan
+empalmes Pol3 C1 entre guías interiores; un goal directo y STOP conservan el
+perfil Pol3 de un único destino.
+
+`gen_tray` publica el estado transient-local `control/trajectory_active` al
+aceptar y terminar cualquier goal, con independencia de su cliente. Esta es la
+fuente comun usada por `task_manager` para no iniciar `InspectFacade` mientras
+otra trayectoria fisica sigue en curso; no cambia las reglas de sustitucion
+del STOP.
 
 `calibration.yaml` expresa un SE(3) `B_T_C` completo. Para la camara optica
 frontal usa traslacion `(0.10,0.03,0.03) m` en body y

@@ -1,0 +1,10 @@
+std_msgs/Header header
+string mission_id
+uint64 config_revision
+string task_id
+uint32 drone_id
+uint64 expected_state_revision
+uint8 state
+float32 progress
+bool progress_known
+string detail

@@ -1,0 +1,15 @@
+name: fase_6L_6M_primer_sector_y_precaucion_gt_d1_ejecutable
+description: "Valida STOP visual, precaucion espacial y reorientacion con la ejecucion de coverage habilitada explicitamente tras el anclaje GT de D1."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 375.0}
+steps:
+  - {name: espera_registro_y_mapa, type: wait, seconds: 22.0}
+  - name: anclaje_fiducial_2_d1_gt
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: espera_anclaje_y_evidencia_orb, type: wait, seconds: 18.0}
+  - {name: habilitar_coverage_para_d1, type: call_set_bool, service: /mission/set_coverage_execution_enabled, value: true, timeout_sec: 20.0}
+  - {name: observar_primer_sector_stop_reorientacion, type: wait, seconds: 95.0}

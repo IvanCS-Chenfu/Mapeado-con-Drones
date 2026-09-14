@@ -1,0 +1,16 @@
+name: gui_ancho_inicial_tarjetas_d1_gt
+description: "D1 llega con GT al fiducial 2 y activa coverage para revisar que el dock Drones abre al ancho natural de una tarjeta con tarea."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 2100.0}
+steps:
+  - {name: espera_registro_y_mapa, type: wait, seconds: 22.0}
+  - name: anclaje_fiducial_2_d1_gt
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: habilitar_coverage_d1, type: call_set_bool, service: /mission/set_coverage_execution_enabled, value: true, timeout_sec: 20.0}
+  - {name: esperar_tarjeta_con_tarea, type: wait, seconds: 20.0}
+  - {name: revision_manual_ancho_dock, type: wait_for_bool, topic: /codex/gui_drone_dock_width_review_done, expected: true, timeout_sec: 1800.0}
+  - {name: cierre_revision, type: wait, seconds: 3.0}

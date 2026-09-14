@@ -3,11 +3,13 @@
 #include <chrono>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <future>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -27,6 +29,9 @@
 #include "std_srvs/srv/set_bool.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "dron_individual/action/tray_action.hpp"
+#include "mission_msgs/msg/trajectory_plan.hpp"
+#include "mission_msgs/msg/visual_risk_event.hpp"
+#include "mission_msgs/srv/plan_route.hpp"
 #include "orbslam3_msgs/msg/navigation_state.hpp"
 
 #include <yaml-cpp/yaml.h>
@@ -39,6 +44,9 @@ public:
   using TrayAction = dron_individual::action::TrayAction;
   using GoalHandleTray = rclcpp_action::ClientGoalHandle<TrayAction>;
   using ActionClientTray = rclcpp_action::Client<TrayAction>;
+  using PlanRoute = mission_msgs::srv::PlanRoute;
+  using TrajectoryPlan = mission_msgs::msg::TrajectoryPlan;
+  using VisualRiskEvent = mission_msgs::msg::VisualRiskEvent;
 
   ScenarioRunnerNode()
   : Node("scenario_runner_node")
@@ -84,6 +92,13 @@ public:
             previous ? "true" : "false",
             mapping_backpressure_topic_.c_str());
         }
+      });
+    visual_risk_subscription_ = create_subscription<VisualRiskEvent>(
+      "/mission/visual_risk_events", rclcpp::QoS(20).reliable(),
+      [this](const VisualRiskEvent::SharedPtr event)
+      {
+        std::lock_guard<std::mutex> lock(visual_risk_events_mutex_);
+        visual_risk_events_by_drone_[event->drone_id] = *event;
       });
 
     RCLCPP_INFO(
@@ -177,6 +192,12 @@ public:
         ok = ExecuteWaitForNavigationPoseStep(step);
       } else if (step_type == "pitch") {
         ok = ExecutePitchStep(step);
+      } else if (step_type == "plan_route") {
+        ok = ExecutePlanRouteStep(step);
+      } else if (step_type == "plan_route_relative_until_visual_risk") {
+        ok = ExecutePlanRouteRelativeUntilVisualRiskStep(step);
+      } else if (step_type == "wait_for_plan_terminal") {
+        ok = ExecuteWaitForPlanTerminalStep(step);
       } else if (step_type == "move") {
         ok = ExecuteMoveStep(step);
       } else {
@@ -239,6 +260,7 @@ private:
     bool absoluto_z = true;
     bool absoluto_yaw = true;
     bool expect_rejected = false;
+    bool retry_on_rejected = false;
     std::string navigation_source = "none";
 
     double timeout_sec = 120.0;
@@ -254,10 +276,31 @@ private:
     bool completed = false;
   };
 
+  struct DispatchedPlan
+  {
+    std::string trajectory_id;
+    std::string task_id;
+  };
+
   enum class GoalBatchOutcome
   {
     Completed,
     Failed,
+  };
+
+  enum class PlanTerminal
+  {
+    Completed,
+    StopCompleted,
+    VisualReorientationCompleted,
+    Failed,
+  };
+
+  struct AuthorizedWorldPose
+  {
+    Eigen::Vector3d position{Eigen::Vector3d::Zero()};
+    std::uint64_t map_epoch{0};
+    std::uint8_t pose_source{0};
   };
 
 private:
@@ -269,7 +312,12 @@ private:
   std::string mapping_backpressure_topic_;
 
   std::map<std::string, ActionClientTray::SharedPtr> action_clients_;
+  std::map<std::uint32_t, DispatchedPlan> dispatched_plans_by_drone_;
+  std::mutex dispatched_plans_mutex_;
+  std::map<std::uint32_t, VisualRiskEvent> visual_risk_events_by_drone_;
+  std::mutex visual_risk_events_mutex_;
   rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr mapping_backpressure_sub_;
+  rclcpp::Subscription<VisualRiskEvent>::SharedPtr visual_risk_subscription_;
   std::atomic<bool> mapping_backpressure_active_{false};
 
 private:
@@ -671,6 +719,411 @@ private:
     return false;
   }
 
+  bool ExecutePlanRouteStep(const YAML::Node & step)
+  {
+    const int drone_id = YamlGet<int>(step, "drone_id", 1);
+    const std::string task_id = YamlGet<std::string>(step, "task_id", "scenario_plan_route");
+    const bool dispatch_execution = YamlGet<bool>(step, "dispatch_execution", false);
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 20.0);
+    if (drone_id <= 0 || timeout_sec <= 0.0 || !step["target"] ||
+      !step["target"].IsSequence() || step["target"].size() < 3U)
+    {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-ERROR] plan_route requires drone_id, target [x,y,z] and timeout_sec > 0");
+      return false;
+    }
+    return RequestPlanRoute(
+      drone_id, task_id,
+      Eigen::Vector3d(
+        step["target"][0].as<double>(), step["target"][1].as<double>(), step["target"][2].as<double>()),
+      dispatch_execution, timeout_sec, "PLAN-DONE", false);
+  }
+
+  bool ExecutePlanRouteRelativeUntilVisualRiskStep(const YAML::Node & step)
+  {
+    const int drone_id = YamlGet<int>(step, "drone_id", 1);
+    const std::string task_id = YamlGet<std::string>(step, "task_id", "scenario_plan_route");
+    const bool dispatch_execution = YamlGet<bool>(step, "dispatch_execution", true);
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 20.0);
+    const double terminal_timeout_sec = YamlGet<double>(step, "terminal_timeout_sec", 120.0);
+    const int max_steps = YamlGet<int>(step, "max_steps", 12);
+    const auto offset_node = step["offset_world"];
+    if (drone_id <= 0 || timeout_sec <= 0.0 || terminal_timeout_sec <= 0.0 || max_steps <= 0 ||
+      !dispatch_execution || !offset_node || !offset_node.IsSequence() || offset_node.size() < 3U)
+    {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-PLAN-RELATIVE-ERROR] requires drone_id, offset_world [x,y,z], "
+        "dispatch_execution=true, positive timeouts and max_steps");
+      return false;
+    }
+
+    const Eigen::Vector3d offset(
+      offset_node[0].as<double>(), offset_node[1].as<double>(), offset_node[2].as<double>());
+    if (!offset.allFinite() || offset.norm() <= 0.0) {
+      RCLCPP_ERROR(get_logger(), "[SCENARIO-RUNNER-PLAN-RELATIVE-ERROR] offset_world must be finite and nonzero");
+      return false;
+    }
+
+    std::optional<std::uint64_t> expected_epoch;
+    for (int step_index = 1; step_index <= max_steps; ++step_index) {
+      AuthorizedWorldPose origin;
+      if (!WaitForAuthorizedWorldPose(
+          drone_id, timeout_sec, expected_epoch, &origin))
+      {
+        return false;
+      }
+      if (!expected_epoch.has_value()) {
+        expected_epoch = origin.map_epoch;
+      }
+      const Eigen::Vector3d target = origin.position + offset;
+      RCLCPP_WARN(
+        get_logger(),
+        "[SCENARIO-RUNNER-PLAN-RELATIVE] drone=%d index=%d/%d epoch=%lu source=%u "
+        "origin=(%.3f,%.3f,%.3f) offset=(%.3f,%.3f,%.3f) target=(%.3f,%.3f,%.3f)",
+        drone_id, step_index, max_steps, static_cast<unsigned long>(origin.map_epoch),
+        static_cast<unsigned>(origin.pose_source), origin.position.x(), origin.position.y(),
+        origin.position.z(), offset.x(), offset.y(), offset.z(), target.x(), target.y(), target.z());
+      if (!RequestPlanRoute(
+          drone_id, task_id, target, true, timeout_sec, "PLAN-RELATIVE-DONE", true))
+      {
+        return false;
+      }
+
+      const auto terminal = WaitForPlanTerminal(
+        static_cast<std::uint32_t>(drone_id), terminal_timeout_sec);
+      if (terminal == PlanTerminal::Failed) {
+        return false;
+      }
+      if (terminal == PlanTerminal::VisualReorientationCompleted) {
+        RCLCPP_WARN(
+          get_logger(),
+          "[SCENARIO-RUNNER-PLAN-RELATIVE-RISK-DONE] drone=%d index=%d/%d epoch=%lu",
+          drone_id, step_index, max_steps, static_cast<unsigned long>(*expected_epoch));
+        return true;
+      }
+    }
+
+    RCLCPP_ERROR(
+      get_logger(),
+      "[SCENARIO-RUNNER-PLAN-RELATIVE-RISK-NOT-OBSERVED] drone=%d max_steps=%d epoch=%lu",
+      drone_id, max_steps, static_cast<unsigned long>(expected_epoch.value_or(0)));
+    return false;
+  }
+
+  bool RequestPlanRoute(
+    const int drone_id,
+    const std::string & task_id,
+    const Eigen::Vector3d & target,
+    const bool dispatch_execution,
+    const double timeout_sec,
+    const std::string & success_marker,
+    const bool retry_transient_canonical_pose)
+  {
+    auto client = create_client<PlanRoute>("/mission/plan_route");
+    const auto started = std::chrono::steady_clock::now();
+    while (rclcpp::ok() && !client->wait_for_service(200ms)) {
+      if (std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count() >=
+        timeout_sec)
+      {
+        RCLCPP_ERROR(get_logger(), "[SCENARIO-RUNNER-PLAN-TIMEOUT] service=/mission/plan_route");
+        return false;
+      }
+    }
+    while (rclcpp::ok()) {
+      auto request = std::make_shared<PlanRoute::Request>();
+      request->drone_id = static_cast<std::uint32_t>(drone_id);
+      request->target_world.x = target.x();
+      request->target_world.y = target.y();
+      request->target_world.z = target.z();
+      request->task_id = task_id;
+      request->dispatch_execution = dispatch_execution;
+      auto future = client->async_send_request(request);
+      while (rclcpp::ok() && future.wait_for(100ms) != std::future_status::ready) {
+        if (std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count() >=
+          timeout_sec)
+        {
+          RCLCPP_ERROR(get_logger(), "[SCENARIO-RUNNER-PLAN-TIMEOUT] response=/mission/plan_route");
+          return false;
+        }
+      }
+      if (!rclcpp::ok()) {
+        return false;
+      }
+      const auto response = future.get();
+      if (!response->accepted) {
+        const bool transient_pose = response->reason == "dron sin pose canonica autorizada";
+        if (retry_transient_canonical_pose && transient_pose &&
+          std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count() < timeout_sec)
+        {
+          RCLCPP_WARN(
+            get_logger(),
+            "[SCENARIO-RUNNER-PLAN-RELATIVE-POSE-RETRY] drone=%d target=(%.3f,%.3f,%.3f)",
+            drone_id, target.x(), target.y(), target.z());
+          std::this_thread::sleep_for(100ms);
+          continue;
+        }
+        RCLCPP_ERROR(
+          get_logger(), "[SCENARIO-RUNNER-PLAN-REJECT] drone=%d reason='%s'",
+          drone_id, response->reason.c_str());
+        return false;
+      }
+      if (dispatch_execution) {
+        std::lock_guard<std::mutex> lock(dispatched_plans_mutex_);
+        dispatched_plans_by_drone_[static_cast<std::uint32_t>(drone_id)] = DispatchedPlan{
+          response->plan.trajectory_id, response->plan.task_id};
+      }
+      RCLCPP_WARN(
+        get_logger(),
+        "[SCENARIO-RUNNER-%s] drone=%d trajectory_id=%s target=(%.3f,%.3f,%.3f) dispatch=%s reason='%s'",
+        success_marker.c_str(), drone_id, response->plan.trajectory_id.c_str(), target.x(), target.y(),
+        target.z(), dispatch_execution ? "true" : "false", response->reason.c_str());
+      return true;
+    }
+    return false;
+  }
+
+  bool WaitForAuthorizedWorldPose(
+    const int drone_id,
+    const double timeout_sec,
+    const std::optional<std::uint64_t> expected_epoch,
+    AuthorizedWorldPose * pose)
+  {
+    struct PoseState
+    {
+      std::mutex mutex;
+      bool received{false};
+      AuthorizedWorldPose pose;
+    };
+    const auto state = std::make_shared<PoseState>();
+    const std::string topic = "/" + namespace_base_ + "_" + std::to_string(drone_id) +
+      "/orbslam/navigation_state";
+    const auto subscription = create_subscription<orbslam3_msgs::msg::NavigationState>(
+      topic, rclcpp::QoS(20).reliable(),
+      [state](const orbslam3_msgs::msg::NavigationState::SharedPtr message)
+      {
+        const Eigen::Vector3d world_position(
+          message->w_t_body.position.x, message->w_t_body.position.y, message->w_t_body.position.z);
+        const bool authoritative = message->global_valid &&
+          message->global_status == orbslam3_msgs::msg::NavigationState::GLOBAL_STATUS_AUTHORITATIVE;
+        if (!authoritative || !world_position.allFinite()) {
+          return;
+        }
+        std::lock_guard<std::mutex> lock(state->mutex);
+        state->received = true;
+        state->pose.position = world_position;
+        state->pose.map_epoch = message->map_epoch;
+        state->pose.pose_source = message->pose_source;
+      });
+    (void)subscription;
+
+    const auto started = std::chrono::steady_clock::now();
+    while (rclcpp::ok()) {
+      {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        if (state->received && (!expected_epoch.has_value() ||
+          state->pose.map_epoch == *expected_epoch))
+        {
+          *pose = state->pose;
+          return true;
+        }
+        if (state->received && expected_epoch.has_value() &&
+          state->pose.map_epoch != *expected_epoch)
+        {
+          RCLCPP_ERROR(
+            get_logger(),
+            "[SCENARIO-RUNNER-PLAN-RELATIVE-EPOCH-CHANGED] drone=%d expected=%lu current=%lu",
+            drone_id, static_cast<unsigned long>(*expected_epoch),
+            static_cast<unsigned long>(state->pose.map_epoch));
+          return false;
+        }
+      }
+      if (std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count() >=
+        timeout_sec)
+      {
+        RCLCPP_ERROR(
+          get_logger(),
+          "[SCENARIO-RUNNER-PLAN-RELATIVE-POSE-TIMEOUT] drone=%d topic=%s timeout_sec=%.3f",
+          drone_id, topic.c_str(), timeout_sec);
+        return false;
+      }
+      std::this_thread::sleep_for(50ms);
+    }
+    return false;
+  }
+
+  bool ExecuteWaitForPlanTerminalStep(const YAML::Node & step)
+  {
+    const int requested_drone_id = YamlGet<int>(step, "drone_id", 1);
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 90.0);
+    if (requested_drone_id <= 0 || timeout_sec <= 0.0) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-EXECUTION-WAIT-ERROR] requires drone_id and timeout_sec > 0");
+      return false;
+    }
+    return WaitForPlanTerminal(
+      static_cast<std::uint32_t>(requested_drone_id), timeout_sec) != PlanTerminal::Failed;
+  }
+
+  PlanTerminal WaitForPlanTerminal(
+    const std::uint32_t drone_id,
+    const double timeout_sec)
+  {
+    DispatchedPlan dispatched;
+    {
+      std::lock_guard<std::mutex> lock(dispatched_plans_mutex_);
+      const auto found = dispatched_plans_by_drone_.find(drone_id);
+      if (found == dispatched_plans_by_drone_.end()) {
+          RCLCPP_ERROR(
+            get_logger(),
+            "[SCENARIO-RUNNER-EXECUTION-WAIT-ERROR] drone=%u has no dispatched plan", drone_id);
+        return PlanTerminal::Failed;
+      }
+      dispatched = found->second;
+    }
+
+    struct TerminalState
+    {
+      std::mutex mutex;
+      bool source_completed = false;
+      bool source_visual_stop = false;
+      bool stop_completed = false;
+      bool stop_failed = false;
+      bool nonvisual_terminal = false;
+      std::string terminal_detail;
+      std::string reorientation_id;
+      bool reorientation_completed = false;
+      bool reorientation_failed = false;
+    };
+    const auto state = std::make_shared<TerminalState>();
+    const auto subscription = create_subscription<TrajectoryPlan>(
+      "/mission/planned_routes", rclcpp::QoS(10).reliable().transient_local(),
+      [state, drone_id, dispatched](const TrajectoryPlan::SharedPtr plan)
+      {
+        if (plan->drone_id != drone_id || plan->task_id != dispatched.task_id) {
+          return;
+        }
+        std::lock_guard<std::mutex> lock(state->mutex);
+        const bool terminal = plan->execution_state == TrajectoryPlan::EXECUTION_STATE_COMPLETED ||
+          plan->execution_state == TrajectoryPlan::EXECUTION_STATE_CANCELED ||
+          plan->execution_state == TrajectoryPlan::EXECUTION_STATE_REJECTED;
+        if (plan->trajectory_id == dispatched.trajectory_id && terminal) {
+          if (plan->execution_state == TrajectoryPlan::EXECUTION_STATE_COMPLETED) {
+            state->source_completed = true;
+          } else {
+            state->terminal_detail = plan->execution_detail;
+            if (plan->execution_detail.find("STOP completado") != std::string::npos) {
+              state->stop_completed = true;
+            } else if (plan->execution_detail.find("STOP no completado") != std::string::npos) {
+              state->stop_failed = true;
+            } else if (plan->execution_detail.find("STOP solicitado") == std::string::npos &&
+              plan->execution_detail != "replaced_by_stop")
+            {
+              state->source_visual_stop =
+                plan->execution_detail.find("visual_risk") != std::string::npos ||
+                plan->execution_detail.find("TRACKING_RISK") != std::string::npos;
+              state->nonvisual_terminal = !state->source_visual_stop;
+            }
+          }
+        }
+        if (plan->generator_id == "visual_risk_reorient") {
+          state->reorientation_id = plan->trajectory_id;
+          if (terminal) {
+            state->reorientation_completed =
+              plan->execution_state == TrajectoryPlan::EXECUTION_STATE_COMPLETED;
+            state->reorientation_failed = !state->reorientation_completed;
+          }
+        }
+      });
+    (void)subscription;
+
+    RCLCPP_WARN(
+      get_logger(),
+      "[SCENARIO-RUNNER-EXECUTION-WAIT] drone=%u trajectory_id=%s task=%s timeout_sec=%.3f",
+      drone_id, dispatched.trajectory_id.c_str(), dispatched.task_id.c_str(), timeout_sec);
+    const auto started = std::chrono::steady_clock::now();
+    while (rclcpp::ok()) {
+      std::optional<VisualRiskEvent> visual_event;
+      {
+        std::lock_guard<std::mutex> lock(visual_risk_events_mutex_);
+        const auto event = visual_risk_events_by_drone_.find(drone_id);
+        if (event != visual_risk_events_by_drone_.end() &&
+          event->second.trajectory_id == dispatched.trajectory_id)
+        {
+          visual_event = event->second;
+        }
+      }
+      {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        if (visual_event.has_value() &&
+          visual_event->event_type == VisualRiskEvent::EVENT_REORIENTATION_COMPLETED)
+        {
+          state->source_visual_stop = true;
+          state->reorientation_id = dispatched.trajectory_id + "_local_reorient";
+          state->reorientation_completed = visual_event->success;
+          state->reorientation_failed = !visual_event->success;
+        }
+        if (state->source_completed) {
+          RCLCPP_WARN(
+            get_logger(),
+            "[SCENARIO-RUNNER-EXECUTION-DONE] drone=%u trajectory_id=%s terminal=completed",
+            drone_id, dispatched.trajectory_id.c_str());
+          return PlanTerminal::Completed;
+        }
+        if (state->stop_completed) {
+          RCLCPP_WARN(
+            get_logger(),
+            "[SCENARIO-RUNNER-STOP-DONE] drone=%u trajectory_id=%s terminal=stop_completed",
+            drone_id, dispatched.trajectory_id.c_str());
+          return PlanTerminal::StopCompleted;
+        }
+        if (state->stop_failed) {
+          RCLCPP_ERROR(
+            get_logger(),
+            "[SCENARIO-RUNNER-STOP-FAILED] drone=%u trajectory_id=%s",
+            drone_id, dispatched.trajectory_id.c_str());
+          return PlanTerminal::Failed;
+        }
+        if (state->source_visual_stop && !state->reorientation_id.empty()) {
+          if (state->reorientation_completed) {
+            RCLCPP_WARN(
+              get_logger(),
+              "[SCENARIO-RUNNER-REORIENT-DONE] drone=%u source_trajectory_id=%s reorient_trajectory_id=%s",
+              drone_id, dispatched.trajectory_id.c_str(), state->reorientation_id.c_str());
+            return PlanTerminal::VisualReorientationCompleted;
+          }
+          if (state->reorientation_failed) {
+            RCLCPP_ERROR(
+              get_logger(),
+              "[SCENARIO-RUNNER-REORIENT-FAILED] drone=%u trajectory_id=%s",
+              drone_id, state->reorientation_id.c_str());
+            return PlanTerminal::Failed;
+          }
+        }
+        if (state->nonvisual_terminal) {
+          RCLCPP_ERROR(
+            get_logger(),
+            "[SCENARIO-RUNNER-EXECUTION-STOP-NONVISUAL] drone=%u trajectory_id=%s detail='%s'",
+            drone_id, dispatched.trajectory_id.c_str(), state->terminal_detail.c_str());
+          return PlanTerminal::Failed;
+        }
+      }
+      if (std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count() >=
+        timeout_sec)
+      {
+        RCLCPP_ERROR(
+          get_logger(),
+          "[SCENARIO-RUNNER-EXECUTION-TIMEOUT] drone=%u trajectory_id=%s timeout_sec=%.3f",
+          drone_id, dispatched.trajectory_id.c_str(), timeout_sec);
+        return PlanTerminal::Failed;
+      }
+      std::this_thread::sleep_for(50ms);
+    }
+    return PlanTerminal::Failed;
+  }
+
   bool ExecuteMoveStep(const YAML::Node & step)
   {
     if (!step["goals"] || !step["goals"].IsSequence()) {
@@ -770,6 +1223,8 @@ private:
 
     spec.expect_rejected =
       YamlGet<bool>(goal_node, "expect_rejected", false);
+    spec.retry_on_rejected =
+      YamlGet<bool>(goal_node, "retry_on_rejected", false);
 
     spec.navigation_source =
       YamlGet<std::string>(goal_node, "navigation_source", "none");
@@ -916,7 +1371,7 @@ private:
     RCLCPP_WARN(
       this->get_logger(),
       "[SCENARIO-RUNNER-NAV-SOURCE] action='%s' requested=%s service='%s' prepared=true",
-      spec.action_full_name.c_str(), spec.navigation_source.c_str(), service_name.c_str());
+        spec.action_full_name.c_str(), spec.navigation_source.c_str(), service_name.c_str());
     return true;
   }
 
@@ -997,14 +1452,31 @@ private:
     }
 
     for (auto & active : active_goals) {
-      if (!WaitFuture(
-          active.goal_handle_future,
-          10.0,
-          "goal acceptance " + active.spec.action_full_name))
-      {
-        return false;
+      const auto acceptance_started = std::chrono::steady_clock::now();
+      while (rclcpp::ok()) {
+        if (!WaitFuture(
+            active.goal_handle_future,
+            10.0,
+            "goal acceptance " + active.spec.action_full_name))
+        {
+          return false;
+        }
+        active.goal_handle = active.goal_handle_future.get();
+        if (active.goal_handle || active.spec.expect_rejected || !active.spec.retry_on_rejected) {
+          break;
+        }
+        if (std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - acceptance_started).count() >= active.spec.timeout_sec)
+        {
+          break;
+        }
+        RCLCPP_WARN(
+          this->get_logger(),
+          "[SCENARIO-RUNNER-GOAL-RETRY] action='%s' timeout_sec=%.3f",
+          active.spec.action_full_name.c_str(), active.spec.timeout_sec);
+        std::this_thread::sleep_for(100ms);
+        active.goal_handle_future = active.client->async_send_goal(BuildActionGoal(active.spec), {});
       }
-      active.goal_handle = active.goal_handle_future.get();
       if (!active.goal_handle) {
         if (active.spec.expect_rejected) {
           active.completed = true;

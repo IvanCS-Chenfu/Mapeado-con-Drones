@@ -10,12 +10,13 @@ sin hacer
 
 ## Objetivo técnico
 
-Implementar la ejecución de una captura dense HQ cuando una tarea de Fase 6 pide densificar/reparar: el dron llega, se detiene/estabiliza, y el servidor consume directamente varios pares L/R de los topics normales —sin pasar por la creación de KF— para producir una subnube/captura local de alta calidad mediante combinación robusta.
+Implementar la ejecución de una captura dense HQ cuando una tarea de Fase 6 pide densificar/reparar: el dron llega, se detiene/estabiliza y un worker local consume varios pares L/R de los topics normales —sin pasar por la creación de KF— para producir una captura local de alta calidad mediante combinación robusta. El servidor recibe ese producto filtrado y lo integra posteriormente.
 
 
 ## Invariantes y decisiones cerradas
 
-- El procesamiento de las imágenes y promedio/filtrado ocurre en servidor.
+- El procesamiento de las imágenes, disparity/depth y promedio/filtrado mínimo ocurre localmente en el dron, en cola acotada y sin bloquear tracking/control.
+- El servidor valida la identidad de la captura, integra, fusiona y conserva la evidencia global; no recalcula imágenes ni depth.
 - La captura HQ puede existir aunque ORB-SLAM3 no cree un KF en ese instante.
 - Se usan varios pares si mejora la calidad; no se presupone un promedio simple si produce ghosting.
 - Las imágenes se descartan al terminar el producto de captura; no se guardan permanentemente.
@@ -46,7 +47,7 @@ Leer el contrato real de tareas de Fase 6 y localizar cómo un dron reporta lleg
 
 ## Diagnóstico de partida
 
-Las DenseKF móviles pueden ser insuficientes en zonas concretas o no existir donde hace falta densidad. El mecanismo correctivo debe capturar directamente desde cámara con el dron parado, independientemente de si ORB decide crear un KF.
+Las DenseKF móviles pueden ser insuficientes en zonas concretas o no existir donde hace falta densidad. El mecanismo correctivo debe capturar directamente desde cámara con el dron parado, independientemente de si ORB decide crear un KF, y remitir al servidor solo el resultado local identificable.
 
 
 ## Archivos permitidos a modificar
@@ -106,7 +107,7 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 - No usar Ground Truth para calcular disparity/depth, colocar la nube densa, fusionar, corregir poses, refinar MapPoints, decidir ocupación o validar online una trayectoria. GT solo puede aparecer como métrica externa de simulación.
 - No modificar datos raw de ORB-SLAM3 en `RawMapDatabase`.
 - No devolver MapPoints corregidos al ORB-SLAM3 que corre en el dron.
-- No ejecutar reconstrucción densa pesada en el dron: el dron se limita a capturar y enviar información.
+- No fusionar, optimizar ni construir un mapa global en el dron. El cálculo depth/nube/normales local por KF y el filtrado mínimo sí pertenecen al dron.
 - No convertir `orbslam3_server` ni `dense_map_server` en un backend algorítmico monolítico; los algoritmos densos pertenecen a `dense_map_multi`.
 - No bloquear ingesta sparse, pose, control, GUI o ejecución de tareas mientras se calcula disparity, registro, voxelización, fusión o reintegración.
 - No almacenar imágenes L/R permanentemente como parte de `DenseKeyFrameDatabase`; si una zona queda mal, la estrategia acordada es volver a observarla/recapturarla.
@@ -114,7 +115,7 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 - No limpiar legacy ni cambiar paquetes ajenos como efecto colateral.
 - No crear historiales con resultados ficticios. Las carpetas se entregan vacías y los MD de historial nacen solo tras ejecuciones reales.
 - No forzar a ORB_SLAM3 a crear un KF para poder capturar.
-- No calcular disparity/depth en el dron.
+- No calcular depth de manera periódica por frame ni fuera de una captura local identificada; el producto denso normal se calcula una vez por KF y se publica filtrado al servidor.
 - No integrar todavía la captura a varios KFs; 8P.
 
 

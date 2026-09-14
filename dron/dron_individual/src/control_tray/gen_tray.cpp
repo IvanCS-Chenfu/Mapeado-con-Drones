@@ -5,19 +5,24 @@
 #include "dron_individual/navigation_goal_policy.hpp"
 #include "dron_individual/navigation_state_mux.hpp"
 #include "orbslam3_msgs/msg/navigation_state.hpp"
-#include "lib_tray/gen_tray_pol3.hpp"                           // Librería polinomio cúbico
-#include "lib_tray/gen_tray_veltrap.hpp"                        // Librería velocidad trapezoidal
 #include "lib_tray/gen_tray_elipse.hpp"                         // Librería elipse
+#include "lib_tray/gen_tray_pol3_waypoints.hpp"
+#include "lib_tray/gen_tray_veltrap_waypoints.hpp"
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/set_bool.hpp>
+#include <trajectory_msgs/msg/joint_trajectory.hpp>
 
 #include <cmath>
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <thread>
 #include <mutex>
+#include <optional>
 #include <array>
 #include <vector>
 #include <memory>
@@ -49,6 +54,11 @@ public:
     trajectory_active_client_ =
       this->create_client<std_srvs::srv::SetBool>(
       "control/set_trajectory_active");
+    camera_pitch_publisher_ = this->create_publisher<trajectory_msgs::msg::JointTrajectory>(
+      "camera_pitch/command", rclcpp::QoS(10).reliable());
+    trajectory_active_publisher_ = this->create_publisher<std_msgs::msg::Bool>(
+      "control/trajectory_active", rclcpp::QoS(1).reliable().transient_local());
+    PublishTrajectoryActive(false);
 
     // Añadimos al objeto del servidor de la acción el tipo de interfaz a utilizar, el nombre de la acción el cual
     // el cliente de la acción debe llamar para acceder a él, y el nombre de las función callback.
@@ -61,11 +71,15 @@ public:
       std::bind(&Clase_Servicio_Accion::handle_accepted, this, std::placeholders::_1));
 
     this->declare_parameter<double>("crear.tray.v_max_lin", 0.8);
+    stop_duration_sec_ = this->declare_parameter<double>("stop_duration_sec", 2.0);
+    waypoint_blend_sec_ = this->declare_parameter<double>("waypoint_blend_sec", 3.0);
+    debug_f6i_trajectory_ = this->declare_parameter<bool>("debug_f6i_trajectory", false);
     this->declare_parameter<double>("crear.tray.v_max_ang", 0.5);
     this->declare_parameter<double>("crear.tray.t_a", 2.0);
     this->declare_parameter<int64_t>("drone_id", 0);
     this->declare_parameter<bool>("debug_architecture_telemetry", false);
     this->declare_parameter<double>("navigation_state_timeout_sec", 0.5);
+    this->declare_parameter<double>("orb_loss_hold_sec", 10.0);
     this->declare_parameter<double>("trajectory_source_handshake_timeout_sec", 1.0);
 
     drone_id_ = static_cast<uint32_t>(this->get_parameter("drone_id").as_int());
@@ -81,10 +95,22 @@ public:
     v_max_lin = this->get_parameter("crear.tray.v_max_lin").as_double();
     v_max_ang = this->get_parameter("crear.tray.v_max_ang").as_double();
     t_a = this->get_parameter("crear.tray.t_a").as_double();
+    if (stop_duration_sec_ <= 0.0) {
+      RCLCPP_WARN(get_logger(), "stop_duration_sec invalido; se usa 2.0 s");
+      stop_duration_sec_ = 2.0;
+    }
+    if (!std::isfinite(waypoint_blend_sec_) || waypoint_blend_sec_ <= 0.0) {
+      RCLCPP_WARN(get_logger(), "waypoint_blend_sec invalido; se usa 3.0 s");
+      waypoint_blend_sec_ = 3.0;
+    }
     navigation_state_timeout_sec_ =
       this->get_parameter("navigation_state_timeout_sec").as_double();
     if (navigation_state_timeout_sec_ <= 0.0) {
       navigation_state_timeout_sec_ = 0.5;
+    }
+    orb_loss_hold_sec_ = this->get_parameter("orb_loss_hold_sec").as_double();
+    if (orb_loss_hold_sec_ <= 0.0) {
+      orb_loss_hold_sec_ = 10.0;
     }
     trajectory_source_handshake_timeout_sec_ =
       this->get_parameter("trajectory_source_handshake_timeout_sec").as_double();
@@ -94,6 +120,23 @@ public:
   }
 
 private:
+  void PublishCameraPitch(double target_rad)
+  {
+    if (!std::isfinite(target_rad) || !camera_pitch_publisher_) {
+      return;
+    }
+    trajectory_msgs::msg::JointTrajectory command;
+    command.header.stamp = now();
+    command.joint_names = {"stereo_pitch_joint"};
+    trajectory_msgs::msg::JointTrajectoryPoint point;
+    point.positions = {target_rad};
+    command.points = {point};
+    camera_pitch_publisher_->publish(command);
+    RCLCPP_WARN(
+      get_logger(), "[F6M-CAMERA-PITCH] target_rad=%.6f target_deg=%.3f",
+      target_rad, target_rad * 180.0 / M_PI);
+  }
+
   void EmitArchitectureActivity(
     const std::string & edge_id,
     const std::string & interface_name,
@@ -224,9 +267,54 @@ private:
       }
     }
     if (current) {
+      PublishTrajectoryActive(false);
       RCLCPP_INFO(
         this->get_logger(),
         "[F5H-SOURCE-RETAINED-BETWEEN-GOALS] waiting_for_next_goal=true");
+    }
+  }
+
+  void PublishTrajectoryActive(bool active)
+  {
+    std_msgs::msg::Bool message;
+    message.data = active;
+    trajectory_active_publisher_->publish(message);
+    RCLCPP_INFO(
+      get_logger(), "[F6K-PHYSICAL-TRAJECTORY-STATE] active=%s",
+      active ? "true" : "false");
+  }
+
+  enum class GoalTerminal
+  {
+    kSucceeded,
+    kAborted,
+    kCanceled
+  };
+
+  void FinalizeGoal(
+    const std::shared_ptr<GoalHandleTrayAction> & goal_handle,
+    const std::shared_ptr<TrayAction::Result> & result, GoalTerminal terminal)
+  {
+    if (!goal_handle->is_active()) {
+      RCLCPP_WARN(
+        get_logger(), "[F6I-GOAL-TERMINAL-SKIP] reason=goal_not_active");
+      return;
+    }
+    try {
+      switch (terminal) {
+        case GoalTerminal::kSucceeded:
+          goal_handle->succeed(result);
+          return;
+        case GoalTerminal::kCanceled:
+          goal_handle->canceled(result);
+          return;
+        case GoalTerminal::kAborted:
+          goal_handle->abort(result);
+          return;
+      }
+    } catch (const std::exception & error) {
+      RCLCPP_WARN(
+        get_logger(), "[F6I-GOAL-TERMINAL-SKIP] reason=%s", error.what());
     }
   }
 
@@ -410,22 +498,329 @@ private:
   // Se llama cuando se acepta la petición en "handle_goal"
   void handle_accepted(const std::shared_ptr<GoalHandleTrayAction> goal_handle)
   {
-    // Llama a la función "execute" como hilo (en segundo plano) con el fin de no bloquear la acción ante otras posibles llamadas
-    std::shared_ptr<GoalHandleTrayAction> prev_goal;
-
-    active_mtx_.lock();
-    prev_goal = active_goal_;
-    active_goal_ = goal_handle;
-    active_mtx_.unlock();
-
-    if (prev_goal && prev_goal->is_active()) {
-      auto res = std::make_shared<TrayAction::Result>();
-      res->success = false;
-      res->t_total = 0.0f;
-      prev_goal->abort(res);
+    // El worker saliente detecta que deja de ser el activo y es el unico que
+    // publica su resultado terminal. Abortarlo aqui dejaría su hilo vivo y
+    // provocaría una segunda finalizacion del mismo goal.
+    {
+      std::lock_guard<std::mutex> lock(active_mtx_);
+      active_goal_ = goal_handle;
     }
+    PublishTrajectoryActive(true);
 
     std::thread(&Clase_Servicio_Accion::execute, this, goal_handle).detach();
+  }
+
+  void ExecutePol3Waypoints(
+    const std::shared_ptr<GoalHandleTrayAction> & goal_handle,
+    const orbslam3_msgs::msg::NavigationState & initial_state,
+    const dron_individual::RigidPose & control_t_world)
+  {
+    const auto goal = goal_handle->get_goal();
+    auto result = std::make_shared<TrayAction::Result>();
+    if (goal->waypoint_targets.empty() ||
+      goal->waypoint_targets.size() != goal->waypoint_times.size() ||
+      (!goal->waypoint_yaws_rad.empty() &&
+      goal->waypoint_targets.size() != goal->waypoint_yaws_rad.size()) ||
+      (!goal->waypoint_camera_pitches_rad.empty() &&
+      goal->waypoint_targets.size() != goal->waypoint_camera_pitches_rad.size()))
+    {
+      result->success = false;
+      result->t_total = 0.0F;
+      result->reason = "invalid_waypoint_contract";
+      ReleaseTrajectorySourceIfCurrent(goal_handle);
+      FinalizeGoal(goal_handle, result, GoalTerminal::kAborted);
+      return;
+    }
+
+    const bool has_yaw = !goal->waypoint_yaws_rad.empty();
+    const bool has_pitch = !goal->waypoint_camera_pitches_rad.empty();
+    const double control_yaw = std::atan2(
+      2.0 * (control_t_world.rotation.w() * control_t_world.rotation.z() +
+      control_t_world.rotation.x() * control_t_world.rotation.y()),
+      1.0 - 2.0 * (control_t_world.rotation.y() * control_t_world.rotation.y() +
+      control_t_world.rotation.z() * control_t_world.rotation.z()));
+    std::vector<std::vector<double>> targets;
+    std::vector<double> times;
+    targets.reserve(goal->waypoint_targets.size());
+    times.reserve(goal->waypoint_times.size());
+    for (std::size_t index = 0U; index < goal->waypoint_targets.size(); ++index) {
+      const double time = static_cast<double>(goal->waypoint_times[index]);
+      if (!std::isfinite(time) || time <= 0.0 ||
+        (index > 0U && time <= times.back()))
+      {
+        result->success = false;
+        result->t_total = 0.0F;
+        result->reason = "invalid_waypoint_times";
+        ReleaseTrajectorySourceIfCurrent(goal_handle);
+        FinalizeGoal(goal_handle, result, GoalTerminal::kAborted);
+        return;
+      }
+      const auto & world = goal->waypoint_targets[index].pose.position;
+      const Eigen::Vector3d control_target =
+        control_t_world.translation + control_t_world.rotation *
+        Eigen::Vector3d(world.x, world.y, world.z);
+      std::vector<double> target = {control_target.x(), control_target.y(), control_target.z()};
+      if (has_yaw) {
+        // TrajectoryPlan define yaw en W; Pol3 controla en O igual que la ruta directa.
+        target.push_back(normalizar_angulo(control_yaw + goal->waypoint_yaws_rad[index]));
+      }
+      targets.push_back(std::move(target));
+      times.push_back(time);
+    }
+
+    const geometry_msgs::msg::PoseStamped initial_pose = [&initial_state]() {
+        geometry_msgs::msg::PoseStamped pose;
+        pose.pose = initial_state.o_t_body;
+        return pose;
+      }();
+    const double yaw0 = pose2yaw(initial_pose);
+    const std::size_t axes = has_yaw ? 4U : 3U;
+    lib_tray::GenTrayPol3Waypoints trajectory(axes, waypoint_blend_sec_);
+    try {
+      trajectory.calcular_trayectoria(
+        has_yaw ? std::vector<double>{initial_state.o_t_body.position.x,
+          initial_state.o_t_body.position.y, initial_state.o_t_body.position.z, yaw0} :
+        std::vector<double>{initial_state.o_t_body.position.x,
+          initial_state.o_t_body.position.y, initial_state.o_t_body.position.z},
+        has_yaw ? std::vector<double>{initial_state.velocity.linear.x,
+          initial_state.velocity.linear.y, initial_state.velocity.linear.z,
+          initial_state.velocity.angular.z} :
+        std::vector<double>{initial_state.velocity.linear.x,
+          initial_state.velocity.linear.y, initial_state.velocity.linear.z},
+        targets, times);
+    } catch (const std::exception & error) {
+      RCLCPP_ERROR(get_logger(), "[F6I-POL3-WAYPOINTS-REJECT] reason=%s", error.what());
+      result->success = false;
+      result->t_total = 0.0F;
+      result->reason = "invalid_waypoint_profile";
+      ReleaseTrajectorySourceIfCurrent(goal_handle);
+      FinalizeGoal(goal_handle, result, GoalTerminal::kAborted);
+      return;
+    }
+    const double total = trajectory.get_tiempo_total();
+    RCLCPP_WARN(
+      get_logger(),
+      "[F6M-WAYPOINT-CONTRACT] trajectory_id=%s targets=%zu has_yaw=%s has_pitch=%s "
+      "final_pitch_rad=%.6f",
+      goal->trajectory_id.empty() ? "local" : goal->trajectory_id.c_str(), targets.size(),
+      has_yaw ? "true" : "false", has_pitch ? "true" : "false",
+      has_pitch ? goal->waypoint_camera_pitches_rad.back() : 0.0);
+    if (has_pitch) {
+      PublishCameraPitch(goal->waypoint_camera_pitches_rad.back());
+    }
+    if (debug_f6i_trajectory_) {
+      RCLCPP_WARN(
+        get_logger(),
+        "[F6I-REFERENCE-START] trajectory_id=%s targets=%zu pieces=%zu duration_sec=%.3f "
+        "blend_sec=%.3f",
+        goal->trajectory_id.empty() ? "local" : goal->trajectory_id.c_str(), targets.size(),
+        trajectory.get_num_tramos(), total, waypoint_blend_sec_);
+    }
+    auto feedback = std::make_shared<TrayAction::Feedback>();
+    rclcpp::Rate rate(30.0);
+    const auto started = get_clock()->now();
+    bool canceled = false;
+    bool removed = false;
+    bool first = true;
+    double elapsed = 0.0;
+    std::size_t previous_piece = trajectory.get_num_tramos();
+    std::optional<std::chrono::steady_clock::time_point> orb_lost_since;
+    while (rclcpp::ok() && !removed && elapsed <= total) {
+      {
+        std::lock_guard<std::mutex> lock(active_mtx_);
+        removed = active_goal_ != goal_handle;
+      }
+      if (goal_handle->is_canceling()) {
+        canceled = true;
+        break;
+      }
+      bool orb_lost = false;
+      {
+        std::lock_guard<std::mutex> lock(navigation_state_mtx_);
+        orb_lost = navigation_state_received_ &&
+          last_navigation_state_.tracking_state ==
+          orbslam3_msgs::msg::NavigationState::TRACKING_LOST &&
+          !last_navigation_state_.local_valid;
+      }
+      if (orb_lost) {
+        const auto now = std::chrono::steady_clock::now();
+        if (!orb_lost_since.has_value()) {
+          orb_lost_since = now;
+          RCLCPP_ERROR(get_logger(), "[F6I-ORB-LOST-HOLD] duration_sec=%.1f", orb_loss_hold_sec_);
+        }
+        if (std::chrono::duration<double>(now - *orb_lost_since).count() >= orb_loss_hold_sec_) {
+          removed = true;
+          break;
+        }
+        rate.sleep();
+        continue;
+      }
+      orb_lost_since.reset();
+      elapsed = first ? 0.0 : (get_clock()->now() - started).seconds();
+      first = false;
+      std::vector<std::array<double, 5>> values;
+      trajectory.evaluar(elapsed, values);
+      const std::size_t piece = trajectory.get_indice_tramo(elapsed);
+      if (debug_f6i_trajectory_ && piece != previous_piece) {
+        if (piece == 0U) {
+          RCLCPP_WARN(
+            get_logger(),
+            "[F6I-REFERENCE-PIECE] trajectory_id=%s piece=0 time_sec=%.6f event=start "
+            "position=(%.6f,%.6f,%.6f) velocity=(%.6f,%.6f,%.6f)",
+            goal->trajectory_id.empty() ? "local" : goal->trajectory_id.c_str(), elapsed,
+            values[0][0], values[1][0], values[2][0], values[0][1], values[1][1], values[2][1]);
+        } else {
+          const double boundary = trajectory.get_inicio_tramo(piece);
+          const auto before = trajectory.evaluar(
+            std::nextafter(boundary, -std::numeric_limits<double>::infinity()));
+          const auto after = trajectory.evaluar(boundary);
+          RCLCPP_WARN(
+            get_logger(),
+            "[F6I-REFERENCE-BOUNDARY] trajectory_id=%s from_piece=%zu to_piece=%zu "
+            "boundary_sec=%.6f before_p=(%.6f,%.6f,%.6f) before_v=(%.6f,%.6f,%.6f) "
+            "after_p=(%.6f,%.6f,%.6f) after_v=(%.6f,%.6f,%.6f)",
+            goal->trajectory_id.empty() ? "local" : goal->trajectory_id.c_str(), piece - 1U,
+            piece, boundary, before[0][0], before[1][0], before[2][0], before[0][1],
+            before[1][1], before[2][1], after[0][0], after[1][0], after[2][0], after[0][1],
+            after[1][1], after[2][1]);
+        }
+        previous_piece = piece;
+      }
+      const auto yaw = has_yaw ? values[3] : std::array<double, 5>{
+        yaw0, 0.0, 0.0, 0.0, 100.0 * std::clamp(elapsed / total, 0.0, 1.0)};
+      feedback->t_act = static_cast<float>(elapsed);
+      feedback->trajectory_id = goal->trajectory_id;
+      feedback->diagnostic_piece_index = static_cast<std::uint32_t>(piece);
+      feedback->x = array_to_msg(values[0]);
+      feedback->y = array_to_msg(values[1]);
+      feedback->z = array_to_msg(values[2]);
+      feedback->yaw = array_to_msg(yaw);
+      feedback->camera_pitch = array_to_msg(
+        std::array<double, 5>{
+        has_pitch ? goal->waypoint_camera_pitches_rad.back() : 0.0,
+        0.0, 0.0, 0.0, 100.0 * std::clamp(elapsed / total, 0.0, 1.0)});
+      {
+        std::lock_guard<std::mutex> lock(active_mtx_);
+        if (active_goal_ != goal_handle) {
+          removed = true;
+          break;
+        }
+      }
+      goal_handle->publish_feedback(feedback);
+      rate.sleep();
+    }
+    ReleaseTrajectorySourceIfCurrent(goal_handle);
+    result->success = !removed && !canceled && elapsed >= total;
+    result->t_total = static_cast<float>(total);
+    result->reason = result->success ? "completed" : (canceled ? "canceled" : "aborted");
+    RCLCPP_INFO(
+      get_logger(), "[F6I-POL3-WAYPOINTS-FINAL] success=%s elapsed_sec=%.3f duration_sec=%.3f",
+      result->success ? "true" : "false", elapsed, total);
+    if (canceled) {
+      FinalizeGoal(goal_handle, result, GoalTerminal::kCanceled);
+    } else if (result->success) {
+      FinalizeGoal(goal_handle, result, GoalTerminal::kSucceeded);
+    } else {
+      FinalizeGoal(goal_handle, result, GoalTerminal::kAborted);
+    }
+  }
+
+  void ExecuteStop(
+    const std::shared_ptr<GoalHandleTrayAction> & goal_handle,
+    const orbslam3_msgs::msg::NavigationState & initial_state)
+  {
+    constexpr std::size_t kAxes = 4U;
+    auto result = std::make_shared<TrayAction::Result>();
+    geometry_msgs::msg::PoseStamped initial_pose;
+    initial_pose.pose = initial_state.o_t_body;
+    const std::vector<double> position = {
+      initial_state.o_t_body.position.x,
+      initial_state.o_t_body.position.y,
+      initial_state.o_t_body.position.z,
+      pose2yaw(initial_pose)};
+    const std::vector<double> velocity = {
+      initial_state.velocity.linear.x,
+      initial_state.velocity.linear.y,
+      initial_state.velocity.linear.z,
+      initial_state.velocity.angular.z};
+    const std::vector<double> duration(kAxes, stop_duration_sec_);
+    auto trajectory = std::make_unique<lib_tray::GenTrayPol3Waypoints>(
+      kAxes, waypoint_blend_sec_);
+    try {
+      trajectory->calcular_trayectoria_por_eje(position, velocity, {position}, {duration});
+    } catch (const std::exception & error) {
+      RCLCPP_ERROR(get_logger(), "[F6I-STOP-ABORT] reason=%s", error.what());
+      result->success = false;
+      result->t_total = 0.0F;
+      result->reason = "stop_generation_failed";
+      ReleaseTrajectorySourceIfCurrent(goal_handle);
+      FinalizeGoal(goal_handle, result, GoalTerminal::kAborted);
+      return;
+    }
+
+    RCLCPP_INFO(
+      get_logger(),
+      "[F6I-STOP-START] duration_sec=%.3f pose=(%.3f,%.3f,%.3f) velocity=(%.3f,%.3f,%.3f)",
+      stop_duration_sec_, position[0], position[1], position[2], velocity[0], velocity[1],
+      velocity[2]);
+    auto feedback = std::make_shared<TrayAction::Feedback>();
+    rclcpp::Rate rate(30.0);
+    const auto started = get_clock()->now();
+    bool canceled = false;
+    bool removed = false;
+    bool first = true;
+    double elapsed = 0.0;
+    std::vector<std::array<double, 5>> values(kAxes);
+    while (rclcpp::ok() && !removed && elapsed <= stop_duration_sec_) {
+      {
+        std::lock_guard<std::mutex> lock(active_mtx_);
+        removed = active_goal_ != goal_handle;
+      }
+      if (goal_handle->is_canceling()) {
+        canceled = true;
+        break;
+      }
+      elapsed = first ? 0.0 : (get_clock()->now() - started).seconds();
+      first = false;
+      trajectory->evaluar(std::min(elapsed, stop_duration_sec_), values);
+      feedback->t_act = static_cast<float>(std::min(elapsed, stop_duration_sec_));
+      feedback->x = array_to_msg(values[0]);
+      feedback->y = array_to_msg(values[1]);
+      feedback->z = array_to_msg(values[2]);
+      feedback->yaw = array_to_msg(values[3]);
+      goal_handle->publish_feedback(feedback);
+      rate.sleep();
+    }
+
+    const bool completed = !removed && !canceled && elapsed >= stop_duration_sec_;
+    if (completed) {
+      const auto hover_axis = [](double value) {
+          return std::array<double, 5>{value, 0.0, 0.0, 0.0, 1.0};
+        };
+      feedback->t_act = static_cast<float>(stop_duration_sec_);
+      feedback->x = array_to_msg(hover_axis(position[0]));
+      feedback->y = array_to_msg(hover_axis(position[1]));
+      feedback->z = array_to_msg(hover_axis(position[2]));
+      feedback->yaw = array_to_msg(hover_axis(position[3]));
+      goal_handle->publish_feedback(feedback);
+      RCLCPP_INFO(
+        get_logger(), "[F6I-STOP-HOVER] duration_sec=%.3f", stop_duration_sec_);
+    }
+    ReleaseTrajectorySourceIfCurrent(goal_handle);
+    result->success = completed;
+    result->t_total = static_cast<float>(completed ? stop_duration_sec_ : elapsed);
+    result->reason = completed ? "completed" :
+      (canceled ? "stop_canceled" : "stop_replaced");
+    RCLCPP_INFO(
+      get_logger(), "[F6I-STOP-FINAL] success=%s elapsed_sec=%.3f duration_sec=%.3f",
+      completed ? "true" : "false", elapsed, stop_duration_sec_);
+    if (completed) {
+      FinalizeGoal(goal_handle, result, GoalTerminal::kSucceeded);
+    } else if (canceled) {
+      FinalizeGoal(goal_handle, result, GoalTerminal::kCanceled);
+    } else {
+      FinalizeGoal(goal_handle, result, GoalTerminal::kAborted);
+    }
   }
 
 
@@ -438,7 +833,7 @@ private:
       failed_result->success = false;
       failed_result->t_total = 0.0f;
       ReleaseTrajectorySourceIfCurrent(goal_handle);
-      goal_handle->abort(failed_result);
+      FinalizeGoal(goal_handle, failed_result, GoalTerminal::kAborted);
       return;
     }
 
@@ -461,9 +856,21 @@ private:
       result->success = false;
       result->t_total = 0.0f;
       ReleaseTrajectorySourceIfCurrent(goal_handle);
-      goal_handle->abort(result);
+      FinalizeGoal(goal_handle, result, GoalTerminal::kAborted);
       return;
     }
+
+    if (goal_handle->get_goal()->stop_at_current_pose) {
+      ExecuteStop(goal_handle, initial_state);
+      return;
+    }
+
+    if (!goal_handle->get_goal()->waypoint_targets.empty()) {
+      ExecutePol3Waypoints(goal_handle, initial_state, control_t_world);
+      return;
+    }
+
+    PublishCameraPitch(goal_handle->get_goal()->target_camera_pitch_rad);
 
     // Para que cada vez que se llame a la acción se reinicien las variables.
     bool eliminado = false;                 // al declararse aquí, es variable local de cada thread
@@ -571,9 +978,9 @@ private:
 
       std::function<void(double, std::vector<std::array<double, 5>> &)> evaluar_trayectoria;
 
-      std::unique_ptr<lib_tray::GenTrayPol3> trayectoria_pol3;
-      std::unique_ptr<lib_tray::GenTrayVelTrap> trayectoria_veltrap;
       std::unique_ptr<lib_tray::GenTrayElipse> trayectoria_elipse;
+      std::unique_ptr<lib_tray::GenTrayPol3Waypoints> trayectoria_pol3_waypoints;
+      std::unique_ptr<lib_tray::GenTrayVelTrapWaypoints> trayectoria_veltrap_waypoints;
 
       bool flag_angulo = false;
       bool usar_normalizacion_directa = false;
@@ -585,7 +992,9 @@ private:
         if (goal->tipo_trayectoria == 0) {
           RCLCPP_INFO(this->get_logger(), "Generando trayectoria tipo 0: pol3");
 
-          trayectoria_pol3 = std::make_unique<lib_tray::GenTrayPol3>(N_EJES_TRAY);
+          trayectoria_pol3_waypoints =
+            std::make_unique<lib_tray::GenTrayPol3Waypoints>(
+            N_EJES_TRAY, waypoint_blend_sec_);
 
           t_total = std::max(
             {static_cast<double>(goal->tx), static_cast<double>(goal->ty),
@@ -619,21 +1028,18 @@ private:
           const std::vector<double> posiciones_iniciales = {x0, y0, z0, yaw0};
           const std::vector<double> posiciones_finales =
           {xf, yf, goal->absoluto_z ? absolute_target.z() :
-            goal->target_pose.pose.position.z, yawf};
+            z0 + goal->target_pose.pose.position.z, yawf};
           const std::vector<double> velocidades_iniciales = {vx0, vy0, vz0, vyaw0};
-          const std::vector<double> velocidades_finales = {0.0, 0.0, 0.0, 0.0};
           const std::vector<double> tiempos_finales = {goal->tx, goal->ty, goal->tz, goal->tyaw};
-          const std::vector<bool> finales_absolutas = {true, true, goal->absoluto_z, true};
 
-          trayectoria_pol3->calcular_trayectoria(
-            posiciones_iniciales, posiciones_finales,
-            velocidades_iniciales, velocidades_finales,
-            tiempos_finales, finales_absolutas);
+          trayectoria_pol3_waypoints->calcular_trayectoria_por_eje(
+            posiciones_iniciales, velocidades_iniciales, {posiciones_finales}, {tiempos_finales});
 
-          evaluar_trayectoria = [&trayectoria_pol3](double tiempo, std::vector<std::array<double,
+          evaluar_trayectoria = [&trayectoria_pol3_waypoints](double tiempo,
+              std::vector<std::array<double,
               5>> & salida)
             {
-              trayectoria_pol3->evaluar(tiempo, salida);
+              trayectoria_pol3_waypoints->evaluar(tiempo, salida);
             };
         }
         //////////////////////////////////////
@@ -642,7 +1048,8 @@ private:
         else if (goal->tipo_trayectoria == 1) {
           RCLCPP_INFO(this->get_logger(), "Generando trayectoria tipo 1: veltrap");
 
-          trayectoria_veltrap = std::make_unique<lib_tray::GenTrayVelTrap>(N_EJES_TRAY);
+          trayectoria_veltrap_waypoints =
+            std::make_unique<lib_tray::GenTrayVelTrapWaypoints>(N_EJES_TRAY);
 
           double xf, yf, zf_abs, yawf;
 
@@ -681,28 +1088,20 @@ private:
 
           const std::vector<double> posiciones_iniciales = {x0, y0, z0, yaw0};
           const std::vector<double> posiciones_finales =
-          {xf, yf, goal->absoluto_z ? absolute_target.z() :
-            goal->target_pose.pose.position.z, yawf};
+          {xf, yf, zf_abs, yawf};
           const std::vector<double> velocidades_iniciales = {vx0, vy0, vz0, vyaw0};
-          const std::vector<double> velocidades_finales = {0.0, 0.0, 0.0, 0.0};
           const std::vector<double> velocidades_maximas = {vmax_x, vmax_y, vmax_z, v_max_ang};
-          const std::vector<bool> finales_absolutas = {true, true, goal->absoluto_z, true};
 
-          trayectoria_veltrap->calcular_trayectoria(
-            posiciones_iniciales, posiciones_finales,
-            velocidades_iniciales, velocidades_finales,
-            velocidades_maximas, t_a, finales_absolutas);
+          trayectoria_veltrap_waypoints->calcular_trayectoria(
+            posiciones_iniciales, velocidades_iniciales, {posiciones_finales},
+            velocidades_maximas, t_a);
+          t_total = trayectoria_veltrap_waypoints->get_tiempo_total();
 
-          const auto & coeficientes = trayectoria_veltrap->get_coeficientes();
-
-          for (const auto & c : coeficientes) {
-            t_total = std::max(t_total, c.tf);
-          }
-
-          evaluar_trayectoria = [&trayectoria_veltrap](double tiempo, std::vector<std::array<double,
+          evaluar_trayectoria = [&trayectoria_veltrap_waypoints](double tiempo,
+              std::vector<std::array<double,
               5>> & salida)
             {
-              trayectoria_veltrap->evaluar(tiempo, salida);
+              trayectoria_veltrap_waypoints->evaluar(tiempo, salida);
             };
         }
         ////////////////////
@@ -789,7 +1188,7 @@ private:
         result->success = false;
         result->t_total = 0.0f;
         ReleaseTrajectorySourceIfCurrent(goal_handle);
-        goal_handle->abort(result);
+        FinalizeGoal(goal_handle, result, GoalTerminal::kAborted);
 
         return;
       }
@@ -799,6 +1198,7 @@ private:
       auto t0 = this->get_clock()->now();
       RCLCPP_INFO(this->get_logger(), "t=%.6f", t0.seconds());
       bool first_feedback = true;
+      std::optional<std::chrono::steady_clock::time_point> orb_lost_since;
 
       while (rclcpp::ok() && !eliminado && t <= t_total) {
         active_mtx_.lock();
@@ -808,6 +1208,36 @@ private:
         active_mtx_.unlock();
 
         if (!goal_handle->is_canceling()) {
+          bool orb_lost = false;
+          {
+            std::lock_guard<std::mutex> lock(navigation_state_mtx_);
+            orb_lost = navigation_state_received_ &&
+              last_navigation_state_.tracking_state ==
+              orbslam3_msgs::msg::NavigationState::TRACKING_LOST &&
+              !last_navigation_state_.local_valid;
+          }
+          if (orb_lost) {
+            const auto now = std::chrono::steady_clock::now();
+            if (!orb_lost_since.has_value()) {
+              orb_lost_since = now;
+              RCLCPP_ERROR(
+                this->get_logger(),
+                "[F5-ORB-LOST-HOLD] duration_sec=%.1f action=freeze_reference",
+                orb_loss_hold_sec_);
+            }
+            if (std::chrono::duration<double>(now - *orb_lost_since).count() >=
+              orb_loss_hold_sec_)
+            {
+              RCLCPP_ERROR(
+                this->get_logger(), "[F5-ORB-LOST-ABORT] hold_elapsed_sec=%.1f",
+                orb_loss_hold_sec_);
+              eliminado = true;
+              continue;
+            }
+            rate.sleep();
+            continue;
+          }
+          orb_lost_since.reset();
           t = first_feedback ? 0.0 : (this->get_clock()->now() - t0).seconds();
           first_feedback = false;
 
@@ -831,6 +1261,18 @@ private:
           feedback_msg->y = array_to_msg(salida_trayectoria[1]);
           feedback_msg->z = array_to_msg(salida_trayectoria[2]);
           feedback_msg->yaw = array_to_msg(salida_trayectoria[3]);
+          feedback_msg->camera_pitch = array_to_msg(
+            std::array<double, 5>{
+            goal->target_camera_pitch_rad, 0.0, 0.0, 0.0,
+            100.0 * std::clamp(t / std::max(t_total, 1e-9), 0.0, 1.0)});
+
+          {
+            std::lock_guard<std::mutex> lock(active_mtx_);
+            if (active_goal_ != goal_handle) {
+              eliminado = true;
+              continue;
+            }
+          }
 
           goal_handle->publish_feedback(feedback_msg);                  // Envía periódicamente los valores al tópico /feedback
 
@@ -848,12 +1290,14 @@ private:
       result->t_total = 0.0f;
       RCLCPP_INFO(this->get_logger(), "Acción CANCELADA");
       if (cancelado) {
-        goal_handle->canceled(result);
+        FinalizeGoal(goal_handle, result, GoalTerminal::kCanceled);
+      } else {
+        FinalizeGoal(goal_handle, result, GoalTerminal::kAborted);
       }
     } else {
       result->success = true;
       result->t_total = static_cast<float>(t_total);
-      goal_handle->succeed(result);
+      FinalizeGoal(goal_handle, result, GoalTerminal::kSucceeded);
       RCLCPP_INFO(this->get_logger(), "Acción finalizada OK");
     }
   }
@@ -862,6 +1306,8 @@ private:
   rclcpp::Subscription<orbslam3_msgs::msg::NavigationState>::SharedPtr
     sub_navigation_state_;
   rclcpp::Client<std_srvs::srv::SetBool>::SharedPtr trajectory_active_client_;
+  rclcpp::Publisher<trajectory_msgs::msg::JointTrajectory>::SharedPtr camera_pitch_publisher_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr trajectory_active_publisher_;
 
   std::mutex active_mtx_;
   std::mutex navigation_state_mtx_;
@@ -869,9 +1315,13 @@ private:
   std::shared_ptr<GoalHandleTrayAction> active_goal_;        // goal que consideramos "activo"
 
   double v_max_lin;
+  double stop_duration_sec_ = 2.0;
+  double waypoint_blend_sec_ = 3.0;
+  bool debug_f6i_trajectory_ = false;
   double v_max_ang;
   double t_a;
   double navigation_state_timeout_sec_{0.5};
+  double orb_loss_hold_sec_{10.0};
   double trajectory_source_handshake_timeout_sec_{1.0};
   bool navigation_state_received_{false};
   orbslam3_msgs::msg::NavigationState last_navigation_state_;

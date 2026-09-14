@@ -9,15 +9,33 @@ bool absoluto_x
 bool absoluto_y
 bool absoluto_z
 bool absoluto_yaw
+# Modo interno F6I: frena hacia la pose canonica actual y termina en hover.
+bool stop_at_current_pose
+# Modo F6I: destinos world; el origen canonico se captura en gen_tray.
+geometry_msgs/PoseStamped[] waypoint_targets
+# Tiempo acumulado desde el origen, homologo de cada destino.
+float32[] waypoint_times
+# Orientacion deseada de cada destino; se mantiene separada de la pose XYZ.
+float64[] waypoint_yaws_rad
+float64[] waypoint_camera_pitches_rad
+# Pitch de los modos legacy/directos, en radianes.
+float64 target_camera_pitch_rad
+# Identidad propagada solo para telemetria F6I entre servidor, generador y control.
+string trajectory_id
 ---
 # salida
 bool success
 float32 t_total
+string reason
 ---
 # Feedback
 float32 t_act
+# Identidad y pieza Pol3 aplicada; no modifican el perfil ni el control.
+string trajectory_id
+uint32 diagnostic_piece_index
 # Para cada eje: [pos, vel, acc, jerk, ratio]  (5 elementos)
 std_msgs/Float64MultiArray x
 std_msgs/Float64MultiArray y
 std_msgs/Float64MultiArray z
 std_msgs/Float64MultiArray yaw
+std_msgs/Float64MultiArray camera_pitch

@@ -10,7 +10,11 @@ sin hacer
 
 ## Objetivo técnico
 
-Implementar en `dense_map_multi` la cadena servidor L/R → disparity → depth → puntos XYZRGB y producir una `DenseSubcloud` canónica expresada en el frame de cámara/KF que originó esas imágenes, sin transformarla permanentemente a `world`.
+Implementar en el lado dron la cadena par estéreo exacto de KF → disparity →
+depth → puntos XYZRGB/normales locales y publicar una `DenseSubcloud` canónica
+en el frame de cámara/KF. `dense_map_multi` consume, filtra globalmente y
+fusiona ese producto, sin recalcular disparity/depth ni transformarlo
+permanentemente a `world`.
 
 ## Relacion con la visibilidad sparse de 3P
 
@@ -35,7 +39,9 @@ exista o no conserve depth para ese KF.
 
 ## Invariantes y decisiones cerradas
 
-- El cálculo ocurre siempre en servidor.
+- El cálculo disparity/depth/nube local ocurre una vez por KF en el dron, en
+  un worker acotado; integración reversible, fusión, calidad global y
+  optimización ocurren en servidor.
 - La subnube densa de un KF es local a ese KF; su colocación global se obtiene después con la pose global vigente del KF.
 - Las imágenes no se guardan una vez construida/aceptada la subnube.
 - OpenCV se usa para la cadena estéreo; Open3D puede usarse para estructuras/filtros posteriores, sin obligar aún a TSDF.
@@ -71,7 +77,10 @@ Revisar `vision_experimental` para recuperar ideas de parámetros/filtros, pero 
 
 ## Diagnóstico de partida
 
-Tras 8B el servidor recibe el par exacto de un KF, pero aún no existe un producto denso canónico. Los scripts experimentales previos prueban múltiples enfoques de profundidad/nube/TSDF, pero no son parte del pipeline y pueden contener supuestos incompatibles.
+Tras 8B el servidor recibe un DenseKF local exacto, pero aún no existe un
+producto global canónico. Los scripts experimentales previos prueban múltiples
+enfoques de profundidad/nube/TSDF, pero no son parte del pipeline y pueden
+contener supuestos incompatibles.
 
 
 ## Archivos permitidos a modificar
@@ -81,6 +90,9 @@ src/servidor/dense_map_multi/include/dense_map_multi/
 src/servidor/dense_map_multi/src/
 src/servidor/dense_map_server/
 src/servidor/dense_map_multi/config/             # si el paquete instala YAML propios
+src/dron/orbslam3_ros2/                           # worker local por KF y asociación exacta de 8B
+src/dron/orbslam3_msgs/                           # contrato DenseKF si se amplía
+src/servidor/orbslam3_msgs/                       # copia canónica del contrato si se amplía
 src/simulacion/simulacion_dron/                  # solo escenario de validación
 ```
 
@@ -104,8 +116,8 @@ paquetes ajenos a la subfase                # salvo dependencia real localizada 
 
 ```text
 dense_map_multi::StereoCalibration (8A)
-dense_map_multi::StereoDepthProcessor (8A)
-evento KF+L/R recibido por dense_map_server (8B)
+interfaz del worker depth local por KF (8A/8B)
+evento DenseKF local recibido por dense_map_server (8B)
 parámetros de rectificación/Camera.bf reales
 ```
 Nuevos componentes sugeridos:
@@ -124,13 +136,15 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 
 ## Cambios requeridos
 
-1. Calcular disparity con un algoritmo OpenCV configurable y determinista; no hardcodear parámetros de una única escena.
+1. Calcular disparity en el worker del dron con un algoritmo configurable y
+   determinista; no hardcodear parámetros de una única escena.
 2. Validar disparity: no finita, <=0 cuando no sea válida, fuera de rango, inconsistencia estéreo y bordes/oclusiones según la capacidad del algoritmo elegido.
 3. Convertir a depth métrico con calibración 8A y rechazar profundidades fuera del rango físico/configurado.
 4. Retroproyectar a XYZ en el frame del KF/cámara y asociar color de la imagen izquierda; definir claramente ejes/unidades.
 5. Crear `DenseSubcloud` con identidad `(drone_id,map_epoch,kf_id)`, puntos locales y metadatos básicos de calidad necesarios para 8G/8D.
 6. Aplicar solo filtros mínimos necesarios para una nube utilizable; los filtros de calidad avanzados quedan en 8G.
-7. Descartar las imágenes L/R de trabajo después de construir la subnube y completar el envío/commit correspondiente.
+7. Descartar las imágenes L/R de trabajo después de construir la subnube y
+   completar su publicación; servidor no recibe ni archiva imágenes crudas.
 8. Añadir markers `DENSE-DISPARITY`, `DENSE-DEPTH`, `DENSE-SUBCLOUD-BUILT` con conteos y rangos, sin inundar logs.
 9. Documentar comparacion con la proyeccion sparse de 3P y decidir si existe
    una abstraccion reutilizable; no crear una integracion runtime hacia score
@@ -142,7 +156,8 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 - No usar Ground Truth para calcular disparity/depth, colocar la nube densa, fusionar, corregir poses, refinar MapPoints, decidir ocupación o validar online una trayectoria. GT solo puede aparecer como métrica externa de simulación.
 - No modificar datos raw de ORB-SLAM3 en `RawMapDatabase`.
 - No devolver MapPoints corregidos al ORB-SLAM3 que corre en el dron.
-- No ejecutar reconstrucción densa pesada en el dron: el dron se limita a capturar y enviar información.
+- No fusionar ni optimizar en el dron. El cálculo local por KF, sus normales y
+  filtrado mínimo están autorizados; el mapa denso global sigue en servidor.
 - No convertir `orbslam3_server` ni `dense_map_server` en un backend algorítmico monolítico; los algoritmos densos pertenecen a `dense_map_multi`.
 - No bloquear ingesta sparse, pose, control, GUI o ejecución de tareas mientras se calcula disparity, registro, voxelización, fusión o reintegración.
 - No almacenar imágenes L/R permanentemente como parte de `DenseKeyFrameDatabase`; si una zona queda mal, la estrategia acordada es volver a observarla/recapturarla.

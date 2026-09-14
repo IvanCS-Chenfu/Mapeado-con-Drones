@@ -1,21 +1,21 @@
 window.SYSTEM_ARCHITECTURE_LAYOUT = {
   "positions": {
-    "simulacion_dron": {"x": 180, "y": 190},
-    "orbslam3_multi": {"x": 610, "y": 90},
-    "orbslam3_server": {"x": 610, "y": 210},
-    "orbslam3_msgs_server": {"x": 870, "y": 210},
-    "multidron_gui": {"x": 1040, "y": 90},
-    "multidron_gui_lib": {"x": 1040, "y": 210},
-    "dron_individual": {"x": 290, "y": 520},
-    "lib_tray": {"x": 290, "y": 650},
-    "orbslam3": {"x": 570, "y": 520},
-    "ORB_SLAM3": {"x": 570, "y": 650},
-    "orbslam3_msgs_dron": {"x": 850, "y": 520},
-    "mission_msgs_dron": {"x": 850, "y": 680},
-    "task_manager_lib": {"x": 290, "y": 800},
-    "task_manager": {"x": 570, "y": 800},
-    "mission_msgs_server": {"x": 870, "y": 380},
-    "task_lib": {"x": 610, "y": 420},
-    "task_server": {"x": 820, "y": 800}
+    "lib_tray": {"x": 150, "y": 130},
+    "dron_individual": {"x": 360, "y": 130},
+    "mission_msgs_dron": {"x": 360, "y": 300},
+    "task_manager_lib": {"x": 150, "y": 430},
+    "task_manager": {"x": 360, "y": 430},
+    "ORB_SLAM3": {"x": 150, "y": 620},
+    "orbslam3": {"x": 360, "y": 620},
+    "orbslam3_msgs_dron": {"x": 360, "y": 790},
+    "simulacion_dron": {"x": 710, "y": 350},
+    "multidron_gui": {"x": 1120, "y": 130},
+    "multidron_gui_lib": {"x": 1360, "y": 250},
+    "mission_msgs_server": {"x": 1120, "y": 380},
+    "task_server": {"x": 1120, "y": 510},
+    "task_lib": {"x": 1360, "y": 510},
+    "orbslam3_msgs_server": {"x": 1120, "y": 680},
+    "orbslam3_server": {"x": 1120, "y": 820},
+    "orbslam3_multi": {"x": 1360, "y": 820}
   }
 };

@@ -86,8 +86,6 @@ def generate_launch_description():
     full_orb_vocabulary = PathJoinSubstitution([
         FindPackageShare('dron_individual'),
         'config', 'orbslam', 'vocabulary', 'ORBvoc.txt'])
-    mission_config = PathJoinSubstitution([
-        FindPackageShare('task_server'), 'config', 'mission_house.yaml'])
 
     rviz_environment = {}
     for key, value in os.environ.items():
@@ -107,6 +105,8 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('launch_gazebo_gui', default_value='true'))
     ld.add_action(DeclareLaunchArgument('launch_mission_gui', default_value='true'))
     ld.add_action(DeclareLaunchArgument('launch_multidron_gui', default_value='true'))
+    ld.add_action(DeclareLaunchArgument(
+        'multidron_gui_start_delay_sec', default_value='0.0'))
     ld.add_action(DeclareLaunchArgument('launch_rviz', default_value='false'))
     ld.add_action(DeclareLaunchArgument('launch_phase6', default_value='true'))
     ld.add_action(DeclareLaunchArgument('drone_stale_timeout_sec', default_value='1.0'))
@@ -143,7 +143,7 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('pipeline_flow_port', default_value='8765'))
     ld.add_action(DeclareLaunchArgument('mission_flow_port', default_value='8785'))
     ld.add_action(DeclareLaunchArgument('system_architecture_port', default_value='8775'))
-    ld.add_action(DeclareLaunchArgument('mission_config', default_value=mission_config))
+    ld.add_action(DeclareLaunchArgument('mission_config', default_value=''))
     ld.add_action(DeclareLaunchArgument('mission_voxel_size', default_value='0.25'))
     ld.add_action(DeclareLaunchArgument(
         'fiducial_visual_min_distance_m', default_value='1.0'))
@@ -167,14 +167,76 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument(
         'phase5_global_pose_rviz_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
-        'gt_fallback_enabled', default_value='true'))
+        'gt_fallback_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
         'phase5_navigation_source', default_value='orb'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_execute_facade_sweeps', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_execution_enabled_on_start', default_value='true'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_execution_nominal_velocity_mps', default_value='0.8'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_execution_timing_factor', default_value='2.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_trajectory_waypoint_min_separation_m', default_value='1.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_trajectory_min_segment_duration_sec', default_value='8.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_waypoint_blend_sec', default_value='3.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_min_occupied_mappoints_per_voxel', default_value='4'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_debug_trajectory_diagnostics', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_extra_obstacle_clearance_voxels', default_value='2'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_voxel_worker_coalesce_ms', default_value='100'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_facade_preferred_wall_distance_m', default_value='2.5'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_facade_preferred_displacement_m', default_value='2.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_facade_wall_distance_weight', default_value='1.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_facade_displacement_weight', default_value='1.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_facade_height_weight', default_value='1.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_facade_completion_ratio', default_value='0.99'))
+    ld.add_action(DeclareLaunchArgument('phase6_facade_candidate_step_m', default_value='0.25'))
+    ld.add_action(DeclareLaunchArgument('phase6_facade_min_free_prefix_m', default_value='1.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_facade_orientation_tolerance_deg', default_value='25.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_facade_max_inspection_failures', default_value='3'))
+    ld.add_action(DeclareLaunchArgument('phase6_facade_worker_period_ms', default_value='250'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_reservation_sweep_sample_step_voxels', default_value='0.5'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_inspection_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_evidence_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_stop_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_stop_distance_m', default_value='1.2'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_stop_cooldown_sec', default_value='5.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_min_confidence', default_value='0.25'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_max_points', default_value='128'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_max_disparity_gradient_px_per_pixel', default_value='2.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_min_texture_gradient', default_value='8.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_texture_window_radius_px', default_value='2'))
+    ld.add_action(DeclareLaunchArgument('orb_loss_hold_sec', default_value='10.0'))
     ld.add_action(DeclareLaunchArgument(
         'orb_qualification_samples', default_value='20'))
     ld.add_action(DeclareLaunchArgument(
         'debug_orb_visual_evidence',
         default_value=debug_default('debug_orb_visual_evidence')))
+    ld.add_action(DeclareLaunchArgument('phase6_visual_risk_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument('phase6_debug_visual_risk_display', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_visual_risk_empty_region_fraction', default_value='0.75'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_visual_risk_persistence_frames', default_value='3'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_visual_risk_reorientation_grace_sec', default_value='6.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_visual_risk_reorientation_step_deg', default_value='25.0'))
     ld.add_action(DeclareLaunchArgument(
         'orb_visual_evidence_output_dir', default_value=''))
     ld.add_action(DeclareLaunchArgument(
@@ -300,6 +362,62 @@ def generate_launch_description():
                 LaunchConfiguration('debug_mission_flow_web'), value_type=bool),
             'system_architecture_events_enabled': ParameterValue(
                 architecture_telemetry_enabled, value_type=bool),
+            'phase5_navigation_source': LaunchConfiguration('phase5_navigation_source'),
+            'execute_facade_sweeps': ParameterValue(
+                LaunchConfiguration('phase6_execute_facade_sweeps'), value_type=bool),
+            'execution_enabled_on_start': ParameterValue(
+                LaunchConfiguration('phase6_execution_enabled_on_start'), value_type=bool),
+            'execution_nominal_velocity_mps': ParameterValue(
+                LaunchConfiguration('phase6_execution_nominal_velocity_mps'), value_type=float),
+            'execution_timing_factor': ParameterValue(
+                LaunchConfiguration('phase6_execution_timing_factor'), value_type=float),
+            'trajectory_waypoint_min_separation_m': ParameterValue(
+                LaunchConfiguration('phase6_trajectory_waypoint_min_separation_m'),
+                value_type=float),
+            'trajectory_min_segment_duration_sec': ParameterValue(
+                LaunchConfiguration('phase6_trajectory_min_segment_duration_sec'),
+                value_type=float),
+            'min_occupied_mappoints_per_voxel': ParameterValue(
+                LaunchConfiguration('phase6_min_occupied_mappoints_per_voxel'),
+                value_type=int),
+            'debug_trajectory_diagnostics': ParameterValue(
+                LaunchConfiguration('phase6_debug_trajectory_diagnostics'), value_type=bool),
+            'extra_obstacle_clearance_voxels': ParameterValue(
+                LaunchConfiguration('phase6_extra_obstacle_clearance_voxels'),
+                value_type=int),
+            'voxel_worker_coalesce_ms': ParameterValue(
+                LaunchConfiguration('phase6_voxel_worker_coalesce_ms'), value_type=int),
+            'facade_preferred_wall_distance_m': ParameterValue(
+                LaunchConfiguration('phase6_facade_preferred_wall_distance_m'), value_type=float),
+            'facade_preferred_displacement_m': ParameterValue(
+                LaunchConfiguration('phase6_facade_preferred_displacement_m'), value_type=float),
+            'facade_wall_distance_weight': ParameterValue(
+                LaunchConfiguration('phase6_facade_wall_distance_weight'), value_type=float),
+            'facade_displacement_weight': ParameterValue(
+                LaunchConfiguration('phase6_facade_displacement_weight'), value_type=float),
+            'facade_height_weight': ParameterValue(
+                LaunchConfiguration('phase6_facade_height_weight'), value_type=float),
+            'facade_completion_ratio': ParameterValue(
+                LaunchConfiguration('phase6_facade_completion_ratio'), value_type=float),
+            'facade_candidate_step_m': ParameterValue(
+                LaunchConfiguration('phase6_facade_candidate_step_m'), value_type=float),
+            'facade_min_free_prefix_m': ParameterValue(
+                LaunchConfiguration('phase6_facade_min_free_prefix_m'), value_type=float),
+            'facade_orientation_tolerance_deg': ParameterValue(
+                LaunchConfiguration('phase6_facade_orientation_tolerance_deg'), value_type=float),
+            'facade_max_inspection_failures': ParameterValue(
+                LaunchConfiguration('phase6_facade_max_inspection_failures'), value_type=int),
+            'facade_worker_period_ms': ParameterValue(
+                LaunchConfiguration('phase6_facade_worker_period_ms'), value_type=int),
+            'reservation_sweep_sample_step_voxels': ParameterValue(
+                LaunchConfiguration('phase6_reservation_sweep_sample_step_voxels'),
+                value_type=float),
+            'depth_evidence_enabled': ParameterValue(
+                LaunchConfiguration('phase6_depth_evidence_enabled'), value_type=bool),
+            'depth_min_confidence': ParameterValue(
+                LaunchConfiguration('phase6_depth_min_confidence'), value_type=float),
+            'depth_max_points_per_observation': ParameterValue(
+                LaunchConfiguration('phase6_depth_max_points'), value_type=int),
         }], condition=IfCondition(LaunchConfiguration('launch_phase6'))))
 
     ld.add_action(Node(
@@ -338,19 +456,21 @@ def generate_launch_description():
             LaunchConfiguration('debug_sparse_global_rviz'), "'.lower() == 'true'",
         ]))))
 
-    ld.add_action(Node(
-        package='multidron_gui', executable='multidron_gui', name='multidron_gui',
-        parameters=[{
-            'use_sim_time': True,
-            'drone_count': default_n,
-            'drone_namespace_base': default_namespace_base,
-            'fiducial_config_path': fiducial_objects_config,
-            'drone_stale_timeout_sec': ParameterValue(
-                LaunchConfiguration('drone_stale_timeout_sec'), value_type=float),
-        }],
-        env=rviz_environment,
-        output='screen',
-        condition=IfCondition(LaunchConfiguration('launch_multidron_gui'))))
+    ld.add_action(TimerAction(
+        period=LaunchConfiguration('multidron_gui_start_delay_sec'),
+        actions=[Node(
+            package='multidron_gui', executable='multidron_gui', name='multidron_gui',
+            parameters=[{
+                'use_sim_time': True,
+                'drone_count': default_n,
+                'drone_namespace_base': default_namespace_base,
+                'fiducial_config_path': fiducial_objects_config,
+                'drone_stale_timeout_sec': ParameterValue(
+                    LaunchConfiguration('drone_stale_timeout_sec'), value_type=float),
+            }],
+            env=rviz_environment,
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('launch_multidron_gui')))]))
 
     ld.add_action(Node(
         package='simulacion_dron', executable='gui_tray_multi.py',
@@ -409,21 +529,42 @@ def generate_launch_description():
                         'debug_fiducial_display_seconds'),
                     'debug_orb_control_state': LaunchConfiguration(
                         'debug_orb_control_state'),
+                    'debug_f6i_trajectory': LaunchConfiguration(
+                        'phase6_debug_trajectory_diagnostics'),
                     'debug_fase_5': LaunchConfiguration('debug_fase_5'),
                     'gt_fallback_enabled': LaunchConfiguration(
                         'gt_fallback_enabled'),
                     'phase5_navigation_source': LaunchConfiguration(
                         'phase5_navigation_source'),
+                    'orb_loss_hold_sec': LaunchConfiguration('orb_loss_hold_sec'),
+                    'waypoint_blend_sec': LaunchConfiguration('phase6_waypoint_blend_sec'),
                     'camera_pitch_enabled': LaunchConfiguration(
                         'camera_pitch_enabled'),
                     'orb_qualification_samples': LaunchConfiguration(
                         'orb_qualification_samples'),
                     'debug_orb_visual_evidence': LaunchConfiguration(
                         'debug_orb_visual_evidence'),
+                    'debug_visual_risk_display': LaunchConfiguration(
+                        'phase6_debug_visual_risk_display'),
+                    'visual_risk_empty_region_fraction': LaunchConfiguration(
+                        'phase6_visual_risk_empty_region_fraction'),
                     'orb_visual_evidence_output_dir': LaunchConfiguration(
                         'orb_visual_evidence_output_dir'),
                     'orb_navigation_prediction_mode': LaunchConfiguration(
                         'orb_navigation_prediction_mode'),
+                    'depth_observation_enabled': LaunchConfiguration(
+                        'phase6_depth_inspection_enabled'),
+                    'depth_max_points': LaunchConfiguration('phase6_depth_max_points'),
+                    'depth_max_disparity_gradient_px_per_pixel': LaunchConfiguration(
+                        'phase6_depth_max_disparity_gradient_px_per_pixel'),
+                    'depth_min_texture_gradient': LaunchConfiguration(
+                        'phase6_depth_min_texture_gradient'),
+                    'depth_texture_window_radius_px': LaunchConfiguration(
+                        'phase6_depth_texture_window_radius_px'),
+                    'depth_stop_enabled': LaunchConfiguration('phase6_depth_stop_enabled'),
+                    'depth_stop_distance_m': LaunchConfiguration('phase6_depth_stop_distance_m'),
+                    'depth_stop_cooldown_sec': LaunchConfiguration(
+                        'phase6_depth_stop_cooldown_sec'),
                 }.items()),
             Node(
                 package='task_manager', executable='task_manager_node',
@@ -432,6 +573,19 @@ def generate_launch_description():
                     'drone_id': i,
                     'system_architecture_events_enabled': ParameterValue(
                         architecture_telemetry_enabled, value_type=bool),
+                    'phase5_navigation_source': LaunchConfiguration(
+                        'phase5_navigation_source'),
+                    'visual_risk_enabled': ParameterValue(
+                        LaunchConfiguration('phase6_visual_risk_enabled'), value_type=bool),
+                    'visual_risk_persistence_frames': ParameterValue(
+                        LaunchConfiguration('phase6_visual_risk_persistence_frames'),
+                        value_type=int),
+                    'visual_risk_reorientation_grace_sec': ParameterValue(
+                        LaunchConfiguration('phase6_visual_risk_reorientation_grace_sec'),
+                        value_type=float),
+                    'visual_risk_reorientation_step_deg': ParameterValue(
+                        LaunchConfiguration('phase6_visual_risk_reorientation_step_deg'),
+                        value_type=float),
                 }], condition=IfCondition(LaunchConfiguration('launch_phase6'))),
         ])
         if i == 1:

@@ -107,13 +107,18 @@ void GuiDataModel::ReplaceTrajectory(const TrajectoryVisual & trajectory)
   BumpGenerationLocked();
 }
 
-void GuiDataModel::ClearTrajectory(std::uint32_t drone_id)
+bool GuiDataModel::ClearTrajectory(std::uint32_t drone_id, const std::string & trajectory_id)
 {
   std::lock_guard<std::mutex> lock(mutex_);
+  const auto current = trajectories_->find(drone_id);
+  if (current == trajectories_->end() || current->second.trajectory_id != trajectory_id) {
+    return false;
+  }
   auto next = std::make_shared<TrajectoryMap>(*trajectories_);
   next->erase(drone_id);
   trajectories_ = std::move(next);
   BumpGenerationLocked();
+  return true;
 }
 
 void GuiDataModel::SetVoxels(VoxelVector voxels)

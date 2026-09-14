@@ -1,4 +1,4 @@
-# Subfase 8B — Asociación exacta KeyFrame ↔ par estéreo del wrapper
+# Subfase 8B — Asociación exacta KeyFrame ↔ depth local del wrapper
 
 
 ## Estado
@@ -10,14 +10,21 @@ sin hacer
 
 ## Objetivo técnico
 
-Modificar el wrapper para que, cuando ORB-SLAM3 cree un KeyFrame, pueda emitir al servidor el par izquierda/derecha exacto utilizado por el `TrackStereo` que originó ese KF, con identidad `(drone_id, map_epoch, local_kf_id)` y timestamp coherentes. No se guardan imágenes de forma persistente.
+Modificar el wrapper para que, cuando ORB-SLAM3 cree un KeyFrame, asocie el par
+izquierda/derecha exacto al worker depth local y entregue al servidor el
+resultado filtrado referido al KF, con identidad `(drone_id, map_epoch,
+local_kf_id)` y timestamp coherentes. No se guardan imágenes de forma
+persistente.
 
 
 ## Invariantes y decisiones cerradas
 
 - El wrapper sí puede obtener las imágenes de un KF; esta subfase debe implementarlo.
 - La asociación debe ser exacta, no por “KF más cercano” ni por una ventana temporal aproximada.
-- Las imágenes se transportan al servidor y se descartan cuando ya se ha construido/aceptado la subnube; no forman parte de la DB persistente.
+- El depth/nube/rayos se calculan una sola vez por KF en una cola local acotada;
+  el tracking no espera al cálculo ni al servidor.
+- El servidor recibe DenseKF filtrado, rayos, calibración, calidad y la
+  transformada local; integra/fusiona, pero no recalcula disparity/depth.
 - Fase 4 ya requiere una asociación exacta imagen-KF para fiducial; reutilizar esa infraestructura si existe tras ejecutar Fase 4.
 
 
@@ -101,10 +108,14 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 
 1. Detectar de forma determinista qué KF nuevo aparece como consecuencia del `TrackStereo` actual, respetando `map_epoch` y resets.
 2. Asociar ese KF al `cv::Mat`/mensaje left y right exactos del callback que lo produjo; copiar solo lo imprescindible para sobrevivir al scope del callback.
-3. Definir/reutilizar un contrato ROS para enviar al servidor identidad del KF + par estéreo + calibración/referencia necesaria, manteniendo sincronizadas las copias de `orbslam3_msgs` si se amplían.
+3. Definir/reutilizar un contrato ROS para enviar al servidor identidad del KF,
+   DenseKF/rayos/normales filtrados, calibración, calidad y referencia necesaria,
+   manteniendo sincronizadas las copias de `orbslam3_msgs` si se amplían.
 4. Evitar almacenamiento histórico de imágenes en el dron; implementar cola acotada/backpressure seguro para no bloquear tracking si servidor/red se retrasa.
-5. En `dense_map_server`, recibir el evento y verificar unicidad de `(drone_id,map_epoch,kf_id)` y coherencia de timestamps antes de pasarlo a 8C.
-6. Añadir markers `DENSE-KF-STEREO-EMIT`, `DENSE-KF-STEREO-RECV`, `DENSE-KF-STEREO-DROP` y razones de descarte.
+5. En `dense_map_server`, recibir el resultado y verificar unicidad de
+   `(drone_id,map_epoch,kf_id)`, referencia local y coherencia temporal antes
+   de pasarlo a DB, occupancy y fusión.
+6. Añadir markers `DENSE-KF-STEREO-EMIT`, `DENSE-KF-DEPTH-RECV`, `DENSE-KF-STEREO-DROP` y razones de descarte, registrando la asociación exacta y el resultado local sin publicar imágenes crudas.
 
 
 ## Cambios prohibidos
@@ -112,7 +123,8 @@ No inventar nombres de interfaces previas. Si alguno no existe con ese nombre, l
 - No usar Ground Truth para calcular disparity/depth, colocar la nube densa, fusionar, corregir poses, refinar MapPoints, decidir ocupación o validar online una trayectoria. GT solo puede aparecer como métrica externa de simulación.
 - No modificar datos raw de ORB-SLAM3 en `RawMapDatabase`.
 - No devolver MapPoints corregidos al ORB-SLAM3 que corre en el dron.
-- No ejecutar reconstrucción densa pesada en el dron: el dron se limita a capturar y enviar información.
+- No fusionar, optimizar ni construir mapa global en el dron. El cálculo depth
+  local por KF y el filtrado mínimo sí pertenecen al dron.
 - No convertir `orbslam3_server` ni `dense_map_server` en un backend algorítmico monolítico; los algoritmos densos pertenecen a `dense_map_multi`.
 - No bloquear ingesta sparse, pose, control, GUI o ejecución de tareas mientras se calcula disparity, registro, voxelización, fusión o reintegración.
 - No almacenar imágenes L/R permanentemente como parte de `DenseKeyFrameDatabase`; si una zona queda mal, la estrategia acordada es volver a observarla/recapturarla.
@@ -151,7 +163,7 @@ Si la separación de Fase 2 está ya ejecutada, respetar sus builds por grupo (`
 
 ### Prueba 1 — Creación controlada de KFs
 
-Mover un dron por un tramo que genere varios KFs. Para cada evento emitido, comprobar que `kf_id/map_epoch` coincide con el KF exportado y que el par L/R proviene del mismo callback `TrackStereo`.
+Mover un dron por un tramo que genere varios KFs. Para cada evento emitido, comprobar que `kf_id/map_epoch` coincide con el KF exportado, que el par L/R proviene del mismo callback `TrackStereo` y que el servidor recibe un único DenseKF local asociado.
 
 ### Prueba 2 — Reset/map_epoch
 

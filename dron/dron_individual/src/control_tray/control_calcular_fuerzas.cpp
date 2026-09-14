@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <string>
 using namespace Eigen;
 using namespace std::chrono_literals;
 
@@ -47,6 +49,7 @@ public:
     this->declare_parameter<double>("navigation_state_timeout_sec", 0.5);
     this->declare_parameter<double>("control.source_handoff_duration_sec", 0.5);
     this->declare_parameter<bool>("debug_orb_control_state", false);
+    this->declare_parameter<bool>("debug_f6i_trajectory", false);
 
     // Obtener parámetro (decir tipo)
     m = this->get_parameter("fisico.total.masa").as_double();
@@ -62,6 +65,8 @@ public:
       0.05, this->get_parameter("control.source_handoff_duration_sec").as_double());
     debug_orb_control_state_ =
       this->get_parameter("debug_orb_control_state").as_bool();
+    debug_f6i_trajectory_ =
+      this->get_parameter("debug_f6i_trajectory").as_bool();
 
     snap_des.setZero();
   }
@@ -162,6 +167,33 @@ private:
     yaw_ddot_des = msg->feedback.yaw.data[2];
 
     jerk_des << msg->feedback.x.data[3], msg->feedback.y.data[3], msg->feedback.z.data[3];
+
+    const bool diagnostic_boundary = debug_f6i_trajectory_ &&
+      !msg->feedback.trajectory_id.empty() &&
+      (msg->feedback.trajectory_id != last_diagnostic_trajectory_id_ ||
+      msg->feedback.diagnostic_piece_index != last_diagnostic_piece_index_);
+    if (diagnostic_boundary) {
+      if (state_ready_) {
+        RCLCPP_WARN(
+          this->get_logger(),
+          "[F6I-CONTROL-REFERENCE-APPLIED] trajectory_id=%s piece=%u time_sec=%.6f "
+          "reference_p=(%.6f,%.6f,%.6f) reference_v=(%.6f,%.6f,%.6f) "
+          "actual_p=(%.6f,%.6f,%.6f) actual_v=(%.6f,%.6f,%.6f)",
+          msg->feedback.trajectory_id.c_str(), msg->feedback.diagnostic_piece_index,
+          msg->feedback.t_act, x_des.x(), x_des.y(), x_des.z(), x_dot_des.x(),
+          x_dot_des.y(), x_dot_des.z(), x.x(), x.y(), x.z(), x_dot.x(), x_dot.y(),
+          x_dot.z());
+      } else {
+        RCLCPP_WARN(
+          this->get_logger(),
+          "[F6I-CONTROL-REFERENCE-PENDING] trajectory_id=%s piece=%u time_sec=%.6f "
+          "reason=navigation_state_not_ready",
+          msg->feedback.trajectory_id.c_str(), msg->feedback.diagnostic_piece_index,
+          msg->feedback.t_act);
+      }
+      last_diagnostic_trajectory_id_ = msg->feedback.trajectory_id;
+      last_diagnostic_piece_index_ = msg->feedback.diagnostic_piece_index;
+    }
 
     if (angular_handoff_pending_ && state_ready_) {
       angular_handoff_rotation_ = R_act;
@@ -423,12 +455,15 @@ private:
   bool angular_handoff_active_ = false;
   bool angular_handoff_first_cycle_ = false;
   bool debug_orb_control_state_ = false;
+  bool debug_f6i_trajectory_ = false;
   int angular_handoff_log_stage_ = 0;
   uint8_t last_pose_source_ = orbslam3_msgs::msg::NavigationState::POSE_SOURCE_INVALID;
   uint8_t current_pose_source_ = orbslam3_msgs::msg::NavigationState::POSE_SOURCE_INVALID;
   uint64_t current_map_epoch_ = 0;
   uint64_t current_reference_keyframe_id_ = 0;
   uint64_t current_sample_sequence_ = 0;
+  std::string last_diagnostic_trajectory_id_;
+  std::uint32_t last_diagnostic_piece_index_{0U};
   int8_t current_tracking_state_ = -1;
   double last_navigation_stamp_sec_{0.0};
   double last_navigation_receive_stamp_sec_{0.0};

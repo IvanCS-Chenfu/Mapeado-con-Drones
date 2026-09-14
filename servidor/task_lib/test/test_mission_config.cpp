@@ -17,7 +17,8 @@ std::string WriteConfig(const std::string & name, const std::string & content)
   return path;
 }
 
-const char * kValidConfig = R"(
+const char * kValidConfig =
+  R"(
 mission_id: test_house
 drones: [1, 2]
 mapping_roi:
@@ -61,7 +62,8 @@ TEST(MissionConfig, BuildsHalfRegionsAndAddsRemainderToLastLevel)
 TEST(MissionConfig, ExactMultipleProducesUniformLevels)
 {
   std::string exact = kValidConfig;
-  exact.replace(exact.find("[10.0, 8.0, 5.0]"), std::string("[10.0, 8.0, 5.0]").size(),
+  exact.replace(
+    exact.find("[10.0, 8.0, 5.0]"), std::string("[10.0, 8.0, 5.0]").size(),
     "[10.0, 8.0, 4.0]");
   const auto geometry = task_lib::BuildMissionGeometry(
     task_lib::LoadMissionConfig(WriteConfig("exact", exact)));
@@ -87,13 +89,16 @@ TEST(MissionConfig, RejectsDuplicateDroneAndInvalidGeometry)
 {
   std::string duplicate = kValidConfig;
   duplicate.replace(duplicate.find("[1, 2]"), 6, "[1, 1]");
-  EXPECT_THROW(task_lib::LoadMissionConfig(WriteConfig("duplicate", duplicate)),
+  EXPECT_THROW(
+    task_lib::LoadMissionConfig(WriteConfig("duplicate", duplicate)),
     std::invalid_argument);
 
   std::string inverted = kValidConfig;
-  inverted.replace(inverted.find("[10.0, 8.0, 5.0]"),
+  inverted.replace(
+    inverted.find("[10.0, 8.0, 5.0]"),
     std::string("[10.0, 8.0, 5.0]").size(), "[-10.0, 8.0, 5.0]");
-  EXPECT_THROW(task_lib::LoadMissionConfig(WriteConfig("inverted", inverted)),
+  EXPECT_THROW(
+    task_lib::LoadMissionConfig(WriteConfig("inverted", inverted)),
     std::invalid_argument);
 
   std::string negative_hysteresis = kValidConfig;
@@ -108,7 +113,8 @@ TEST(MissionConfig, RejectsDuplicateDroneAndInvalidGeometry)
 TEST(MissionConfig, RoiShorterThanLevelHeightProducesOneLevel)
 {
   std::string short_roi = kValidConfig;
-  short_roi.replace(short_roi.find("[10.0, 8.0, 5.0]"),
+  short_roi.replace(
+    short_roi.find("[10.0, 8.0, 5.0]"),
     std::string("[10.0, 8.0, 5.0]").size(), "[10.0, 8.0, 1.0]");
   const auto geometry = task_lib::BuildMissionGeometry(
     task_lib::LoadMissionConfig(WriteConfig("short", short_roi)));

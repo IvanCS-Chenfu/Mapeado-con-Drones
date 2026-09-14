@@ -1,0 +1,9 @@
+name: fase_6G_plan_previo_Dstar_acotado
+description: Mantiene Gazebo y la GUI F7 activos para solicitar un plan D* corto y su replan incremental.
+steps:
+  - name: espera_pose_canonica
+    type: wait
+    seconds: 25
+  - name: revision_plan_previsto
+    type: wait
+    seconds: 120

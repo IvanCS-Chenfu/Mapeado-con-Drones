@@ -3,7 +3,8 @@
 ## Estado
 
 ```text
-sin hacer
+CONSEGUIDA para registro, recepcion y confirmacion local de tarea.
+Ejecucion de plan y seguridad completa permanecen en 6I/6L.
 ```
 
 ## Dependencia
@@ -59,3 +60,11 @@ completos ni multi-waypoint, y no controlar Gazebo directamente.
 
 El agente se registra, conserva lifecycle coherente, recibe/rechaza ordenes de
 forma segura y mantiene separadas estrategia, tactica y control fisico.
+
+## Ejecucion vigente
+
+`task_manager` recibe el snapshot, confirma solo `ASSIGNED` mediante
+`/mission/task_reports` y nunca arranca movimiento ni publica completion. La
+deduplicacion incluye `task_id` y `state_revision`, permitiendo reconfirmar una
+reasignacion de la misma tarea. La prueba 605 registro ambas confirmaciones
+locales y la ruta de prueba fue ejecutada exclusivamente por el escenario.

@@ -133,7 +133,8 @@ repara antes de reservar si afecta al corredor.
 TaskWorker asigna MAP_SECTION
   -> coverage/frontier selecciona target XYZ
   -> D* Lite genera/repara ruta XYZ
-  -> view planner asigna yaw/pitch
+  -> dron consulta ultimo DenseKF y fija yaw/pitch de observacion
+  -> publica plan orientado a servidor/GUI
   -> lib_tray genera trayectoria fisica
   -> validacion occupancy + swept volume
   -> ReservationWorker hace commit
@@ -189,15 +190,30 @@ jerk acotado/medido, preservando modos legacy de `lib_tray`.
 
 ## Reservas, replanning y seguridad
 
-Las reservas iniciales son espaciales, conservadoras y serializadas. La
-reserva committed existente gana. Un nuevo plan conflictivo busca alternativa
-o espera. Para un mismo dron, la reserva vieja sigue vigente mientras se valida
+Las reservas iniciales son espaciales, conservadoras y serializadas. La capa
+dinamica `RESERVED` no modifica `OCCUPIED` raw ni la evidencia reversible:
+conserva propietario, revision y modo `MOVING`/`HOLD`. Cada dron ignora sus
+propias reservas y trata las ajenas, con el mismo clearance, como obstaculos
+para D* y seguridad. La reserva committed existente gana. Un nuevo plan
+conflictivo busca alternativa o deja la tarea en `WAITING` con
+`waiting_reservation`; se reintenta tras release o cambio navegable relevante,
+sin STOP. Para un mismo dron, la reserva vieja sigue vigente mientras se valida
 la nueva y el reemplazo es atomico.
 
-Cada segmento conserva corredor voxel y revisiones. Un cambio solo revalida los
-segmentos afectados; se intenta conservar prefix/suffix. Un start-state nuevo
-regenera hasta el primer estado antiguo identico e inserta waypoints de enlace
-si hace falta. Un handover normal no obliga a parar.
+Antes de ese commit, servidor y dron usan la misma curva nominal de `lib_tray`.
+El servidor rasteriza su swept volume cada
+`reservation_sweep_sample_step_voxels=0.5` voxeles iniciales, parametro
+configurable, con footprint orientado por yaw y clearance. No se anade estado
+dinamico inicial a `TrajectoryPlan`: la sucesora se despacha solo tras el
+terminal ordinario de la action anterior y la guarda stale vigente rechaza una
+desviacion material de arranque.
+
+Cada segmento conserva corredor voxel y revisiones. Un cambio raw HARD o una
+reserva ajena solo revalida los segmentos afectados; un cambio `UNKNOWN ->
+FREE`, coste o reserva propia no cancela una trayectoria fisica. Se intenta
+conservar prefix/suffix. Un start-state nuevo regenera hasta el primer estado
+antiguo identico e inserta waypoints de enlace si hace falta. Un handover
+normal no obliga a parar.
 
 Depth local tiene prioridad inmediata:
 
@@ -207,20 +223,29 @@ riesgo fisico -> cancelar plan -> STOP dinamico -> hover
 ```
 
 `task_manager` no espera permiso del servidor. `dron_individual` frena desde el
-estado actual sin salto instantaneo de referencia.
+estado actual sin salto instantaneo de referencia. STOP libera solo la reserva
+futura y mantiene HOLD alrededor del dron parado hasta el siguiente commit
+seguro. La perdida de comunicacion tampoco hace release por timeout: la
+presencia fisica se conserva hasta evidencia canonica de que deja de aplicar.
 
-`TRACKING_RISK` precede a LOST y combina cantidad/distribucion de soporte,
-movimiento/yaw/pitch previstos y tendencia. Activa `VISUAL_RETREAT` sobre la
-trayectoria realmente recorrida hasta el ultimo estado visual estable. Si surge
-riesgo depth durante retreat, `STOP > VISUAL_RETREAT`. LOST reutiliza recovery
-de Fase 5; Fase 6 no crea otro mecanismo paralelo.
+`TRACKING_RISK` precede a LOST y usa la distribucion de inliers ORB del mismo
+frame en franjas direccionales solapadas. Con fraccion `f=0.75`, LEFT es
+`[0,fW]`, RIGHT `[(1-f)W,W]`, TOP `[0,fH]` y BOTTOM `[(1-f)H,H]`; solo cero
+inliers hacia el sector de movimiento durante tres frames activa STOP local.
+El primer sector persistente deja una precaucion espacial ligera y se
+reorienta con una subtarea normal para evitarlo sin cambiar XYZ. No altera aun
+D* ni el mapa. LOST reutiliza recovery de Fase 5; Fase 6 no crea otro mecanismo
+paralelo. `VISUAL_RETREAT` queda como mejora futura, fuera del alcance activo.
 
 ## Observacion y comportamientos
 
-Tras D* Lite se decide yaw/pitch para observar superficies, mantener tracking y
-refrescar laterales. `camera_pitch` forma parte de `TrajectoryPlan`; la ejecucion
-del joint pertenece a `dron_individual`. La distancia preferida es coste suave,
-no restriccion rigida.
+Tras D* Lite, el servidor entrega XYZ y el dron decide una orientacion fija
+para el tramo usando normales depth del ultimo KF valido, inicialmente entre
+`1--5 m`. La superficie fiable mas proxima a la preferencia suave de `2.5 m`
+gobierna yaw/pitch; sin normal se conserva avance/yaw y pitch cero. La sparse
+ORB no decide normales: vigila tracking y puede interrumpir por 6L. El dron
+publica el plan orientado antes de ejecutarlo; `camera_pitch` forma parte de
+`TrajectoryPlan` y el joint pertenece a `dron_individual`.
 
 `GO_TO`, `ANCHOR_SUBMAP` y fiduciales oportunistas usan el mismo pipeline de
 planning, trayectoria y reservas. `GO_TO` tiene prioridad alta pendiente, pero
@@ -259,10 +284,11 @@ justifica paralelizar workers sin medidas.
 | 6I | Multi-waypoint reproducible y `TrajectoryPlan` W->O |
 | 6J | Reservas espaciales, conflicto y HOLD |
 | 6K | Replanning incremental, prefix/suffix y handover |
-| 6L | TRACKING_RISK, STOP y VISUAL_RETREAT |
+| 6L | TRACKING_RISK, STOP y reorientacion preventiva |
 | 6M | Yaw/pitch/distancia y observacion lateral |
-| 6N | GO_TO, ANCHOR_SUBMAP y fiducial oportunista |
-| 6O | Integracion final multidron |
+| 6N | Depth local, evidencia voxel reversible y STOP inmediato |
+| 6O | GO_TO, ANCHOR_SUBMAP y fiducial oportunista |
+| 6P | Integracion final multidron |
 
 ## Parametros no cerrados
 

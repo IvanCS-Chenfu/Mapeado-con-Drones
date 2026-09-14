@@ -1,0 +1,8 @@
+uint32 drone_id
+geometry_msgs/Point target_world
+string task_id
+bool dispatch_execution
+---
+bool accepted
+string reason
+mission_msgs/TrajectoryPlan plan

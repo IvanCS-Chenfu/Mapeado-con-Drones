@@ -81,9 +81,12 @@ TEST(NavigationStateMux, AnchorIsLatchedUntilEpochChanges)
 {
   EpochAnchorLatch latch;
   EXPECT_FALSE(latch.Update(1, false));
+  EXPECT_FALSE(latch.anchored());
   EXPECT_TRUE(latch.Update(1, true));
+  EXPECT_TRUE(latch.anchored());
   EXPECT_TRUE(latch.Update(1, false));
   EXPECT_FALSE(latch.Update(2, false));
+  EXPECT_FALSE(latch.anchored());
   EXPECT_TRUE(latch.previously_anchored());
 }
 

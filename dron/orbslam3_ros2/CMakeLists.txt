@@ -30,6 +30,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(mission_msgs REQUIRED)
 # AÑADIDO #
 
 include_directories(
@@ -69,17 +70,18 @@ add_executable(stereo
   src/stereo/navigation-state-estimator.cpp
   src/stereo/visual-evidence-metrics.cpp
   src/stereo/fiducial-detector.cpp
+  src/stereo/depth-observation-processor.cpp
 )
 # AÑADIDO #
 # ament_target_dependencies(stereo rclcpp sensor_msgs cv_bridge message_filters ORB_SLAM3 Pangolin)
-ament_target_dependencies(stereo rclcpp sensor_msgs cv_bridge message_filters ORB_SLAM3 Pangolin orbslam3_msgs geometry_msgs std_msgs tf2_ros tf2_geometry_msgs)
+ament_target_dependencies(stereo rclcpp sensor_msgs cv_bridge message_filters ORB_SLAM3 Pangolin mission_msgs orbslam3_msgs geometry_msgs std_msgs tf2_ros tf2_geometry_msgs)
 # AÑADIDO #
 target_link_libraries(stereo ${OpenCV_LIBS})
 
 add_executable(fiducial_visualizer
   src/stereo/fiducial-visualizer-node.cpp
 )
-ament_target_dependencies(fiducial_visualizer rclcpp sensor_msgs cv_bridge)
+ament_target_dependencies(fiducial_visualizer rclcpp sensor_msgs cv_bridge mission_msgs)
 target_link_libraries(fiducial_visualizer ${OpenCV_LIBS})
 
 add_executable(stereo-inertial
@@ -114,6 +116,13 @@ if(BUILD_TESTING)
   )
   target_include_directories(test_visual_evidence_metrics PRIVATE src/stereo)
   target_link_libraries(test_visual_evidence_metrics ${OpenCV_LIBS})
+  ament_add_gtest(test_depth_observation_processor
+    test/test_depth_observation_processor.cpp
+    src/stereo/depth-observation-processor.cpp
+  )
+  target_include_directories(test_depth_observation_processor PRIVATE src/stereo)
+  ament_target_dependencies(test_depth_observation_processor geometry_msgs)
+  target_link_libraries(test_depth_observation_processor ${OpenCV_LIBS})
 endif()
 
 # Install launch files.

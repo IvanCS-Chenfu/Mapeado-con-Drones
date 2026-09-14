@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer
+CONSEGUIDA el 2026-09-07
 ```
 
 ## Dependencia
@@ -40,6 +40,10 @@ con nodos de los cuatro workers. Es telemetria desactivable y nunca autoridad
 funcional. `system_architecture` se amplia tambien con los paquetes y enlaces
 reales, pero no sustituye el flujo interno de mision.
 
+Implementacion validada: `task_lib` carga y valida la configuracion instalada,
+deriva el volumen duro y emite la telemetria agregada inicial. `mission_flow`
+mantiene solo el grafo y sus eventos; la geometria se consulta en la GUI F7.
+
 ## Cambios requeridos
 
 1. Auditar el workspace posterior a 1J/F5 y crear esqueletos de los cinco paquetes.
@@ -73,6 +77,13 @@ Arquitectura separada y compilable, YAML instalado/validado, volumen derivado
 correctamente y ambos grafos observables sin alterar runtime. No quedan
 referencias funcionales a `flight_bounds` ni `tasks_per_level`, ni dependencia
 de GT dentro de F6.
+
+## Evidencia vigente
+
+- Builds aislados de `mission_msgs`, `task_lib` y `task_server` correctos;
+  CTest `task_lib` 5/5 y `task_server` 7/7.
+- La prueba 603 confirmo `F6A-MISSION-CONFIG` con dos drones, GUI F7, Gazebo y
+  ambos grafos activos, sin RViz2. Revision visual humana: correcta.
 
 ## Riesgos
 

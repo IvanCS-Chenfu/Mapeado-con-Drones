@@ -1,0 +1,6 @@
+name: fase_6G_telemetria_planning_worker
+description: Ventana breve para comprobar telemetría del PlanningWorker con plan y replan D*.
+steps:
+  - name: espera_planificador
+    type: wait
+    seconds: 75

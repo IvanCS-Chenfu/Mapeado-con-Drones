@@ -20,52 +20,6 @@ cy.on('mouseover', 'node, edge', event => {
 });
 cy.on('mouseout', 'node, edge', () => tooltip.classList.remove('visible'));
 
-const levelSelect = document.getElementById('level-select');
-const canvas = document.getElementById('level-canvas');
-const ctx = canvas.getContext('2d');
-let regions = [];
-
-function drawLevel() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const selected = Number(levelSelect.value || 0);
-  const current = regions.filter(region => region.level === selected);
-  if (!current.length) return;
-  const xmin = Math.min(...current.map(region => region.min[0]));
-  const ymin = Math.min(...current.map(region => region.min[1]));
-  const xmax = Math.max(...current.map(region => region.max[0]));
-  const ymax = Math.max(...current.map(region => region.max[1]));
-  const colors = {AB: '#1b9e77', BC: '#d95f02', CD: '#7570b3', DA: '#e6ab02'};
-  current.forEach(region => {
-    const x = 36 + (region.min[0] - xmin) / (xmax - xmin) * 448;
-    const y = 28 + (ymax - region.max[1]) / (ymax - ymin) * 350;
-    const w = (region.max[0] - region.min[0]) / (xmax - xmin) * 448;
-    const h = (region.max[1] - region.min[1]) / (ymax - ymin) * 350;
-    ctx.fillStyle = `${colors[region.side]}55`;
-    ctx.strokeStyle = colors[region.side];
-    ctx.lineWidth = 3;
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = '#eef3f7';
-    ctx.font = '600 16px system-ui';
-    ctx.fillText(region.side, x + 10, y + 23);
-  });
-}
-levelSelect.addEventListener('change', drawLevel);
-
-function updateGeometry(payload) {
-  if (!Array.isArray(payload.regions)) return;
-  regions = payload.regions;
-  const levels = [...new Set(regions.map(region => region.level))].sort((a, b) => a - b);
-  levelSelect.replaceChildren(...levels.map(level => {
-    const option = document.createElement('option');
-    option.value = level;
-    option.textContent = `Nivel ${level}`;
-    return option;
-  }));
-  document.getElementById('geometry-state').textContent = `${regions.length} regiones reales, sin asignar`;
-  drawLevel();
-}
-
 let count = 0;
 function receive(payload) {
   const edge = cy.getElementById(payload.edge_id || '');
@@ -73,7 +27,6 @@ function receive(payload) {
     edge.addClass('active'); edge.source().addClass('active'); edge.target().addClass('active');
     setTimeout(() => {edge.removeClass('active'); edge.source().removeClass('active'); edge.target().removeClass('active');}, 500);
   }
-  updateGeometry(payload);
   count += 1;
   document.getElementById('event-count').textContent = count.toLocaleString('es-ES');
   document.getElementById('last-detail').textContent = payload.detail || payload.event || 'Evento de misión';

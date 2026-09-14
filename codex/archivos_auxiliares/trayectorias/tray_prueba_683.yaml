@@ -1,0 +1,16 @@
+name: fase_6_hold_reanudacion_y_reserva_dos_drones_gt
+description: "Repite la coordinacion GT de dos drones y valida que el propietario de HOLD reanuda antes de una espera por reserva ajena."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 360.0}
+steps:
+  - {name: espera_registro_y_mapa, type: wait, seconds: 22.0}
+  - name: anclaje_fiducial_2_ambos_gt
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [-0.5, -10.0, 1.0], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.5, -10.0, 1.3], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: estabilizacion_y_anclaje, type: wait, seconds: 10.0}
+  - {name: habilitar_subtareas_coverage, type: call_set_bool, service: /mission/set_coverage_execution_enabled, value: true, timeout_sec: 20.0}
+  - {name: observar_reanudacion_hold_y_reintento, type: wait, seconds: 150.0}

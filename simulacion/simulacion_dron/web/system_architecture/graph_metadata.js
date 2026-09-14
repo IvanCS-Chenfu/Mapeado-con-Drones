@@ -255,6 +255,54 @@ window.SYSTEM_ARCHITECTURE_METADATA = {
       "qos": "reliable transient local keep last 1",
       "data_transferred": "ROI, volumen duro, niveles y cuatro subROI sin asignar"
     },
+    "orbslam3_multi_to_task_server_sparse": {
+      "message_type": "sensor_msgs/msg/PointCloud2",
+      "namespace": "/global_sparse_cloud",
+      "qos": "reliable transient local keep last 1",
+      "data_transferred": "snapshot sparse global e identidad estable de map point"
+    },
+    "task_server_to_task_manager": {
+      "message_type": "mission_msgs/msg/TaskStateArray",
+      "namespace": "/mission/task_states",
+      "qos": "reliable transient local keep last 1",
+      "data_transferred": "estado canonico de MAP_SECTION y revision"
+    },
+    "task_manager_to_task_server_task_report": {
+      "message_type": "mission_msgs/msg/TaskReport",
+      "namespace": "/mission/task_reports",
+      "qos": "reliable keep last 50",
+      "data_transferred": "confirmacion local con revision esperada"
+    },
+    "task_server_to_task_manager_inspect_facade": {
+      "message_type": "mission_msgs/srv/InspectFacade",
+      "namespace": "/dron_X/inspect_facade",
+      "qos": "service ROS 2 reliable",
+      "data_transferred": "tarea, submapa y objetivo world para inspeccion bajo demanda"
+    },
+    "task_manager_to_orbslam_capture_depth": {
+      "message_type": "mission_msgs/srv/CaptureDepth",
+      "namespace": "/dron_X/orbslam/capture_depth",
+      "qos": "service ROS 2 reliable",
+      "data_transferred": "frame solicitado y observacion depth FREE ligada al KF"
+    },
+    "orbslam3_server_to_task_server_fiducial_primary": {
+      "message_type": "mission_msgs/msg/FiducialPrimaryObservation",
+      "namespace": "/mission/fiducial_primary_observations",
+      "qos": "reliable volatile keep last 64",
+      "data_transferred": "primary visual interpretado, visita e identidad de submapa"
+    },
+    "task_server_to_gui_voxels": {
+      "message_type": "mission_msgs/msg/VoxelMap + TaskStateArray",
+      "namespace": "/mission/{voxel_map,task_states}",
+      "qos": "reliable transient local keep last 1",
+      "data_transferred": "snapshot voxel reversible y tarjetas de tarea"
+    },
+    "task_server_to_gui_planned_route": {
+      "message_type": "mission_msgs/msg/TrajectoryPlan",
+      "namespace": "/mission/planned_routes",
+      "qos": "reliable transient local keep last 1",
+      "data_transferred": "waypoints XYZ D* previstos, task_id, trajectory_id y revisiones; no ejecucion"
+    },
     "task_server_to_sim_mission_flow": {
       "message_type": "std_msgs/msg/String",
       "namespace": "/mission/flow_events",

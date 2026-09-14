@@ -1,61 +1,32 @@
-# Subfase 6M - Planificacion de observacion yaw, pitch y distancia
+# Subfase 6M - Transporte de yaw y pitch
 
 ## Estado
 
-```text
-sin hacer
-```
+CONSEGUIDA. La seleccion geometrica de observacion se realiza en 6N; 6M solo
+garantiza transporte y ejecucion reproducibles.
 
-## Dependencia
+## Contrato
 
-1J, 6D, 6G-6I y 6L.
+- D* planifica exclusivamente XYZ.
+- `TrajectoryPlan` transporta yaw y `camera_pitch` por waypoint.
+- `dron_individual` ejecuta yaw y el joint de pitch con limites fisicos de 1J.
+- La ruta de fachada mantiene durante todo el tramo la orientacion obtenida en
+  la primera captura depth.
+- La mirada temporal hacia el objetivo y la correccion `TRACKING_RISK` son
+  maniobras locales; no modifican el destino XYZ.
 
-## Objetivo tecnico
+## Cambios de esta migracion
 
-Elegir como orientar cuerpo y rig para observar superficies, conservar tracking
-y refrescar seguridad lateral despues de decidir la ruta XYZ.
-
-## Orden cerrado
-
-```text
-D* Lite -> XYZ
-coverage/view planner -> yaw + camera_pitch
-trajectory generator -> estado continuo
-```
-
-Yaw/pitch no amplian el espacio de estados de D*. Para una superficie se busca
-eje optico aproximadamente normal y plano de imagen aproximadamente paralelo,
-sin sacrificar safety, tracking, clearance ni dinamica.
-
-La distancia preferida es coste suave configurable y `A MEDIR`, no limite. El
-planner controla antiguedad/confianza lateral e inserta miradas breves cuando
-conviene; esto complementa, nunca sustituye, el depth local.
-
-`camera_pitch` viaja en `TrajectoryPlan`; `dron_individual` ejecuta el joint.
-Depth usa `Kref_T_C(current)`, que ya incorpora pitch, y se reintegra al mover
-`W_T_KF` sin recalcular profundidad.
-
-## Cambios requeridos
-
-1. Crear candidatos/score de yaw, pitch y distancia sin pesos inventados.
-2. Respetar limites fisicos, velocidad del joint y transformadas de 1J.
-3. Integrar riesgo visual 6L y permitir cambiar orientacion sin abandonar XYZ.
-4. Mantener freshness lateral y politica conservadora si falta observacion.
-5. Incluir referencias/derivadas necesarias en plan reproducible W/O.
-6. Medir calidad, distancia, lateral refresh y efecto en tracking.
-
-## Limites
-
-No exigir frontalidad perfecta, no controlar Gazebo desde task_manager y no
-usar pitch como correccion ad hoc de mapas/fiduciales.
+Eliminar cualquier selector residual del servidor basado directamente en
+voxeles sparse. La orientacion procede de normales depth locales y se devuelve
+como parte del unico resultado de inspeccion definido en 6N.
 
 ## Pruebas
 
-Pared, suelo/techo, plano inclinado, pasillo, dos rutas con distinta calidad,
-mirada lateral, limites de pitch y recuperacion solo cambiando orientacion.
-Validar TF/depth/SLAM y movimiento suave con GUI+Gazebo+grafo.
+Transporte de yaw/pitch de fachada, limites del joint, orientacion constante en
+un tramo y restauracion despues de mirar el objetivo o corregir riesgo visual.
 
 ## Criterio de exito
 
-Orientacion y distancia mejoran observacion sin degradar seguridad/tracking;
-pitch es fisico, reproducible y coherente con depth/KF.
+Servidor, dron y GUI observan la misma orientacion sin ampliar el estado de D*
+ni crear una cadena de control paralela.

@@ -1,0 +1,16 @@
+name: fase_6_bloque_4_voxeles_sin_reticula
+description: "Validacion GUI F7 fluida: pose GT y voxeles ocupados/libres sin reticula adicional."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 180.0}
+steps:
+  - {name: espera_estabilizacion, type: wait, seconds: 20.0}
+  - name: aproximacion_fiducial_2_gt
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [-0.5, -10.0, 1.0], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.5, -10.0, 1.3], yaw_deg: 90.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: observacion_fiducial_y_mappoints, type: wait, seconds: 35.0}
+  - {name: revision_manual_gui, type: wait_for_bool, topic: /codex/f6_block4_manual_review_done, expected: true, timeout_sec: 1800.0}
+  - {name: cierre_observacion, type: wait, seconds: 3.0}

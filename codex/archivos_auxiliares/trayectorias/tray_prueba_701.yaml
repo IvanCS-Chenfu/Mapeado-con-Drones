@@ -1,0 +1,21 @@
+name: fase_6L_orientacion_ordinaria_vertical_gt_d1
+description: "D1 llega con GT al fiducial 2 y encadena ascensos D* de 2 m. Cada paso espera su terminal o la reorientacion visual antes del siguiente."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 240.0}
+steps:
+  - {name: espera_spawn, type: wait_for_bool, topic: /fiducial_spawn_ready, expected: true, timeout_sec: 90.0}
+  - {name: espera_registro, type: wait, seconds: 22.0}
+  - name: anclaje_gt_fiducial_2_d1
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: confirma_llegada_fiducial_2, type: wait_for_navigation_pose, drone_id: 1, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, position_tolerance_m: 0.15, yaw_tolerance_deg: 3.0, hold_sec: 1.0, timeout_sec: 24.0}
+  - {name: espera_anclaje, type: wait, seconds: 12.0}
+  - {name: ruta_z_mas_2m, type: plan_route, drone_id: 1, task_id: map_section_level_0_AB, target: [0.0, -10.0, 3.0], dispatch_execution: true, timeout_sec: 25.0}
+  - {name: terminal_z_mas_2m, type: wait_for_plan_terminal, drone_id: 1, timeout_sec: 90.0}
+  - {name: ruta_z_mas_4m, type: plan_route, drone_id: 1, task_id: map_section_level_0_AB, target: [0.0, -10.0, 5.0], dispatch_execution: true, timeout_sec: 25.0}
+  - {name: terminal_z_mas_4m, type: wait_for_plan_terminal, drone_id: 1, timeout_sec: 90.0}
+  - {name: ruta_z_mas_6m, type: plan_route, drone_id: 1, task_id: map_section_level_0_AB, target: [0.0, -10.0, 7.0], dispatch_execution: true, timeout_sec: 25.0}
+  - {name: terminal_z_mas_6m, type: wait_for_plan_terminal, drone_id: 1, timeout_sec: 90.0}

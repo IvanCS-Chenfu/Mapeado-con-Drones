@@ -1,0 +1,14 @@
+name: fase_6H_6I_gate_concurrente_gt_d1_aislamiento_total
+description: "D1 se ancla con GT al fiducial 2; la compuerta responde bajo actualizacion de mapa con todos los callbacks de mapa aislados; D2 no recibe objetivo fisico."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 190.0}
+steps:
+  - {name: espera_registro_y_tareas, type: wait, seconds: 22.0}
+  - name: anclaje_fiducial_2_d1
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 12.0, tyaw: 6.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: habilitar_exploracion_unknown_d1, type: call_set_bool, service: /mission/set_coverage_execution_enabled, value: true, timeout_sec: 20.0}
+  - {name: observar_coverage_y_primera_decision, type: wait, seconds: 85.0}

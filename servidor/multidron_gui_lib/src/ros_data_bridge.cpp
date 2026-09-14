@@ -15,6 +15,7 @@
 #include <optional>
 #include <sstream>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 
 namespace multidron_gui_lib
@@ -111,11 +112,14 @@ bool IsTrackingUsable(const orbslam3_msgs::msg::NavigationState & state)
          state.tracking_state == Message::TRACKING_OK_KLT;
 }
 
-bool IsNonGroundTruthPose(const orbslam3_msgs::msg::NavigationState & state)
+bool HasCanonicalWorldPose(const orbslam3_msgs::msg::NavigationState & state)
 {
   using Message = orbslam3_msgs::msg::NavigationState;
-  return state.pose_source == Message::POSE_SOURCE_ORB ||
-         state.pose_source == Message::POSE_SOURCE_GLOBAL;
+  if (state.pose_source == Message::POSE_SOURCE_GT_FORCED) {
+    return state.local_valid && state.local_continuity_valid && state.velocity_valid;
+  }
+  return state.global_valid && (state.pose_source == Message::POSE_SOURCE_ORB ||
+         state.pose_source == Message::POSE_SOURCE_GLOBAL);
 }
 
 }  // namespace
@@ -159,6 +163,15 @@ RosDataBridge::RosDataBridge(
   mission_subscription_ = create_subscription<mission_msgs::msg::MissionGeometry>(
     "/mission/geometry", map_qos,
     std::bind(&RosDataBridge::OnMissionGeometry, this, std::placeholders::_1));
+  task_subscription_ = create_subscription<mission_msgs::msg::TaskStateArray>(
+    "/mission/task_states", map_qos,
+    std::bind(&RosDataBridge::OnTaskStates, this, std::placeholders::_1));
+  voxel_subscription_ = create_subscription<mission_msgs::msg::VoxelMap>(
+    "/mission/voxel_map", map_qos,
+    std::bind(&RosDataBridge::OnVoxelMap, this, std::placeholders::_1));
+  planned_route_subscription_ = create_subscription<mission_msgs::msg::TrajectoryPlan>(
+    "/mission/planned_routes", map_qos,
+    std::bind(&RosDataBridge::OnPlannedRoute, this, std::placeholders::_1));
 
   for (std::int64_t drone_id = 1; drone_id <= drone_count; ++drone_id) {
     std::string suffix = navigation_suffix;
@@ -220,9 +233,162 @@ void RosDataBridge::OnMissionGeometry(
   }
   const auto count = regions.size();
   model_->SetMissionRegions(std::move(regions));
-  RCLCPP_INFO(get_logger(),
+  RCLCPP_INFO(
+    get_logger(),
     "[GUI-MISSION-GEOMETRY] mission=%s revision=%lu regions=%zu assigned=false",
     geometry->mission_id.c_str(), geometry->config_revision, count);
+}
+
+void RosDataBridge::OnTaskStates(mission_msgs::msg::TaskStateArray::ConstSharedPtr tasks)
+{
+  if (!tasks) {
+    return;
+  }
+  for (const auto & task : tasks->tasks) {
+    if (task.assigned_drone_id == 0U) {
+      continue;
+    }
+    TaskVisual visual;
+    visual.drone_id = task.assigned_drone_id;
+    visual.task_id = task.task_id;
+    visual.task_type = task.task_type;
+    visual.region_id = task.region_id;
+    visual.state_revision = task.state_revision;
+    visual.progress = task.progress;
+    visual.progress_known = task.progress_known;
+    visual.detail = task.detail;
+    for (const auto & interval : task.coverage_intervals) {
+      visual.coverage_intervals.push_back(
+        {QVector3D(
+            interval.start_world.x, interval.start_world.y, interval.start_world.z),
+          QVector3D(
+            interval.end_world.x, interval.end_world.y, interval.end_world.z)});
+    }
+    switch (task.state) {
+      case mission_msgs::msg::TaskState::PENDING: visual.state = "PENDING"; break;
+      case mission_msgs::msg::TaskState::ASSIGNED: visual.state = "ASSIGNED"; break;
+      case mission_msgs::msg::TaskState::RUNNING: visual.state = "RUNNING"; break;
+      case mission_msgs::msg::TaskState::PAUSED: visual.state = "PAUSED"; break;
+      case mission_msgs::msg::TaskState::COMPLETED: visual.state = "COMPLETED"; break;
+      case mission_msgs::msg::TaskState::FAILED: visual.state = "FAILED"; break;
+      case mission_msgs::msg::TaskState::BLOCKED: visual.state = "BLOCKED"; break;
+      case mission_msgs::msg::TaskState::WAITING: visual.state = "WAITING"; break;
+      case mission_msgs::msg::TaskState::BLOCKED_BRANCH:
+        visual.state = "BLOCKED_BRANCH";
+        break;
+      case mission_msgs::msg::TaskState::SUPERSEDED: visual.state = "SUPERSEDED"; break;
+      case mission_msgs::msg::TaskState::TO_FINISH: visual.state = "TO_FINISH"; break;
+      default: visual.state = "OTHER"; break;
+    }
+    model_->UpdateTask(visual);
+  }
+  RCLCPP_INFO_THROTTLE(
+    get_logger(), *get_clock(), 2000,
+    "[GUI-TASKS] mission=%s tasks=%zu", tasks->mission_id.c_str(), tasks->tasks.size());
+}
+
+void RosDataBridge::OnVoxelMap(mission_msgs::msg::VoxelMap::ConstSharedPtr voxels)
+{
+  if (!voxels || voxels->voxel_size <= 0.0) {
+    return;
+  }
+  VoxelVector visual;
+  visual.reserve(voxels->voxels.size() + voxels->reserved_voxels.size());
+  const float size = static_cast<float>(voxels->voxel_size);
+  std::map<std::tuple<std::int64_t, std::int64_t, std::int64_t>, std::size_t> indices;
+  for (const auto & voxel : voxels->voxels) {
+    VoxelVisual output;
+    output.ix = voxel.ix;
+    output.iy = voxel.iy;
+    output.iz = voxel.iz;
+    output.size_m = size;
+    output.center_world = QVector3D(
+      (static_cast<float>(voxel.ix) + 0.5F) * size,
+      (static_cast<float>(voxel.iy) + 0.5F) * size,
+      (static_cast<float>(voxel.iz) + 0.5F) * size);
+    output.score = voxel.score;
+    output.state = voxel.state == mission_msgs::msg::VoxelCell::OCCUPIED ?
+      VoxelState::Occupied : (voxel.state == mission_msgs::msg::VoxelCell::FREE ?
+      VoxelState::Free : VoxelState::Unknown);
+    indices.emplace(std::make_tuple(voxel.ix, voxel.iy, voxel.iz), visual.size());
+    visual.push_back(std::move(output));
+  }
+  for (const auto & voxel : voxels->reserved_voxels) {
+    const auto key = std::make_tuple(voxel.ix, voxel.iy, voxel.iz);
+    const auto existing = indices.find(key);
+    if (existing != indices.end() && visual[existing->second].state == VoxelState::Occupied) {
+      continue;
+    }
+    VoxelVisual output;
+    output.ix = voxel.ix;
+    output.iy = voxel.iy;
+    output.iz = voxel.iz;
+    output.size_m = size;
+    output.center_world = QVector3D(
+      (static_cast<float>(voxel.ix) + 0.5F) * size,
+      (static_cast<float>(voxel.iy) + 0.5F) * size,
+      (static_cast<float>(voxel.iz) + 0.5F) * size);
+    output.state = VoxelState::Reserved;
+    if (existing == indices.end()) {
+      indices.emplace(key, visual.size());
+      visual.push_back(std::move(output));
+    } else {
+      visual[existing->second] = std::move(output);
+    }
+  }
+  const auto count = visual.size();
+  model_->SetVoxels(std::move(visual));
+  RCLCPP_INFO_THROTTLE(
+    get_logger(), *get_clock(), 2000,
+    "[GUI-VOXELS] revision=%lu cells=%zu reserved=%zu", voxels->map_revision, count,
+    voxels->reserved_voxels.size());
+}
+
+void RosDataBridge::OnPlannedRoute(mission_msgs::msg::TrajectoryPlan::ConstSharedPtr route)
+{
+  if (!route || route->drone_id == 0U || route->trajectory_id.empty()) {
+    return;
+  }
+  if (route->execution_state == mission_msgs::msg::TrajectoryPlan::EXECUTION_STATE_COMPLETED ||
+    route->execution_state == mission_msgs::msg::TrajectoryPlan::EXECUTION_STATE_CANCELED ||
+    route->execution_state == mission_msgs::msg::TrajectoryPlan::EXECUTION_STATE_REJECTED)
+  {
+    const bool cleared = model_->ClearTrajectory(route->drone_id, route->trajectory_id);
+    RCLCPP_INFO(
+      get_logger(), "[GUI-TRAJECTORY-CLEAR] drone_id=%u trajectory_id=%s state=%u cleared=%s detail=%s",
+      route->drone_id, route->trajectory_id.c_str(), route->execution_state,
+      cleared ? "true" : "false",
+      route->execution_detail.c_str());
+    return;
+  }
+  if (route->execution_state != mission_msgs::msg::TrajectoryPlan::EXECUTION_STATE_ACTIVE) {
+    RCLCPP_INFO(
+      get_logger(), "[GUI-TRAJECTORY-IGNORE] drone_id=%u trajectory_id=%s state=%u detail=%s",
+      route->drone_id, route->trajectory_id.c_str(), route->execution_state,
+      route->execution_detail.c_str());
+    return;
+  }
+  if (route->waypoints.size() < 2U) {
+    return;
+  }
+  TrajectoryVisual visual;
+  visual.drone_id = route->drone_id;
+  visual.task_id = route->task_id;
+  visual.trajectory_id = route->trajectory_id;
+  visual.plan_revision = route->plan_revision;
+  visual.map_revision = route->map_revision;
+  visual.alignment_revision = route->alignment_revision;
+  visual.samples_world.reserve(route->waypoints.size());
+  for (const auto & waypoint : route->waypoints) {
+    visual.samples_world.push_back(ToVector(waypoint.position_world));
+  }
+  const auto count = visual.samples_world.size();
+  model_->ReplaceTrajectory(visual);
+  RCLCPP_INFO(
+    get_logger(),
+    "[GUI-TRAJECTORY-UPDATE] drone_id=%u task_id=%s trajectory_id=%s state=%u count=%zu map_revision=%lu",
+    visual.drone_id, visual.task_id.c_str(), visual.trajectory_id.c_str(),
+    route->execution_state, count, visual.map_revision);
 }
 
 void RosDataBridge::OnSparseCloud(sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud)
@@ -420,11 +586,10 @@ void RosDataBridge::OnNavigationState(
     output.received_steady_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
       std::chrono::steady_clock::now().time_since_epoch()).count();
 
-    // Regla F7: la escena está en world y nunca usa GT como fuente funcional.
-    // Si el mensaje vigente procede del fallback GT temporal de Fase 5, se conserva
-    // la última pose visual no-GT y se marca como perdida/no disponible.
-    const bool usable = state->global_valid && IsTrackingUsable(*state) &&
-      IsNonGroundTruthPose(*state);
+    // La GUI solo consume la pose canónica del mux, también en la rama GT simulada.
+    const bool usable = HasCanonicalWorldPose(*state) &&
+      (state->pose_source == orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FORCED ||
+      IsTrackingUsable(*state));
     if (usable) {
       output.position = ToVector(state->w_t_body.position);
       output.orientation = ToQuaternion(state->w_t_body.orientation);

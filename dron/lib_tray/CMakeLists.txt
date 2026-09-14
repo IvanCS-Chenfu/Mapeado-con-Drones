@@ -28,6 +28,8 @@ endif()
 add_library(gen_tray_pol3 src/generacion/gen_tray_pol3.cpp)
 add_library(gen_tray_veltrap src/generacion/gen_tray_veltrap.cpp)
 add_library(gen_tray_elipse src/generacion/gen_tray_elipse.cpp)
+add_library(gen_tray_pol3_waypoints src/generacion/gen_tray_pol3_waypoints.cpp)
+add_library(gen_tray_veltrap_waypoints src/generacion/gen_tray_veltrap_waypoints.cpp)
 
 
 
@@ -35,10 +37,20 @@ add_library(gen_tray_elipse src/generacion/gen_tray_elipse.cpp)
 target_include_directories(gen_tray_pol3 PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 target_include_directories(gen_tray_veltrap PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
 target_include_directories(gen_tray_elipse PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>)
+target_include_directories(gen_tray_pol3_waypoints PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_include_directories(gen_tray_veltrap_waypoints PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 
 target_compile_features(gen_tray_pol3 PUBLIC cxx_std_17)
 target_compile_features(gen_tray_veltrap PUBLIC cxx_std_17)
 target_compile_features(gen_tray_elipse PUBLIC cxx_std_17)
+target_compile_features(gen_tray_pol3_waypoints PUBLIC cxx_std_17)
+target_compile_features(gen_tray_veltrap_waypoints PUBLIC cxx_std_17)
+target_link_libraries(gen_tray_pol3_waypoints PUBLIC gen_tray_pol3)
+target_link_libraries(gen_tray_veltrap_waypoints PUBLIC gen_tray_veltrap)
 
 install(
   DIRECTORY include/
@@ -46,7 +58,12 @@ install(
 )
 
 install(
-  TARGETS gen_tray_pol3 gen_tray_veltrap gen_tray_elipse
+  TARGETS
+    gen_tray_pol3
+    gen_tray_veltrap
+    gen_tray_elipse
+    gen_tray_pol3_waypoints
+    gen_tray_veltrap_waypoints
   EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -55,7 +72,12 @@ install(
 
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_include_directories(include)
-ament_export_libraries(gen_tray_pol3 gen_tray_veltrap gen_tray_elipse)
+ament_export_libraries(
+  gen_tray_pol3
+  gen_tray_veltrap
+  gen_tray_elipse
+  gen_tray_pol3_waypoints
+  gen_tray_veltrap_waypoints)
 
 
 
@@ -71,5 +93,11 @@ add_executable(test_gen_tray_veltrap test/test_gen_tray_veltrap.cpp)
 target_link_libraries(test_gen_tray_veltrap gen_tray_veltrap)
 target_compile_features(test_gen_tray_veltrap PUBLIC cxx_std_17)
 install(TARGETS test_gen_tray_veltrap DESTINATION lib/${PROJECT_NAME})
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_waypoint_generators test/test_waypoint_generators.cpp)
+  target_link_libraries(test_waypoint_generators gen_tray_pol3 gen_tray_pol3_waypoints gen_tray_veltrap_waypoints)
+endif()
 
 ament_package()

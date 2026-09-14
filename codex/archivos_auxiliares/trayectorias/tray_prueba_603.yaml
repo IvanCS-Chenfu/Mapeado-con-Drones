@@ -1,0 +1,10 @@
+name: fase_6_bloque_3_estacionario_revision_manual
+description: "Dos drones estacionarios para revisar GUI F7 y grafos de Fase 6."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults: {timeout_sec: 180.0}
+steps:
+  - {name: espera_spawn, type: wait_for_bool, topic: /fiducial_spawn_ready, expected: true, timeout_sec: 90.0}
+  - {name: estabilizacion_sin_movimiento, type: wait, seconds: 20.0}
+  - {name: revision_manual_bloque_3, type: wait_for_bool, topic: /codex/f6_block3_manual_review_done, expected: true, timeout_sec: 1800.0}
+  - {name: cierre_observacion, type: wait, seconds: 3.0}

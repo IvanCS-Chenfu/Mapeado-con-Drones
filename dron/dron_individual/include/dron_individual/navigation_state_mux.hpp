@@ -305,6 +305,7 @@ public:
   }
 
   bool previously_anchored() const {return previously_anchored_;}
+  bool anchored() const {return anchored_;}
 
 private:
   bool initialized_{false};

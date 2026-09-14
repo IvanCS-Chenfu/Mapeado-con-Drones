@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer
+PARCIAL
 ```
 
 ## Dependencia
@@ -12,11 +12,51 @@ Fase 6 ejecutada hasta disponer de trayectoria vigente; 7D y 7F conseguidas.
 
 ## Objetivo técnico
 
-Mostrar en el viewport la curva/recta exacta que cada dron tiene previsto recorrer actualmente, usando la representación canónica de trayectoria de Fase 6. No reconstruir el futuro a partir de posiciones pasadas.
+Mostrar en el viewport la polilínea D* autorizada que cada dron tiene previsto
+recorrer actualmente, usando la representación canónica de planificación de
+Fase 6. No reconstruir el futuro a partir de posiciones pasadas ni de los
+empalmes locales de control.
+
+El tramo habilitado por 6G ya muestra el `Plan previsto` autoritativo recibido en
+`/mission/planned_routes` y reemplaza el anterior por `trajectory_id`. En el
+tramo ejecutable de 6I, `task_server` crea una sola instancia de plan y, en la
+misma decisión, la publica y la despacha con el mismo `trajectory_id`. La GUI
+no espera un callback asincrono de aceptación para dibujar una geometria que ya
+ha sido enviada al dron. Su lifecycle posterior solo actualiza ese identificador
+y lo retira cuando el ejecutor termina, se detiene o cancela el tramo.
 
 ## Comportamiento esperado
 
 Cuando Fase 6 cree/replanifique una trayectoria, la layer del dron se reemplaza por la nueva trayectoria vigente. Al completarla/cancelarla y no existir otra activa, debe desaparecer o quedar vacía según el estado real. Si la trayectoria es polinómica/paramétrica, el renderer la muestrea para dibujar una línea suficientemente fiel; si ya llega como waypoints/muestras, respeta esa forma.
+
+Una reparacion D* del mismo objetivo sustituye la geometria activa cuando el
+ejecutor adopta el nuevo `trajectory_id`; la GUI no muestra una segunda ruta
+simultanea ni deduce una cancelacion a partir de poses. Un objetivo distinto
+puede aparecer como pendiente en telemetria futura, pero hasta que la ruta
+actual termine no sustituye la trayectoria dibujada. Si el ejecutor entra en
+hold por ausencia temporal de reemplazo seguro, la capa conserva la ultima
+ruta activa hasta recibir el lifecycle terminal o el nuevo plan aceptado.
+Las revisiones de mapa fuera del corredor activo no generan un nuevo
+`trajectory_id`: la GUI conserva la capa vigente y no debe aparentar un replan
+por cada actualizacion de voxeles.
+
+Durante 6H/6I el destino del plan mostrado es exclusivamente un voxel
+`UNKNOWN` seguro del subROI. La polilinea puede cruzar `FREE` y `UNKNOWN`, pero
+la GUI no debe interpretar esos waypoints intermedios como destinos de
+coverage. La seleccion exige la distancia minima configurada desde el dron y
+el clearance fisico frente a `OCCUPIED`; si no hay destino lejano y el coverage
+no esta suficientemente resuelto, puede mostrar una ruta cercana de remate o
+ninguna ruta mientras la tarea queda bloqueada por inconsistencia. La GUI dibuja
+solo la ruta final depurada que recibe de D*: tras el filtrado seguro de
+waypoints cercanos y el recalculo de tiempos, no conserva ni reconstruye la
+cadena voxel bruta. Los vértices interiores son guías de D*;
+`Pol3Waypoints` puede redondearlos localmente mediante empalmes C1 sin llegar a
+cruzarlos. La GUI conserva la polilínea D* como representación de la ruta
+autorizada por el planificador, sin inventar una segunda fuente de geometría
+para esos empalmes. El origen visual sigue siendo la pose de planificacion y
+los destinos son los que consume `Pol3Waypoints`. La GUI no infiere que el yaw
+actual apunta a la pared: esa orientacion se incorporara en 6M junto con
+`camera_pitch`.
 
 ## Contexto obligatorio a leer
 
@@ -47,6 +87,21 @@ Fase 6 diferencia `task_id` y `trajectory_id`, usa trayectorias cortas y replann
 - `trajectory_id` distingue replans dentro de la misma tarea.
 - La geometría visual no autoriza ni modifica reservas.
 - El dato debe ser el plan que realmente consume el ejecutor.
+- La conversión W->O se hace una sola vez dentro de `gen_tray`; la geometria
+  publicada para la GUI permanece en `world` y no vuelve a transformarse.
+- Los tiempos publicados pertenecen al plan autoritativo de `task_server`.
+  Para `Pol3Waypoints` son acumulados y homólogos a los destinos; la GUI no los
+  recalcula ni crea curvas alternativas. Incluyen la depuracion segura de
+  puntos a menos de 1 m y la duración mínima de tres segundos por tramo. Los
+  vértices interiores se redondean localmente con empalmes cúbicos C1 de
+  `t_waypoint=1 s`; el renderer conserva la polilínea D* como geometría de
+  planificación autorizada y no intenta validar ni reconstruir esos empalmes.
+- Las actualizaciones ordinarias `UNKNOWN`/`FREE`, de coste o de vecindad no
+  retiran la polilinea. Solo el lifecycle `CANCELED` causado por nueva
+  ocupacion o inflacion dentro de la trayectoria activa corresponde a STOP y
+  limpia la capa antes del replan.
+- Antes de 6J la prueba puede limitar la ejecucion fisica a un dron; no se
+  simula una reserva multi-dron mediante una capa visual.
 - `world` como frame visual final; si Fase 6 conserva una trayectoria local por regla de Fase 5, usar el transform canónico vigente y no GT.
 - Si lo dibujado no coincide con el plan real, revisar primero el mensaje del productor.
 
@@ -107,10 +162,19 @@ Los nombres de componentes nuevos definidos por este contrato pueden implementar
 2. Si no existe topic/contrato de telemetría, detener Fase 7 y reabrir la subfase apropiada de Fase 6 para exponerla sin cambiar planificación.
 3. Consumir `drone_id`, `task_id`, `trajectory_id`, frame y geometría suficiente.
 4. Transformar/representar en `world` únicamente con transformaciones canónicas de Fase 5/6.
-5. Muestrear curvas continuas con resolución visual configurable, evitando enviar miles de muestras por ROS si puede reconstruirse desde parámetros canónicos ya publicados.
+5. Muestrear `Pol3Waypoints` con resolución visual configurable, evitando enviar
+   miles de muestras por ROS si puede reconstruirse desde sus parámetros
+   canónicos ya publicados.
 6. Reemplazar el buffer cuando cambie `trajectory_id` y retirar al finalizar/cancelar.
 7. Implementar toggle `Trajectories`.
 8. Añadir `GUI-TRAJECTORY-UPDATE` con drone/task/trajectory/count, sin registrar todos los puntos.
+9. Reemplazar la capa solo ante lifecycle de adopcion real: un replan del mismo
+   objetivo puede sustituirla durante vuelo; una ruta pendiente a objetivo
+   distinto no puede ocultar la activa.
+
+Para el tramo 6G se reutiliza la capa existente con el nombre visible `Plan
+previsto` y el marker `GUI-PLANNED-ROUTE-UPDATE`; no se inventa una segunda
+fuente ni se llama a ese dato trayectoria ejecutada.
 
 ## Cambios prohibidos
 
@@ -158,7 +222,10 @@ Provocar una trayectoria curvada/multi-waypoint real. Verificar que el dibujo si
 
 ### Prueba 3 — Replanning
 
-Durante una tarea, provocar un replan de Fase 6. Debe cambiar `trajectory_id` y la GUI debe sustituir la trayectoria mostrada sin mantener la anterior como activa.
+Durante una tarea, provocar un replan de Fase 6 hacia el mismo objetivo. Debe
+cambiar `trajectory_id` y la GUI debe sustituir la trayectoria mostrada sin
+mantener la anterior como activa ni detener control. Encolar despues un objetivo
+distinto y verificar que no reemplaza la capa hasta terminar el tramo vigente.
 
 No arrancar Gazebo artificialmente para una prueba puramente gráfica/unitaria. Cuando se use simulación, el comando base es:
 
@@ -193,7 +260,7 @@ Además, todo build requerido debe devolver `0`, todas las pruebas obligatorias 
 
 ## Criterio de fallo o parcial
 
-- `PARCIAL` si se muestran waypoints pero no la curva realmente ejecutada cuando la diferencia es significativa.
+- `PARCIAL` si se muestran waypoints pero no la curva realmente ejecutada cuando la diferencia es significativa. Este es el estado vigente hasta 6I.
 - `PARCIAL` si la layer no distingue replans y deja varias trayectorias activas para el mismo dron.
 - `BLOQUEADA` si Fase 6 no expone el plan vigente y requiere una modificación funcional no autorizada.
 

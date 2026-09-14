@@ -23,6 +23,20 @@ Interfaces:
 - Services: `orbslam/get_full_map`.
 - Clients: `/global_mapping/get_fiducial_config`.
 
+6N/F6 vigente conserva un buffer FIFO corto de pares estereo ya rectificados y
+expone el servicio relativo `orbslam/capture_depth`. La peticion puede tomar el
+ultimo frame o exigir un `frame_id` exacto, necesario cuando
+`TRACKING_RISK` aparece durante una inspeccion. El calculo ocurre solo bajo
+demanda: se retiro la publicacion depth automatica por cada KF.
+
+`CaptureDepth` devuelve una `DenseKFObservation` compacta con identidad,
+calibracion, `K_T_C`, endpoints, normal depth ponderada y metricas. Las muestras
+se distribuyen uniformemente sobre la imagen y se filtran por discontinuidad de
+disparidad y textura local. El producto no decide `FREE/OCCUPIED`; esa autoridad
+pertenece a `task_server`. Si el STOP depth esta habilitado, una captura cuya
+profundidad minima rebasa el umbral emite `DEPTH_EMERGENCY`, sin alterar tracking
+ni control directamente.
+
 Ejecutables/nodos: `StereoSlamNode` y `fiducial_visualizer`. El nodo temporal
 `gt_timing_diagnostic` fue retirado en 5J; sus baterias quedan solo en historial.
 

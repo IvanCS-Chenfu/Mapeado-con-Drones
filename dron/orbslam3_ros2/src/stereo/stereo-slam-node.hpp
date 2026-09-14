@@ -18,15 +18,20 @@
 #include "utility.hpp"
 #include "fiducial-detector.hpp"
 #include "navigation-state-estimator.hpp"
+#include "depth-observation-processor.hpp"
 
 /* AÑADIDO */
 #include "orbslam3_msgs/msg/orb_map.hpp"
 #include "orbslam3_msgs/msg/fiducial_key_frame_observations.hpp"
 #include "orbslam3_msgs/msg/navigation_state.hpp"
+#include "orbslam3_msgs/msg/visual_tracking_evidence.hpp"
 #include "orbslam3_msgs/msg/global_key_frame_pose.hpp"
 #include "orbslam3_msgs/srv/get_orb_map.hpp"
 #include "orbslam3_msgs/srv/get_fiducial_config.hpp"
 #include "orbslam3_msgs/srv/get_global_key_frame_pose.hpp"
+#include "mission_msgs/msg/dense_kf_observation.hpp"
+#include "mission_msgs/msg/safety_event.hpp"
+#include "mission_msgs/srv/capture_depth.hpp"
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose.hpp"
@@ -87,12 +92,17 @@ class StereoSlamNode : public rclcpp::Node
 
         /* AÑADIDO */
         rclcpp::Publisher<orbslam3_msgs::msg::OrbMap>::SharedPtr orb_map_delta_pub_;
+        rclcpp::Publisher<mission_msgs::msg::SafetyEvent>::SharedPtr depth_safety_event_pub_;
         rclcpp::Publisher<
             orbslam3_msgs::msg::FiducialKeyFrameObservations>::SharedPtr
             fiducial_observations_pub_;
         rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_local_pub_;
         rclcpp::Publisher<orbslam3_msgs::msg::NavigationState>::SharedPtr
             navigation_state_pub_;
+        rclcpp::Publisher<orbslam3_msgs::msg::VisualTrackingEvidence>::SharedPtr
+            visual_tracking_evidence_pub_;
+        rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr
+            visual_tracking_debug_image_pub_;
         rclcpp::Publisher<std_msgs::msg::String>::SharedPtr architecture_activity_pub_;
         bool debug_architecture_telemetry_ = false;
         std::unordered_map<std::string, std::chrono::steady_clock::time_point>
@@ -138,6 +148,37 @@ class StereoSlamNode : public rclcpp::Node
         bool fiducial_worker_stop_ = false;
         std::thread fiducial_worker_thread_;
 
+        struct StereoFrame
+        {
+            uint32_t drone_id = 0;
+            uint64_t map_epoch = 0;
+            uint64_t frame_id = 0;
+            uint64_t reference_keyframe_id = 0;
+            bool reference_keyframe_valid = false;
+            bool tcr_valid = false;
+            Sophus::SE3f tcr;
+            builtin_interfaces::msg::Time stamp;
+            cv::Mat left;
+            cv::Mat right;
+            double fx = 0.0;
+            double fy = 0.0;
+            double cx = 0.0;
+            double cy = 0.0;
+            double baseline_m = 0.0;
+        };
+        bool depth_observation_enabled_ = false;
+        bool depth_stop_enabled_ = false;
+        double depth_stop_distance_m_ = 1.2;
+        double depth_stop_cooldown_sec_ = 5.0;
+        std::chrono::steady_clock::time_point depth_last_stop_{};
+        int depth_frame_buffer_capacity_ = 12;
+        orbslam3_ros2::DepthObservationParameters depth_parameters_;
+        std::deque<StereoFrame> depth_frame_buffer_;
+        std::mutex depth_frame_buffer_mutex_;
+        rclcpp::Service<mission_msgs::srv::CaptureDepth>::SharedPtr capture_depth_service_;
+        std::atomic<uint64_t> depth_captures_requested_{0U};
+        std::atomic<uint64_t> depth_captures_completed_{0U};
+
         bool debug_fiducial_visualization_ = false;
         rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr
             fiducial_debug_image_pub_;
@@ -157,6 +198,16 @@ class StereoSlamNode : public rclcpp::Node
         void PublishFiducialDebugImage(
             const FiducialJob& job,
             const orbslam3_ros2::FiducialDetectionResult& result);
+        void StoreStereoFrame(
+            const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
+            const cv::Mat& right_effective, const builtin_interfaces::msg::Time& stamp);
+        void HandleCaptureDepth(
+            const std::shared_ptr<mission_msgs::srv::CaptureDepth::Request> request,
+            std::shared_ptr<mission_msgs::srv::CaptureDepth::Response> response);
+        mission_msgs::msg::DenseKFObservation BuildDepthObservation(
+            const StereoFrame& frame,
+            const orbslam3_ros2::DepthObservationResult& result);
+        void PublishDepthEmergency(const StereoFrame& frame, double nearest_depth_m);
 
         rclcpp::Service<orbslam3_msgs::srv::GetOrbMap>::SharedPtr full_map_service_;
 
@@ -204,6 +255,8 @@ class StereoSlamNode : public rclcpp::Node
         float latest_thrust_newton_ = 0.0f;
         bool debug_orb_control_state_ = false;
         bool debug_orb_visual_evidence_ = false;
+        bool debug_visual_risk_display_ = false;
+        double visual_risk_empty_region_fraction_ = 0.75;
         std::string orb_visual_evidence_output_dir_;
         std::ofstream orb_visual_evidence_stream_;
         uint32_t frames_since_reference_change_ = 0xFFFFFFFFU;
@@ -254,6 +307,9 @@ class StereoSlamNode : public rclcpp::Node
             const builtin_interfaces::msg::Time& stamp,
             const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
             double callback_arrival_stamp_sec);
+        void PublishVisualTrackingEvidence(
+            const builtin_interfaces::msg::Time& stamp,
+            const ORB_SLAM3::System::StereoTrackingReceipt& receipt);
         void RequestGlobalPose(uint64_t map_epoch, uint64_t keyframe_id);
         void HandleGlobalPoseResponse(
             uint64_t generation,

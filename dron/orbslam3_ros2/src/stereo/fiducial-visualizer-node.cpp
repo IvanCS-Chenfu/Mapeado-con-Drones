@@ -2,6 +2,7 @@
 #include <opencv2/highgui.hpp>
 
 #include <rclcpp/rclcpp.hpp>
+#include <mission_msgs/msg/visual_risk_event.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
 #include <chrono>
@@ -20,6 +21,9 @@ public:
         declare_parameter<int>("drone_id", 0);
         declare_parameter<std::string>("drone_name", "drone_0");
         declare_parameter<double>("display_seconds", 5.0);
+        declare_parameter<std::string>("image_topic", "orbslam/fiducial_debug/image");
+        declare_parameter<std::string>("window_suffix", "fiducials");
+        declare_parameter<bool>("trigger_on_visual_risk", false);
 
         drone_id_ = static_cast<uint32_t>(get_parameter("drone_id").as_int());
         drone_name_ = get_parameter("drone_name").as_string();
@@ -28,7 +32,9 @@ public:
         {
             display_seconds_ = 5.0;
         }
-        window_name_ = drone_name_ + " - fiducials";
+        image_topic_ = get_parameter("image_topic").as_string();
+        window_name_ = drone_name_ + " - " + get_parameter("window_suffix").as_string();
+        trigger_on_visual_risk_ = get_parameter("trigger_on_visual_risk").as_bool();
 
         const char* display = std::getenv("DISPLAY");
         const char* wayland_display = std::getenv("WAYLAND_DISPLAY");
@@ -45,19 +51,31 @@ public:
         }
 
         image_subscription_ = create_subscription<sensor_msgs::msg::Image>(
-            "orbslam/fiducial_debug/image",
+            image_topic_,
             rclcpp::SensorDataQoS().keep_last(1),
             std::bind(
                 &FiducialVisualizerNode::HandleImage, this,
                 std::placeholders::_1));
+        if (trigger_on_visual_risk_)
+        {
+            visual_risk_subscription_ =
+                create_subscription<mission_msgs::msg::VisualRiskEvent>(
+                    "/mission/visual_risk_events",
+                    rclcpp::QoS(10).reliable(),
+                    std::bind(
+                        &FiducialVisualizerNode::HandleVisualRisk, this,
+                        std::placeholders::_1));
+        }
         gui_timer_ = create_wall_timer(
             std::chrono::milliseconds(20),
             std::bind(&FiducialVisualizerNode::UpdateWindow, this));
 
         RCLCPP_INFO(
             get_logger(),
-            "[FID-VISUALIZER-READY] drone_id=%u topic=%s display_seconds=%.3f",
-            drone_id_, "orbslam/fiducial_debug/image", display_seconds_);
+            "[FID-VISUALIZER-READY] drone_id=%u topic=%s display_seconds=%.3f "
+            "trigger_on_visual_risk=%s",
+            drone_id_, image_topic_.c_str(), display_seconds_,
+            trigger_on_visual_risk_ ? "true" : "false");
     }
 
     ~FiducialVisualizerNode() override
@@ -70,16 +88,41 @@ private:
     {
         try
         {
-            pending_image_ = cv_bridge::toCvShare(message, "bgr8")->image.clone();
-            pending_frame_id_ = message->header.frame_id;
-            deadline_ = std::chrono::steady_clock::now() +
-                std::chrono::milliseconds(static_cast<int64_t>(
-                    display_seconds_ * 1000.0));
+            latest_image_ = cv_bridge::toCvShare(message, "bgr8")->image.clone();
+            latest_frame_id_ = message->header.frame_id;
+            if (!trigger_on_visual_risk_)
+            {
+                ScheduleDisplay();
+            }
         }
         catch (const cv::Exception& error)
         {
             Disable(error.what());
         }
+    }
+
+    void HandleVisualRisk(const mission_msgs::msg::VisualRiskEvent::ConstSharedPtr message)
+    {
+        if (!trigger_on_visual_risk_ || message->drone_id != drone_id_ ||
+            message->event_type != mission_msgs::msg::VisualRiskEvent::EVENT_STOP_STARTED ||
+            latest_image_.empty())
+        {
+            return;
+        }
+
+        ScheduleDisplay();
+        RCLCPP_INFO(
+            get_logger(),
+            "[F6L-VISUAL-RISK-DISPLAY] drone_id=%u frame_id=%lu risk_mask=%u",
+            drone_id_, message->frame_id, message->risk_mask);
+    }
+
+    void ScheduleDisplay()
+    {
+        pending_image_ = latest_image_.clone();
+        pending_frame_id_ = latest_frame_id_;
+        deadline_ = std::chrono::steady_clock::now() +
+            std::chrono::milliseconds(static_cast<int64_t>(display_seconds_ * 1000.0));
     }
 
     void UpdateWindow()
@@ -167,14 +210,20 @@ private:
     uint32_t drone_id_ = 0;
     std::string drone_name_;
     std::string window_name_;
+    std::string image_topic_;
     double display_seconds_ = 5.0;
+    bool trigger_on_visual_risk_ = false;
     bool visual_enabled_ = false;
     bool window_open_ = false;
     bool window_was_visible_ = false;
     cv::Mat pending_image_;
     std::string pending_frame_id_;
+    cv::Mat latest_image_;
+    std::string latest_frame_id_;
     std::chrono::steady_clock::time_point deadline_;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_subscription_;
+    rclcpp::Subscription<mission_msgs::msg::VisualRiskEvent>::SharedPtr
+        visual_risk_subscription_;
     rclcpp::TimerBase::SharedPtr gui_timer_;
 };
 

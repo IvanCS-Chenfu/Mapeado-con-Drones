@@ -9,13 +9,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(ament_cmake REQUIRED)
 find_package(mission_msgs REQUIRED)
+find_package(orbslam3_msgs REQUIRED)
+find_package(dron_individual REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(task_manager_lib REQUIRED)
 
 add_executable(task_manager_node src/task_manager_node.cpp)
 ament_target_dependencies(task_manager_node
-  mission_msgs rclcpp std_msgs task_manager_lib)
+  dron_individual geometry_msgs mission_msgs orbslam3_msgs rclcpp rclcpp_action std_msgs task_manager_lib)
 install(TARGETS task_manager_node DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 ament_package()

@@ -3,7 +3,7 @@
 ## Estado
 
 ```text
-sin hacer
+CONSEGUIDA el 2026-09-07
 ```
 
 ## Dependencia
@@ -80,3 +80,12 @@ ni dimensiones repetidas. No fijar valores experimentales sin prueba.
 Contratos minimos, versionados y reproducibles; registro estable; `PAUSED` y
 motivos excepcionales explicitos; replicas identicas y ninguna contaminacion de
 `orbslam3_msgs`.
+
+## Evidencia vigente
+
+- Las replicas Server/Dron de `mission_msgs` son exactas; build aislado de
+  ambos contratos correcto.
+- CTest `task_manager_lib` 5/5 y `task_server` 7/7, incluidos idempotencia y
+  rechazos de handshake.
+- En 603 `F6C-REGISTRY` acepto los drones 1 y 2; GUI F7 y ambos grafos
+  recuperaron los snapshots sin usar GT como dato funcional de F6.
