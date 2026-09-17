@@ -19,12 +19,12 @@ Fase 5: CONSEGUIDA; 5H integracion, 5I estabilizacion y 5J cierre 2/2
 4G: CONSEGUIDA
 4H: CONSEGUIDA
 4I: APLAZADA como regresion opcional futura
-Subfase actual: preparar 6N, depth local por KeyFrame y evidencia voxel reversible
+Subfase actual: diagnosticar y completar 6N, depth bajo demanda y evidencia FREE reversible
 Fase 1: cierre tecnico 1A-1K conseguido
-Fase 6: 6A-6M con avance funcional; 6N depth, 6O GO_TO/ANCHOR y 6P cierre pendientes
+Fase 6: 6A-6M con avance funcional; 6N depth PARCIAL, 6O GO_TO/ANCHOR y 6P cierre pendientes
 Fase 7: bloques 1 (`7A`-`7D`) y 2 (`7E`,`7F`,`7H`) conseguidos
-Siguiente punto de entrada: 6N depth local por KeyFrame; preparacion cerrada y
-autorizacion funcional pendiente para documentar, implementar y probar
+Siguiente punto de entrada: acordar la correccion 6N para frescura/soporte de
+captura depth y cooldown de reintento tras el diagnostico de la prueba 746
 Modo de prueba futuro: abrir GUI propia de Fase 7 y Gazebo; RViz2 solo como
 debug auxiliar explícito
 Revision visual humana de prueba 200: confirmada correcta

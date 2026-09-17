@@ -14,7 +14,10 @@ namespace orbslam3_ros2
 struct DepthObservationParameters
 {
   double min_depth_m = 1.0;
+  // Near range: strict filters and normal estimation.
   double max_depth_m = 5.0;
+  // Far range: basic stereo validation for FREE rays only.
+  double far_measurement_max_distance_m = 10.0;
   int pixel_stride = 8;
   std::size_t max_points = 256U;
   double max_disparity_gradient_px_per_pixel = 2.0;
@@ -25,10 +28,12 @@ struct DepthObservationParameters
 struct DepthObservationResult
 {
   std::vector<geometry_msgs::msg::Point32> points_k;
+  std::vector<geometry_msgs::msg::Point32> far_free_points_k;
   // Geometric candidates inside the valid depth band, before local quality filters.
   std::size_t raw_valid_points = 0U;
   std::size_t texture_rejected_points = 0U;
   std::size_t discontinuity_rejected_points = 0U;
+  std::size_t far_valid_points = 0U;
   double confidence = 0.0;
   double nearest_depth_m = std::numeric_limits<double>::infinity();
   bool normal_valid = false;

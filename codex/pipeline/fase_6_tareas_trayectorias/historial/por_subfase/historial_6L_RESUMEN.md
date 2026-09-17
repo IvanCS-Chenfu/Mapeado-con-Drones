@@ -1,8 +1,10 @@
 # Resumen 6L
 
-Estado agregado: CONSEGUIDA para el alcance acordado. `TRACKING_RISK`
-usa inliers ORB de las franjas LEFT `[0,0.75W]`, RIGHT `[0.25W,W]`, TOP
-`[0,0.75H]` y BOTTOM `[0.25H,H]`: una franja dirigida sin inliers durante tres
+Estado agregado: CONSEGUIDA para deteccion preventiva, STOP y correccion local
+en los escenarios ensayados. La captura depth posterior pertenece a 6N.
+`TRACKING_RISK`
+usa inliers ORB de las franjas LEFT `[0,0.65W]`, RIGHT `[0.35W,W]`, TOP
+`[0,0.65H]` y BOTTOM `[0.35H,H]`: una franja dirigida sin inliers durante tres
 frames ejecuta STOP local y el dron ejecuta despues la reorientacion a XYZ fijo.
 El salto configurado es inicialmente 25 grados, aplicable a yaw o
 `camera_pitch` segun el sector. El servidor solo limpia ruta/reserva, mantiene
@@ -36,3 +38,26 @@ controlado son mejoras futuras.
 
 La 722 termina `success=true` y la revision visual del usuario confirma el
 movimiento fisico del joint al ordenar `pitch=-25 grados` con XYZ fijo.
+
+Las pruebas 741--743 validan que el riesgo cancela el giro de inspeccion y que
+el STOP se ejecuta, pero revelan una recuperacion encadenada incorrecta. En 743,
+ya corregido el arco yaw largo de 742, el target termina `success=false`; tras
+el STOP se lanza una restauracion de `-83.591 grados`, esta activa otro riesgo y
+otro STOP, y despues se ejecuta una correccion local de `+25 grados`. ORB habia
+entrado en `RECENTLY_LOST` aproximadamente 1.2 s despues del primer riesgo. La
+deteccion y el STOP quedan probados, pero falta acordar y validar una unica
+maniobra de recuperacion que no encadene giros cuando el tracking ya se degrado.
+
+La 744 limita el giro a `5 deg/s` y no presenta `RECENTLY_LOST` ni `LOST`.
+Visualmente el usuario confirma un movimiento estable. Aparecen riesgos LEFT
+posteriores, pero ORB permanece en estado OK; por tanto, la velocidad de
+inspeccion queda conseguida y el bloqueo restante pertenece a la captura e
+integracion depth de 6N.
+
+La comparacion 745/746 valida la anticipacion vigente. Con 0.75, 745 alcanzo
+`RECENTLY_LOST` y cambio de epoch. Con la unica variacion a 0.65, 746 detecto
+LEFT vacio en el frame 1338, cancelo el giro objetivo, completo STOP y una
+correccion `-25 deg`, y mantuvo ORB en estado 2 sin cambio de epoch. La prueba
+se detuvo por el bucle de confianza depth, no por tracking. Por tanto, 6L queda
+CONSEGUIDA para este escenario; calibracion amplia y `VISUAL_RETREAT` siguen
+aplazados.

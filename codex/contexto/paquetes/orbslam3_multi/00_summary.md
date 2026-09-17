@@ -103,9 +103,11 @@ control aceptado. Un parcial no cambia esa frontera.
 ## Scoring 3R
 
 - raw = base ORB por factores recuperables de distancia/aislamiento mas
-  `+0.04` por inlier;
+  `+0.04` por inlier; un punto maduro sin dos vecinos validos a `<=0.30 m`
+  publica cero duro y se recupera incrementalmente al aparecer apoyo;
 - indice voxel incremental, madurez minima y geometria neutra sin anchor;
-- fused = media de todos los raw miembros mas `0.04*N`;
+- fused = media de miembros soportados mas `0.04*N`; un track cuyos miembros
+  estan todos aislados publica cero;
 - cambios ORB/pose/vecindad se propagan solo a tracks afectados y builder dirty;
 - builder publica todos los puntos con score, sin filtro ni GT.
 - distancia 3R usa near fijo 1 m y far `83.333333*baseline`; con baseline

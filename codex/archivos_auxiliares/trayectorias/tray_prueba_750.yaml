@@ -1,0 +1,34 @@
+name: fase_6N_free_sparse_score_y_depth_integrado_d1
+description: >-
+  Lleva solo D1 con GT al fiducial 2 y deja que la tarea de fachada realice
+  inspecciones depth. Verifica rayos sparse score >=0.5, RANSAC score >=0.2,
+  productos near/far sin rechazo por capacidad e integracion antes de una
+  interrupcion fiducial.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 420.0
+steps:
+  - name: espera_registro_y_mapa
+    type: wait
+    seconds: 22.0
+  - name: anclaje_fiducial_2_d1_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: inspeccion_depth_y_avance_fachada
+    type: wait
+    seconds: 180.0

@@ -31,6 +31,12 @@ void LandmarkScoreManager::Configure(const LandmarkScoreConfig & config)
 
 void LandmarkScoreManager::RecomputeOutput(LandmarkScoreRecord * record)
 {
+  // A mature point without spatial support is not usable evidence, even if a
+  // later inlier event would otherwise add a positive adjustment.
+  if (record->isolation_factor <= 0.0F || record->body_factor <= 0.0F) {
+    record->score = 0.0F;
+    return;
+  }
   record->score = ClampScore(
     record->base_score_orb * record->distance_factor * record->isolation_factor +
     record->positive_adjustment + record->negative_adjustment);
@@ -74,6 +80,7 @@ bool LandmarkScoreManager::Equivalent(
   return std::fabs(lhs.base_score_orb - rhs.base_score_orb) <= 1e-6F &&
          std::fabs(lhs.distance_factor - rhs.distance_factor) <= 1e-6F &&
          std::fabs(lhs.isolation_factor - rhs.isolation_factor) <= 1e-6F &&
+         std::fabs(lhs.body_factor - rhs.body_factor) <= 1e-6F &&
          std::fabs(lhs.score - rhs.score) <= 1e-6F &&
          lhs.observations_count == rhs.observations_count &&
          std::fabs(lhs.found_ratio - rhs.found_ratio) <= 1e-6F &&
@@ -142,6 +149,7 @@ ScoreChangeSet LandmarkScoreManager::ApplyRawChanges(
       next.negative_adjustment = existing->second.negative_adjustment;
       next.distance_factor = existing->second.distance_factor;
       next.isolation_factor = existing->second.isolation_factor;
+      next.body_factor = existing->second.body_factor;
       next.positive_evidence = existing->second.positive_evidence;
       next.negative_evidence = existing->second.negative_evidence;
       RecomputeOutput(&next);
@@ -179,19 +187,41 @@ size_t LandmarkScoreManager::NeighborCount(
   const RawMapPointId & id, const GeometryState & geometry) const
 {
   size_t count = 0;
+  const double radius_squared = config_.isolation_radius_m * config_.isolation_radius_m;
   for (int dx = -1; dx <= 1; ++dx) {
     for (int dy = -1; dy <= 1; ++dy) {
       for (int dz = -1; dz <= 1; ++dz) {
         const std::array<int64_t, 3> voxel{
           geometry.voxel[0] + dx, geometry.voxel[1] + dy, geometry.voxel[2] + dz};
         const auto found = spatial_index_.find(voxel);
-        if (found != spatial_index_.end()) {
-          count += found->second.size();
+        if (found == spatial_index_.end()) {
+          continue;
+        }
+        for (const auto & candidate_id : found->second) {
+          if (candidate_id == id) {
+            continue;
+          }
+          const auto candidate_record = records_.find(candidate_id);
+          const auto candidate_geometry = geometry_.find(candidate_id);
+          if (candidate_record == records_.end() || candidate_record->second.is_bad ||
+            candidate_geometry == geometry_.end())
+          {
+            continue;
+          }
+          const auto & position = candidate_geometry->second.world_position;
+          const double dx_position = position.x - geometry.world_position.x;
+          const double dy_position = position.y - geometry.world_position.y;
+          const double dz_position = position.z - geometry.world_position.z;
+          if (dx_position * dx_position + dy_position * dy_position +
+            dz_position * dz_position <= radius_squared)
+          {
+            ++count;
+          }
         }
       }
     }
   }
-  return count == 0U || geometry_.count(id) == 0U ? count : count - 1U;
+  return count;
 }
 
 float LandmarkScoreManager::DistanceFactor(const GeometryState & geometry) const
@@ -236,6 +266,84 @@ float LandmarkScoreManager::IsolationFactor(
   const float ratio = static_cast<float>(neighbors) /
     static_cast<float>(config_.isolation_min_neighbors);
   return config_.isolation_min_factor + (1.0F - config_.isolation_min_factor) * ratio;
+}
+
+std::vector<std::array<int64_t, 3>> LandmarkScoreManager::SphereVoxels(
+  const DroneBodySphere & sphere) const
+{
+  const double radius = std::max(0.0, sphere.radius_m);
+  geometry_msgs::msg::Point minimum = sphere.center;
+  geometry_msgs::msg::Point maximum = sphere.center;
+  minimum.x -= radius;
+  minimum.y -= radius;
+  minimum.z -= radius;
+  maximum.x += radius;
+  maximum.y += radius;
+  maximum.z += radius;
+  const auto first = VoxelFor(minimum);
+  const auto last = VoxelFor(maximum);
+  std::vector<std::array<int64_t, 3>> voxels;
+  for (int64_t x = first[0]; x <= last[0]; ++x) {
+    for (int64_t y = first[1]; y <= last[1]; ++y) {
+      for (int64_t z = first[2]; z <= last[2]; ++z) {
+        voxels.push_back({x, y, z});
+      }
+    }
+  }
+  return voxels;
+}
+
+void LandmarkScoreManager::CollectPointsInSphere(
+  const DroneBodySphere & sphere, std::set<RawMapPointId> * affected) const
+{
+  for (const auto & voxel : SphereVoxels(sphere)) {
+    const auto points = spatial_index_.find(voxel);
+    if (points != spatial_index_.end()) {
+      affected->insert(points->second.begin(), points->second.end());
+    }
+  }
+}
+
+void LandmarkScoreManager::IndexBodySphere(const DroneBodySphere & sphere)
+{
+  for (const auto & voxel : SphereVoxels(sphere)) {
+    body_spatial_index_[voxel].insert(sphere.keyframe_id);
+  }
+}
+
+void LandmarkScoreManager::RemoveBodySphere(const DroneBodySphere & sphere)
+{
+  for (const auto & voxel : SphereVoxels(sphere)) {
+    const auto found = body_spatial_index_.find(voxel);
+    if (found == body_spatial_index_.end()) {
+      continue;
+    }
+    found->second.erase(sphere.keyframe_id);
+    if (found->second.empty()) {
+      body_spatial_index_.erase(found);
+    }
+  }
+}
+
+float LandmarkScoreManager::BodyFactor(const geometry_msgs::msg::Point & point) const
+{
+  const auto candidates = body_spatial_index_.find(VoxelFor(point));
+  if (candidates == body_spatial_index_.end()) {
+    return 1.0F;
+  }
+  for (const auto & keyframe_id : candidates->second) {
+    const auto sphere = body_spheres_.find(keyframe_id);
+    if (sphere == body_spheres_.end()) {
+      continue;
+    }
+    const double dx = point.x - sphere->second.center.x;
+    const double dy = point.y - sphere->second.center.y;
+    const double dz = point.z - sphere->second.center.z;
+    if (dx * dx + dy * dy + dz * dz <= sphere->second.radius_m * sphere->second.radius_m) {
+      return 0.0F;
+    }
+  }
+  return 1.0F;
 }
 
 ScoreChangeSet LandmarkScoreManager::ApplyGeometryChanges(
@@ -327,6 +435,82 @@ ScoreChangeSet LandmarkScoreManager::ApplyGeometryChanges(
     record->second.distance_factor = geometry == geometry_.end() ?
       1.0F : DistanceFactor(geometry->second);
     record->second.isolation_factor = IsolationFactor(id, record->second);
+    record->second.body_factor = geometry == geometry_.end() ?
+      1.0F : BodyFactor(geometry->second.world_position);
+    RecomputeOutput(&record->second);
+    if (Equivalent(previous, record->second)) {
+      continue;
+    }
+    ++record->second.record_revision;
+    result.input_updated_ids.push_back(id);
+    if (!OutputEquivalent(previous, record->second)) {
+      result.updated_ids.push_back(id);
+    }
+  }
+  if (result.HasChanges()) {
+    ++score_revision_;
+  }
+  result.score_revision_after = score_revision_;
+  return result;
+}
+
+ScoreChangeSet LandmarkScoreManager::UpdateDroneBodySpheres(
+  const std::vector<DroneBodySphere> & upserts,
+  const std::vector<RawKeyFrameId> & removals)
+{
+  ScoreChangeSet result;
+  std::lock_guard<std::mutex> lock(mutex_);
+  result.score_revision_before = score_revision_;
+  std::set<RawMapPointId> affected;
+
+  const auto remove = [&](const RawKeyFrameId & id) {
+      const auto existing = body_spheres_.find(id);
+      if (existing == body_spheres_.end()) {
+        return;
+      }
+      CollectPointsInSphere(existing->second, &affected);
+      RemoveBodySphere(existing->second);
+      body_spheres_.erase(existing);
+    };
+
+  for (const auto & id : removals) {
+    remove(id);
+  }
+  for (const auto & input : upserts) {
+    if (!std::isfinite(input.center.x) || !std::isfinite(input.center.y) ||
+      !std::isfinite(input.center.z) || !std::isfinite(input.radius_m) ||
+      input.radius_m <= 0.0)
+    {
+      remove(input.keyframe_id);
+      continue;
+    }
+    const auto existing = body_spheres_.find(input.keyframe_id);
+    if (existing != body_spheres_.end()) {
+      const auto & previous = existing->second;
+      if (std::fabs(previous.center.x - input.center.x) <= 1e-6 &&
+        std::fabs(previous.center.y - input.center.y) <= 1e-6 &&
+        std::fabs(previous.center.z - input.center.z) <= 1e-6 &&
+        std::fabs(previous.radius_m - input.radius_m) <= 1e-6)
+      {
+        continue;
+      }
+      CollectPointsInSphere(previous, &affected);
+      RemoveBodySphere(previous);
+      body_spheres_.erase(existing);
+    }
+    body_spheres_[input.keyframe_id] = input;
+    IndexBodySphere(input);
+    CollectPointsInSphere(input, &affected);
+  }
+
+  for (const auto & id : affected) {
+    const auto record = records_.find(id);
+    const auto geometry = geometry_.find(id);
+    if (record == records_.end() || geometry == geometry_.end()) {
+      continue;
+    }
+    const auto previous = record->second;
+    record->second.body_factor = BodyFactor(geometry->second.world_position);
     RecomputeOutput(&record->second);
     if (Equivalent(previous, record->second)) {
       continue;
@@ -512,6 +696,9 @@ LandmarkScoreStats LandmarkScoreManager::GetStats() const
     }
     if (record.isolation_factor < 1.0F - 1e-6F) {
       ++stats.isolated_points;
+    }
+    if (record.body_factor <= 0.0F) {
+      ++stats.body_masked_points;
     }
     if (record.distance_factor < 1.0F - 1e-6F) {
       const auto geometry = geometry_.find(id);

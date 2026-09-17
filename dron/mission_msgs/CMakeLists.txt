@@ -23,6 +23,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/VoxelMap.msg"
   "msg/GlobalSparsePoint.msg"
   "msg/GlobalSparseMapDelta.msg"
+  "msg/KeyframeSparsePoint.msg"
+  "msg/KeyframeSparseEvidence.msg"
+  "msg/KeyframeSparseEvidenceDelta.msg"
   "msg/TrajectoryWaypoint.msg"
   "msg/TrajectoryPlan.msg"
   "msg/VisualRiskEvent.msg"
@@ -32,6 +35,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/PlanRoute.srv"
   "srv/CaptureDepth.srv"
   "srv/InspectFacade.srv"
+  "srv/SubmitAutonomousCommand.srv"
+  "srv/ReportAutonomousResult.srv"
   "action/ExecuteTrajectory.action"
   DEPENDENCIES builtin_interfaces geometry_msgs std_msgs
 )

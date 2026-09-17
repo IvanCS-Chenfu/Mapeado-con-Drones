@@ -10,6 +10,28 @@ alternativo.
 Archivo: `dron/task_manager/src/task_manager_node.cpp` -> clase
 `TaskManagerNode`.
 
+## Comandos autonomos Fase 6
+
+`autonomous_command` implementa la recepcion breve de
+`SubmitAutonomousCommand`. Valida el dron y los IDs, deduplica por
+`command_id`, conserva una unica orden normal pendiente y responde
+`accepted_queued` sin ejecutar dentro del callback. Un timer extrae la orden y
+la ejecuta en un hilo local mediante el action server propio
+`execute_trajectory`, por lo que comparte `TrayAction`, `gen_tray`, STOP y los
+marcos de la trayectoria ordinaria.
+
+Al terminar, el dron llama una sola vez a `/mission/report_autonomous_result`
+con la pose final, depth utilizable y el mismo `command_id`. Acepta
+`MOVE_AND_CAPTURE`, `LOOK_AND_CAPTURE` y `MOVE_AND_WATCH_FIDUCIAL`. El ultimo
+solo observa durante el movimiento `/mission/fiducial_primary_observations` de
+Fase 4 y devuelve `fiducial_seen`; no activa ni interpreta AprilTags. Si
+`TRACKING_RISK` interrumpe la orden, STOP y la reorientacion siguen siendo
+locales, el terminal queda `RESULT_ABORTED` y se intenta capturar depth antes
+de notificarlo. Este estado es diagnostico: no descarta una observacion valida.
+
+Esta cola no sustituye aun `execute_trajectory` ni `inspect_facade`; ambos
+contratos legacy siguen vigentes durante la transicion.
+
 ## Trayectorias y STOP
 
 La action relativa `execute_trajectory` valida que el `TrajectoryPlan`
@@ -44,15 +66,27 @@ Expone el servicio relativo `inspect_facade`. Su secuencia es:
 ```text
 CaptureDepth de la orientacion actual de fachada
 -> giro local hacia el objetivo solicitado
--> CaptureDepth del ultimo frame o del frame exacto de TRACKING_RISK
--> restaurar yaw/pitch de fachada
+-> CaptureDepth newest-first sobre candidatos cualificados de esta inspeccion
+-> si hubo riesgo: esperar STOP y ejecutar una unica correccion local
 -> responder al servidor con las capturas y orientaciones
 ```
 
+El servidor lo invoca asincronamente, pero el handler local del servicio es
+sincrono: conserva la respuesta hasta terminar las capturas y los giros de
+inspeccion. El `MultiThreadedExecutor(4)` permite que las actions de
+trayectoria y los callbacks visuales progresen mientras tanto, aunque solo
+puede haber una inspeccion activa por dron. Una arquitectura futura basada en
+colas puede convertir esta operacion larga en una orden aceptada de inmediato
+y un evento de resultado correlacionado.
+
 El servicio usa el cliente local `orbslam/capture_depth`. Si aparece riesgo
-visual durante la mirada temporal, ejecuta el mismo STOP local, conserva el
-frame que activo la persistencia y solicita ese frame exacto como segunda
-captura. No calcula el mapa voxel ni decide si el corredor es navegable.
+visual durante la mirada temporal, ejecuta el mismo STOP local y solicita el
+depth de hasta 16 candidatos anteriores con al menos 20 inliers, separados 0.5
+s o 2.5 grados, posteriores al inicio de la inspeccion, confianza minima 0.25 y
+al menos 20 puntos depth. Despues ejecuta
+una unica correccion de 25 grados alejandose del primer sector pobre. No encadena
+restauracion, segundo STOP ni otra correccion. No calcula el mapa voxel ni
+decide si el corredor es navegable.
 
 `MultiThreadedExecutor(4)` permite progresar callbacks de servicio, action,
 captura depth y evidencia visual sin bloqueo mutuo.
@@ -67,14 +101,30 @@ Los motivos terminales de `InspectFacade` se conservan por etapa
 (`target_orientation_failed`, `target_capture_failed` o
 `facade_restore_failed`); completar la restauracion no borra un fallo previo.
 
+`FacadeOrientation` trata `n` y `-n` como el mismo plano: una normal relativa
+de 0 o 180 grados equivale a correccion yaw cero. Solo acepta la direccion con
+soporte minimo 40, confianza minima 0.8 y correccion no superior a 25 grados;
+si falla el gate conserva yaw/pitch actual. Todos los giros usan el arco minimo
+y una duracion de al menos 5 s; el despliegue vigente limita el pico real de
+yaw/pitch a 5 grados/s. Como el Pol3 reposo-a-reposo alcanza 1.5 veces su velocidad media,
+`ExecuteInspectionOrientation` incorpora ese factor al calcular la duracion.
+
 ## Referencias
 
 ```text
 src/task_manager_node.cpp -> HandleTaskStates / TaskReport
+src/task_manager_node.cpp -> HandleAutonomousCommand / RunAutonomousCommandWorker
+src/task_manager_node.cpp -> ExecuteAutonomousCommand / ReportAutonomousTerminal
 src/task_manager_node.cpp -> HandleExecuteGoal / ExecuteTrajectoryPlan
-src/task_manager_node.cpp -> HandleInspectFacade / BeginFacadeInspection
+src/task_manager_node.cpp -> HandleInspectFacade / FacadeOrientation
+src/task_manager_node.cpp -> BeginInspectionVisualPhase / InspectionRiskMask
 src/task_manager_node.cpp -> HandleVisualEvidence / StartLocalVisualStop
 src/task_manager_node.cpp -> PhysicalTrajectoryActive / HandleInspectFacade
 ```
 
 Build vigente: correcto.
+
+`TRACKING_RISK` considera pobre un sector con
+`<= visual_risk_directional_max_inliers` (valor inicial `3`) durante tres
+frames. El debug visual del wrapper recibe el mismo umbral para sombrear la
+region que realmente podria activar STOP.

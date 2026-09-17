@@ -64,17 +64,14 @@ ReversibleVoxelMap::ReversibleVoxelMap(double voxel_size)
 }
 
 bool ReversibleVoxelMap::ApplySparseSnapshot(
-  const std::vector<SparseEvidence> & evidence, float min_occupied_score,
-  std::size_t min_occupied_mappoints_per_voxel)
+  const std::vector<SparseEvidence> & evidence, float occupied_score_threshold)
 {
-  if (!std::isfinite(min_occupied_score) || min_occupied_score < 0.0F ||
-    min_occupied_score > 1.0F)
+  if (!std::isfinite(occupied_score_threshold) || occupied_score_threshold < 0.0F ||
+    occupied_score_threshold > 1.0F)
   {
-    throw std::invalid_argument("min_occupied_score debe estar en [0, 1]");
+    throw std::invalid_argument("occupied_score_threshold debe estar en [0, 1]");
   }
-  if (min_occupied_mappoints_per_voxel == 0U) {
-    throw std::invalid_argument("min_occupied_mappoints_per_voxel debe ser mayor que 0");
-  }
+  sparse_occupied_score_threshold_ = occupied_score_threshold;
   ContributionsBySource next;
   ContributionsByVoxel next_by_voxel;
   for (const auto & point : evidence) {
@@ -83,10 +80,10 @@ bool ReversibleVoxelMap::ApplySparseSnapshot(
     {
       continue;
     }
-    if (!std::isfinite(point.score) || point.score < min_occupied_score) {
+    if (!std::isfinite(point.score)) {
       continue;
     }
-    const double score = std::clamp(static_cast<double>(point.score), 0.05, 1.0);
+    const double score = std::clamp(static_cast<double>(point.score), 0.0, 1.0);
     const auto contribution = Contribution{ToKey(point.position_world), score};
     const auto inserted = next.emplace(point.source_id, contribution);
     if (inserted.second) {
@@ -112,8 +109,7 @@ bool ReversibleVoxelMap::ApplySparseSnapshot(
   }
   sparse_contributions_ = std::move(next);
   sparse_contributions_by_voxel_ = std::move(next_by_voxel);
-  const bool changed = ReconcileSparseCells(
-    before, affected, min_occupied_mappoints_per_voxel);
+  const bool changed = ReconcileSparseCells(before, affected);
   if (changed) {
     ++revision_;
     for (const auto & item : states_before) {
@@ -125,16 +121,14 @@ bool ReversibleVoxelMap::ApplySparseSnapshot(
 
 bool ReversibleVoxelMap::ApplySparseDelta(
   const std::vector<SparseEvidence> & upserts, const std::vector<std::string> & deletes,
-  float min_occupied_score, std::size_t min_occupied_mappoints_per_voxel)
+  float occupied_score_threshold)
 {
-  if (!std::isfinite(min_occupied_score) || min_occupied_score < 0.0F ||
-    min_occupied_score > 1.0F)
+  if (!std::isfinite(occupied_score_threshold) || occupied_score_threshold < 0.0F ||
+    occupied_score_threshold > 1.0F)
   {
-    throw std::invalid_argument("min_occupied_score debe estar en [0, 1]");
+    throw std::invalid_argument("occupied_score_threshold debe estar en [0, 1]");
   }
-  if (min_occupied_mappoints_per_voxel == 0U) {
-    throw std::invalid_argument("min_occupied_mappoints_per_voxel debe ser mayor que 0");
-  }
+  sparse_occupied_score_threshold_ = occupied_score_threshold;
   ContributionsBySource next;
   std::set<std::string> sources(deletes.begin(), deletes.end());
   for (const auto & point : upserts) {
@@ -145,11 +139,9 @@ bool ReversibleVoxelMap::ApplySparseDelta(
       continue;
     }
     sources.insert(point.source_id);
-    if (point.score >= min_occupied_score) {
-      next.emplace(
-        point.source_id, Contribution{
-          ToKey(point.position_world), std::clamp(static_cast<double>(point.score), 0.05, 1.0)});
-    }
+    next.emplace(
+      point.source_id, Contribution{
+        ToKey(point.position_world), std::clamp(static_cast<double>(point.score), 0.0, 1.0)});
   }
 
   std::set<VoxelKey> affected;
@@ -195,8 +187,7 @@ bool ReversibleVoxelMap::ApplySparseDelta(
       sparse_contributions_by_voxel_[incoming->second.key].emplace(source, incoming->second);
     }
   }
-  const bool changed = ReconcileSparseCells(
-    before, affected, min_occupied_mappoints_per_voxel);
+  const bool changed = ReconcileSparseCells(before, affected);
   if (changed) {
     ++revision_;
     for (const auto & item : states_before) {
@@ -207,8 +198,7 @@ bool ReversibleVoxelMap::ApplySparseDelta(
 }
 
 bool ReversibleVoxelMap::ReconcileSparseCells(
-  const ContributionsByVoxel & before, const std::set<VoxelKey> & affected,
-  std::size_t min_occupied_mappoints_per_voxel)
+  const ContributionsByVoxel & before, const std::set<VoxelKey> & affected)
 {
   bool changed = false;
   for (const auto & key : affected) {
@@ -221,21 +211,13 @@ bool ReversibleVoxelMap::ReconcileSparseCells(
     if (SameContributions(old_sources, current_sources)) {
       continue;
     }
-    if (old_sources.size() >= min_occupied_mappoints_per_voxel) {
-      for (const auto & item : old_sources) {
-        ApplySparseContribution(item.second, -1.0);
-      }
+    for (const auto & item : old_sources) {
+      ApplySparseContribution(item.second, -1.0);
     }
-    if (current_sources.size() >= min_occupied_mappoints_per_voxel) {
-      for (const auto & item : current_sources) {
-        ApplySparseContribution(item.second, 1.0);
-      }
+    for (const auto & item : current_sources) {
+      ApplySparseContribution(item.second, 1.0);
     }
-    if (old_sources.size() >= min_occupied_mappoints_per_voxel ||
-      current_sources.size() >= min_occupied_mappoints_per_voxel)
-    {
-      changed = true;
-    }
+    changed = true;
   }
   return changed;
 }
@@ -294,6 +276,18 @@ bool ReversibleVoxelMap::ReplaceDepthFreeCells(
   return ReplaceFreeCellsImpl(source_id, keys, false);
 }
 
+bool ReversibleVoxelMap::ReplaceDirectDepthFreeCells(
+  const std::string & source_id, const std::set<VoxelKey> & keys)
+{
+  return ReplaceFreeCellsImpl(source_id, keys, true);
+}
+
+bool ReversibleVoxelMap::ReplaceDepthOccupiedCells(
+  const std::string & source_id, const std::set<VoxelKey> & keys)
+{
+  return ReplaceDepthOccupiedCellsImpl(source_id, keys);
+}
+
 bool ReversibleVoxelMap::ReplaceFreeVolumeImpl(
   const std::string & source_id, const Vec3 & center_world,
   const Vec3 & half_extent_world, bool overrides_sparse)
@@ -343,6 +337,41 @@ bool ReversibleVoxelMap::ReplaceFreeCellsImpl(
   return true;
 }
 
+bool ReversibleVoxelMap::ReplaceDepthOccupiedCellsImpl(
+  const std::string & source_id, const std::set<VoxelKey> & keys)
+{
+  if (source_id.empty() || keys.empty()) {
+    return false;
+  }
+  const auto existing = depth_occupied_contributions_.find(source_id);
+  if (existing != depth_occupied_contributions_.end() && existing->second == keys) {
+    return false;
+  }
+  std::set<VoxelKey> affected = keys;
+  if (existing != depth_occupied_contributions_.end()) {
+    affected.insert(existing->second.begin(), existing->second.end());
+  }
+  std::map<VoxelKey, VoxelState> before;
+  for (const auto & key : affected) {
+    before.emplace(key, StateForKey(key));
+  }
+  if (existing != depth_occupied_contributions_.end()) {
+    for (const auto & key : existing->second) {
+      auto & accumulator = cells_[key];
+      accumulator.depth_occupied = std::max(0.0, accumulator.depth_occupied - 1.0);
+    }
+  }
+  for (const auto & key : keys) {
+    ++cells_[key].depth_occupied;
+  }
+  depth_occupied_contributions_[source_id] = keys;
+  ++revision_;
+  for (const auto & item : before) {
+    RecordChange(item.first, item.second);
+  }
+  return true;
+}
+
 bool ReversibleVoxelMap::RemoveEvidence(const std::string & source_id)
 {
   const auto sparse = sparse_contributions_.find(source_id);
@@ -350,9 +379,31 @@ bool ReversibleVoxelMap::RemoveEvidence(const std::string & source_id)
     const auto key = sparse->second.key;
     const auto before = StateForKey(key);
     ApplySparseContribution(sparse->second, -1.0);
+    auto by_voxel = sparse_contributions_by_voxel_.find(key);
+    if (by_voxel != sparse_contributions_by_voxel_.end()) {
+      by_voxel->second.erase(source_id);
+      if (by_voxel->second.empty()) {
+        sparse_contributions_by_voxel_.erase(by_voxel);
+      }
+    }
     sparse_contributions_.erase(sparse);
     ++revision_;
     RecordChange(key, before);
+    return true;
+  }
+  const auto depth_occupied = depth_occupied_contributions_.find(source_id);
+  if (depth_occupied != depth_occupied_contributions_.end()) {
+    std::map<VoxelKey, VoxelState> before;
+    for (const auto & key : depth_occupied->second) {
+      before.emplace(key, StateForKey(key));
+      auto & accumulator = cells_[key];
+      accumulator.depth_occupied = std::max(0.0, accumulator.depth_occupied - 1.0);
+    }
+    depth_occupied_contributions_.erase(depth_occupied);
+    ++revision_;
+    for (const auto & item : before) {
+      RecordChange(item.first, item.second);
+    }
     return true;
   }
   const auto free = free_contributions_.find(source_id);
@@ -586,16 +637,15 @@ std::vector<VoxelCell> ReversibleVoxelMap::Snapshot() const
   snapshot.reserve(cells_.size());
   for (const auto & item : cells_) {
     const auto & accumulator = item.second;
-    if (accumulator.occupied <= 1e-9 && accumulator.traversed_free <= 1e-9 &&
-      accumulator.depth_free <= 1e-9)
+    if (accumulator.sparse_count == 0U && accumulator.traversed_free <= 1e-9 &&
+      accumulator.depth_free <= 1e-9 && accumulator.depth_occupied <= 1e-9)
     {
       continue;
     }
     VoxelCell cell;
     cell.key = item.first;
     cell.state = StateForKey(item.first);
-    cell.score = cell.state == VoxelState::Occupied ?
-      static_cast<float>(std::clamp(accumulator.occupied, 0.0, 1.0)) : 0.0F;
+    cell.score = static_cast<float>(ScoreForKey(item.first));
     snapshot.push_back(cell);
   }
   return snapshot;
@@ -641,9 +691,15 @@ std::set<VoxelKey> ReversibleVoxelMap::KeysForVolume(
 void ReversibleVoxelMap::ApplySparseContribution(const Contribution & contribution, double factor)
 {
   auto & accumulator = cells_[contribution.key];
-  accumulator.occupied = std::max(0.0, accumulator.occupied + factor * contribution.occupied);
-  if (accumulator.occupied <= 1e-9 && accumulator.traversed_free <= 1e-9 &&
-    accumulator.depth_free <= 1e-9)
+  accumulator.sparse_score_sum = std::max(
+    0.0, accumulator.sparse_score_sum + factor * contribution.occupied);
+  if (factor > 0.0) {
+    ++accumulator.sparse_count;
+  } else if (accumulator.sparse_count > 0U) {
+    --accumulator.sparse_count;
+  }
+  if (accumulator.sparse_count == 0U && accumulator.traversed_free <= 1e-9 &&
+    accumulator.depth_free <= 1e-9 && accumulator.depth_occupied <= 1e-9)
   {
     cells_.erase(contribution.key);
   }
@@ -657,8 +713,8 @@ void ReversibleVoxelMap::ApplyFreeContribution(
     auto & free =
       contribution.overrides_sparse ? accumulator.traversed_free : accumulator.depth_free;
     free = std::max(0.0, free + factor);
-    if (accumulator.occupied <= 1e-9 && accumulator.traversed_free <= 1e-9 &&
-      accumulator.depth_free <= 1e-9)
+    if (accumulator.sparse_count == 0U && accumulator.traversed_free <= 1e-9 &&
+      accumulator.depth_free <= 1e-9 && accumulator.depth_occupied <= 1e-9)
     {
       cells_.erase(key);
     }
@@ -671,13 +727,38 @@ VoxelState ReversibleVoxelMap::StateForKey(const VoxelKey & key) const
   if (iterator == cells_.end()) {
     return VoxelState::Unknown;
   }
+  if (iterator->second.depth_occupied > 1e-9) {
+    return VoxelState::Occupied;
+  }
   if (iterator->second.traversed_free > 1e-9) {
     return VoxelState::Free;
   }
-  if (iterator->second.occupied > 1e-9) {
+  if (iterator->second.sparse_count > 0U &&
+    ScoreForKey(key) > sparse_occupied_score_threshold_)
+  {
     return VoxelState::Occupied;
   }
   return iterator->second.depth_free > 1e-9 ? VoxelState::Free : VoxelState::Unknown;
+}
+
+double ReversibleVoxelMap::ScoreForKey(const VoxelKey & key) const
+{
+  const auto iterator = cells_.find(key);
+  if (iterator == cells_.end()) {
+    return 0.0;
+  }
+  const auto & accumulator = iterator->second;
+  if (accumulator.depth_occupied > 1e-9) {
+    return 1.0;
+  }
+  if (accumulator.traversed_free > 1e-9) {
+    return 0.0;
+  }
+  if (accumulator.sparse_count == 0U) {
+    return 0.0;
+  }
+  return std::clamp(
+    accumulator.sparse_score_sum / static_cast<double>(accumulator.sparse_count), 0.0, 1.0);
 }
 
 bool ReversibleVoxelMap::IsNavigationDefault(

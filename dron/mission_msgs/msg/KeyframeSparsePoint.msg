@@ -1,0 +1,3 @@
+uint64 local_mappoint_id
+geometry_msgs/Point32 position_k
+float32 score

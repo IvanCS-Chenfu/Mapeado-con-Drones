@@ -95,8 +95,11 @@ phase6_execution_timing_factor=2.0
 phase6_trajectory_waypoint_min_separation_m=1.0
 phase6_trajectory_min_segment_duration_sec=8.0
 phase6_waypoint_blend_sec=3.0
-phase6_min_occupied_mappoints_per_voxel=4
-phase6_extra_obstacle_clearance_voxels=2
+phase6_voxel_occupied_score_threshold=0.4
+phase6_visual_target_min_score=0.2
+phase6_visual_target_max_score=0.6
+phase6_depth_coverage_neighbor_sections=2
+phase6_extra_obstacle_clearance_voxels=1
 phase6_voxel_worker_coalesce_ms=100
 phase6_execute_facade_sweeps=false
 phase6_facade_preferred_wall_distance_m=2.5
@@ -113,13 +116,21 @@ phase6_facade_worker_period_ms=250
 phase6_reservation_sweep_sample_step_voxels=0.5
 phase6_depth_inspection_enabled=false
 phase6_depth_evidence_enabled=false
+phase6_depth_candidate_frame_capacity=16
+phase6_depth_candidate_min_tracking_inliers=20
+phase6_depth_candidate_min_interval_sec=0.5
+phase6_depth_candidate_min_orientation_delta_deg=2.5
+phase6_depth_min_confidence=0.25
+phase6_depth_min_support_points=20
+phase6_debug_facade_dstar_failure=false
 ```
 
 Cuando se habilita la ejecucion 6I, el launch entrega
 `phase6_execution_timing_factor`,
 `phase6_trajectory_waypoint_min_separation_m` y
 `phase6_trajectory_min_segment_duration_sec`, y
-`phase6_min_occupied_mappoints_per_voxel` a `task_server`, y
+`phase6_voxel_occupied_score_threshold` y el rango de objetivo visual a
+`task_server`, y
 `phase6_waypoint_blend_sec` a cada `gen_tray`. Los parametros de ruta
 depuran de forma segura una cadena D* y acotan inferiormente la duración de
 cada tramo antes de construir `Pol3Waypoints`; el ultimo define la ventana de
@@ -137,12 +148,25 @@ activa por separado y solo bajo demanda con
 `phase6_depth_inspection_enabled`; `phase6_depth_evidence_enabled` permite al
 servidor integrar su producto exclusivamente como FREE reversible.
 
-`phase6_extra_obstacle_clearance_voxels` se suma al radio fisico ya voxelizado
-del dron y sustituye al clearance metrico anterior.
+El historial depth de inspeccion guarda hasta 16 frames cualificados y los
+submuestrea por tiempo u orientacion. Productor, `task_manager` y servidor
+comparten las puertas de 20 inliers, confianza 0.25 y 20 puntos depth.
+
+`phase6_depth_coverage_neighbor_sections` define cuantas rebanadas contiguas
+de la U reclama un impacto depth frontal a cada lado, sin cerrar la cara
+abierta. `phase6_extra_obstacle_clearance_voxels` se suma al radio fisico ya
+voxelizado del dron y sustituye al clearance metrico anterior; su default es
+`1`.
 `phase6_voxel_worker_coalesce_ms` agrupa cambios antes de un commit incremental.
 `phase6_reservation_sweep_sample_step_voxels` controla la separación máxima de
 las muestras que convierten la polilínea D* inflada en la reserva espacial;
 actualmente no representa aún el sampler curvo final de `lib_tray`.
+
+`phase6_debug_facade_dstar_failure` se usa solo para diagnosticar un rechazo
+D* de fachada con perfil estrictamente FREE. Propaga
+`debug_facade_dstar_failure` a `task_server` y habilita los marcadores
+`F6I-STRICT-ROUTE-FAIL` y `F6I-STRICT-FREE-FRONTIER`; no modifica costes,
+transitabilidad, mapas ni el comportamiento del dron.
 
 El override de spawn de 5B está desactivado por defecto. Cuando se habilita,
 `multi_dron.launch.py` coloca X en `-1/+1` según dron y pasa Y/yaw al
@@ -252,7 +276,7 @@ drones, servidor global ni RViz2.
 
 `multi_dron.launch.py` expone `phase6_visual_risk_enabled`,
 `phase6_debug_visual_risk_display`,
-`phase6_visual_risk_empty_region_fraction=0.75`,
+`phase6_visual_risk_empty_region_fraction=0.60`,
 `phase6_visual_risk_persistence_frames` y
 `phase6_visual_risk_reorientation_grace_sec=6.0`, junto a
 `phase6_visual_risk_reorientation_step_deg=25.0`. La fraccion crea las cuatro
@@ -273,3 +297,10 @@ rayos FREE derivados ni del calculo de proximidad de esa captura. Depth no
 genera endpoints OCCUPIED. Son umbrales experimentales independientes de
 `phase6_depth_min_confidence`, que el servidor aplica solo a observaciones ya
 filtradas.
+
+La inspeccion expone tambien
+`phase6_depth_candidate_frame_capacity=3`,
+`phase6_depth_candidate_min_tracking_inliers=20` y
+`phase6_inspection_max_yaw_rate_deg_s=5.0`. Ante riesgo, el dron prueba los
+candidatos de esta inspeccion newest-first y usa el mismo umbral
+`phase6_depth_min_confidence` antes de responder al servidor.

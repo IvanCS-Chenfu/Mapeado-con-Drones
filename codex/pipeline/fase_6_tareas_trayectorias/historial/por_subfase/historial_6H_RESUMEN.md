@@ -1,6 +1,15 @@
 # Resumen 6H
 
-Estado: PARCIAL. El score mínimo `0.2`, coverage superficial reversible,
+Estado: PARCIAL. Desde la prueba 772, `PointSelectionWorker` consume la FIFO
+nueva y encadena `LOOK_AND_CAPTURE` para poses UNKNOWN sin retener al servidor.
+Tras el diagnostico 773 se acordo que, cuando el depth de esa mirada ya este
+materializado, se revalidara la misma pose: si aun es UNKNOWN, se buscara una
+pose FREE alternativa a un radio configurable de 8 voxeles con los costes
+normales; si no existe, se elegira otro voxel visual. No se volvera a mandar a
+D* una meta UNKNOWN.
+D1 completo ese tramo hasta depth y D*; la asignacion automatica tambien
+activo D2 y no hubo llegada normal `vista_pared`, por lo que coverage de la
+nueva cadena sigue pendiente de una prueba aislada FULL_FREE. El score mínimo `0.2`, coverage superficial reversible,
 portales exclusivos y candidato automático a D* están implementados. La prueba
 636 valida con GT el procedimiento correcto de anclaje en fiducial 2
 `(0, -10, Z)`, coverage y publicación de rutas candidatas en GUI F7 (2-3
@@ -55,3 +64,25 @@ UNKNOWN a 2 m. La ejecución parcial con D1/GT confirma que el selector eligió
 metas UNKNOWN de 2.00--2.01 m y que el porcentaje volumétrico pasó de 0.015 a
 0.027 antes de ser detenida manualmente. No es prueba de cobertura sostenida ni
 de cierre: el usuario pidió parar Gazebo durante la observación.
+
+Actualización 775: `PointSelectionWorker` y la continuación de
+`vista_unknown` rechazan ahora cualquier meta raw `FREE` que no sea transitable
+en el `NavigationSnapshot` estricto. Tras depth, una meta aún `UNKNOWN` usa
+solo un fallback `FREE` navegable o vuelve a selección. D1/GT completó 180 s
+con `SIM-DONE success=true`, rechecks y fallbacks observables, sin el bucle de
+meta inflada previo. La corrección concreta queda CONSEGUIDA; 6H sigue PARCIAL
+por la validación pendiente del coverage de fachada.
+
+Actualización 777: primera ejecución integrada de la nueva U, con D1/GT en el
+fiducial 2 y depth habilitado. No valida el flujo: el monitor solicitó STOP de
+forma repetida con `occupied_or_inflated_corridor`; las rutas se sustituyeron
+antes de finalizar y el servidor encoló `result_without_usable_depth`. Sí hubo
+capturas `vista_unknown` y `vista_pared` aisladas, con fuentes depth escritas y
+aplicadas y activaciones `DEPTH_OCCUPIED`, por lo que el problema no es que el
+depth esté deshabilitado. Falta diagnosticar y corregir la causalidad de STOP
+antes de repetir; no dar 6H por concluida.
+
+Actualizacion 786: la U se activa ahora por claims reversibles. Dos capturas
+frontales `VIEW_ADVANCE` activaron 18 secciones en total, con vecinos que
+cruzan esquinas sin cerrar la cara abierta. La activacion queda validada; falta
+probar relevo `TO_FINISH` y una progresion de fachada sostenida.

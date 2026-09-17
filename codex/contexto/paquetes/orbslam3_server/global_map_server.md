@@ -29,6 +29,27 @@ habilitado.
 Orquestador ROS 2 de los flujos principal y secundario. Las decisiones de mapa,
 grafo y optimizacion se delegan a `SparseGlobalBackend`.
 
+## Mascara fisica 3R
+
+Tambien mantiene una subscription reliable/transient-local a
+`/mission/registry`. `OnDroneRegistry()` valida y cachea las dimensiones
+fisicas registradas por dron y llama a `SparseGlobalBackend::SetDroneDimensions`;
+no crea clientes por dron ni consulta Fase 6. El constructor transforma la
+extrinseca estatica `body_T_camera_*` ya usada por el dron y la entrega al
+backend para que una pose global de KeyFrame de camara situe la esfera en
+`base_link`.
+
+La telemetria `[F3R-BODY-REGISTRY]` informa de la revision del registro, los
+drones validos y el numero de MapPoints actualmente enmascarados. Los cambios
+de score se vuelven `dirty` en el builder por la misma ruta incremental que
+cualquier ajuste 3R; no altera voxeles, tareas ni rutas.
+
+```text
+src/global_map_server.cpp -> OnDroneRegistry
+src/global_map_server.cpp -> constructor, ConfigureBodyCameraTransform
+rg -n "F3R-BODY-REGISTRY|mission/registry|SetDroneDimensions"
+```
+
 ## Flujo principal
 
 ```text

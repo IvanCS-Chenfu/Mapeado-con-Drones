@@ -1,6 +1,12 @@
 # Local drone service. requested_frame_id=0 captures the newest stereo pair.
 uint64 requested_frame_id
 bool require_exact_frame
+# Optional inspection fallback. Only frames at or after minimum_candidate_frame_id
+# and retained by the producer's inlier gate are considered.
+bool use_candidate_fallback
+uint64 minimum_candidate_frame_id
+float32 minimum_confidence
+uint32 minimum_support_points
 ---
 bool success
 string reason

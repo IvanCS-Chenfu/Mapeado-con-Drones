@@ -28,5 +28,11 @@ geometry_msgs/Vector3 normal_k
 uint32 normal_support
 float32 normal_confidence
 
-# Filtered depth endpoints in KeyFrame coordinates.
+# Near depth endpoints in KeyFrame coordinates. They passed the strict local
+# texture/discontinuity filters and may support a facade normal.
 geometry_msgs/Point32[] points_k
+
+# Stereo-valid far endpoints in KeyFrame coordinates. They are used only to
+# cast conservative FREE rays truncated by the server; they never support a
+# normal or OCCUPIED evidence.
+geometry_msgs/Point32[] far_free_points_k

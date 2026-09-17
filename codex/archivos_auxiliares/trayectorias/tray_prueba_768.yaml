@@ -1,0 +1,38 @@
+name: fase_6_coverage_persistente_d1_gt_scores_actualizados
+description: >-
+  D1 llega con GT al fiducial 2, se ancla y deja ejecutar el coverage actual de
+  Fase 6 para revisar el efecto de los scores sparse actualizados sobre los
+  voxeles y la seleccion de movimiento. D2 no recibe ninguna trayectoria.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 420.0
+steps:
+  - name: espera_registro_y_orb
+    type: wait
+    seconds: 12.0
+  - name: anclaje_fiducial_2_d1_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: habilitar_coverage_tras_anclaje_d1
+    type: call_set_bool
+    service: /mission/set_coverage_execution_enabled
+    value: true
+    timeout_sec: 20.0
+  - name: observacion_coverage_persistente_d1
+    type: wait
+    seconds: 300.0

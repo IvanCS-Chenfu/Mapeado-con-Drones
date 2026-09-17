@@ -64,6 +64,8 @@ struct GlobalMapBuildResult
   std::vector<GlobalSparsePoint> delta_upserts;
   std::vector<GlobalSparsePoint> delta_deletes;
   std::vector<GlobalKeyFrameView> keyframes;
+  std::vector<GlobalKeyFrameView> delta_keyframe_upserts;
+  std::vector<RawKeyFrameId> delta_keyframe_deletes;
 };
 
 /// Proyección incremental final de autoridades raw/world/score/fusión para publicación.
@@ -149,6 +151,8 @@ private:
   std::set<RawSubmapId> deferred_unanchored_submaps_;
   std::set<RawKeyFrameId> usable_keyframes_this_update_;
   std::set<RawKeyFrameId> unusable_keyframes_this_update_;
+  std::set<RawKeyFrameId> changed_keyframes_this_update_;
+  std::set<RawKeyFrameId> removed_keyframes_this_update_;
   uint64_t publication_revision_ = 0;
 };
 

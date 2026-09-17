@@ -1,5 +1,36 @@
 # Historial 6H
 
+## 2026-09-16 - Recheck tras `vista_unknown` y fallback FREE acordados
+
+- La prueba 773 demostro que una `vista_unknown` podia materializar evidencia
+  sin volver FREE la pose fisica original. La continuacion actual la encola a
+  D* de todos modos, que la rechaza como meta no transitable.
+- Se acuerdo conservar primero el voxel visual `0.2..0.6` y su pose fisica de
+  menor coste. Tras materializar depth, esa misma pose se reevalua: si es
+  FREE, pasa a D*; si sigue UNKNOWN, el selector busca una pose FREE a un
+  radio configurable de 8 voxeles alrededor de ella y la ordena con los
+  mismos costes de fachada, desplazamiento y altura.
+- Si no hay alternativa FREE navegable en ese radio, no se mira ni se ejecuta
+  UNKNOWN: se descarta ese candidato visual y se vuelve a `POINT_SELECTION`.
+
+Conclusion: ACUERDO CERRADO, implementacion pendiente. El recheck elimina que
+la cola D* reciba una meta que no cumple su precondicion FREE.
+
+## 2026-09-16 - Migracion FIFO de seleccion y prueba 772
+
+- `PointSelectionWorker` consume la cola nueva, selecciona score `0.2..0.6`,
+  conserva el candidato correlacionado y ordena `LOOK_AND_CAPTURE` cuando la
+  pose de inspeccion es UNKNOWN.
+- Prueba 772: D1 completo el anclaje GT y produjo `vista_unknown`, depth,
+  escritura/aplicacion de fuentes y continuacion a D*. El escenario cerro con
+  `SIM-DONE success=true`.
+- Limite: el registro automatico tambien asigno tareas a D2, por lo que la
+  prueba no quedo aislada a D1. La cobertura lineal solo se confirmara con una
+  llegada normal de `vista_pared`, no observada aun.
+
+Conclusion: PARCIAL. La seleccion FIFO esta conectada y no bloquea al servidor;
+queda validar coverage de una llegada completa de fachada en una prueba D1 aislada.
+
 ## 2026-09-10 - Coverage superficial inicial
 
 - objetivo intentado: filtrar score sparse, calcular coverage superficial
@@ -171,3 +202,34 @@
 - cierre: el usuario solicitó detener Gazebo mientras seguía activo. La prueba
   se conserva como evidencia parcial; no valida exploración sostenida,
   porcentaje final ni cierre de tarea.
+
+## 2026-09-16 - Meta FREE navegable en el flujo FIFO (prueba 775)
+
+- objetivo intentado: impedir que `POINT_SELECTION` y la continuación de
+  `vista_unknown` manden a D* una meta raw `FREE` que el perfil estricto del
+  dron considera inflada o reservada.
+- implementación: ambas rutas consultan `NavigationSnapshotFor()` antes de
+  encolar `TRAJECTORY_PLANNING`. El fallback local acepta solo `FREE`
+  navegable; si no existe, el candidato visual vuelve a selección.
+- build y tests: `task_server` compiló correctamente y su CTest completo pasó
+  9/9, incluidos GTests y linters.
+- prueba Gazebo: 775, solo D1, anclaje GT en fiducial 2 `(0,-10,1)`, gate
+  autónomo abierto tras el terminal, depth activo y ventana de 180 s. El
+  escenario cerró con `SIM-DONE success=true`.
+- evidencia: después de cada materialización `vista_unknown` se registró
+  `F6H-DEPTH-TARGET-RECHECK`; cuando la meta seguía `UNKNOWN`, se aplicó
+  `fallback_free` antes de planificar. No apareció el bucle previo de enviar
+  una meta raw `FREE` no transitable directamente a D*.
+- conclusión: CONSEGUIDA para la exclusión y revalidación de meta de este
+  cambio. La subfase 6H global permanece PARCIAL: faltan validaciones de
+  coverage de fachada y su política de finalización.
+
+## 2026-09-17 - Coverage U por evidencia frontal (prueba 786)
+
+- la seleccion sigue consumiendo secciones pendientes, pero su estado ya no se
+  fija al primer impacto: se deriva de claims por fuente depth/KF.
+- 786 materializo dos `VIEW_ADVANCE` frontales que dejaron 18 secciones U
+  activas mediante claims espaciales y vecinos; no reaparecio la activacion
+  lineal heredada.
+- conclusion: la activacion por evidencia esta CONSEGUIDA para este cambio;
+  6H sigue PARCIAL hasta validar `TO_FINISH` y progresion lateral sostenida.

@@ -178,7 +178,8 @@ def generate_launch_description():
     stereo_params['depth_texture_window_radius_px'] = ParameterValue(
         depth_texture_window_radius_px, value_type=int)
     stereo_params['depth_stop_enabled'] = ParameterValue(depth_stop_enabled, value_type=bool)
-    stereo_params['depth_stop_distance_m'] = ParameterValue(depth_stop_distance_m, value_type=float)
+    stereo_params['depth_stop_distance_m'] = ParameterValue(
+        depth_stop_distance_m, value_type=float)
     stereo_params['depth_stop_cooldown_sec'] = ParameterValue(
         depth_stop_cooldown_sec, value_type=float)
     stereo_params['body_camera_transform_mode'] = ParameterValue(

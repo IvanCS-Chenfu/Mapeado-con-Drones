@@ -170,3 +170,52 @@
 - conclusion agregada sin cambios: 6L CONSEGUIDA. Depth, evidencia
   `OCCUPIED/FREE` por depth, mapa denso y orientacion por normales pertenecen
   al bloque posterior, no se adelantan en este cierre.
+
+## 2026-09-14 - Pruebas 741--743: riesgo durante InspectFacade
+
+- objetivo intentado: validar una mirada temporal de inspeccion con yaw lento,
+  deteccion de franja vacia, STOP y recuperacion sin perder ORB;
+- 741: el riesgo se detecto, pero ORB entro en `RECENTLY_LOST` durante la
+  maniobra;
+- 742: se descubrio un arco largo no deseado porque `gen_tray` normalizaba un
+  objetivo proximo a `+181 grados` como `-179 grados`; se corrigio con
+  `NearestEquivalentYaw` y tests de la frontera `+/-pi`;
+- 743: con el arco corto corregido, el target de `+100.386 grados` fue cancelado
+  (`success=false`) al detectar LEFT vacio. Unos 1.2 s despues ORB paso a
+  `RECENTLY_LOST`;
+- secuencia posterior observada: tras el STOP de 5 s se envio una restauracion
+  de `-83.591 grados`; esta detecto RIGHT vacio casi de inmediato, fue cancelada
+  por otro STOP y luego se ejecuto una correccion local de `+25 grados`;
+- interpretacion revisada: el dron no continuo el goal cancelado. El giro que
+  el usuario vio despues del STOP procede de dos nuevos goals generados por la
+  recuperacion de `InspectFacade`;
+- conclusion: NO CONSEGUIDA para la recuperacion integrada. Deteccion y STOP
+  funcionan, pero la maquina de estados encadena restauracion y correccion local
+  cuando ORB ya se ha degradado. Se requiere acordar una unica maniobra.
+
+## 2026-09-15 - Prueba 744: giro a 5 grados/s
+
+- objetivo: aislar el efecto de reducir la velocidad angular sin cambiar la
+  maquina de estados;
+- resultado terminal: escenario y helper `success=true`, con limpieza completa;
+- evidencia: giros de unos 79 grados en aproximadamente 23.6 s; no aparecen
+  estados ORB `RECENTLY_LOST` ni `LOST` durante toda la prueba;
+- revision visual: el usuario confirma que el movimiento fue estable y que el
+  dron no se perdio;
+- conclusion: CONSEGUIDA para el limite angular de `5 deg/s`. El bucle visto no
+  es de tracking, sino de captura/integracion depth y se analiza en 6N.
+
+## 2026-09-15 - Pruebas 745 y 746: anticipacion 0.75 frente a 0.65
+
+- objetivo: comprobar si adelantar la franja direccional evita que la mirada al
+  destino alcance `RECENTLY_LOST` antes de que STOP pueda proteger el tracking;
+- 745, con fraccion 0.75: LEFT vacio activo el protocolo, pero ORB entro en
+  `RECENTLY_LOST`, creo un epoch nuevo y dejo sin pose aplicable las capturas
+  anteriores. Conclusion de la prueba: NO CONSEGUIDA;
+- 746 repitio el mismo escenario cambiando exclusivamente la fraccion a 0.65.
+  LEFT vacio se detecto en el frame 1338, el giro objetivo de 82.256 grados fue
+  sustituido por STOP y la correccion local `-25 deg` termino correctamente;
+- durante 746 no aparecen `tracking_state=3/4` ni cambio de epoch. La prueba fue
+  detenida por el usuario al observar fallos repetidos de confianza depth;
+- conclusion 746 para 6L: CONSEGUIDA. El 65 % anticipa la proteccion respecto a
+  745 y mantiene ORB en estado 2. La falta de avance posterior pertenece a 6N.

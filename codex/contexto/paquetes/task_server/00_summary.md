@@ -2,109 +2,148 @@
 
 ## Responsabilidad
 
-`task_server` es el coordinador global de tareas y movimientos. Mantiene el
-registro de drones, asigna `MAP_SECTION`, encola subtareas de movimiento,
-solicita inspecciones al dron, planifica con D*, reserva el corredor, publica
-el plan y procesa su terminal. No controla motores ni calcula depth local.
+`task_server` coordina tareas regionales, vuelos de inspeccion y evidencia
+voxel global. No controla motores ni calcula depth local: cada dron acepta una
+orden corta, la ejecuta autonomamente y devuelve un resultado correlacionado.
 
-Archivo principal:
-`servidor/task_server/src/task_server_node.cpp` -> clase `TaskServerNode`.
+Archivo principal: `servidor/task_server/src/task_server_node.cpp` ->
+`TaskServerNode`. Buscar workers con `rg -n 'Run.*Worker|PointSelection|TrajectoryPlanning|VoxelMapBuilder' servidor/task_server`.
 
-## Asignacion y lifecycle
+## Infraestructura que ya existe
 
-Los drones anclados y disponibles compiten por la tarea pendiente mas cercana
-a su pose. Una tarea parcial conserva sus intervalos recorridos y puede usar el
-estado `TO_FINISH`; vuelve a competir por proximidad al intervalo que falta.
-Al terminar o liberar una tarea, el dron retorna a la cola general.
+`WorkflowScheduler` mantiene las colas FIFO `TASK_ASSIGNMENT`,
+`POINT_SELECTION`, `TRAJECTORY_PLANNING`, `DEPTH_INTEGRATION` y
+`ACTIVE_TRAJECTORY_MONITOR`. Toda entrada transporta como minimo
+`drone_id`, `task_id`, `workflow_id`, `command_id` y `map_epoch`; se deduplica
+por identidad y un reintento vuelve al final de su cola.
 
-Cada dron posee runtime de ejecucion independiente. La secuencia por subtarea
-es:
+El servidor envía `/<drone_id>/autonomous_command` de forma asincrona. El
+`accepted` solo confirma que el dron guardo la orden; el worker queda libre.
+Al terminar, el dron llama `/mission/report_autonomous_result`. Su callback
+responde rapido y encola el resultado; no planifica, integra ni espera al
+dron dentro de la llamada ROS.
+
+Existe una unica orden normal activa por dron. STOP es asincrono, reemplaza la
+referencia local por una trayectoria de retencion y usa generacion para
+invalidar terminales antiguos. Nunca se cancela una trayectoria sin enviar una
+referencia de parada.
+
+`EvidenceDatabase` conserva evidencia local/reversible por KF y fuente.
+`KeyframeEvidenceWorker` escribe fuentes nuevas; `VoxelMapBuilder` es el unico
+que las proyecta al mapa mundial por deltas y publica `map_revision`, el delta
+de voxeles y `sources_applied`. Una continuacion depth se libera solo al
+recibir los `source_id` de su propio resultado, nunca por una senal global ni
+por KFs de otro dron.
+
+## Contrato objetivo de la migracion 6H--6J
+
+El comportamiento antiguo de elegir un voxel por score `0.2..0.6`, registrar
+intervalos lineales de fachada o ejecutar `RunFacadeWorker` como barrido es
+transitorio y debe desaparecer. El contrato vigente a implementar es:
 
 ```text
-seleccionar destino de fachada
--> InspectFacade
--> integrar FREE depth
--> comprobar corredor o prefijo FREE
--> D*
--> reservar
--> publicar/ejecutar trayectoria
--> procesar terminal
--> actualizar coverage
--> volver a encolar
+asignar subROI
+  -> seleccionar seccion U pendiente y pose de inspeccion
+  -> LOOK_AND_CAPTURE solo si pose/corredor sigue UNKNOWN
+  -> D* estrictamente FREE
+  -> ActiveTrajectoryMonitor reserva, publica y vigila
+  -> MOVE_AND_CAPTURE frente a la fachada
+  -> resultado local -> DepthIntegration
+  -> EvidenceDatabase -> VoxelMapBuilder
+  -> sources_applied -> siguiente seleccion o revalidacion
 ```
 
-## Inspeccion y evidencia
+La U de coverage ocupa las tres caras del subROI opuestas a la cara mas cercana
+al centro del ROI global, a dos voxeles de sus limites. Sus secciones son
+volumenes perpendiculares al avance local y se recortan por diagonales de
+45 grados en las esquinas. La U no entra en D*, reservas ni inflacion; GUI la
+muestra solo al seleccionar la tarea.
 
-El servidor llama al servicio relativo `inspect_facade` de cada
-`task_manager`. Integra las capturas aceptadas exclusivamente como evidencia
-depth FREE reversible, usando la identidad de captura como `source_id`.
+Cada seccion pendiente vale `0` y una activa vale `10`, sin suma. El estado se
+deriva de claims reversibles por fuente depth/KF: un `depth_occupied` frontal
+de `vista_pared` o `VIEW_ADVANCE` reclama su seccion espacial y
+`depth_coverage_neighbor_sections=2` secciones contiguas a cada lado de la U,
+sin cerrarla por la cara abierta. Cada voxel depth `OCCUPIED=1` reclama tambien
+la seccion volumetrica donde cae, de modo que una captura puede activar varias.
+Al reproyectar, invalidar o borrar una fuente se retiran sus claims y la
+seccion vuelve a `0` si no conserva otra evidencia. En una esquina sin fachada,
+una vista valida que da FREE fiable hasta 4 m sin impacto la activa como
+`SIN_FACHADA`; cuenta exactamente igual. Evidencia incompleta o
+`TRACKING_RISK` no la activa.
 
-Si el dron responde `drone_busy` porque aun ejecuta una trayectoria fisica, el
-worker aplaza la inspeccion conservando la misma tarea y candidato. Este estado
-no incrementa el contador de capturas fallidas ni provoca `TO_FINISH`.
+Los claims se resuelven por `task_id`, no por el dron que poseia la tarea al
+capturar la evidencia. Asi un subROI que pasa a `TO_FINISH` conserva tanto sus
+claims existentes como la posibilidad de retirarlos cuando se reproyecte o se
+elimine la fuente, aunque otro dron retome la tarea.
 
-Una interrupcion fiducial pendiente bloquea temporalmente nuevas asignaciones
-para ese dron. El cierre de la tarea antigua limpia primero su runtime y solo
-entonces reencola al dron, evitando mezclar entradas `ready` de dos tareas.
+`PointSelectionWorker` elige una seccion pendiente, busca un voxel de fachada
+`OCCUPIED` score `>0.4` o una sonda geometrica si falta, y calcula la pose por
+coste de cobertura, pared, altura y desplazamiento. La preferencia de pared es
+`facade_preferred_wall_distance_m=4.0`. La orientacion mira a la fachada por
+la normal local de la seccion; D* no modifica ese objetivo perceptivo.
 
-El recorrido de rayos usa voxelizacion supercover. Solo se rellena un hueco de
-una celda cuando hay evidencia depth coherente a ambos lados en un eje. Depth
-no crea OCCUPIED ni puede borrar ocupacion sparse. Los MapPoints ORB
-cualificados conservan la autoridad OCCUPIED y el paso fisico del dron marca su
-volumen como FREE atravesado.
+Si pose y ruta son FREE, se despacha `MOVE_AND_CAPTURE` y el dron toma depth
+de pared al llegar. Si la pose es UNKNOWN, `LOOK_AND_CAPTURE` solo produce
+FREE; tras materializar se revalida la misma pose. Si un corredor contiene
+UNKNOWN, D* solo ejecuta el prefijo FREE hasta el ultimo waypoint anterior,
+captura `VIEW_ADVANCE` mirando al objetivo visual original y espera sus fuentes
+materializadas antes de reseleccionar. Esa captura aporta FREE y OCCUPIED
+frontal fiable; este ultimo activa exclusivamente la seccion U del candidato
+que origino el avance. D* no cruza UNKNOWN.
+Si la mirada deja la pose original UNKNOWN pero existe una pose FREE cercana
+al objetivo visual, se ejecuta el mismo `VIEW_ADVANCE` con captura que un
+prefijo FREE de D* y se reelige tras materializarlo; no se presenta como una
+vista de pared.
 
-## Planificacion de fachada
+`TrajectoryPlanningWorker` no espera al vuelo. `ActiveTrajectoryMonitor`
+reserva antes de enviar la orden, publica una sola polilinea activa y la capa
+`RESERVED`, solicita STOP si aparece ocupacion relevante y limpia al terminal.
+Una reserva no cambia el estado base y desaparece al liberar el corredor.
 
-`FacadeTaskRuntime` conserva orientacion, lado de barrido, fallos de inspeccion
-e intervalos recorridos. El candidato usa las preferencias configurables de
-distancia a pared, desplazamiento y altura media. El corredor completo debe
-ser FREE; si no, se permite el mayor prefijo conectado FREE que alcance el
-minimo configurado.
+`VoxelMapBuilder` devuelve las fuentes ocupadas que proyecta y las que retira.
+`TaskServerNode` mantiene el indice `source_id -> claims`, derivado en ese
+mismo tick: un impacto frontal reclama el candidato y sus vecinos U, y cada
+celda `OCCUPIED=1` reclama tambien su rebanada espacial. Una fuente que se
+mueve vuelve a calcular sus claims; una tombstone los elimina. El vector de
+secciones activas es solo una cache derivada de ese indice. No usa score sparse
+ni ocupacion sin procedencia depth. Asi la continuacion posterior consume el
+mapa y el coverage de una misma revision.
 
-D* se ejecuta con `require_known_free=true`. Las reservas de otro dron se
-tratan como celdas bloqueadas sin convertirlas en OCCUPIED persistente. La
-polilinea, sus waypoints y la reserva pertenecen al mismo plan.
+Un STOP puede cancelar el control antes del terminal normal, que el dron
+reporta como `REJECTED`. Si el resultado incluye depth valido, se persiste e
+integra; el estado del movimiento solo impide reanudarlo y su continuacion pasa
+por `sources_applied` antes de seleccionar de nuevo.
 
-Al terminar una trayectoria, el intervalo solo aumenta si la orientacion real
-esta dentro de `facade_orientation_tolerance_deg`. Con ratio `>=0.99` la tarea
-termina. Si llega a una cara lateral sin completar, pasa a `TO_FINISH`. Tres
-inspecciones fallidas tambien producen `TO_FINISH` y liberan al dron.
+Al activar todas las secciones, la tarea es `COMPLETED`. Si el dron alcanza el
+extremo junto a la cara abierta dejando secciones pendientes, la tarea es
+`TO_FINISH` y vuelve a la cola de asignacion para que otro dron proximo pueda
+retomarla.
 
-La seleccion volumetrica de metas UNKNOWN, el analizador periodico de coverage
-y los portales de rama ya no forman parte del runtime.
+## Estado de codigo y limites
 
-## STOP, reservas y replanning
+La infraestructura de colas, resultados correlacionados, fuentes por KF,
+materializador incremental, U reversible, monitor de trayectorias y STOP ya
+esta presente. La validacion integrada pendiente debe confirmar la progresion
+real de secciones, reservas visibles y relevo; no debe reinterpretarse como
+una vuelta a la seleccion legacy `0.2..0.6`.
 
-Un cambio relevante a OCCUPIED o RESERVED en el corredor activo puede pedir el
-STOP local ya existente. Tras el terminal, se libera la reserva anterior y se
-replanifica desde la pose actual. Cambios FREE fuera del corredor no cancelan
-el movimiento.
+La inflacion de ocupados usa coste alto `100`; `OCCUPIED`, `RESERVED` y
+`UNKNOWN` siguen vetados. El margen adicional
+`extra_obstacle_clearance_voxels=1` se suma a la semidimension registrada del
+dron; D1 queda con inflacion `(3,3,2)` y reserva fisica `(2,2,1)`. La burbuja
+`start_escape_radius_voxels=4` permite
+salir de una inflacion que cubra celdas raw FREE junto al dron, pero no relaja
+los tres vetos. `unknown_fallback_free_radius_voxels=8` es el radio de una
+alternativa FREE tras una mirada que no despeja la pose objetivo.
 
-La GUI recibe solo la trayectoria actualmente ejecutada; una ruta preparada no
-sustituye visualmente a la activa antes de su despacho.
+`debug_facade_dstar_failure=false` solo diagnostica fallos de ruta estricta:
+emite estados raw/navegables de inicio y meta, mas frontera FREE. No altera la
+politica de planificacion.
 
-## Interrupcion fiducial
+## Validacion pendiente
 
-El servidor escucha `/mission/fiducial_primary_observations`. Deduplica por
-`(drone_id, map_epoch, object_id)`. Una primary nueva deja la tarea de fachada
-en `TO_FINISH`; si el dron vuela solicita STOP y, si esta inspeccionando, espera
-su terminal. Despues libera runtime, reserva y dron para que el pipeline
-fiducial normal continue.
-
-Esta frontera no modifica anchors, epochs, backend ni optimizacion de Fase 3.
-
-## Topics y servicios principales
-
-- clientes `/<drone_id>/task_manager/inspect_facade`;
-- action clients de trayectoria por dron;
-- `/mission/fiducial_primary_observations`;
-- snapshots/deltas voxel y estado de tareas para GUI;
-- planes y terminales de ejecucion;
-- eventos de arquitectura del grafo web.
-
-## Pruebas
-
-Validacion vigente: build correcto y CTest `7/7`. Los contratos web dirigidos
-verifican las conexiones `InspectFacade`, `CaptureDepth` y primary fiducial.
-Quedan pendientes las dos pruebas integradas Gazebo+GUI F7 del barrido y del
-tracking risk acordadas para el cierre de la migracion.
+Con D1 anclado en fiducial 2 y depth habilitado, la prueba integrada debe
+mostrar avance lateral por secciones U, `MOVE_AND_CAPTURE` predominante en
+corredores libres, impactos depth que activan coverage, reservas visibles,
+relevo `TO_FINISH` y ninguna espera bloqueante entre workers. La simulacion no
+debe usar el barrido legacy ni mezclar dos politicas de seleccion.

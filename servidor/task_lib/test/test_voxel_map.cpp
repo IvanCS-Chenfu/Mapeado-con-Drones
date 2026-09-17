@@ -15,40 +15,41 @@ TEST(ReversibleVoxelMap, SnapshotDiffRemovesMovedAndDeletedSources)
   EXPECT_TRUE(map.Snapshot().empty());
 }
 
-TEST(ReversibleVoxelMap, IgnoresSparseEvidenceBelowConfiguredOccupiedScore)
+TEST(ReversibleVoxelMap, RetainsSparseScoreBelowOccupiedThreshold)
 {
   task_lib::ReversibleVoxelMap map(1.0);
   EXPECT_TRUE(
     map.ApplySparseSnapshot(
-      {{"1:0:low", {0.2, 0.2, 0.2}, 0.19F}, {"1:0:edge", {1.2, 0.2, 0.2}, 0.2F}}, 0.2F));
+      {{"1:0:low", {0.2, 0.2, 0.2}, 0.19F}, {"1:0:edge", {1.2, 0.2, 0.2}, 0.2F}}, 0.4F));
   const auto snapshot = map.Snapshot();
-  ASSERT_EQ(snapshot.size(), 1U);
-  EXPECT_EQ(snapshot.front().key, (task_lib::VoxelKey{1, 0, 0}));
+  ASSERT_EQ(snapshot.size(), 2U);
+  EXPECT_EQ(map.StateAt({0, 0, 0}), task_lib::VoxelState::Unknown);
+  EXPECT_EQ(map.StateAt({1, 0, 0}), task_lib::VoxelState::Unknown);
 }
 
-TEST(ReversibleVoxelMap, RequiresDistinctQualifiedMapPointsPerVoxelReversibly)
+TEST(ReversibleVoxelMap, AveragesDistinctMapPointScoresReversibly)
 {
   task_lib::ReversibleVoxelMap map(1.0);
   const std::vector<task_lib::SparseEvidence> first_three{
     {"1:0:1", {0.2, 0.2, 0.2}, 0.2F},
     {"1:0:2", {0.3, 0.3, 0.3}, 0.6F},
     {"1:0:3", {0.4, 0.4, 0.4}, 0.9F}};
-  EXPECT_FALSE(map.ApplySparseSnapshot(first_three, 0.2F, 4U));
-  EXPECT_TRUE(map.Snapshot().empty());
-
-  EXPECT_TRUE(
-    map.ApplySparseDelta(
-      {{"1:0:4", {0.5, 0.5, 0.5}, 0.7F}}, {}, 0.2F, 4U));
+  EXPECT_TRUE(map.ApplySparseSnapshot(first_three, 0.4F));
   ASSERT_EQ(map.Snapshot().size(), 1U);
   EXPECT_EQ(map.Snapshot().front().state, task_lib::VoxelState::Occupied);
-  EXPECT_FALSE(
-    map.ApplySparseDelta(
-      {{"1:0:4", {0.5, 0.5, 0.5}, 0.7F}}, {}, 0.2F, 4U));
+  EXPECT_NEAR(map.Snapshot().front().score, (0.2F + 0.6F + 0.9F) / 3.0F, 1e-6F);
 
   EXPECT_TRUE(
     map.ApplySparseDelta(
-      {{"1:0:4", {1.5, 0.5, 0.5}, 0.7F}}, {}, 0.2F, 4U));
-  EXPECT_TRUE(map.Snapshot().empty());
+      {{"1:0:4", {0.5, 0.5, 0.5}, 0.1F}}, {}, 0.4F));
+  ASSERT_EQ(map.Snapshot().size(), 1U);
+  EXPECT_EQ(map.Snapshot().front().state, task_lib::VoxelState::Occupied);
+
+  EXPECT_TRUE(
+    map.ApplySparseDelta(
+      {{"1:0:4", {1.5, 0.5, 0.5}, 0.1F}}, {}, 0.4F));
+  EXPECT_EQ(map.StateAt({0, 0, 0}), task_lib::VoxelState::Occupied);
+  EXPECT_EQ(map.StateAt({1, 0, 0}), task_lib::VoxelState::Unknown);
 }
 
 TEST(ReversibleVoxelMap, TraversedFreeEvidenceOverridesWeakSparseOccupancy)
@@ -65,14 +66,18 @@ TEST(ReversibleVoxelMap, TraversedFreeEvidenceOverridesWeakSparseOccupancy)
   EXPECT_EQ(map.Snapshot().front().state, task_lib::VoxelState::Occupied);
 }
 
-TEST(ReversibleVoxelMap, DepthFreeNeverOverridesQualifiedSparseOccupancy)
+TEST(ReversibleVoxelMap, DirectDepthEvidenceOverridesSparseAndRestoresItWhenRemoved)
 {
   task_lib::ReversibleVoxelMap map(1.0);
-  EXPECT_TRUE(map.AddDepthFreeEvidence("depth:1:0:7:0", {0.2, 0.2, 0.2}));
-  EXPECT_EQ(map.StateAt({0, 0, 0}), task_lib::VoxelState::Free);
   EXPECT_TRUE(map.ApplySparseSnapshot({{"1:0:7", {0.2, 0.2, 0.2}, 1.0F}}));
   EXPECT_EQ(map.StateAt({0, 0, 0}), task_lib::VoxelState::Occupied);
-  EXPECT_TRUE(map.RemoveEvidence("depth:1:0:7:0"));
+  EXPECT_TRUE(map.ReplaceDirectDepthFreeCells("depth_free:1", {{0, 0, 0}}));
+  EXPECT_EQ(map.StateAt({0, 0, 0}), task_lib::VoxelState::Free);
+  EXPECT_TRUE(map.ReplaceDepthOccupiedCells("depth_occupied:1", {{0, 0, 0}}));
+  EXPECT_EQ(map.StateAt({0, 0, 0}), task_lib::VoxelState::Occupied);
+  EXPECT_TRUE(map.RemoveEvidence("depth_occupied:1"));
+  EXPECT_EQ(map.StateAt({0, 0, 0}), task_lib::VoxelState::Free);
+  EXPECT_TRUE(map.RemoveEvidence("depth_free:1"));
   EXPECT_EQ(map.StateAt({0, 0, 0}), task_lib::VoxelState::Occupied);
 }
 

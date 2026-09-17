@@ -1,0 +1,39 @@
+name: fase_6HI_recheck_meta_y_salida_inicial_d1
+description: >-
+  D1 llega con GT al fiducial 2 y ejecuta durante tres minutos el flujo 6H/6I.
+  La prueba valida que el mapa aplica el depth antes de revalidar una meta
+  desconocida y que D* puede iniciar desde FREE local aunque el clearance
+  inflado cubra su pose inicial.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 420.0
+steps:
+  - name: espera_registro_y_mapa
+    type: wait
+    seconds: 22.0
+  - name: anclaje_fiducial_2_d1_gt_yaw_90
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: habilita_autonomia_6h_6i_tras_anclaje
+    type: call_set_bool
+    service: /mission/set_coverage_execution_enabled
+    value: true
+    timeout_sec: 20.0
+  - name: validacion_autonoma_6h_6i_d1
+    type: wait
+    seconds: 180.0

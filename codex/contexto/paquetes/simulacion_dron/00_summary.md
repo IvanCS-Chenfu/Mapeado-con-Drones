@@ -7,12 +7,18 @@ plan y un replan D* cortos con fuente GT; 616 solo verifico el arranque limpio
 del worker porque no se pudieron emitir sus solicitudes de servicio.
 
 Para 6D/6I, `multi_dron.launch.py` propaga
-`phase6_min_occupied_mappoints_per_voxel=4` a `task_server`, además del score
-mínimo de ocupación. También fija
+`phase6_voxel_occupied_score_threshold=0.4`, el rango visual
+`[phase6_visual_target_min_score, phase6_visual_target_max_score]=[0.2,0.6]`
+y la incidencia depth directa a `task_server`. También fija
 `phase6_trajectory_min_segment_duration_sec=8.0` y
 `phase6_waypoint_blend_sec=3.0` para el recorrido multi-waypoint. La prueba
 678 verificó esos valores con D1/GT, GUI F7 y Gazebo; D2 permaneció sin
 dispatch físico y el escenario terminó correctamente.
+
+Para 6L/6N, el launch expone el gate de normal de fachada con soporte 40,
+confianza 0.8 y salto yaw maximo 25 grados, ademas del limite de giro de
+inspeccion de 10 grados/s de pico real. Todos son configurables mediante argumentos
+`phase6_facade_normal_*` y `phase6_inspection_max_yaw_rate_deg_s`.
 
 Los overrides GT/ORB y el servicio shadow usados en los laboratorios 321-349
 fueron retirados en 5J. Los YAML historicos se conservan como evidencia, pero
@@ -108,6 +114,11 @@ para no abrir una instancia Qt en un intento transitorio que el helper vaya a
 descartar. `run_simulation.sh` limpia las GUI de prueba y espera al proceso
 raiz de `ros2 launch` antes de reintentar o cerrar, evitando que una instancia
 anterior se superponga al GUI de la ejecucion estable.
+
+Para pruebas aisladas, el launch declara `launch_drone_N` para cada dron del
+perfil y permite omitir su grupo completo sin cambiar `sim_dron.yaml`. El
+default sigue siendo `true` para todos; una prueba monodron puede usar
+`launch_drone_2:=false` manteniendo intacta la mision nominal.
 
 El grafo `system_architecture` usa una topologia, metadata y layout declarativos
 separados. Su composicion fija tres bandas horizontales `Dron -> Simulacion ->

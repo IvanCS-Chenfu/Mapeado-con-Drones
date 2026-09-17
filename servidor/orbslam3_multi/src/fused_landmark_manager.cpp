@@ -172,16 +172,22 @@ float FusedScore(
     return 0.0F;
   }
   double sum = 0.0;
+  size_t supported_members = 0U;
   for (const auto & member : track.member_mappoint_ids) {
     const auto score = score_manager.GetScore(member);
-    if (score.has_value()) {
-      const auto adjustment = pending_adjustments.find(member);
-      sum += std::clamp(
-          score->score + (adjustment == pending_adjustments.end() ?
-          0.0F : adjustment->second), 0.0F, 1.0F);
+    if (!score.has_value() || score->isolation_factor <= 0.0F || score->body_factor <= 0.0F) {
+      continue;
     }
+    const auto adjustment = pending_adjustments.find(member);
+    sum += std::clamp(
+        score->score + (adjustment == pending_adjustments.end() ?
+        0.0F : adjustment->second), 0.0F, 1.0F);
+    ++supported_members;
   }
-  const float count = static_cast<float>(track.member_mappoint_ids.size());
+  if (supported_members == 0U) {
+    return 0.0F;
+  }
+  const float count = static_cast<float>(supported_members);
   return std::clamp(
     static_cast<float>(sum / count) + member_bonus * count, 0.0F, 1.0F);
 }

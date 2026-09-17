@@ -13,3 +13,17 @@
 - evidencia negativa o ausente: no hay asignador, planificador ni ejecucion aun.
 - conclusion: `CONSEGUIDA`.
 - siguiente paso recomendado: 6E y lifecycle de tareas reales.
+
+## 2026-09-16 - Servicios autonomos de aceptacion inmediata
+
+- objetivo intentado: establecer el protocolo correlacionado servidor-dron
+  sin mantener una llamada abierta durante movimiento o depth.
+- archivos modificados: ambas replicas `mission_msgs`, `task_server_node.cpp`
+  y `task_manager_node.cpp`.
+- resultado de build: ambas replicas, `task_server` y `task_manager` correctos.
+- evidencia positiva: los dos handlers validan/deduplican y solo encolan;
+  `ReportAutonomousResult` no integra ni planifica en su callback.
+- evidencia pendiente: CTest y smoke ROS de aceptacion/duplicado no se pudieron
+  ejecutar por limite externo de la plataforma. Aun no existe ejecucion local
+  de comandos ni reporte terminal automatico.
+- conclusion: `PARCIAL`.

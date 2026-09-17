@@ -25,9 +25,18 @@ Interfaces:
 
 6N/F6 vigente conserva un buffer FIFO corto de pares estereo ya rectificados y
 expone el servicio relativo `orbslam/capture_depth`. La peticion puede tomar el
-ultimo frame o exigir un `frame_id` exacto, necesario cuando
-`TRACKING_RISK` aparece durante una inspeccion. El calculo ocurre solo bajo
-demanda: se retiro la publicacion depth automatica por cada KF.
+ultimo frame, exigir un `frame_id` exacto o probar newest-first los tres ultimos
+candidatos con al menos 20 inliers y posteriores al inicio de la inspeccion.
+Depth se calcula solo al solicitarlo y cada candidato debe superar la confianza
+indicada por la peticion; no existe publicacion automatica por cada KF.
+
+El par estereo se intenta guardar antes de publicar `VisualTrackingEvidence`.
+Actualmente el recibo solo incluye imagen efectiva y camara valida cuando se
+crea un KF; por ello `StoreStereoFrame` descarta los frames intermedios y limita
+el warning a uno cada cinco segundos. La prueba 746 dejo congelado el ultimo KF
+del FIFO aunque ORB continuase en tracking OK. La correccion pendiente debe
+guardar en el wrapper las dos imagenes rectificadas de cada frame cualificado,
+usando su calibracion cargada, sin modificar ORB-SLAM3.
 
 `CaptureDepth` devuelve una `DenseKFObservation` compacta con identidad,
 calibracion, `K_T_C`, endpoints, normal depth ponderada y metricas. Las muestras
@@ -36,6 +45,21 @@ disparidad y textura local. El producto no decide `FREE/OCCUPIED`; esa autoridad
 pertenece a `task_server`. Si el STOP depth esta habilitado, una captura cuya
 profundidad minima rebasa el umbral emite `DEPTH_EMERGENCY`, sin alterar tracking
 ni control directamente.
+
+La normal vigente se calcula antes de compactar los endpoints transmitidos.
+Cada muestra busca vecinos depth aceptados a derecha y abajo, forma una normal
+local, la orienta hacia la camara y rechaza poca proyeccion XZ. Las normales
+restantes votan en 18 bins axiales, donde `n` y `-n` son equivalentes; se usa el
+cluster dominante o la media ponderada de dos clusters pronunciados de una
+esquina. `normal_support` cuenta votos seleccionados y `normal_confidence` su
+fraccion sobre las normales locales fiables. `task_manager` aplica despues el
+gate temporal/angular que convierte esta evidencia en una orientacion segura.
+`DenseKFObservation.valid` expresa que hay referencia y depth util; no exige
+`normal_valid`. Asi una normal debil no descarta los rayos FREE ni provoca por
+si sola reintentos de captura.
+
+Referencia: `src/stereo/depth-observation-processor.cpp` ->
+`EstimateFacadeNormal` / `ComputeDepthObservation`.
 
 Ejecutables/nodos: `StereoSlamNode` y `fiducial_visualizer`. El nodo temporal
 `gt_timing_diagnostic` fue retirado en 5J; sus baterias quedan solo en historial.

@@ -31,6 +31,7 @@
 #include "orbslam3_msgs/srv/get_global_key_frame_pose.hpp"
 #include "mission_msgs/msg/dense_kf_observation.hpp"
 #include "mission_msgs/msg/safety_event.hpp"
+#include "mission_msgs/msg/visual_risk_event.hpp"
 #include "mission_msgs/srv/capture_depth.hpp"
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -165,6 +166,7 @@ class StereoSlamNode : public rclcpp::Node
             double cx = 0.0;
             double cy = 0.0;
             double baseline_m = 0.0;
+            uint32_t tracking_inlier_count = 0U;
         };
         bool depth_observation_enabled_ = false;
         bool depth_stop_enabled_ = false;
@@ -172,10 +174,18 @@ class StereoSlamNode : public rclcpp::Node
         double depth_stop_cooldown_sec_ = 5.0;
         std::chrono::steady_clock::time_point depth_last_stop_{};
         int depth_frame_buffer_capacity_ = 12;
+        int depth_candidate_frame_capacity_ = 16;
+        int depth_candidate_min_tracking_inliers_ = 20;
+        double depth_candidate_min_interval_sec_ = 0.5;
+        double depth_candidate_min_orientation_delta_deg_ = 2.5;
         orbslam3_ros2::DepthObservationParameters depth_parameters_;
         std::deque<StereoFrame> depth_frame_buffer_;
+        std::deque<StereoFrame> depth_candidate_frames_;
+        std::unordered_map<uint64_t, StereoFrame> pinned_depth_frames_;
         std::mutex depth_frame_buffer_mutex_;
         rclcpp::Service<mission_msgs::srv::CaptureDepth>::SharedPtr capture_depth_service_;
+        rclcpp::Subscription<mission_msgs::msg::VisualRiskEvent>::SharedPtr
+            visual_risk_event_subscription_;
         std::atomic<uint64_t> depth_captures_requested_{0U};
         std::atomic<uint64_t> depth_captures_completed_{0U};
 
@@ -200,10 +210,13 @@ class StereoSlamNode : public rclcpp::Node
             const orbslam3_ros2::FiducialDetectionResult& result);
         void StoreStereoFrame(
             const ORB_SLAM3::System::StereoTrackingReceipt& receipt,
-            const cv::Mat& right_effective, const builtin_interfaces::msg::Time& stamp);
+            const cv::Mat& left_effective, const cv::Mat& right_effective,
+            const builtin_interfaces::msg::Time& stamp);
         void HandleCaptureDepth(
             const std::shared_ptr<mission_msgs::srv::CaptureDepth::Request> request,
             std::shared_ptr<mission_msgs::srv::CaptureDepth::Response> response);
+        void HandleVisualRiskEvent(
+            mission_msgs::msg::VisualRiskEvent::ConstSharedPtr event);
         mission_msgs::msg::DenseKFObservation BuildDepthObservation(
             const StereoFrame& frame,
             const orbslam3_ros2::DepthObservationResult& result);
@@ -256,7 +269,8 @@ class StereoSlamNode : public rclcpp::Node
         bool debug_orb_control_state_ = false;
         bool debug_orb_visual_evidence_ = false;
         bool debug_visual_risk_display_ = false;
-        double visual_risk_empty_region_fraction_ = 0.75;
+        double visual_risk_empty_region_fraction_ = 0.65;
+        uint32_t visual_risk_directional_max_inliers_ = 3U;
         std::string orb_visual_evidence_output_dir_;
         std::ofstream orb_visual_evidence_stream_;
         uint32_t frames_since_reference_change_ = 0xFFFFFFFFU;

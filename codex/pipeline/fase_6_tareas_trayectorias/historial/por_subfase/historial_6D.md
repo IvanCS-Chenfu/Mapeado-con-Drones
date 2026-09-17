@@ -1,5 +1,31 @@
 # Historial - 6D
 
+## 2026-09-16 - Prueba 771: regresion GT con depth habilitado
+
+- El intento inicial se interrumpio al observar
+  `facade_capture_disabled: depth_disabled`: las dos puertas de launch de
+  depth estaban en su valor por defecto `false`. No fue un bloqueo de workers.
+- La repeticion mantuvo D1/GT hacia fiducial 2 en `(0,-10,1)`, yaw `90 deg`,
+  y el coverage legacy durante 180 s, activando
+  `phase6_depth_inspection_enabled:=true` y
+  `phase6_depth_evidence_enabled:=true`.
+- El escenario termino por si mismo con `SIM-DONE success=true` y
+  `SIM-EXIT-CODE 0`. No reaparecio el marcador `depth_disabled`; el reducido
+  contiene una actualizacion de mapa `F6D-NAV-UPDATE` para el perfil
+  `x500_depth`.
+- Revision visual posterior: no se vieron voxeles depth de fachada. El log lo
+  confirma: no emitio `CaptureDepth`, `DEPTH_INTEGRATION` ni un terminal
+  `F6D-AUTONOMOUS`. El `F6D-NAV-UPDATE` solo acredita que la capa navegable
+  se actualizo, no que haya recibido una nube depth.
+- Causa: `InspectFacade` legacy continua aislado por acuerdo y
+  `POINT_SELECTION` aun no publica el productor de ordenes autonomas
+  `vista_pared`; las puertas depth habilitan el uso, pero no lo solicitan por
+  si mismas.
+
+Conclusion: PARCIAL. El bloqueo de configuracion queda corregido y la prueba
+real de coverage vuelve a cerrar, pero depth de fachada no se ejercito. La
+validacion integrada del nuevo canal runtime sigue pendiente de su productor.
+
 ## 2026-09-07 - Implementacion y validacion
 
 - Se anadieron `VoxelCell`/`VoxelMap` y `ReversibleVoxelMap` por fuentes.

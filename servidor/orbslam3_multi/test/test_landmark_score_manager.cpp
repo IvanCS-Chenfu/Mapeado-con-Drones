@@ -2,24 +2,34 @@
 
 #include <gtest/gtest.h>
 
+#include <initializer_list>
 #include <memory>
 
 namespace
 {
 
-std::shared_ptr<orbslam3_msgs::msg::OrbMap> MakeMap(
-  float found_ratio, bool is_bad = false, uint32_t observations_count = 4)
+std::shared_ptr<orbslam3_msgs::msg::OrbMap> MakeMapWithPointIds(
+  std::initializer_list<uint64_t> point_ids, float found_ratio, bool is_bad = false,
+  uint32_t observations_count = 4)
 {
   auto map = std::make_shared<orbslam3_msgs::msg::OrbMap>();
   map->drone_id = 1;
   map->map_epoch = 4;
-  auto & point = map->mappoints.emplace_back();
-  point.id = 10;
-  point.observations_count = observations_count;
-  point.found_ratio = found_ratio;
-  point.is_bad = is_bad;
-  point.descriptor.data[0] = 1;
+  for (const auto point_id : point_ids) {
+    auto & point = map->mappoints.emplace_back();
+    point.id = point_id;
+    point.observations_count = observations_count;
+    point.found_ratio = found_ratio;
+    point.is_bad = is_bad;
+    point.descriptor.data[0] = 1;
+  }
   return map;
+}
+
+std::shared_ptr<orbslam3_msgs::msg::OrbMap> MakeMap(
+  float found_ratio, bool is_bad = false, uint32_t observations_count = 4)
+{
+  return MakeMapWithPointIds({10}, found_ratio, is_bad, observations_count);
 }
 
 TEST(LandmarkScoreManager, ComputesDeterministicBoundedOrbScore)
@@ -177,37 +187,86 @@ TEST(LandmarkScoreManager, BaselineMovesOnlyFarLimitAndFallbackIsFiveMeters)
   EXPECT_NEAR(scores.GetScore(id)->distance_factor, 0.25F, 1e-6F);
 }
 
-TEST(LandmarkScoreManager, MatureIsolatedPointRecoversWhenNeighborsArrive)
+TEST(LandmarkScoreManager, MatureIsolatedPointIsHardZeroAndRecoversAtExactRadius)
 {
   orbslam3_multi::RawMapDatabase raw;
   orbslam3_multi::LandmarkScoreManager scores;
   orbslam3_multi::LandmarkScoreConfig config;
   config.isolation_radius_m = 0.5;
-  config.isolation_min_neighbors = 2;
+  config.isolation_min_neighbors = 1;
   config.isolation_min_observations = 3;
-  config.isolation_min_factor = 0.30F;
+  config.isolation_min_factor = 0.0F;
   scores.Configure(config);
-  scores.ApplyRawChanges(raw.InsertDelta(1, MakeMap(1.0F)), raw);
+  scores.ApplyRawChanges(raw.InsertDelta(1, MakeMapWithPointIds({10, 11}, 1.0F)), raw);
   const orbslam3_multi::RawMapPointId id{1, 4, 10};
-  const float base = scores.GetScore(id)->base_score_orb;
 
   orbslam3_multi::LandmarkScoreGeometryInput point;
   point.mappoint_id = id;
   point.world_position.z = 2.0;
   point.observer_distance_m = 2.0;
   scores.ApplyGeometryChanges({point}, {});
-  EXPECT_NEAR(scores.GetScore(id)->score, base * 0.30F, 1e-6F);
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->score, 0.0F);
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->isolation_factor, 0.0F);
+
+  orbslam3_multi::ScorePatch patch;
+  patch.expected_score_revision = scores.GetStats().score_revision;
+  patch.raw_evidence.push_back(
+    {id, 99, 0.04F, orbslam3_multi::LandmarkScoreEvidenceKind::InlierConfirmed});
+  ASSERT_TRUE(scores.ApplyPatch(patch).committed);
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->score, 0.0F);
 
   auto neighbor_a = point;
-  neighbor_a.mappoint_id = {2, 0, 1};
-  neighbor_a.world_position.x = 0.1;
-  auto neighbor_b = point;
-  neighbor_b.mappoint_id = {3, 0, 1};
-  neighbor_b.world_position.x = -0.1;
-  const auto recovered = scores.ApplyGeometryChanges({neighbor_a, neighbor_b}, {});
+  neighbor_a.mappoint_id = {1, 4, 11};
+  neighbor_a.world_position.x = 0.5001;
+  ASSERT_TRUE(scores.ApplyGeometryChanges({neighbor_a}, {}).HasChanges());
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->score, 0.0F);
+
+  neighbor_a.world_position.x = 0.5;
+  const auto recovered = scores.ApplyGeometryChanges({neighbor_a}, {});
   EXPECT_TRUE(recovered.HasChanges());
-  EXPECT_NEAR(scores.GetScore(id)->score, base, 1e-6F);
+  EXPECT_GT(scores.GetScore(id)->score, 0.0F);
   EXPECT_FLOAT_EQ(scores.GetScore(id)->isolation_factor, 1.0F);
+}
+
+TEST(LandmarkScoreManager, DroneBodySphereHardZeroIsIndependentAndReversible)
+{
+  orbslam3_multi::RawMapDatabase raw;
+  orbslam3_multi::LandmarkScoreManager scores;
+  orbslam3_multi::LandmarkScoreConfig config;
+  config.isolation_min_neighbors = 0;
+  scores.Configure(config);
+  scores.ApplyRawChanges(raw.InsertDelta(1, MakeMap(1.0F)), raw);
+  const orbslam3_multi::RawMapPointId id{1, 4, 10};
+
+  orbslam3_multi::LandmarkScoreGeometryInput geometry;
+  geometry.mappoint_id = id;
+  geometry.world_position.z = 2.0;
+  geometry.observer_distance_m = 2.0;
+  scores.ApplyGeometryChanges({geometry}, {});
+  const float unmasked_score = scores.GetScore(id)->score;
+  ASSERT_GT(unmasked_score, 0.0F);
+
+  orbslam3_multi::DroneBodySphere sphere;
+  sphere.keyframe_id = {2, 8, 12};
+  sphere.center.z = 2.0;
+  sphere.radius_m = 0.25;
+  ASSERT_TRUE(scores.UpdateDroneBodySpheres({sphere}, {}).HasChanges());
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->body_factor, 0.0F);
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->score, 0.0F);
+  EXPECT_EQ(scores.GetStats().body_masked_points, 1U);
+
+  orbslam3_multi::ScorePatch patch;
+  patch.expected_score_revision = scores.GetStats().score_revision;
+  patch.raw_evidence.push_back(
+    {id, 555, 0.04F, orbslam3_multi::LandmarkScoreEvidenceKind::InlierConfirmed});
+  ASSERT_TRUE(scores.ApplyPatch(patch).committed);
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->score, 0.0F);
+
+  sphere.center.x = 1.0;
+  ASSERT_TRUE(scores.UpdateDroneBodySpheres({sphere}, {}).HasChanges());
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->body_factor, 1.0F);
+  EXPECT_GT(scores.GetScore(id)->score, unmasked_score);
+  EXPECT_EQ(scores.GetStats().body_masked_points, 0U);
 }
 
 TEST(LandmarkScoreManager, InlierRewardIsAddedAfterGeometryFactors)

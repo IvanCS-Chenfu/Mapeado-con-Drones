@@ -1,4 +1,6 @@
 # Resumen historial 6B
 
-Estado agregado: `CONSEGUIDA` el 2026-09-07. Geometria de 3 niveles y 12
-subROIs publicada y revisada visualmente en la GUI mediante el menu `Regiones`.
+La entrada de 2026-09-07 conserva evidencia legacy. Para el contrato nuevo,
+estado agregado: `PARCIAL` el 2026-09-16. `TASK_ASSIGNMENT` y la continuacion
+`POINT_SELECTION` estan conectadas a la asignacion por proximidad, pero no hay
+consumer nuevo ni smoke ROS ejecutado.

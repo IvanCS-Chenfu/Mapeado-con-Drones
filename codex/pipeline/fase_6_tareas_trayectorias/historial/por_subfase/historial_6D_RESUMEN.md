@@ -1,9 +1,23 @@
 # Resumen - 6D
 
-Estado: PARCIAL. La evidencia `OCCUPIED` reversible y la evidencia `FREE` de
-volumen fisico real, ligada reversiblemente a KF, estan implementadas. Depth
-metrico real sigue aplazado a Fase 8. `task_lib` valida add/remove,
-separacion de contribuciones, prioridad `FREE` y sustitucion de volumen.
+Estado: PARCIAL. La evidencia historica reversible se conserva como antecedente,
+pero el contrato vigente de 6D es runtime local: `task_manager` acepta una
+orden correlacionada, la ejecuta con su action ordinaria y devuelve un unico
+terminal sin retener al servidor. `TRACKING_RISK` mantiene STOP/reorientacion
+local y devuelve `RESULT_ABORTED` sin perder depth valido. La interfaz incorpora
+`MOVE_AND_WATCH_FIDUCIAL` y `fiducial_seen`, dejando la deteccion/identidad a
+Fase 4. Build de las dos replicas `mission_msgs`, `task_manager` y
+`task_server` correcto; CTest de `task_server` 9/9. Falta que
+`POINT_SELECTION` produzca ordenes reales y una prueba Gazebo integrada. La
+prueba 771 repitio el flujo GT real de fiducial 2 y coverage durante 180 s con
+ambas puertas de depth habilitadas: `SIM-DONE success=true`, sin
+`depth_disabled` y con actualizacion `x500_depth` de la capa navegable. La
+revision posterior confirma que no hubo `CaptureDepth`, `DEPTH_INTEGRATION` ni
+terminal autonomo: no se valido depth de fachada. El primer intento
+de 771 queda conservado como fallo mecanico de configuracion porque ambas
+puertas estaban inicialmente en `false`; no fue un bloqueo de workers. Esta
+prueba es regresion de flujo legacy, no la validacion directa del productor
+runtime 6D pendiente.
 
 La prueba 605 observo snapshots voxel reales en GUI y termino con exit 0. La
 620 confirmo en Gazebo que las revisiones globales de KF reintegran `FREE`; no

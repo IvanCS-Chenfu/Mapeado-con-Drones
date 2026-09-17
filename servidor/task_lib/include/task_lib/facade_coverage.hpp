@@ -4,7 +4,9 @@
 #include "task_lib/voxel_map.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <vector>
 
 namespace task_lib
@@ -38,10 +40,51 @@ struct FacadePreferences
 struct FacadeCandidate
 {
   bool valid = false;
+  Vec3 visual_target;
   Vec3 target;
   double target_ratio = 0.0;
   double score = 0.0;
+  float visual_score = 0.0F;
+  std::size_t section_index = 0U;
+  double observation_yaw_rad = 0.0;
+  bool synthetic_visual_target = false;
 };
+
+enum class FacadeCoverageSide : std::uint8_t
+{
+  MinX = 0U,
+  MaxX = 1U,
+  MinY = 2U,
+  MaxY = 3U,
+};
+
+struct FacadeCoverageSection
+{
+  FacadeCoverageSide side = FacadeCoverageSide::MinY;
+  Vec3 start;
+  Vec3 end;
+  Vec3 outward_normal;
+};
+
+struct FacadeCoveragePlan
+{
+  FacadeCoverageSide open_side = FacadeCoverageSide::MaxY;
+  AxisAlignedBox bounds;
+  std::vector<FacadeCoverageSection> sections;
+};
+
+FacadeCoveragePlan BuildFacadeCoveragePlan(
+  const AxisAlignedBox & region_bounds, const AxisAlignedBox & mapping_roi,
+  double voxel_size, std::int64_t offset_voxels);
+double FacadeCoverageRatio(
+  const FacadeCoveragePlan & plan, const std::vector<bool> & active_sections);
+std::optional<std::size_t> FacadeCoverageSectionForPoint(
+  const FacadeCoveragePlan & plan, const Vec3 & point);
+FacadeCandidate SelectFacadeCoverageCandidate(
+  const FacadeCoveragePlan & plan, const AxisAlignedBox & hard_flight_volume,
+  const Vec3 & drone_position, const std::vector<bool> & active_sections,
+  const FacadePreferences & preferences, const std::vector<VoxelCell> & voxel_cells,
+  double voxel_size, float occupied_score_threshold);
 
 struct FreePrefixResult
 {
@@ -68,7 +111,9 @@ FacadeCandidate SelectFacadeCandidate(
   const FacadeLine & facade, const AxisAlignedBox & region_bounds,
   const AxisAlignedBox & hard_flight_volume, const Vec3 & drone_position,
   const std::vector<FacadeCoverageInterval> & covered,
-  const FacadePreferences & preferences, double candidate_step_m);
+  const FacadePreferences & preferences, double candidate_step_m,
+  const std::vector<VoxelCell> & voxel_cells, double voxel_size,
+  float visual_target_min_score, float visual_target_max_score);
 
 FreePrefixResult FurthestFreePrefix(
   const Vec3 & start, const Vec3 & target, const Vec3 & body_half_extent,

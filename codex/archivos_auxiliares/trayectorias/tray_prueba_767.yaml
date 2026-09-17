@@ -1,0 +1,107 @@
+name: fase_3R_mascara_cuerpo_drones_en_paralelo
+description: >-
+  Valida que Fase 3 anule de forma reversible el score de los MapPoints que
+  representan el volumen fisico del otro dron. Ambos drones usan GT, se
+  posicionan en x=-10 y llegan en paralelo al fiducial 2 por carriles y=-9.5
+  e y=-10.5. Fase 6 solo publica el registro; no ejecuta tareas autonomas.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 180.0
+steps:
+  - name: espera_registro_y_orb
+    type: wait
+    seconds: 12.0
+  - name: posicion_inicial_paralela
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [-10.0, -9.5, 1.0]
+        yaw_deg: 90.0
+        tx: 18.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [-10.0, -10.5, 1.0]
+        yaw_deg: 90.0
+        tx: 18.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: llegada_fiducial_2_en_paralelo
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -9.5, 1.0]
+        yaw_deg: 90.0
+        tx: 18.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.5, 1.0]
+        yaw_deg: 90.0
+        tx: 18.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: continuacion_hasta_x10_en_paralelo
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [10.0, -9.5, 1.0]
+        yaw_deg: 90.0
+        tx: 18.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [10.0, -10.5, 1.0]
+        yaw_deg: 90.0
+        tx: 18.0
+        ty: 8.0
+        tz: 8.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: observacion_scores_cuerpo
+    type: wait
+    seconds: 30.0

@@ -126,11 +126,10 @@ public:
   explicit ReversibleVoxelMap(double voxel_size);
 
   bool ApplySparseSnapshot(
-    const std::vector<SparseEvidence> & evidence, float min_occupied_score = 0.0F,
-    std::size_t min_occupied_mappoints_per_voxel = 1U);
+    const std::vector<SparseEvidence> & evidence, float occupied_score_threshold = 0.4F);
   bool ApplySparseDelta(
     const std::vector<SparseEvidence> & upserts, const std::vector<std::string> & deletes,
-    float min_occupied_score = 0.0F, std::size_t min_occupied_mappoints_per_voxel = 1U);
+    float occupied_score_threshold = 0.4F);
   bool AddFreeEvidence(const std::string & source_id, const Vec3 & position_world);
   bool AddDepthFreeEvidence(const std::string & source_id, const Vec3 & position_world);
   bool ReplaceFreeVolume(
@@ -140,6 +139,10 @@ public:
     const std::string & source_id, const Vec3 & center_world,
     const Vec3 & half_extent_world);
   bool ReplaceDepthFreeCells(
+    const std::string & source_id, const std::set<VoxelKey> & keys);
+  bool ReplaceDirectDepthFreeCells(
+    const std::string & source_id, const std::set<VoxelKey> & keys);
+  bool ReplaceDepthOccupiedCells(
     const std::string & source_id, const std::set<VoxelKey> & keys);
   bool RemoveEvidence(const std::string & source_id);
 
@@ -169,9 +172,11 @@ private:
   };
   struct Accumulator
   {
-    double occupied = 0.0;
+    double sparse_score_sum = 0.0;
+    std::size_t sparse_count = 0U;
     double traversed_free = 0.0;
     double depth_free = 0.0;
+    double depth_occupied = 0.0;
   };
   struct NavigationLayer
   {
@@ -184,8 +189,7 @@ private:
   VoxelKey ToKey(const Vec3 & position_world) const;
   std::set<VoxelKey> KeysForVolume(const Vec3 & center, const Vec3 & half_extent) const;
   bool ReconcileSparseCells(
-    const ContributionsByVoxel & before, const std::set<VoxelKey> & affected,
-    std::size_t min_occupied_mappoints_per_voxel);
+    const ContributionsByVoxel & before, const std::set<VoxelKey> & affected);
   static bool SameContribution(const Contribution & left, const Contribution & right);
   static bool SameContributions(
     const ContributionsBySource & left, const ContributionsBySource & right);
@@ -197,6 +201,9 @@ private:
   bool ReplaceFreeCellsImpl(
     const std::string & source_id, const std::set<VoxelKey> & keys,
     bool overrides_sparse);
+  bool ReplaceDepthOccupiedCellsImpl(
+    const std::string & source_id, const std::set<VoxelKey> & keys);
+  double ScoreForKey(const VoxelKey & key) const;
   VoxelState StateForKey(const VoxelKey & key) const;
   bool IsNavigationDefault(
     const NavigationCell & cell, const NavigationProfile & profile) const;
@@ -219,9 +226,11 @@ private:
   ContributionsBySource sparse_contributions_;
   ContributionsByVoxel sparse_contributions_by_voxel_;
   std::map<std::string, FreeContribution> free_contributions_;
+  std::map<std::string, std::set<VoxelKey>> depth_occupied_contributions_;
   std::map<VoxelKey, Accumulator> cells_;
   std::vector<VoxelChange> pending_changes_;
   std::map<std::string, NavigationLayer> navigation_layers_;
+  double sparse_occupied_score_threshold_ = 0.4;
 };
 
 }  // namespace task_lib

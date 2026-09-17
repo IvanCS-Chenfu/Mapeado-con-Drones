@@ -1,0 +1,32 @@
+name: fase_6N_diagnostico_bucle_inspeccion_d1
+description: >-
+  Diagnostica el ciclo InspectFacade de D1 con GT tras anclarse en el fiducial
+  2; conserva tiempo suficiente para observar reintentos, depth y despacho D*.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 360.0
+steps:
+  - name: espera_minima_registro
+    type: wait
+    seconds: 2.0
+  - name: anclaje_fiducial_2_d1_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 10.0
+        ty: 10.0
+        tz: 8.0
+        tyaw: 5.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: observacion_ciclo_inspeccion
+    type: wait
+    seconds: 120.0

@@ -1,0 +1,19 @@
+uint8 COMMAND_MOVE_AND_CAPTURE=1
+uint8 COMMAND_LOOK_AND_CAPTURE=2
+uint8 COMMAND_MOVE_AND_WATCH_FIDUCIAL=3
+
+string mission_id
+uint32 drone_id
+string task_id
+string workflow_id
+string command_id
+uint64 map_epoch
+uint64 map_revision
+uint8 command_type
+geometry_msgs/Point visual_target
+mission_msgs/TrajectoryPlan trajectory_plan
+bool capture_after_command
+---
+bool accepted
+bool duplicate
+string reason

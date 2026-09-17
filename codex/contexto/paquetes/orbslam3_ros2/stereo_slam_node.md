@@ -25,11 +25,44 @@ PublishLocalPose / PublishOrbMapDelta / get_full_map
 ## Evidencia direccional 6L
 
 `PublishVisualTrackingEvidence()` publica solo los inliers que ORB uso para
-tracking en el mismo frame. `visual_risk_empty_region_fraction=0.75` cuenta
-cuatro franjas solapadas LEFT `[0,0.75W]`, RIGHT `[0.25W,W]`, TOP `[0,0.75H]`
-y BOTTOM `[0.25H,H]`; no publica ni usa un umbral de inliers por mitad. En
+tracking en el mismo frame. `visual_risk_empty_region_fraction=0.60` cuenta
+cuatro franjas solapadas LEFT `[0,0.60W]`, RIGHT `[0.40W,W]`, TOP `[0,0.60H]`
+y BOTTOM `[0.35H,H]`; no publica ni usa un umbral de inliers por mitad. En
 debug dibuja esas fronteras y sombrea exclusivamente las franjas cuyo conteo
 es cero. La decision de persistencia y STOP pertenece a `task_manager`.
+
+## Captura depth bajo demanda 6N
+
+`StoreStereoFrame()` copia directamente el par rectificado de cada frame con
+tracking valido, referencia KF y `Tcr` atomicos; no depende de que ORB cree un
+KeyFrame. Conserva el FIFO general y un anillo de 16 candidatos que superan
+`depth_candidate_min_tracking_inliers=20`, separados al menos 0.5 s o 2.5
+grados.
+`HandleCaptureDepth()` puede usar el ultimo frame, uno exacto o fallback
+newest-first desde `minimum_candidate_frame_id`; calcula depth bajo demanda y
+solo selecciona una observacion que alcance `minimum_confidence` y
+`minimum_support_points`. Cada frame probado se consume de todos los buffers y
+no puede reaparecer en otro intento.
+
+El procesador separa los endpoints `1..5 m`, que pasan filtro estricto de
+textura/discontinuidad y pueden estimar normal, de las medidas stereo-validas
+`5..10 m`. Las ultimas ignoran solo la puerta de textura, siguen exigiendo
+continuidad de disparidad y se devuelven como `far_free_points_k`; F6 las
+trunca a 5 m exclusivamente como FREE. `points_k` y `far_free_points_k` se
+transforman una sola vez a coordenadas del KF mediante `K_T_C`.
+
+Localizacion:
+
+```text
+src/stereo/stereo-slam-node.cpp -> StoreStereoFrame
+src/stereo/stereo-slam-node.cpp -> HandleCaptureDepth
+rg -n "StoreStereoFrame|HandleCaptureDepth|depth_candidate_frames_"
+```
+
+La confianza relativa y el soporte absoluto son puertas independientes. La
+correccion posterior a 746 usa `imLeftForTracking`/`imRightForTracking` y la
+calibracion efectiva ya cargada por el wrapper, sin modificar ORB-SLAM3 ni
+convertir cada frame en KF.
 
 ## Frontera camara-body y auditoria 1J
 
@@ -930,5 +963,8 @@ separa candidatos, rechazos por textura, rechazos por discontinuidad,
 aceptados, confianza, normal y latencia.
 
 El wrapper no clasifica voxeles. `DenseKFObservation` es el producto compacto
-de la captura y `task_server` decide su integracion como evidencia depth FREE.
-No existe un worker que publique depth automaticamente por cada KeyFrame.
+de la captura y `task_server` decide su integracion reversible como FREE y,
+para retornos frontales directos de 1--5 m, OCCUPIED de endpoint. El debug
+`visual_risk` sombrea los sectores con hasta tres inliers, igual que
+`task_manager`. No existe un worker que publique depth automaticamente por
+cada KeyFrame.

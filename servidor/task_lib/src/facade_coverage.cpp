@@ -1,6 +1,7 @@
 #include "task_lib/facade_coverage.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <set>
@@ -64,7 +65,274 @@ bool SweptSampleFree(
   return true;
 }
 
+double SideCoordinate(const AxisAlignedBox & bounds, FacadeCoverageSide side)
+{
+  switch (side) {
+    case FacadeCoverageSide::MinX:
+      return bounds.min.x;
+    case FacadeCoverageSide::MaxX:
+      return bounds.max.x;
+    case FacadeCoverageSide::MinY:
+      return bounds.min.y;
+    case FacadeCoverageSide::MaxY:
+    default:
+      return bounds.max.y;
+  }
+}
+
+Vec3 SideNormal(FacadeCoverageSide side)
+{
+  switch (side) {
+    case FacadeCoverageSide::MinX:
+      return {-1.0, 0.0, 0.0};
+    case FacadeCoverageSide::MaxX:
+      return {1.0, 0.0, 0.0};
+    case FacadeCoverageSide::MinY:
+      return {0.0, -1.0, 0.0};
+    case FacadeCoverageSide::MaxY:
+    default:
+      return {0.0, 1.0, 0.0};
+  }
+}
+
+bool UsesXCoordinate(FacadeCoverageSide side)
+{
+  return side == FacadeCoverageSide::MinY || side == FacadeCoverageSide::MaxY;
+}
+
+bool Inside(const AxisAlignedBox & bounds, const Vec3 & point)
+{
+  return point.x >= bounds.min.x && point.x <= bounds.max.x &&
+         point.y >= bounds.min.y && point.y <= bounds.max.y &&
+         point.z >= bounds.min.z && point.z <= bounds.max.z;
+}
+
+double DistanceToSide(const AxisAlignedBox & bounds, FacadeCoverageSide side, const Vec3 & point)
+{
+  return std::abs(
+    (side == FacadeCoverageSide::MinX || side == FacadeCoverageSide::MaxX ? point.x : point.y) -
+    SideCoordinate(bounds, side));
+}
+
+Vec3 WallPointForSection(const FacadeCoveragePlan & plan, const FacadeCoverageSection & section)
+{
+  Vec3 result{
+    0.5 * (section.start.x + section.end.x),
+    0.5 * (section.start.y + section.end.y),
+    0.5 * (plan.bounds.min.z + plan.bounds.max.z)};
+  if (section.side == FacadeCoverageSide::MinX || section.side == FacadeCoverageSide::MaxX) {
+    result.x = SideCoordinate(plan.bounds, section.side);
+  } else {
+    result.y = SideCoordinate(plan.bounds, section.side);
+  }
+  return result;
+}
+
 }  // namespace
+
+FacadeCoveragePlan BuildFacadeCoveragePlan(
+  const AxisAlignedBox & region_bounds, const AxisAlignedBox & mapping_roi,
+  double voxel_size, std::int64_t offset_voxels)
+{
+  FacadeCoveragePlan plan;
+  plan.bounds = region_bounds;
+  if (!std::isfinite(voxel_size) || voxel_size <= 0.0 || offset_voxels < 0) {
+    return plan;
+  }
+  const Vec3 roi_center{
+    0.5 * (mapping_roi.min.x + mapping_roi.max.x),
+    0.5 * (mapping_roi.min.y + mapping_roi.max.y), 0.0};
+  const std::array<FacadeCoverageSide, 4U> all_sides{
+    FacadeCoverageSide::MinX, FacadeCoverageSide::MaxX,
+    FacadeCoverageSide::MinY, FacadeCoverageSide::MaxY};
+  double best_distance = std::numeric_limits<double>::infinity();
+  for (const auto side : all_sides) {
+    const double distance = std::abs(
+      (side == FacadeCoverageSide::MinX ||
+      side == FacadeCoverageSide::MaxX ? roi_center.x : roi_center.y) -
+      SideCoordinate(region_bounds, side));
+    if (distance < best_distance - 1e-9 ||
+      (std::abs(distance - best_distance) <= 1e-9 &&
+      static_cast<std::uint8_t>(side) < static_cast<std::uint8_t>(plan.open_side)))
+    {
+      best_distance = distance;
+      plan.open_side = side;
+    }
+  }
+  const double offset = static_cast<double>(offset_voxels) * voxel_size;
+  const auto append_side = [&plan, &region_bounds, voxel_size, offset](FacadeCoverageSide side) {
+      if (side == plan.open_side) {
+        return;
+      }
+      const bool along_x = UsesXCoordinate(side);
+      const double first = along_x ? region_bounds.min.x : region_bounds.min.y;
+      const double last = along_x ? region_bounds.max.x : region_bounds.max.y;
+      const std::size_t count = std::max<std::size_t>(
+        1U, static_cast<std::size_t>(std::ceil((last - first) / voxel_size)));
+      for (std::size_t index = 0U; index < count; ++index) {
+        const double a = first + std::min(static_cast<double>(index) * voxel_size, last - first);
+        const double b = std::min(last, a + voxel_size);
+        const auto normal = SideNormal(side);
+        const double coordinate = SideCoordinate(region_bounds, side) -
+          normal.x * offset - normal.y * offset;
+        FacadeCoverageSection section;
+        section.side = side;
+        section.outward_normal = normal;
+        if (along_x) {
+          section.start = {a, coordinate, region_bounds.min.z};
+          section.end = {b, coordinate, region_bounds.max.z};
+        } else {
+          section.start = {coordinate, a, region_bounds.min.z};
+          section.end = {coordinate, b, region_bounds.max.z};
+        }
+        plan.sections.push_back(section);
+      }
+    };
+  const auto u_sides = [&plan]() {
+      switch (plan.open_side) {
+        case FacadeCoverageSide::MinX:
+          return std::array<FacadeCoverageSide, 3U>{
+          FacadeCoverageSide::MinY, FacadeCoverageSide::MaxX, FacadeCoverageSide::MaxY};
+        case FacadeCoverageSide::MaxX:
+          return std::array<FacadeCoverageSide, 3U>{
+          FacadeCoverageSide::MinY, FacadeCoverageSide::MinX, FacadeCoverageSide::MaxY};
+        case FacadeCoverageSide::MinY:
+          return std::array<FacadeCoverageSide, 3U>{
+          FacadeCoverageSide::MinX, FacadeCoverageSide::MaxY, FacadeCoverageSide::MaxX};
+        case FacadeCoverageSide::MaxY:
+        default:
+          return std::array<FacadeCoverageSide, 3U>{
+          FacadeCoverageSide::MinX, FacadeCoverageSide::MinY, FacadeCoverageSide::MaxX};
+      }
+    }();
+  for (const auto side : u_sides) {
+    append_side(side);
+  }
+  return plan;
+}
+
+double FacadeCoverageRatio(
+  const FacadeCoveragePlan & plan, const std::vector<bool> & active_sections)
+{
+  if (plan.sections.empty()) {
+    return 0.0;
+  }
+  const std::size_t active = std::count(active_sections.begin(), active_sections.end(), true);
+  return Clamp01(static_cast<double>(active) / static_cast<double>(plan.sections.size()));
+}
+
+std::optional<std::size_t> FacadeCoverageSectionForPoint(
+  const FacadeCoveragePlan & plan, const Vec3 & point)
+{
+  if (plan.sections.empty() || !Inside(plan.bounds, point)) {
+    return std::nullopt;
+  }
+  std::optional<FacadeCoverageSide> best_side;
+  double best_distance = std::numeric_limits<double>::infinity();
+  for (const auto side : {FacadeCoverageSide::MinX, FacadeCoverageSide::MaxX,
+      FacadeCoverageSide::MinY, FacadeCoverageSide::MaxY})
+  {
+    if (side == plan.open_side) {
+      continue;
+    }
+    const double distance = DistanceToSide(plan.bounds, side, point);
+    if (!best_side.has_value() || distance < best_distance - 1e-9 ||
+      (std::abs(distance - best_distance) <= 1e-9 &&
+      static_cast<std::uint8_t>(side) < static_cast<std::uint8_t>(*best_side)))
+    {
+      best_side = side;
+      best_distance = distance;
+    }
+  }
+  if (!best_side.has_value()) {
+    return std::nullopt;
+  }
+  double best_projection = std::numeric_limits<double>::infinity();
+  std::optional<std::size_t> best_index;
+  for (std::size_t index = 0U; index < plan.sections.size(); ++index) {
+    const auto & section = plan.sections[index];
+    if (section.side != *best_side) {
+      continue;
+    }
+    const double coordinate = UsesXCoordinate(section.side) ? point.x : point.y;
+    const double middle = UsesXCoordinate(section.side) ?
+      0.5 * (section.start.x + section.end.x) : 0.5 * (section.start.y + section.end.y);
+    const double projection = std::abs(coordinate - middle);
+    if (!best_index.has_value() || projection < best_projection - 1e-9) {
+      best_index = index;
+      best_projection = projection;
+    }
+  }
+  return best_index;
+}
+
+FacadeCandidate SelectFacadeCoverageCandidate(
+  const FacadeCoveragePlan & plan, const AxisAlignedBox & hard_flight_volume,
+  const Vec3 & drone_position, const std::vector<bool> & active_sections,
+  const FacadePreferences & preferences, const std::vector<VoxelCell> & voxel_cells,
+  double voxel_size, float occupied_score_threshold)
+{
+  FacadeCandidate best;
+  best.score = std::numeric_limits<double>::infinity();
+  if (plan.sections.empty() || voxel_size <= 0.0 || !std::isfinite(voxel_size)) {
+    return best;
+  }
+  for (std::size_t index = 0U; index < plan.sections.size(); ++index) {
+    if (index < active_sections.size() && active_sections[index]) {
+      continue;
+    }
+    const auto & section = plan.sections[index];
+    Vec3 visual_target = WallPointForSection(plan, section);
+    float visual_score = 0.0F;
+    bool synthetic = true;
+    double best_visual_distance = std::numeric_limits<double>::infinity();
+    for (const auto & cell : voxel_cells) {
+      if (cell.state != VoxelState::Occupied || cell.score <= occupied_score_threshold) {
+        continue;
+      }
+      const Vec3 point{
+        (static_cast<double>(cell.key.ix) + 0.5) * voxel_size,
+        (static_cast<double>(cell.key.iy) + 0.5) * voxel_size,
+        (static_cast<double>(cell.key.iz) + 0.5) * voxel_size};
+      const auto mapped_section = FacadeCoverageSectionForPoint(plan, point);
+      if (!mapped_section.has_value() || *mapped_section != index) {
+        continue;
+      }
+      const double distance = Distance(point, visual_target);
+      if (distance < best_visual_distance - 1e-9) {
+        visual_target = point;
+        visual_score = cell.score;
+        best_visual_distance = distance;
+        synthetic = false;
+      }
+    }
+    const Vec3 target{
+      visual_target.x + section.outward_normal.x * preferences.preferred_wall_distance_m,
+      visual_target.y + section.outward_normal.y * preferences.preferred_wall_distance_m,
+      visual_target.z + section.outward_normal.z * preferences.preferred_wall_distance_m};
+    if (!Inside(hard_flight_volume, target)) {
+      continue;
+    }
+    const double displacement_cost = std::abs(
+      Distance(drone_position, target) - preferences.preferred_displacement_m);
+    const double height_cost = std::abs(target.z - 0.5 * (plan.bounds.min.z + plan.bounds.max.z));
+    const double score = preferences.displacement_weight * displacement_cost +
+      preferences.height_weight * height_cost;
+    if (!best.valid || score < best.score - 1e-9 ||
+      (std::abs(score - best.score) <= 1e-9 && index < best.section_index))
+    {
+      best.valid = true;
+      best.visual_target = visual_target;
+      best.target = target;
+      best.score = score;
+      best.visual_score = visual_score;
+      best.section_index = index;
+      best.observation_yaw_rad = std::atan2(-section.outward_normal.y, -section.outward_normal.x);
+      best.synthetic_visual_target = synthetic;
+    }
+  }
+  return best;
+}
 
 FacadeLine EstimateFacadeLine(
   const BaseSubRoi & region, const AxisAlignedBox & mapping_roi,
@@ -199,11 +467,15 @@ FacadeCandidate SelectFacadeCandidate(
   const FacadeLine & facade, const AxisAlignedBox & region_bounds,
   const AxisAlignedBox & hard_flight_volume, const Vec3 & drone_position,
   const std::vector<FacadeCoverageInterval> & covered,
-  const FacadePreferences & preferences, double candidate_step_m)
+  const FacadePreferences & preferences, double candidate_step_m,
+  const std::vector<VoxelCell> & voxel_cells, double voxel_size,
+  float visual_target_min_score, float visual_target_max_score)
 {
   FacadeCandidate best;
   best.score = std::numeric_limits<double>::infinity();
-  if (facade.length_m <= 1e-9) {
+  if (facade.length_m <= 1e-9 || voxel_size <= 0.0 ||
+    visual_target_min_score > visual_target_max_score)
+  {
     return best;
   }
   const double step = std::max(1e-3, candidate_step_m);
@@ -219,40 +491,61 @@ FacadeCandidate SelectFacadeCandidate(
   for (double z = region_bounds.min.z; z <= region_bounds.max.z + 1e-9; z += step) {
     heights.push_back(std::min(z, region_bounds.max.z));
   }
-  for (const auto & interval : UncoveredFacadeIntervals(covered)) {
-    for (double ratio = interval.start_ratio; ratio <= interval.end_ratio + 1e-9;
-      ratio += ratio_step)
+  for (const auto & cell : voxel_cells) {
+    if (cell.score < visual_target_min_score || cell.score > visual_target_max_score) {
+      continue;
+    }
+    const Vec3 visual_target{
+      (static_cast<double>(cell.key.ix) + 0.5) * voxel_size,
+      (static_cast<double>(cell.key.iy) + 0.5) * voxel_size,
+      (static_cast<double>(cell.key.iz) + 0.5) * voxel_size};
+    if (visual_target.x < region_bounds.min.x || visual_target.x > region_bounds.max.x ||
+      visual_target.y < region_bounds.min.y || visual_target.y > region_bounds.max.y ||
+      visual_target.z < region_bounds.min.z || visual_target.z > region_bounds.max.z)
     {
-      const double bounded_ratio = std::min(ratio, interval.end_ratio);
-      const Vec3 preferred = PointOnFacade(facade, bounded_ratio);
-      for (const double wall_offset : wall_offsets) {
-        for (const double z : heights) {
-          const Vec3 target{
-            preferred.x + wall_offset * facade.outward_normal.x,
-            preferred.y + wall_offset * facade.outward_normal.y, z};
-          if (target.x < hard_flight_volume.min.x || target.x > hard_flight_volume.max.x ||
-            target.y < hard_flight_volume.min.y || target.y > hard_flight_volume.max.y ||
-            target.z < hard_flight_volume.min.z || target.z > hard_flight_volume.max.z)
-          {
-            continue;
-          }
-          const double displacement_cost = std::abs(
-            Distance(drone_position, target) - preferences.preferred_displacement_m);
-          const double wall_cost = std::abs(wall_offset);
-          const double height_cost = std::abs(
-            target.z - 0.5 * (facade.start.z + facade.end.z));
-          const double score = preferences.displacement_weight * displacement_cost +
-            preferences.wall_distance_weight * wall_cost +
-            preferences.height_weight * height_cost;
-          if (!best.valid || score < best.score - 1e-9 ||
-            (std::abs(score - best.score) <= 1e-9 && bounded_ratio < best.target_ratio))
-          {
-            best = {true, target, bounded_ratio, score};
+      continue;
+    }
+    for (const auto & interval : UncoveredFacadeIntervals(covered)) {
+      for (double ratio = interval.start_ratio; ratio <= interval.end_ratio + 1e-9;
+        ratio += ratio_step)
+      {
+        const double bounded_ratio = std::min(ratio, interval.end_ratio);
+        const Vec3 preferred = PointOnFacade(facade, bounded_ratio);
+        for (const double wall_offset : wall_offsets) {
+          for (const double z : heights) {
+            const Vec3 target{
+              preferred.x + wall_offset * facade.outward_normal.x,
+              preferred.y + wall_offset * facade.outward_normal.y, z};
+            if (target.x < hard_flight_volume.min.x || target.x > hard_flight_volume.max.x ||
+              target.y < hard_flight_volume.min.y || target.y > hard_flight_volume.max.y ||
+              target.z < hard_flight_volume.min.z || target.z > hard_flight_volume.max.z)
+            {
+              continue;
+            }
+            const double visual_distance_cost = std::abs(
+              Distance(target, visual_target) - preferences.preferred_wall_distance_m);
+            const double displacement_cost = std::abs(
+              Distance(drone_position, target) - preferences.preferred_displacement_m);
+            const double height_cost = std::abs(
+              target.z - 0.5 * (region_bounds.min.z + region_bounds.max.z));
+            const double score = preferences.wall_distance_weight * visual_distance_cost +
+              preferences.displacement_weight * displacement_cost +
+              preferences.height_weight * height_cost;
+            if (!best.valid || score < best.score - 1e-9 ||
+              (std::abs(score - best.score) <= 1e-9 && bounded_ratio < best.target_ratio))
+            {
+              best.valid = true;
+              best.visual_target = visual_target;
+              best.visual_score = cell.score;
+              best.target = target;
+              best.target_ratio = bounded_ratio;
+              best.score = score;
+            }
           }
         }
-      }
-      if (bounded_ratio >= interval.end_ratio - 1e-9) {
-        break;
+        if (bounded_ratio >= interval.end_ratio - 1e-9) {
+          break;
+        }
       }
     }
   }

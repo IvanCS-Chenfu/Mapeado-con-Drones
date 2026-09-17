@@ -89,6 +89,12 @@ despacha al dron y lo publica al GUI con el mismo `trajectory_id`. Los estados
 `planned`, `active`, `completed` y `canceled` actualizan ese mismo plan, sin
 crear una geometría distinta para el movimiento.
 
+La conversión de yaw world a control conserva una representación angular
+continua: cada destino usa el equivalente más cercano al yaw inicial o al
+waypoint anterior. No se normaliza aisladamente cada destino a `[-pi,pi]`
+antes de construir el Pol3, porque eso convertiría un cruce corto de la frontera
+angular en un giro de casi una vuelta completa.
+
 La integración física de cambios de corredor sigue en diagnóstico: la prueba
 671 observó cascadas STOP/replan y no acredita aún que la ruta llegue a
 `ExecutePol3Waypoints` antes de una degradación dura.

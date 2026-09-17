@@ -1,0 +1,32 @@
+name: fase_6N_score_voxel_smoke_d1
+description: >-
+  Smoke test compacto para anclar D1 con GT al fiducial 2 y dejar una ventana
+  breve a la activacion de Fase 6 dentro del limite del ejecutor.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 120.0
+steps:
+  - name: espera_minima_registro
+    type: wait
+    seconds: 2.0
+  - name: anclaje_fiducial_2_d1_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 10.0
+        ty: 10.0
+        tz: 8.0
+        tyaw: 5.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: ventana_worker_fase_6
+    type: wait
+    seconds: 4.0

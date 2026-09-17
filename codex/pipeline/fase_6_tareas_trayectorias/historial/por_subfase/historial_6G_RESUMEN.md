@@ -70,3 +70,16 @@ compara directamente con 629 (11.812 s), porque 631 tenia mas expansiones
 reales (11.480 frente a 8.569) y un corredor distinto (88 frente a 71). La
 eliminacion de duplicados queda CONSEGUIDA; una comparativa temporal estricta
 requiere mapa/replay determinista.
+
+Estado de migracion nueva: PARCIAL. El bloque 3 introduce `VoxelMapBuilder`,
+que consume transacciones de `EvidenceDatabase` y retira/reproyecta solo las
+fuentes sparse del KF modificado o eliminado. La evidencia depth y ocupacion
+sparse legacy siguen transitoriamente fuera de esta capa hasta 6F. Build
+correcto; CTest dirigido correcto (9/9).
+
+Actualizacion 786: `VoxelMapBuilder` informa fuentes OCCUPIED materializadas y
+retiradas; `task_server` deriva claims U por `source_id` y KF, incluidos dos
+vecinos continuos y las rebanadas espaciales de cada endpoint. D1/GT/depth
+materializo dos fuentes `VIEW_ADVANCE` con 14 y 13 claims y 18 secciones
+activas. Falta una prueba Gazebo que mueva o elimine una de esas fuentes para
+observar su desactivacion, por lo que 6G global sigue PARCIAL.

@@ -16,7 +16,7 @@ Para cada raw MapPoint:
 
 ```text
 score_raw = clamp(
-  base_score_orb * factor_distancia * factor_aislamiento
+  base_score_orb * factor_distancia * factor_aislamiento * factor_cuerpo_dron
   + 0.04 * inliers_confirmados,
   0, 1)
 ```
@@ -26,27 +26,40 @@ score_raw = clamp(
 - al anclarse se aplican factores geometricos configurables y acotados;
 - una distancia fisicamente sospechosa o excesiva respecto al keyframe
   observador reduce score de forma progresiva;
-- el aislamiento global persistente reduce score cuando ya existe soporte
-  suficiente para juzgarlo;
+- tras tres observaciones, un aislamiento global persistente sin dos vecinos
+  validos a distancia euclidea `<=0.30 m` fija score `0`; ese cero prevalece
+  sobre nuevos inliers y se recupera al aparecer un vecino;
+- un MapPoint dentro del volumen fisico de un dron anclado tambien fija score
+  `0`. La mascara usa una esfera centrada en el `base_link` de cada KeyFrame
+  global valido y radio igual a la semidiagonal de `dimensions_m`, sin margen;
+  es independiente de quien creo u observo el MapPoint y se retira al cambiar
+  la pose, la dimension o la validez del KeyFrame;
 - ambos factores son recuperables si ORB actualiza la posicion o aparecen
   vecinos coherentes.
 
 Para cada fused track:
 
 ```text
-score_fused = clamp(media(score_raw de todos los miembros) + 0.04 * N, 0, 1)
+score_fused = clamp(media(score_raw de miembros soportados) + 0.04 * N_soportados, 0, 1)
 ```
 
-`N` es el numero de raw MapPoints miembros. Por tanto, la primera fusion de dos
-miembros suma `0.08` y cada miembro posterior suma `0.04`. Se conserva ademas
-el refuerzo raw `+0.04` por inlier confirmado: el doble refuerzo es
-intencional.
+`N_soportados` es el numero de raw MapPoints no aislados ni enmascarados por el
+cuerpo de un dron. Un track formado solo por miembros sin soporte publica `0`;
+al recuperar al menos un miembro, el track se calcula
+solo con ese soporte. Se conserva ademas el refuerzo raw `+0.04` por inlier
+confirmado: el doble refuerzo es intencional para miembros soportados.
 
 ## Integracion
 
 - Los cambios raw ORB se limitan a IDs del `RawChangeSet`.
 - El indice espacial actualiza solo celdas vecinas a altas, movimientos o
   retiradas; no recorre toda la nube por llegada.
+- Las esferas de cuerpo se indexan con la misma granularidad. Un cambio de KF
+  solo reevalua MapPoints de la union de su volumen anterior y nuevo; una alta
+  de MapPoint consulta las esferas que solapan su propia celda.
+- `global_map_server` consume el snapshot transitorio `/mission/registry` para
+  cachear `dimensions_m` por dron. Esta entrada solo alimenta Fase 3; no llama
+  a `task_server`, `VoxelMapWorker`, D* ni modifica la politica de Fase 6.
 - Cambios raw o geometricos recalculan solo fused tracks que contienen esos
   miembros.
 - Altas, extensiones, merges y bajas de tracks recalculan el fused score en el
@@ -87,17 +100,12 @@ media fused, sin cap permanente.
 
 ## Evolucion futura acordada
 
-No se modifica en esta iteracion la formula ni los paquetes de 3R. Antes de
-recalibrar el uso de MapPoints por el mapa voxel de Fase 6, se incorporara en
-una futura revision de score una penalizacion adicional, incremental y
-reversible para dos casos: un MapPoint al que se aproximan en exceso KeyFrames
-de otro dron, y un MapPoint que permanece pobremente agrupado con otros puntos
-coherentes. La regla concreta de distancia, madurez, intensidad y recuperacion
-se definira y probara entonces; no se puede inferir de GT ni convertir la mera
-proximidad en una eliminacion definitiva. Hasta esa revision se conserva la
-banda geometrica actual de 1--5 m y la formula vigente. Fase 6 solo consume el
-score publicado, filtrando ocupacion con `score >= 0.2` y soporte local minimo
-por voxel; no modifica scores desde el servidor de tareas.
+La penalizacion de MapPoints pobremente agrupados esta implementada en 3R con
+indice incremental, radio `0.30 m`, dos vecinos validos y cero duro tras tres
+observaciones. Tambien se enmascara reversiblemente la evidencia que cae dentro
+del cuerpo fisico de cualquier dron anclado: no requiere asociacion canonica,
+ownership ni que el KF y el MapPoint pertenezcan al mismo dron. Fase 6 solo
+consume el score publicado y no modifica 3R.
 
 La misma revision futura se coordinara con 6D para separar definitivamente la
 confianza del MapPoint de la ocupacion voxelizada. 3R seguira siendo la unica
@@ -108,14 +116,10 @@ como contribuciones identificadas y calculara de forma reversible un
 decidira `OCCUPIED`. No se reutilizara el umbral individual del MapPoint como
 umbral final del voxel ni se modificara 3R desde `task_server`.
 
-Tambien queda pendiente distinguir la observacion del cuerpo de otro dron de
-la geometria estatica cercana. Cuando una futura asociacion canonica confirme
-que un MapPoint corresponde al otro dron observado, su score debe pasar a `0`
-de manera reversible; al desaparecer o invalidarse esa asociacion, el score se
-recalcula desde sus demas evidencias. No basta la cercania espacial entre un KF
-y un MP para aplicar este cero, porque podria ser una pared u objeto real junto
-al dron. La identidad, umbrales de confirmacion y recuperacion se acordaran y
-probaran junto con la recalibracion 3R/6D.
+La esfera fisica es una primera defensa deliberadamente geometrica. Si en una
+fase posterior se necesita distinguir el cuerpo real de una pared muy cercana,
+se podra anadir una asociacion visual canonica sin trasladar esa responsabilidad
+a Fase 6 ni cambiar la semantica reversible del score.
 
 La sustitucion del filtro transitorio de 6D (`score >= 0.2` y cuatro
 identidades) debe acordarse, implementarse y validarse como un unico cambio

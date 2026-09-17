@@ -1,0 +1,26 @@
+# Índice prueba 768
+
+- log completo: `/home/chenfu/Gazebo/src/codex/archivos_auxiliares/logs/prueba_768.log`
+- fase solicitada: `6N`
+- líneas totales: 39393
+- `SCENARIO-RUNNER-DONE`: 1
+- `SIM-DONE`: 1
+- `SIM-EXIT-CODE`: 1
+- errores graves: 3138
+- `F1H-`: 0
+- `F1I-`: 0
+- `F1J-`: 0
+- `F1K-`: 0
+- `F1L-`: 0
+- `F1L-GT-WINDOW-STATS`: 0
+
+## Sublogs
+
+- `prueba_768.scenario.log`: 46 líneas
+- `prueba_768.errors.log`: 3138 líneas
+- `prueba_768.F3H.log`: 0 líneas
+- `prueba_768.F3I.log`: 0 líneas
+- `prueba_768.F3J.log`: 0 líneas
+- `prueba_768.F3K.log`: 0 líneas
+- `prueba_768.F3L.log`: 0 líneas
+- `prueba_768.gt_window.log`: 0 líneas

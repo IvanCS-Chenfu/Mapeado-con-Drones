@@ -22,6 +22,7 @@ struct LandmarkScoreRecord
   float negative_adjustment = 0.0F;
   float distance_factor = 1.0F;
   float isolation_factor = 1.0F;
+  float body_factor = 1.0F;
   float score = 0.0F;
   uint64_t record_revision = 0;
   uint64_t positive_evidence = 0;
@@ -51,6 +52,13 @@ struct LandmarkScoreGeometryInput
   geometry_msgs::msg::Point world_position;
   double observer_distance_m = 0.0;
   double stereo_baseline_m = 0.0;
+};
+
+struct DroneBodySphere
+{
+  RawKeyFrameId keyframe_id;
+  geometry_msgs::msg::Point center;
+  double radius_m = 0.0;
 };
 
 struct ScoreChangeSet
@@ -138,6 +146,7 @@ struct LandmarkScoreStats
   uint64_t bad_points = 0;
   uint64_t anchored_points = 0;
   uint64_t isolated_points = 0;
+  uint64_t body_masked_points = 0;
   uint64_t suspicious_near_points = 0;
   uint64_t far_points = 0;
   float score_min = 0.0F;
@@ -158,6 +167,9 @@ public:
   ScoreChangeSet ApplyGeometryChanges(
     const std::vector<LandmarkScoreGeometryInput> & upserts,
     const std::vector<RawMapPointId> & removals);
+  ScoreChangeSet UpdateDroneBodySpheres(
+    const std::vector<DroneBodySphere> & upserts,
+    const std::vector<RawKeyFrameId> & removals);
 
   // Patches transaccionales usados por fusión y sus rollbacks por stale posterior.
   std::optional<LandmarkScoreRecord> GetScore(const RawMapPointId & id) const;
@@ -189,6 +201,12 @@ private:
   size_t NeighborCount(const RawMapPointId & id, const GeometryState & geometry) const;
   float DistanceFactor(const GeometryState & geometry) const;
   float IsolationFactor(const RawMapPointId & id, const LandmarkScoreRecord & record) const;
+  float BodyFactor(const geometry_msgs::msg::Point & point) const;
+  std::vector<std::array<int64_t, 3>> SphereVoxels(const DroneBodySphere & sphere) const;
+  void CollectPointsInSphere(
+    const DroneBodySphere & sphere, std::set<RawMapPointId> * affected) const;
+  void IndexBodySphere(const DroneBodySphere & sphere);
+  void RemoveBodySphere(const DroneBodySphere & sphere);
   static void RecomputeOutput(LandmarkScoreRecord * record);
 
   // records_, geometry_, índice espacial y evidencia comparten una sola revisión atómica.
@@ -196,6 +214,8 @@ private:
   std::map<RawMapPointId, LandmarkScoreRecord> records_;
   std::map<RawMapPointId, GeometryState> geometry_;
   std::map<std::array<int64_t, 3>, std::set<RawMapPointId>> spatial_index_;
+  std::map<RawKeyFrameId, DroneBodySphere> body_spheres_;
+  std::map<std::array<int64_t, 3>, std::set<RawKeyFrameId>> body_spatial_index_;
   std::map<RawMapPointId, std::set<uint64_t>> applied_evidence_;
   std::map<uint64_t, FusedLandmarkScoreRecord> fused_records_;
   uint64_t score_revision_ = 0;

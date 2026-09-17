@@ -1,216 +1,103 @@
-# Resumen - Fase 6: misiones y navegacion autonoma multi-dron
+# Fase 6 - Tareas, inspeccion y navegacion autonoma
 
-## Estado
-
-```text
-PARCIAL: 6A-6C, 6E-6G y 6L-6M CONSEGUIDAS; 6D y 6H-6K PARCIALES; 6N, 6O y 6P pendientes
-Preparacion documental: reconciliada con ambos ZIP el 2026-09-02
-Ultima validacion: prueba 722, 2026-09-13
-Historial: 6A-6M con builds, CTest, GUI F7, Gazebo y grafos web
-```
-
-La prueba 603 mostro la configuracion real, 12 subROIs sin asignar, el
-registro de dos drones y ambos grafos web con GUI F7 y Gazebo, sin RViz2. La
-revision visual humana fue correcta. El cierre posterior por interrupcion
-controlada tuvo `SIM-EXIT-CODE 0`; no sustituye el veredicto de la prueba.
-
-El bloque de mapa navegable, D* y FREE se da por cerrado conversacionalmente.
-La entrega visual de FREE puede llegar despues de OCCUPIED y no formar una ruta
-legible; se mantiene como limitacion conocida para reabrir solo si un bloque
-posterior lo necesita. No altera el estado parcial de 6I, cuya trayectoria
-continua reproducible permanece pendiente.
-
-La prueba 678 valida dos ajustes posteriores: `OCCUPIED` sparse exige cuatro
-MapPoints distintos con score `>= 0.2`, de forma reversible, y las rutas
-ejecutables usan un mínimo de `8 s` por tramo con empalme C1 de `3 s`. D1/GT
-completó fiducial 2 y coverage con `SIM-DONE success=true`; los STOP por
-`occupied_or_inflated` permanecen como comportamiento pendiente de decisión,
-no como resultado de estos ajustes.
-
-Las pruebas 682/683 inauguran 6J/6K: `RESERVED` es una capa dinamica por
-propietario, invisible como `OCCUPIED` en GUI. 682 encontró un interbloqueo
-HOLD/FIFO real; 683 lo corrige reanudando localmente al dueño del HOLD antes de
-la espera ajena. Se validaron commit, espera, replace, release y dos rutas
-ACTIVE concurrentes. El corredor actual reserva la polilínea D* inflada; el
-sampler curvo común de `lib_tray` sigue pendiente.
-
-Las pruebas 717 y 721 validan 6L con franjas ORB solapadas de 75 % y tres
-frames: la primera activa yaw horizontal y la segunda un sector vertical con
-pitch local `-25 grados`, sin ruta/reserva de reorientacion en servidor. La
-722 confirma visualmente el movimiento fisico del joint de camara. 6L queda
-CONSEGUIDA; `VISUAL_RETREAT`, calibracion geometrica amplia y depth local
-pertenecen a trabajo posterior, ahora identificado como 6N.
-
-6H valida en la casa exterior vigente el filtro sparse, el indicador provisional
-de frontera resuelta y la publicación de candidatos D* en GUI F7. El interior
-`UNKNOWN` tras una pared `OCCUPIED` se considera inaccesible, no una rama. El
-lifecycle de ramas queda explícitamente aplazado: se retomará cuando haya una
-topología que presente una expansión conectada real, sin fabricar otra
-simulación ni asumir edificios cerrados como único caso de uso.
-
-## Autoridad documental
-
-Este pipeline procede de:
-
-1. `Fase_1J_y_Fase_6_reestructurada_detallada.zip`;
-2. `Fase_6_complemento_post_zip_detallado.zip`.
-
-El complemento es posterior y prevalece ante contradicciones. Las antiguas
-subfases basadas en `tasks_per_level`, puntos A-B-C, `orbslam3_msgs` como
-contrato de mision o implementacion dentro de `orbslam3_server` no son vigentes.
-
-## Arquitectura cerrada
+## Estado vigente
 
 ```text
-Servidor: task_server -> task_lib
-                         ^
-                         | interfaces ROS publicas de mapa/pose
-              orbslam3_server
-
-Interfaces: mission_msgs
-
-Dron: task_manager -> task_manager_lib -> dron_individual -> lib_tray
+Infraestructura de workers: parcial
+Migracion semantica de inspeccion U: pendiente
+Pruebas de la arquitectura objetivo: pendientes tras la migracion
 ```
 
-- `task_server` y `orbslam3_server` son paquetes/nodos independientes.
-- `task_lib` no accede a `orbslam3_multi` ni a memoria interna del mapa.
-- `mission_msgs` no se mezcla con `orbslam3_msgs`.
-- Servidor y Dron usan la misma implementacion/version de `lib_tray`.
-- Los nodos gestionan ROS; las librerias concentran logica testeable.
+Este documento y las subfases `6A` a `6L` sustituyen los contratos anteriores
+de Fase 6. Los historiales conservan pruebas y decisiones cronologicas, pero
+no especifican la arquitectura que se implementara a partir de ahora.
 
-Workers iniciales de `task_server`:
+## Arquitectura acordada
+
+La fase se organiza como workers FIFO finitos. Un worker consume un trabajo,
+emite una orden o una continuacion y no espera movimiento, depth ni una
+respuesta remota.
 
 ```text
-TaskWorker | VoxelMapWorker | PlanningWorker | ReservationWorker
+registro -> asignacion de subROI -> eleccion de punto -> D*
+                                             |              |
+                                             |              v
+                                             |     monitor/reservas/GUI
+                                             v              |
+                                      mirada + captura <----+
+                                             |
+                                       integrar evidencia
+                                             |
+EvidenceDatabase <- KeyframeEvidenceWorker  |
+        |                                    |
+        +--------> VoxelMapBuilder ----------+
+                         |
+                    delta/map_revision
 ```
 
-Cada estado tiene un writer logico. Hay un `PlanningWorker` y un
-`ReservationWorker`, ambos seriales internamente y paralelos entre subsistemas.
+El servidor manda `SubmitAutonomousCommand` al dron y recibe `accepted` de
+inmediato. El dron ejecuta localmente y, al finalizar, llama
+`ReportAutonomousResult`; ese callback solo valida, persiste y encola. Todo se
+correlaciona con `drone_id`, `task_id`, `workflow_id`, `command_id` y
+`map_epoch`.
 
-## Mision y volumen
+`STOP` es local, asincrono y prioritario. Solo puede existir una orden normal
+activa por dron. El monitor reserva el corredor antes del vuelo, reacciona a
+deltas relevantes y limpia reservas y GUI en cualquier finalizacion.
 
-- `mapping_roi`: volumen `world` que debe mapearse.
-- `mapping_hysteresis`: extension de maniobra/observacion.
-- `hard_flight_volume = expand(mapping_roi, mapping_hysteresis)`.
-- No existe el parametro ni un tercer volumen `flight_bounds`.
-- Se conserva `level_height`; el resto vertical se suma al ultimo nivel.
-- Se elimina `tasks_per_level`.
-- Cada nivel crea cuatro subROIs solapadas asociadas a los lados AB/BC/CD/DA.
-- Una subROI es responsabilidad inicial, no ruta ni limite de movimiento.
+`EvidenceDatabase` almacena fuentes reversibles relativas a KFs. Los workers
+de KFs y depth escriben en ella; `VoxelMapBuilder` es el unico que materializa
+el mundo, por deltas, reproyecciones y tombstones. Las continuaciones depth se
+liberan solo cuando confirma `sources_applied`.
 
-Las ramas descubiertas por frontiers tienen ownership 3D y pueden cruzar
-subROIs y niveles. Una segunda entrada a la misma region no repite coverage
-detallada: puede realizar una pasada simple para loops/covisibilidad y salir por
-el acceso mas conveniente.
+## Subfases vigentes
 
-## Navegacion
+| Subfase | Responsabilidad |
+| --- | --- |
+| 6A | Contrato de workflows, IDs y colas FIFO. |
+| 6B | Registro de drones y asignacion/cesion de subROIs. |
+| 6C | Servicios desacoplados de orden y resultado. |
+| 6D | Runtime local, STOP y `TRACKING_RISK`. Parcial: el dron ejecuta y reporta ordenes correlacionadas; falta que la seleccion nueva las produzca. |
+| 6E | EvidenceDatabase y evidencia procedente de KFs. |
+| 6F | Resultado depth autonomo, evidencia tipada y continuaciones por fuentes aplicadas. Parcial: integra tambien `RESULT_ABORTED` con depth; falta simulacion integrada desde workers finales. |
+| 6G | Materializacion incremental del mapa por `VoxelMapBuilder`. |
+| 6H | Seleccion de secciones U exteriores, coverage y relevo de subROI. Pendiente de migracion. |
+| 6I | D* estrictamente FREE y despacho `MOVE_AND_CAPTURE`/prefijo FREE. Pendiente de migracion. |
+| 6J | Monitor, reservas, STOP por corredor y GUI activa. |
+| 6K | Fiduciales oportunistas durante una tarea. |
+| 6L | Integracion, observabilidad, pruebas y cierre. |
 
-```text
-coverage/frontiers -> objetivo XYZ
-D* Lite 3D          -> ruta XYZ
-view planner        -> yaw/pitch
-lib_tray            -> trayectoria fisica
-ReservationWorker   -> validacion y commit
-task_manager        -> W->O una vez, reproduccion y ejecucion
-```
+## Flujo operativo
 
-- D* Lite usa 26-connectivity, `FREE` normal, `UNKNOWN` transitable penalizado
-  y `OCCUPIED` bloqueado.
-- `VoxelMapWorker` mantiene por perfil una guia de macro-voxeles local; D* usa
-  un corredor fino ampliable, pero la guia no puede aceptar ni rechazar rutas.
-- La cola registra pops y obsoletos; estos ultimos no consumen expansiones. La
-  telemetria detallada se conserva en logs, no en el grafo web ni GUI F7.
-- Los planes son cortos por distancia/duracion, no por numero de waypoints.
-- `TrajectoryPlan` se expresa en W y transporta todos los datos deterministas.
-- El dron valida revision/alineamiento, convierte a O una sola vez y congela la
-  ejecucion local ante optimizaciones globales.
-- Los waypoints internos son estados dinamicos; objetivo inicial C2 y jerk
-  acotado/medido.
+1. Un dron anclado y libre recibe un subROI cercano y una seccion pendiente de
+   la U exterior, situada a dos voxeles de tres caras del subROI.
+2. La pose de inspeccion combina coste de seccion, pared a 4 m, altura central
+   y desplazamiento. Busca una fachada `OCCUPIED` score `>0.4` o una sonda si
+   falta pared en una esquina; el yaw mira a la fachada.
+3. Si pose y corredor son FREE, D* entrega `MOVE_AND_CAPTURE`; si la pose es
+   UNKNOWN, `LOOK_AND_CAPTURE` solo la despeja. No se elige por score
+   intermedio `0.2..0.6`.
+4. Depth o KF escriben evidencia; `VoxelMapBuilder` aplica deltas, activa de
+   forma atomica la seccion por impacto depth `OCCUPIED=1` o `SIN_FACHADA`, y
+   libera la continuacion correlacionada.
+5. D* ejecuta una ruta totalmente FREE o solo su prefijo FREE anterior al
+   primer UNKNOWN. No cruza UNKNOWN y el prefijo no toma depth.
+6. El monitor protege la trayectoria activa con reservas y STOP ante un
+   conflicto real. Al terminar, el dron reporta y se encola la siguiente fase.
 
-## Seguridad, mapa y coordinacion
+## Limites deliberados
 
-- Voxel map global incremental con `occupancy/free` separado de `coverage`.
-- Evidencia reversible por procedencia: MP debil, depth endpoint ocupado,
-  depth ray libre, trayectoria estimada realmente recorrida libre en su volumen
-  fisico sin margen y KF como referencia/coverage, nunca obstaculo por si solo.
-- La trayectoria se conserva relativa a su KF y se retira/reintegra cuando
-  cambia `W_T_KF`; FREE de paso real gana a ocupacion sparse debil en la misma
-  celda. El margen pertenece exclusivamente a D*.
-- Depth se conserva relativo al KF; mover `W_T_KF` retira y reintegra.
-- Depth local es autoridad inmediata y puede ordenar `STOP` sin permiso.
-- `TRACKING_RISK` preventivo usa STOP y una reorientacion que evita el primer
-  sector pobre; `VISUAL_RETREAT` es una posible mejora futura.
-- Reservas espaciales, swept volume con bounding box orientada y margen del
-  servidor; commit serial, reserva existente gana y reemplazo atomico. La capa
-  `RESERVED` es dinamica, tiene owner, no altera `OCCUPIED` ni se dibuja como
-  tal; cada dron evita reservas ajenas e ignora la suya.
-- La curva comun de `lib_tray` se sampleara para reserva cada
-  `reservation_sweep_sample_step_voxels=0.5` voxeles iniciales, parametro a
-  medir. No se ampliara `TrajectoryPlan` con estado dinamico inicial mientras
-  el siguiente despacho espere el terminal normal y conserve la guarda stale.
-- Un conflicto intenta alternativa y, sin ella, deja `WAITING` con
-  `waiting_reservation` para reintentar por release/cambio relevante, sin STOP.
-  Tras STOP se mantiene `HOLD_RESERVATION` hasta reemplazo seguro; no hay
-  release por timeout ante perdida de comunicacion.
+- La migracion preserva temporalmente los contratos externos de fiducial de
+  Fase 4/5; no reescribe su optimizacion.
+- El depth puede no ser utilizable. En ese caso no se inventa FREE: se avanza
+  solo por prefijo FREE posible y se selecciona de nuevo.
+- Los reintentos por `RESERVED` no tienen limite inicial, pero retornan al final
+  de FIFO o esperan una revision, sin bloqueo ocupado.
+- La topologia avanzada de ramas y la nube densa global se tratan despues.
 
-## Telemetria web
+## Criterio global de cierre
 
-Desde 6A se crea un grafo web incremental inspirado en Fase 3, pero con la
-topologia real de Fase 6. Muestra workers, colas, revisiones e IDs correlables;
-crece al implementar cada subfase. Es opcional, no bloqueante y nunca controla
-la mision.
-
-## Secuencia vigente
-
-```text
-6A  arquitectura, paquetes y configuracion
-6B  geometria de subROIs y ownership 3D
-6C  mission_msgs, registro y lifecycle
-6D  mapa voxel reversible
-6E  gestor y asignador de tareas
-6F  base autonoma de task_manager
-6G  D* Lite y waypoints XYZ
-6H  frontiers, coverage y ramas
-6I  trayectorias multi-waypoint reproducibles
-6J  reservas y colisiones multi-dron
-6K  replanning incremental y handover
-6L  TRACKING_RISK, STOP y reorientacion preventiva
-6M  observacion yaw/pitch/distancia
-6N  depth local, evidencia voxel reversible y STOP inmediato
-6O  GO_TO, ANCHOR_SUBMAP y fiduciales oportunistas
-6P  integracion y cierre
-```
-
-Estado de 6G: `task_lib` contiene D* Lite 3D incremental y `task_server`
-publica un `TrajectoryPlan` previsto por solicitud XYZ. La prueba 615 valido
-un plan y un replan cortos en Gazebo con GUI F7; 6I aun debe convertirlos en
-trayectoria fisica ejecutable. Desde la 625, `VoxelMapWorker` precalcula por
-perfil fisico transitabilidad, conexiones 26 y costes base: 24 cambios raw se
-actualizaron en 110.169 ms frente a 16.060 ms de la implementacion inicial.
-La telemetria adicional del PlanningWorker paso
-build/CTest y su verificacion live queda pendiente de una nueva solicitud ROS.
-
-Estado del bloque 4: 6D incorpora evidencia voxel `OCCUPIED` reversible desde
-sparse y `FREE` reversible por volumen fisico, ligado a KF; depth real queda
-para Fase 8. 6I habilita ese FREE pero aun no genera la trayectoria continua.
-La prueba 620 confirmo reintegracion de FREE por revisiones de KF; D1 rechazo
-el objetivo `(-9,-4,1.0)` por estar ocupado o inflado. La 625 confirmo que la
-misma clase de objetivo cercano ahora devuelve rechazo seguro inmediato
-(`goal_occupied_or_inflated`, cero expansiones), pero aun falta la demostracion
-visual de un desvio D* hacia un punto con clearance en mapa denso. 6E crea y
-asigna 12 tareas regionales con autoridad GT/ORB explicita.
-6F confirma localmente, sin ejecutar ni completar.
-
-## Parametros a medir
-
-No fijar sin pruebas: voxel size, pesos/umbrales de evidencia y coverage,
-frontier clustering, distancia preferida, coste/velocidad en UNKNOWN, longitud
-de planes, lead time, safety margin, sampling swept-volume, dinamica STOP,
-limites VISUAL_RETREAT y thresholds de riesgo visual.
-
-## Prueba final
-
-Mision con N drones, GUI Fase 7 y Gazebo, sin RViz2 como vista normal. Debe
-demostrar coverage accesible, ramas 3D, voxel reversible, D* incremental,
-reproduccion W/O, reservas, STOP/HOLD, riesgo visual, behaviors especiales y
-cierre sin colisiones, GT funcional, bucles infinitos ni dependencia de Fase 8.
+La Fase 6 quedara lista cuando los workflows sean correlacionados e
+idempotentes, los dos drones progresen sin esperas bloqueantes, las reservas y
+STOP funcionen por delta, y el mapa se materialice por evidencia incremental
+sin reconstruirlo completo en cada actualizacion.

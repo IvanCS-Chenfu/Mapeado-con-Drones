@@ -1,0 +1,32 @@
+name: fase_6N_probe_unknown_con_pose_separada
+description: >-
+  D1 bajo GT se ancla al fiducial 2 y deja que el barrido de fachada produzca
+  una aproximacion incremental a UNKNOWN desde una pose de observacion separada.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 180.0
+steps:
+  - name: espera_registro
+    type: wait
+    seconds: 2.0
+  - name: anclaje_fiducial_2_d1_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 10.0
+        ty: 10.0
+        tz: 8.0
+        tyaw: 5.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: observacion_probe_unknown
+    type: wait
+    seconds: 90.0

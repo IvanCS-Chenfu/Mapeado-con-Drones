@@ -172,6 +172,41 @@ TEST(FusedLandmarkManager, GoodMemberDilutesNearPenaltyWithoutPermanentCap)
   EXPECT_GT(prepared.patch.fused_score_updates.front().score, near_score);
 }
 
+TEST(FusedLandmarkManager, TrackWithOnlySpatiallyIsolatedMembersPublishesZero)
+{
+  orbslam3_multi::RawMapDatabase raw;
+  orbslam3_multi::LandmarkScoreManager scores;
+  orbslam3_multi::LandmarkScoreConfig config;
+  config.isolation_radius_m = 0.5;
+  config.isolation_min_neighbors = 1;
+  config.isolation_min_observations = 3;
+  config.isolation_min_factor = 0.0F;
+  scores.Configure(config);
+  const auto inserted = raw.InsertDelta(1, MakeMap(1, 0.0));
+  scores.ApplyRawChanges(inserted, raw);
+
+  orbslam3_multi::LandmarkScoreGeometryInput geometry;
+  geometry.mappoint_id = {1, 0, 1};
+  geometry.world_position.z = 2.0;
+  geometry.observer_distance_m = 2.0;
+  ASSERT_TRUE(scores.ApplyGeometryChanges({geometry}, {}).HasChanges());
+  ASSERT_FLOAT_EQ(scores.GetScore(geometry.mappoint_id)->score, 0.0F);
+
+  orbslam3_multi::FusedLandmarkManager manager;
+  orbslam3_multi::FusedLandmarkTrack track;
+  track.fused_track_id = 7;
+  track.member_mappoint_ids.insert(geometry.mappoint_id);
+  orbslam3_multi::FusionPatch patch;
+  patch.after_tracks.emplace(track.fused_track_id, track);
+  patch.after_member_assignments.emplace(geometry.mappoint_id, track.fused_track_id);
+  patch.next_track_id_after = 8;
+  ASSERT_TRUE(manager.ApplyPatch(patch).committed);
+
+  const auto updates = manager.BuildScoreUpdatesForMembers({geometry.mappoint_id}, scores);
+  ASSERT_EQ(updates.size(), 1U);
+  EXPECT_FLOAT_EQ(updates.front().score, 0.0F);
+}
+
 TEST(FusedLandmarkManager, RetiredTouchedTrackIsRemovedFromPreparedPatch)
 {
   orbslam3_multi::RawMapDatabase raw;

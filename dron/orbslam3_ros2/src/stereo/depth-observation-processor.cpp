@@ -4,9 +4,10 @@
 #include <opencv2/imgproc.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
-#include <numeric>
+#include <unordered_map>
 
 namespace orbslam3_ros2
 {
@@ -55,99 +56,176 @@ struct PlaneEstimate
   double confidence = 0.0;
 };
 
-PlaneEstimate EstimatePlane(
-  const std::vector<geometry_msgs::msg::Point32> & points,
-  const std::vector<std::size_t> & indices)
+struct DepthSample
 {
-  PlaneEstimate result;
-  if (indices.size() < 12U) {
-    return result;
-  }
-  cv::Vec3d mean{0.0, 0.0, 0.0};
-  for (const auto index : indices) {
-    mean += cv::Vec3d{points[index].x, points[index].y, points[index].z};
-  }
-  mean *= 1.0 / static_cast<double>(indices.size());
-  cv::Matx33d covariance = cv::Matx33d::zeros();
-  for (const auto index : indices) {
-    const cv::Vec3d delta = cv::Vec3d{
-      points[index].x, points[index].y, points[index].z} - mean;
-    covariance += cv::Matx33d{
-      delta[0] * delta[0], delta[0] * delta[1], delta[0] * delta[2],
-      delta[1] * delta[0], delta[1] * delta[1], delta[1] * delta[2],
-      delta[2] * delta[0], delta[2] * delta[1], delta[2] * delta[2]};
-  }
-  cv::Mat eigenvalues;
-  cv::Mat eigenvectors;
-  if (!cv::eigen(cv::Mat(covariance), eigenvalues, eigenvectors)) {
-    return result;
-  }
-  cv::Vec3d normal{
-    eigenvectors.at<double>(2, 0), eigenvectors.at<double>(2, 1),
-    eigenvectors.at<double>(2, 2)};
-  const double norm = cv::norm(normal);
-  if (!std::isfinite(norm) || norm <= 1e-9) {
-    return result;
-  }
-  normal *= 1.0 / norm;
-  if (normal[2] > 0.0) {
-    normal *= -1.0;
-  }
-  const double sum = eigenvalues.at<double>(0) + eigenvalues.at<double>(1) +
-    eigenvalues.at<double>(2);
-  const double confidence = sum <= 1e-12 ? 0.0 :
-    std::clamp(1.0 - eigenvalues.at<double>(2) / sum, 0.0, 1.0);
-  result = {confidence >= 0.7, normal, indices.size(), confidence};
-  return result;
+  int x = 0;
+  int y = 0;
+  geometry_msgs::msg::Point32 point;
+};
+
+std::uint64_t PixelKey(int x, int y)
+{
+  return (static_cast<std::uint64_t>(static_cast<std::uint32_t>(y)) << 32U) |
+         static_cast<std::uint32_t>(x);
+}
+
+int CircularBinDistance(int first, int second, int bin_count)
+{
+  const int direct = std::abs(first - second);
+  return std::min(direct, bin_count - direct);
 }
 
 PlaneEstimate EstimateFacadeNormal(
-  const std::vector<geometry_msgs::msg::Point32> & points)
+  const std::vector<DepthSample> & samples, int pixel_stride)
 {
-  std::vector<std::size_t> all(points.size());
-  std::iota(all.begin(), all.end(), 0U);
-  const auto dominant = EstimatePlane(points, all);
-  if (points.size() < 24U) {
-    return dominant;
+  constexpr int kBinCount = 18;
+  constexpr int kClusterRadius = 1;
+  constexpr double kMinimumHorizontalProjection = 0.6;
+  constexpr std::size_t kMinimumLocalSupport = 12U;
+
+  PlaneEstimate result;
+  if (samples.size() < kMinimumLocalSupport || pixel_stride <= 0) {
+    return result;
   }
-  std::vector<float> x_values;
-  x_values.reserve(points.size());
-  for (const auto & point : points) {
-    x_values.push_back(point.x);
+
+  std::unordered_map<std::uint64_t, std::size_t> sample_by_pixel;
+  sample_by_pixel.reserve(samples.size());
+  for (std::size_t index = 0U; index < samples.size(); ++index) {
+    sample_by_pixel.emplace(PixelKey(samples[index].x, samples[index].y), index);
   }
-  const auto middle = x_values.begin() + static_cast<std::ptrdiff_t>(x_values.size() / 2U);
-  std::nth_element(x_values.begin(), middle, x_values.end());
-  const float median_x = *middle;
-  std::vector<std::size_t> left;
-  std::vector<std::size_t> right;
-  for (std::size_t index = 0U; index < points.size(); ++index) {
-    (points[index].x <= median_x ? left : right).push_back(index);
+
+  std::vector<cv::Vec3d> local_normals;
+  std::vector<int> normal_bins;
+  std::array<std::size_t, kBinCount> histogram{};
+  local_normals.reserve(samples.size());
+  normal_bins.reserve(samples.size());
+  for (const auto & sample : samples) {
+    const auto right = sample_by_pixel.find(PixelKey(sample.x + pixel_stride, sample.y));
+    const auto down = sample_by_pixel.find(PixelKey(sample.x, sample.y + pixel_stride));
+    if (right == sample_by_pixel.end() || down == sample_by_pixel.end()) {
+      continue;
+    }
+    const cv::Vec3d center{sample.point.x, sample.point.y, sample.point.z};
+    const auto & right_point = samples[right->second].point;
+    const auto & down_point = samples[down->second].point;
+    const cv::Vec3d tangent_x{
+      right_point.x - sample.point.x, right_point.y - sample.point.y,
+      right_point.z - sample.point.z};
+    const cv::Vec3d tangent_y{
+      down_point.x - sample.point.x, down_point.y - sample.point.y,
+      down_point.z - sample.point.z};
+    cv::Vec3d normal = tangent_x.cross(tangent_y);
+    const double norm = cv::norm(normal);
+    if (!std::isfinite(norm) || norm <= 1e-9) {
+      continue;
+    }
+    normal *= 1.0 / norm;
+    if (normal.dot(center) > 0.0) {
+      normal *= -1.0;
+    }
+    if (std::hypot(normal[0], normal[2]) < kMinimumHorizontalProjection) {
+      continue;
+    }
+    double axial_angle = std::atan2(normal[0], normal[2]);
+    while (axial_angle < 0.0) {
+      axial_angle += CV_PI;
+    }
+    while (axial_angle >= CV_PI) {
+      axial_angle -= CV_PI;
+    }
+    const int bin = std::min(
+      kBinCount - 1,
+      static_cast<int>(std::floor(axial_angle * static_cast<double>(kBinCount) / CV_PI)));
+    local_normals.push_back(normal);
+    normal_bins.push_back(bin);
+    ++histogram[static_cast<std::size_t>(bin)];
   }
-  auto first = EstimatePlane(points, left);
-  auto second = EstimatePlane(points, right);
-  if (!first.valid || !second.valid) {
-    return dominant;
+  if (local_normals.size() < kMinimumLocalSupport) {
+    return result;
   }
-  double dot = first.normal.dot(second.normal);
-  if (dot < 0.0) {
-    second.normal *= -1.0;
-    dot = -dot;
+
+  const auto cluster_support = [&histogram](int center) {
+      std::size_t support = 0U;
+      for (int offset = -kClusterRadius; offset <= kClusterRadius; ++offset) {
+        const int bin = (center + offset + kBinCount) % kBinCount;
+        support += histogram[static_cast<std::size_t>(bin)];
+      }
+      return support;
+    };
+  int primary_bin = 0;
+  std::size_t primary_support = 0U;
+  for (int bin = 0; bin < kBinCount; ++bin) {
+    const auto support = cluster_support(bin);
+    if (support > primary_support) {
+      primary_bin = bin;
+      primary_support = support;
+    }
   }
-  const double angle_deg = std::acos(std::clamp(dot, -1.0, 1.0)) * 180.0 / CV_PI;
-  if (angle_deg < 20.0 || angle_deg > 140.0) {
-    return dominant;
+
+  int secondary_bin = -1;
+  std::size_t secondary_support = 0U;
+  for (int bin = 0; bin < kBinCount; ++bin) {
+    if (CircularBinDistance(bin, primary_bin, kBinCount) <= 2 * kClusterRadius) {
+      continue;
+    }
+    const auto support = cluster_support(bin);
+    if (support > secondary_support) {
+      secondary_bin = bin;
+      secondary_support = support;
+    }
   }
-  const double first_weight = static_cast<double>(first.support) * first.confidence;
-  const double second_weight = static_cast<double>(second.support) * second.confidence;
-  cv::Vec3d blended = first_weight * first.normal + second_weight * second.normal;
-  const double norm = cv::norm(blended);
-  if (norm <= 1e-9) {
-    return dominant;
+  const double bin_angle = CV_PI / static_cast<double>(kBinCount);
+  const double separation_deg = secondary_bin < 0 ? 0.0 :
+    static_cast<double>(CircularBinDistance(primary_bin, secondary_bin, kBinCount)) *
+    bin_angle * 180.0 / CV_PI;
+  const bool use_corner = secondary_bin >= 0 && secondary_support >= kMinimumLocalSupport &&
+    secondary_support * 5U >= local_normals.size() && separation_deg >= 20.0 &&
+    separation_deg <= 140.0;
+
+  const auto mean_for_cluster = [&](int center, std::size_t & support) {
+      const double axis_angle = (static_cast<double>(center) + 0.5) * bin_angle;
+      const cv::Vec3d axis{std::sin(axis_angle), 0.0, std::cos(axis_angle)};
+      cv::Vec3d sum{0.0, 0.0, 0.0};
+      support = 0U;
+      for (std::size_t index = 0U; index < local_normals.size(); ++index) {
+        if (CircularBinDistance(normal_bins[index], center, kBinCount) > kClusterRadius) {
+          continue;
+        }
+        auto normal = local_normals[index];
+        if (normal.dot(axis) < 0.0) {
+          normal *= -1.0;
+        }
+        sum += normal;
+        ++support;
+      }
+      const double norm = cv::norm(sum);
+      return norm > 1e-9 ? sum * (1.0 / norm) : cv::Vec3d{0.0, 0.0, 0.0};
+    };
+
+  std::size_t selected_primary_support = 0U;
+  auto selected_normal = mean_for_cluster(primary_bin, selected_primary_support);
+  std::size_t selected_support = selected_primary_support;
+  if (use_corner) {
+    std::size_t selected_secondary_support = 0U;
+    auto secondary_normal = mean_for_cluster(secondary_bin, selected_secondary_support);
+    if (selected_normal.dot(secondary_normal) < 0.0) {
+      secondary_normal *= -1.0;
+    }
+    const cv::Vec3d blended =
+      static_cast<double>(selected_primary_support) * selected_normal +
+      static_cast<double>(selected_secondary_support) * secondary_normal;
+    const double blended_norm = cv::norm(blended);
+    if (blended_norm > 1e-9) {
+      selected_normal = blended * (1.0 / blended_norm);
+      selected_support += selected_secondary_support;
+    }
   }
-  blended *= 1.0 / norm;
-  return {true, blended, first.support + second.support,
-    (first_weight + second_weight) /
-    static_cast<double>(first.support + second.support)};
+  const double confidence = static_cast<double>(selected_support) /
+    static_cast<double>(local_normals.size());
+  result = {
+    selected_support >= kMinimumLocalSupport && confidence >= 0.7,
+    selected_normal, selected_support, confidence};
+  return result;
 }
 
 }  // namespace
@@ -159,7 +237,9 @@ DepthObservationResult ComputeDepthObservation(
   DepthObservationResult result;
   if (left.empty() || right.empty() || left.size() != right.size() || fx <= 0.0 || fy <= 0.0 ||
     baseline_m <= 0.0 || parameters.min_depth_m <= 0.0 ||
-    parameters.max_depth_m <= parameters.min_depth_m || parameters.pixel_stride <= 0 ||
+    parameters.max_depth_m <= parameters.min_depth_m ||
+    parameters.far_measurement_max_distance_m < parameters.max_depth_m ||
+    parameters.pixel_stride <= 0 ||
     parameters.max_points == 0U || parameters.max_disparity_gradient_px_per_pixel <= 0.0 ||
     parameters.min_texture_gradient < 0.0 || parameters.texture_window_radius_px < 0)
   {
@@ -190,8 +270,10 @@ DepthObservationResult ComputeDepthObservation(
     cv::Size(texture_window_size, texture_window_size), cv::Point(-1, -1), true,
     cv::BORDER_REPLICATE);
 
-  std::vector<geometry_msgs::msg::Point32> accepted;
+  std::vector<DepthSample> accepted;
+  std::vector<DepthSample> far_free;
   accepted.reserve(static_cast<std::size_t>(disparity.total()));
+  far_free.reserve(static_cast<std::size_t>(disparity.total()));
   for (int y = 0; y < disparity.rows; y += parameters.pixel_stride)
   {
     for (int x = 0; x < disparity.cols; x += parameters.pixel_stride)
@@ -201,41 +283,59 @@ DepthObservationResult ComputeDepthObservation(
         continue;
       }
       const double z = fx * baseline_m / static_cast<double>(disparity_px);
-      if (!std::isfinite(z) || z < parameters.min_depth_m || z > parameters.max_depth_m) {
+      if (!std::isfinite(z) || z < parameters.min_depth_m ||
+        z > parameters.far_measurement_max_distance_m)
+      {
         continue;
       }
       ++result.raw_valid_points;
-      if (mean_texture_gradient.at<float>(y, x) < parameters.min_texture_gradient) {
-        ++result.texture_rejected_points;
-        continue;
-      }
       if (HasStrongDisparityDiscontinuity(
           disparity, x, y, disparity_px, parameters.max_disparity_gradient_px_per_pixel))
       {
         ++result.discontinuity_rejected_points;
         continue;
       }
-      result.nearest_depth_m = std::min(result.nearest_depth_m, z);
       geometry_msgs::msg::Point32 point;
       point.x = static_cast<float>((static_cast<double>(x) - cx) * z / fx);
       point.y = static_cast<float>((static_cast<double>(y) - cy) * z / fy);
       point.z = static_cast<float>(z);
-      accepted.push_back(point);
+      if (z > parameters.max_depth_m) {
+        far_free.push_back({x, y, point});
+        ++result.far_valid_points;
+        continue;
+      }
+      if (mean_texture_gradient.at<float>(y, x) < parameters.min_texture_gradient) {
+        ++result.texture_rejected_points;
+        continue;
+      }
+      result.nearest_depth_m = std::min(result.nearest_depth_m, z);
+      accepted.push_back({x, y, point});
     }
   }
-  const std::size_t output_count = std::min(parameters.max_points, accepted.size());
-  result.points_k.reserve(output_count);
-  for (std::size_t index = 0U; index < output_count; ++index) {
-    const std::size_t source_index = output_count == accepted.size() ? index :
-      std::min(accepted.size() - 1U,
+  const auto append_uniform = [&parameters](
+    const std::vector<DepthSample> & samples,
+    std::vector<geometry_msgs::msg::Point32> * output)
+    {
+      if (output == nullptr || samples.empty()) {
+        return;
+      }
+      const std::size_t output_count = std::min(parameters.max_points, samples.size());
+      output->reserve(output_count);
+      for (std::size_t index = 0U; index < output_count; ++index) {
+        const std::size_t source_index = output_count == samples.size() ? index :
+          std::min(samples.size() - 1U,
       static_cast<std::size_t>(std::floor(
-        (static_cast<double>(index) + 0.5) * static_cast<double>(accepted.size()) /
-        static_cast<double>(output_count))));
-    result.points_k.push_back(accepted[source_index]);
-  }
+          (static_cast<double>(index) + 0.5) * static_cast<double>(samples.size()) /
+          static_cast<double>(output_count))));
+        output->push_back(samples[source_index].point);
+      }
+    };
+  append_uniform(accepted, &result.points_k);
+  append_uniform(far_free, &result.far_free_points_k);
   result.confidence = result.raw_valid_points == 0U ? 0.0 :
-    static_cast<double>(accepted.size()) / static_cast<double>(result.raw_valid_points);
-  const auto normal = EstimateFacadeNormal(result.points_k);
+    static_cast<double>(accepted.size() + far_free.size()) /
+    static_cast<double>(result.raw_valid_points);
+  const auto normal = EstimateFacadeNormal(accepted, parameters.pixel_stride);
   result.normal_valid = normal.valid;
   result.normal_camera = normal.normal;
   result.normal_support = normal.support;

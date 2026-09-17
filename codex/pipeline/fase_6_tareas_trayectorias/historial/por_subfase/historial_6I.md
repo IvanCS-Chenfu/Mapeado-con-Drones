@@ -1,5 +1,48 @@
 # Historial - 6I
 
+## 2026-09-16 - Diagnostico de rechazo D* estricto, prueba 773
+
+- Se anadio `debug_facade_dstar_failure=false` a `task_server` y al launch de
+  simulacion. Al habilitarlo, el rechazo FREE estricto registra los voxeles de
+  inicio/meta, sus estados raw y navegables, y una frontera acotada de la
+  componente FREE. El diagnostico no cambia costes, mapa, colas ni despacho.
+- `task_server` y `simulacion_dron` compilaron correctamente; CTest de
+  `task_server` paso 9/9.
+- La prueba 773 ejecuto solo D1, con GT al fiducial 2 y depth activo. El primer
+  arranque de Gazebo se reintento automaticamente; el segundo termino con
+  `SIM-DONE success=true` y `SIM-EXIT-CODE 0`.
+- En las revisiones 78, 89 y 103, el inicio era raw `FREE` pero
+  `occupied_inflated`; la meta `8:-40:4` seguia raw/navegablemente `UNKNOWN`.
+  El fallo fue `goal_occupied_or_inflated` y `used_safe_escape=false`: D* no
+  llego a evaluar salida segura porque rechazo antes una meta que no era FREE.
+  La frontera FREE quedo vacia porque el inicio navegable estaba inflado, no
+  porque se demostrase que no hubiera FREE general alrededor.
+
+Conclusion: PARCIAL. La instrumentacion confirma dos problemas de flujo: la
+continuacion tras `vista_unknown` planifica sin revalidar que la meta se haya
+vuelto FREE, y la futura salida desde una celda inflada debe conservar la regla
+de no ejecutar UNKNOWN. No se ha modificado todavia la politica de movimiento.
+
+Acuerdo posterior: se mantiene el clearance, pero el inicio puede recorrer raw
+FREE dentro de una burbuja de `start_escape_radius_voxels=4`; OCCUPIED real,
+UNKNOWN y RESERVED permanecen vetados. Si la meta inspeccionada sigue UNKNOWN,
+6H buscara antes un fallback FREE de menor coste dentro de
+`unknown_fallback_free_radius_voxels=8`; sin alternativa, se descarta el
+candidato. Implementacion y prueba pendientes.
+
+## 2026-09-16 - Migracion FIFO de D* y prueba 772
+
+- `TrajectoryPlanningWorker` consume la continuacion de depth y ejecuta D*
+  con perfil FREE. Emitio varios prefijos FREE mediante el runtime autonomo,
+  sin cruzar UNKNOWN ni bloquear la FIFO.
+- La prueba 772 confirmo `F6I-WORKFLOW-PLAN`, ejecucion local de trayectorias y
+  retorno a seleccion tras el prefijo. Una captura `vista_pared` aparecio solo
+  tras `TRACKING_RISK`; no se observo todavia una ruta completa FREE que haga
+  captura normal de pared.
+
+Conclusion: PARCIAL. La cadena D* -> orden autonoma funciona para prefijos;
+falta demostrar el caso FULL_FREE y su depth de fachada ordinario.
+
 ## 2026-09-08 - Habilitacion de FREE de trayectoria real
 
 - Sin iniciar aun la generacion de trayectoria continua, se implemento la
@@ -550,3 +593,55 @@ distintos; no puede reemplazar la polilínea ejecutada.
 
 Conclusión: CONSEGUIDA para la corrección de lifecycle visual. No altera D*,
 coverage, STOP ni el estado agregado PARCIAL de 6I.
+
+## 2026-09-16 - Monitor FIFO, reserva y terminal correlacionado (prueba 775)
+
+- objetivo intentado: integrar los planes FIFO en `ACTIVE_TRAJECTORY_MONITOR`
+  antes de despacharlos, para que tengan el mismo ciclo de reserva, GUI y STOP
+  que los planes de ejecución ya activos.
+- implementación: `MOVE_AND_CAPTURE` se encola al monitor. Tras aceptar la
+  orden normal, este compromete el corredor reservado, publica la polilínea
+  `ACTIVE` y conserva la correlación `(drone_id, workflow_id, command_id)`.
+  El terminal autónomo libera la reserva y retira la ruta sin reencolar por la
+  senda legacy.
+- build y tests: `task_server` compiló correctamente; CTest completo 9/9,
+  incluidos tres GTests y todos los linters.
+- prueba Gazebo: 775, D1/GT, fiducial 2, 180 s autónomos, depth activo. El
+  runner informó `SIM-DONE success=true` y `SIM-EXIT-CODE 0`.
+- evidencia: se observaron compromisos `F6J-AUTONOMOUS-RESERVATION-COMMIT`
+  de 102 a 259 celdas para `dstar_1_1` a `dstar_1_10`. Varios terminales
+  `segmento completado por gen_tray` liberaron su monitor, y los STOP
+  terminaron como `replaced_by_stop`, también liberando la reserva de forma
+  correlacionada. No se reprodujo el bloqueo de rutas FIFO sin `RESERVED`.
+- limitación: tras el final correcto del escenario, durante el SIGINT/SIGTERM
+  forzado del runner apareció `UnawareGoalHandleError` de ROS al publicar el
+  resultado de una action ya retirada. Es un defecto de lifecycle de apagado,
+  no evidencia de fallo de la ventana autónoma, y queda pendiente separado.
+- conclusión: CONSEGUIDA para la integración monitor/reserva/terminal del
+  flujo FIFO. 6I global permanece PARCIAL por los pendientes de política,
+  profundidad de pared y validación física prolongada.
+
+## 2026-09-17 - Captura obligatoria al avanzar por corredor FREE (779)
+
+- la prueba 778 reveló que `fallback_free_advance` se publicaba con
+  `capture_after_command=false`: el dron llegaba al último FREE, devolvía
+  `depth=0` y el servidor iniciaba otra mirada UNKNOWN.
+- en 779 se unificó con `FREE_PREFIX` como `VIEW_ADVANCE`. D1 completó esos
+  movimientos con `depth=1`; el servidor escribió fuentes `view_advance` y no
+  liberó la siguiente selección hasta `F6F-DEPTH-SOURCES-APPLIED`.
+- hubo STOPs independientes que siguen reportando `result_without_usable_depth`;
+  no se modificó la política de monitor ni de inflación en esta corrección.
+
+Conclusión: CONSEGUIDA para el contrato de captura del avance FREE; 6I global
+continúa PARCIAL por STOP y validación física del recorrido de fachada.
+
+## 2026-09-17 - Inflacion uno y causal de STOP (prueba 786)
+
+- `extra_obstacle_clearance_voxels` paso de 2 a 1; D1 navega con inflacion
+  `(3,3,2)` y reserva fisica `(2,2,1)`.
+- 786 cerro limpia y GUI publico reservas de 102 a 568 celdas. El diagnostico
+  causal encontro dos STOP por `unresolved_navigation_change` sobre UNKNOWN y
+  uno por `raw_occupied_static_clearance`; no hubo STOP sin marcador causal.
+- conclusion: CONSEGUIDA para el ajuste de margen y observabilidad causal. 6I
+  sigue PARCIAL porque los cambios navegables no resueltos requieren politica
+  futura, distinta de la seguridad de esta correccion.

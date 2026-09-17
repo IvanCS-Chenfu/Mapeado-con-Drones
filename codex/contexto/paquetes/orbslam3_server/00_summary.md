@@ -84,6 +84,12 @@ visibilidad sparse solo diagnostica; oclusion numerica queda para Fase 8.
 Los defaults de distancia dejan banda neutra 1-5 m con baseline `0.06 m`;
 prueba 194 cierra colas en cero con 99 near, 11.433 far y media `0.2596`.
 
+El mismo nodo consume el snapshot transitorio `/mission/registry` para pasar
+`dimensions_m` al backend 3R. Cada KeyFrame global activo aporta una esfera
+fisica de `base_link`; los MapPoints dentro de ella reciben score cero
+reversible y los tracks fused solo con esos miembros tambien. Esta suscripcion
+es de Fase 3 y no participa en decisiones de tareas, voxeles ni D*.
+
 3T separa parámetros en `config/global_map/{runtime,fiducials,optimization,
 loop_fusion,scoring,replay_debug}.yaml`. El launch directo usa esta copia;
 `replay_debug.yaml` solo se añade explícitamente y `CMakeLists.txt` instala
@@ -115,6 +121,16 @@ objeto aun no habia sido visto por ese `(drone_id,map_epoch)`. Es una frontera
 de coordinacion: no modifica el `FiducialAnchorManager`, la cola secundaria, el
 solver ni la politica de commit de Fase 3.
 
+Tambien publica `/global_keyframe_sparse_evidence_delta`: solo los KFs cuya
+pose, geometria o asociaciones observadas cambian, mas sus deletes. Cada
+upsert conserva los MapPoints no bad con score `>=0.2` en coordenadas locales
+del KF. La revision solo cambia por geometria, asociaciones, pose o por cruzar
+los umbrales F6 de `0.2` (RANSAC) y `0.5` (rayo directo FREE), no por una
+variacion continua de score. El servidor conserva la ultima pareja de
+revisiones publicada por KF y omite deltas identicos. F6 usa la evidencia para
+rayos FREE y planos RANSAC reversibles; la nube global y su unica asociacion
+publisher-KF no cambian.
+
 3S añade el argumento launch `log_level`. `multi_dron.launch.py` pasa `error`
 cuando `fase3_logs_terminal=false` e `info` cuando esta activo. Asi se ocultan
 los diagnosticos `[F3*]` sin silenciar errores o fallos reales del nodo.
@@ -134,6 +150,7 @@ publishers:    /global_mapping/backpressure_active
                /global_sparse_cloud
                /global_keyframes
                /mission/fiducial_primary_observations
+               /global_keyframe_sparse_evidence_delta
 ```
 
 ## Validacion

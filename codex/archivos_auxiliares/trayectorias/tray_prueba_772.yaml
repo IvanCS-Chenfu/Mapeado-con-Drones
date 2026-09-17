@@ -1,0 +1,34 @@
+name: fase_6H_6I_flujo_autonomo_d1
+description: >-
+  D1 llega con GT al fiducial 2 y deja que las colas 6H y 6I seleccionen,
+  inspeccionen y planifiquen de forma autonoma durante 180 s. El barrido
+  legacy permanece desactivado: la evidencia depth debe proceder del terminal
+  correlacionado de MOVE_AND_CAPTURE o LOOK_AND_CAPTURE.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 600.0
+steps:
+  - name: espera_registro_y_mapa
+    type: wait
+    seconds: 22.0
+  - name: anclaje_fiducial_2_d1_gt_yaw_90
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: flujo_6H_6I_autonomo_d1
+    type: wait
+    seconds: 180.0

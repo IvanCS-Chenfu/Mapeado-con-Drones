@@ -1,5 +1,18 @@
 # Historial - 6G
 
+## 2026-09-16 - Bloque 3 - Materializacion incremental de fuentes KF
+
+- objetivo intentado: aplicar solo upserts y tombstones de fuentes KF locales,
+  sin recorrer todo el mapa.
+- archivos modificados: `evidence_pipeline.hpp/.cpp`, `task_server_node.cpp`,
+  `CMakeLists.txt` y prueba `test_evidence_pipeline.cpp`.
+- resultado de build: `task_server` correcto, exit 0.
+- pruebas: casos nuevos cubren reemplazo por cambio de pose y retirada por
+  delete. El primer CTest dio 8/9 por formato; tras correccion mecanica, la
+  repeticion dio 9/9, incluidos los tres gtest y seis linters.
+- conclusion: PARCIAL. `VoxelMapBuilder` materializa los deltas sparse por KF;
+  depth y ocupacion sparse aun permanecen en su transicion legacy.
+
 ## 2026-09-08 - Planificador D* Lite y contrato de plan previsto
 
 - Se incorporo `DStarLitePlanner` a `task_lib`, con estado incremental por
@@ -220,3 +233,21 @@ Conclusion: CONSEGUIDA para eliminar duplicados de cola. No se afirma mejora
 temporal frente a 629: esa ejecucion tenia otro mapa ORB, 8.569 expansiones y
 corredor 71, mientras 631 tuvo 11.480 y 88. Para una comparacion de tiempo
 estricta hace falta un snapshot voxel fijo o replay determinista.
+
+## 2026-09-17 - Claims U reversibles y prueba 786
+
+- objetivo: sustituir la activacion irreversible por claims depth/KF, con
+  vecinos continuos y secciones espaciales de `OCCUPIED=1`.
+- implementacion: `VoxelMapBuilder` expone fuentes OCCUPIED proyectadas y
+  retiradas; `TaskServerNode` indexa `source_id -> claims`, reconstruye el
+  cache visible y retira claims con tombstones. La U se ordena continuamente;
+  `SIN_FACHADA` queda ligado a fuente FREE.
+- build/tests: builds de `task_lib`, `task_server` y `simulacion_dron`;
+  CTest 9/9 y 9/9. Las unidades cubren orden U y materializacion/retiro.
+- prueba 786: D1/GT/depth durante 180 s, runner exit 0. Dos fuentes
+  `VIEW_ADVANCE` reclamaron 14 y 13 secciones, dejando 18 activas; GUI publico
+  reservas.
+- limite: no hubo optimizacion ni tombstone de una fuente reclamada en Gazebo;
+  la retirada visual queda pendiente de esa prueba.
+- conclusion: PARCIAL para 6G global; la migracion de claims queda demostrada
+  en alta y materializacion.

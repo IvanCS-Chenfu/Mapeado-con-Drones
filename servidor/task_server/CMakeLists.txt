@@ -24,12 +24,23 @@ target_include_directories(drone_registry PUBLIC
   $<INSTALL_INTERFACE:include>)
 ament_target_dependencies(drone_registry mission_msgs)
 
+add_library(workflow_scheduler SHARED src/workflow_scheduler.cpp)
+target_include_directories(workflow_scheduler PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
+add_library(evidence_pipeline SHARED src/evidence_pipeline.cpp)
+target_include_directories(evidence_pipeline PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+ament_target_dependencies(evidence_pipeline mission_msgs task_lib)
+
 add_executable(task_server_node src/task_server_node.cpp)
 ament_target_dependencies(task_server_node
   ament_index_cpp mission_msgs orbslam3_msgs rclcpp rclcpp_action sensor_msgs std_msgs std_srvs task_lib)
-target_link_libraries(task_server_node drone_registry)
+target_link_libraries(task_server_node drone_registry evidence_pipeline workflow_scheduler)
 
-install(TARGETS drone_registry task_server_node
+install(TARGETS drone_registry evidence_pipeline workflow_scheduler task_server_node
   ARCHIVE DESTINATION lib LIBRARY DESTINATION lib RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
@@ -43,6 +54,11 @@ if(BUILD_TESTING)
   ament_add_gtest(test_drone_registry test/test_drone_registry.cpp)
   target_link_libraries(test_drone_registry drone_registry)
   ament_target_dependencies(test_drone_registry mission_msgs)
+  ament_add_gtest(test_workflow_scheduler test/test_workflow_scheduler.cpp)
+  target_link_libraries(test_workflow_scheduler workflow_scheduler)
+  ament_add_gtest(test_evidence_pipeline test/test_evidence_pipeline.cpp)
+  target_link_libraries(test_evidence_pipeline evidence_pipeline)
+  ament_target_dependencies(test_evidence_pipeline mission_msgs task_lib)
 endif()
 
 ament_package()

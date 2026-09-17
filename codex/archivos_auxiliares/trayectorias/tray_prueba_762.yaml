@@ -1,0 +1,32 @@
+name: fase_6N_barrido_fachada_corredor_free_largo
+description: >-
+  Repeticion observacional larga del barrido de fachada vigente: D1 bajo GT se
+  ancla al fiducial 2 y ejecuta el flujo actual sin modificar su logica.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 420.0
+steps:
+  - name: espera_registro
+    type: wait
+    seconds: 2.0
+  - name: anclaje_fiducial_2_d1_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 10.0
+        ty: 10.0
+        tz: 8.0
+        tyaw: 5.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: observacion_barrido_fachada_free_larga
+    type: wait
+    seconds: 300.0

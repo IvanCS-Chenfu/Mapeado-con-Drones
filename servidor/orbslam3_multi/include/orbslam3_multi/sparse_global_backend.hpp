@@ -19,6 +19,10 @@
 #include <set>
 #include <string>
 #include <tuple>
+#include <vector>
+
+#include <geometry_msgs/msg/point32.hpp>
+#include <geometry_msgs/msg/vector3.hpp>
 
 namespace orbslam3_multi
 {
@@ -36,6 +40,23 @@ struct SecondaryWorkPlan
 {
   std::optional<DatabaseUpdateTask> database_update;
   std::vector<LoopTask> direct_loop_tasks;
+};
+
+struct KeyframeSparseEvidencePoint
+{
+  uint64_t local_mappoint_id = 0;
+  geometry_msgs::msg::Point32 position_k;
+  float score = 0.0F;
+};
+
+struct KeyframeSparseEvidenceView
+{
+  RawKeyFrameId keyframe_id;
+  uint64_t geometry_revision = 0;
+  uint64_t pose_revision = 0;
+  geometry_msgs::msg::Pose world_pose;
+  std::vector<KeyframeSparseEvidencePoint> points_k;
+  std::set<RawMapPointId> member_mappoint_ids;
 };
 
 /// Fachada sin ROS que coordina las autoridades raw, poses, score, fusión y vista pública.
@@ -87,6 +108,8 @@ public:
   void ConfigureLoopPipeline(const LoopPipelineConfig & config);
   void ConfigureFusedLandmarks(const FusedLandmarkConfig & config);
   void ConfigureLandmarkScores(const LandmarkScoreConfig & config);
+  void ConfigureBodyCameraTransform(const geometry_msgs::msg::Pose & body_T_camera);
+  void SetDroneDimensions(const std::map<uint32_t, geometry_msgs::msg::Vector3> & dimensions);
   FiducialTaskRevalidation RevalidateFiducialTask(
     const FiducialOptimizationTask & task);
   PoseGraphBuildResult BuildFiducialPoseGraph(
@@ -106,6 +129,10 @@ public:
   GlobalPoseStoreStats GetPoseStats() const;
   LandmarkScoreStats GetScoreStats() const;
   std::optional<GlobalPoseRecord> GetGlobalPose(const RawKeyFrameId & id) const;
+  std::optional<orbslam3_msgs::msg::OrbMapPoint> GetRawMapPoint(
+    const RawMapPointId & id) const;
+  std::optional<KeyframeSparseEvidenceView> GetKeyframeSparseEvidence(
+    const RawKeyFrameId & id, float minimum_score) const;
   GlobalPoseQueryResult QueryGlobalPose(const RawKeyFrameId & id) const;
   GlobalMapBuildResult BuildGlobalMap();
   bool StartRawRecord(
@@ -150,6 +177,7 @@ private:
     const std::set<RawKeyFrameId> & keyframe_ids,
     const std::set<RawMapPointId> & mappoint_ids,
     const std::vector<RawMapPointId> & removals);
+  ScoreChangeSet RefreshDroneBodyMasks(const std::set<RawKeyFrameId> & keyframe_ids);
   void RefreshScoresAfterPoseChanges(const std::vector<PoseChangeSet> & changes);
 
   RawMapDatabase raw_database_;
@@ -159,6 +187,9 @@ private:
   OptimizationManager optimization_manager_;
   OptimizationValidator optimization_validator_;
   LandmarkScoreManager score_manager_;
+  geometry_msgs::msg::Pose body_T_camera_;
+  std::map<uint32_t, geometry_msgs::msg::Vector3> drone_dimensions_;
+  std::map<uint32_t, std::set<RawKeyFrameId>> body_keyframes_by_drone_;
   GlobalMapBuilder global_map_builder_;
   CovisibilityDatabase covisibility_database_;
   LoopPipeline loop_pipeline_;

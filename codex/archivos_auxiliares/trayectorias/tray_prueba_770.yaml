@@ -1,0 +1,51 @@
+name: fase_6_depth_prioritario_dos_drones_sin_limite
+description: >-
+  D1 y D2 llegan simultaneamente con GT al fiducial 2, separados en altura y
+  con yaw +90 grados. Se habilita coverage despues de ambos anclajes y la
+  simulacion permanece activa hasta que el usuario la cierre manualmente.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 1000000000.0
+steps:
+  - name: espera_registro_y_orb
+    type: wait
+    seconds: 30.0
+  - name: anclaje_fiducial_2_d1_d2_gt
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.3]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: habilitar_coverage_tras_anclaje_d1_d2
+    type: call_set_bool
+    service: /mission/set_coverage_execution_enabled
+    value: true
+    timeout_sec: 30.0
+  - name: observar_coverage_hasta_cierre_manual
+    type: wait
+    seconds: 1000000000.0

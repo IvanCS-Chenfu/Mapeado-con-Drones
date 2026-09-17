@@ -37,6 +37,50 @@ TEST(DStarLite, ReturnsDirectRouteAcrossUnknownSpace)
   EXPECT_FALSE(route.incremental_repair);
 }
 
+TEST(DStarLite, ExplorationProfileTraversesUnknownAtHigherCost)
+{
+  task_lib::ReversibleVoxelMap map(1.0);
+  ASSERT_TRUE(map.RegisterNavigationProfile({"exploration", {0, 0, 0}, 2.0, 1, false}));
+
+  auto planner = Planner(Box(6.0, 2.0, 1.0));
+  planner.SetNavigationSnapshot(map.NavigationSnapshotFor("exploration"));
+  const auto route = planner.Plan({0.2, 0.2, 0.2}, {5.2, 0.2, 0.2});
+
+  ASSERT_TRUE(route.success);
+  ASSERT_FALSE(route.corridor.empty());
+  EXPECT_EQ(route.corridor.back(), (task_lib::VoxelKey{5, 0, 0}));
+}
+
+TEST(DStarLite, KnownFreeProfileRejectsUnknownCorridor)
+{
+  task_lib::ReversibleVoxelMap map(1.0);
+  ASSERT_TRUE(map.RegisterNavigationProfile({"facade_free", {0, 0, 0}, 2.0, 1, true}));
+
+  auto planner = Planner(Box(6.0, 2.0, 1.0));
+  planner.SetNavigationSnapshot(map.NavigationSnapshotFor("facade_free"));
+  const auto route = planner.Plan({0.2, 0.2, 0.2}, {5.2, 0.2, 0.2});
+
+  EXPECT_FALSE(route.success);
+  EXPECT_NE(route.failure_reason, "");
+}
+
+TEST(DStarLite, KnownFreeSafeEscapeNeverCrossesUnknown)
+{
+  task_lib::ReversibleVoxelMap map(1.0);
+  ASSERT_TRUE(map.RegisterNavigationProfile({"facade_free", {1, 0, 0}, 2.0, 1, true}));
+  ASSERT_TRUE(map.AddFreeEvidence("start_free", {0.2, 0.2, 0.2}));
+  ASSERT_TRUE(map.AddFreeEvidence("goal_free", {4.2, 0.2, 0.2}));
+  ASSERT_TRUE(map.ApplySparseSnapshot({{"obstacle", {1.2, 0.2, 0.2}, 1.0F}}));
+  map.RefreshNavigation("facade_free", map.TakeChanges());
+
+  auto planner = Planner(Box(6.0, 3.0, 1.0));
+  planner.SetNavigationSnapshot(map.NavigationSnapshotFor("facade_free"));
+  const auto route = planner.Plan({0.2, 0.2, 0.2}, {4.2, 0.2, 0.2});
+
+  EXPECT_FALSE(route.success);
+  EXPECT_EQ(route.failure_reason, "no_safe_escape");
+}
+
 TEST(DStarLite, RepairsRouteWhenARelevantVoxelBecomesOccupied)
 {
   auto planner = Planner(Box(6.0, 5.0, 1.0));
@@ -174,7 +218,7 @@ TEST(DStarLite, RepairsFromAnIncrementalNavigationUpdate)
   }
 }
 
-TEST(DStarLite, EscapesInitialClearanceThroughKnownFreeAndUnknownCells)
+TEST(DStarLite, RejectsInitialClearanceWhenOnlyUnknownEscapeExists)
 {
   auto planner = Planner(Box(6.0, 4.0, 0.99));
   std::vector<task_lib::VoxelCell> cells{Occupied(0, 0, 0)};
@@ -185,13 +229,8 @@ TEST(DStarLite, EscapesInitialClearanceThroughKnownFreeAndUnknownCells)
   planner.SetVoxelSnapshot(cells, 1U);
 
   const auto route = planner.Plan({0.2, 1.2, 0.2}, {5.2, 2.2, 0.2});
-  ASSERT_TRUE(route.success) << route.failure_reason;
-  EXPECT_TRUE(route.used_safe_escape);
-  ASSERT_GE(route.corridor.size(), 2U);
-  EXPECT_EQ(route.corridor.front().ix, 0);
-  EXPECT_EQ(route.corridor.front().iy, 1);
-  EXPECT_EQ(route.corridor[1].ix, 0);
-  EXPECT_EQ(route.corridor[1].iy, 2);
+  EXPECT_FALSE(route.success);
+  EXPECT_EQ(route.failure_reason, "no_safe_escape");
 }
 
 TEST(DStarLite, RejectsEscapeWhenFreeVolumeCannotReachClearance)

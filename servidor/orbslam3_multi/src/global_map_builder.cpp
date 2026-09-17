@@ -157,6 +157,9 @@ bool GlobalMapBuilder::RemovePoint(const RawMapPointId & id)
 bool GlobalMapBuilder::RemoveKeyFrame(const RawKeyFrameId & id)
 {
   const bool removed = keyframe_world_cache_.erase(id) != 0U;
+  if (removed) {
+    removed_keyframes_this_update_.insert(id);
+  }
   keyframe_projection_cache_.erase(id);
   const auto inverse = keyframe_to_mappoints_.find(id);
   if (inverse != keyframe_to_mappoints_.end()) {
@@ -229,6 +232,7 @@ bool GlobalMapBuilder::EnsureKeyFrame(
     return true;
   }
   keyframe_world_cache_[id] = {id, world->world_pose};
+  changed_keyframes_this_update_.insert(id);
   ++result->recalculated_keyframes;
   result->changed = true;
   usable_keyframes_this_update_.insert(id);
@@ -504,6 +508,15 @@ void GlobalMapBuilder::PopulateOutput(GlobalMapBuildResult * result)
     (void)id;
     result->keyframes.push_back(keyframe);
   }
+  result->delta_keyframe_upserts.reserve(changed_keyframes_this_update_.size());
+  for (const auto & id : changed_keyframes_this_update_) {
+    const auto keyframe = keyframe_world_cache_.find(id);
+    if (keyframe != keyframe_world_cache_.end()) {
+      result->delta_keyframe_upserts.push_back(keyframe->second);
+    }
+  }
+  result->delta_keyframe_deletes.assign(
+    removed_keyframes_this_update_.begin(), removed_keyframes_this_update_.end());
 }
 
 GlobalMapBuildResult GlobalMapBuilder::Update(
@@ -515,6 +528,8 @@ GlobalMapBuildResult GlobalMapBuilder::Update(
   GlobalMapBuildResult result;
   usable_keyframes_this_update_.clear();
   unusable_keyframes_this_update_.clear();
+  changed_keyframes_this_update_.clear();
+  removed_keyframes_this_update_.clear();
 
   for (auto deferred = deferred_unanchored_submaps_.begin();
     deferred != deferred_unanchored_submaps_.end();)

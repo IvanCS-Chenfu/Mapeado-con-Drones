@@ -104,6 +104,11 @@ fuente comun usada por `task_manager` para no iniciar `InspectFacade` mientras
 otra trayectoria fisica sigue en curso; no cambia las reglas de sustitucion
 del STOP.
 
+Los yaw absolutos de goals directos y `Pol3Waypoints` se desenvuelven respecto
+al yaw inicial y, despues, respecto al waypoint anterior mediante
+`NearestEquivalentYaw`. Asi cruzar `+pi/-pi` conserva el arco corto solicitado;
+por ejemplo, desde 90 a 181 grados se ejecutan +91 grados y no -269.
+
 `calibration.yaml` expresa un SE(3) `B_T_C` completo. Para la camara optica
 frontal usa traslacion `(0.10,0.03,0.03) m` en body y
 `RPY=(-90,0,-90)` bajo `Rz*Ry*Rx`; el wrapper puede aplicar

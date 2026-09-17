@@ -459,7 +459,7 @@ std::vector<VoxelKey> DStarLitePlanner::FindSafeEscape(const VoxelKey & start) c
 
   // La pose actual ya existe fisicamente: puede incumplir el clearance de la
   // ruta normal. Se busca la salida local menos costosa hasta la primera celda
-  // que recupera ese perfil, sin atravesar OCCUPIED. FREE se prefiere a UNKNOWN.
+  // que recupera ese perfil, atravesando exclusivamente evidencia FREE.
   std::multimap<double, VoxelKey> pending;
   std::map<VoxelKey, double> best_cost;
   std::map<VoxelKey, VoxelKey> predecessor;
@@ -490,12 +490,10 @@ std::vector<VoxelKey> DStarLitePlanner::FindSafeEscape(const VoxelKey & start) c
         current.ix + offset[0], current.iy + offset[1], current.iz + offset[2]};
       // La salida es local; la guia gruesa solo optimiza la ruta normal y no
       // puede impedir que el dron abandone una posicion inicial estrecha.
-      if (!IsInsideSearchVolume(candidate) || RawState(candidate) == VoxelState::Occupied) {
+      if (!IsInsideSearchVolume(candidate) || RawState(candidate) != VoxelState::Free) {
         continue;
       }
-      const double multiplier = RawState(candidate) == VoxelState::Unknown ?
-        navigation_unknown_cost_multiplier_ : 1.0;
-      const double candidate_cost = current_cost + multiplier;
+      const double candidate_cost = current_cost + 1.0;
       const auto known_cost = best_cost.find(candidate);
       if (known_cost != best_cost.end() && candidate_cost + kEpsilon >= known_cost->second) {
         continue;

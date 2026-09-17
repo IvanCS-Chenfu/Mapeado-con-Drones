@@ -27,17 +27,19 @@ Simbolos utiles:
 - `ReversibleVoxelMap::UpdateSparseOccupancy`
 - `ReversibleVoxelMap::MarkTraversedFree`
 
-## Barrido de fachada
+## Coverage U de fachada
 
 Archivos:
 
 - `servidor/task_lib/include/task_lib/facade_coverage.hpp`
 - `servidor/task_lib/src/facade_coverage.cpp`
 
-La geometria AB/BC/CD/DA se proyecta sobre una linea de fachada orientada.
-`FacadeCoverage` conserva la union normalizada de intervalos recorridos y
-calcula el ratio respecto al intervalo total. No existe un enum voxel
-`COVERAGE`: la cobertura es una magnitud 1D independiente del estado
+`BuildFacadeCoveragePlan` construye las tres caras de una U, abiertas por la
+cara mas cercana al centro del ROI, a un offset configurable. Las secciones se
+almacenan en orden continuo de U, de modo que sus vecinos pueden cruzar una
+esquina pero nunca cerrar la cara abierta. `FacadeCoverageSectionForPoint`
+asigna una celda espacial a su rebanada U. No existe un enum voxel `COVERAGE`:
+la cobertura es una capa derivada, reversible y separada de
 `FREE/OCCUPIED/UNKNOWN`.
 
 `SelectFacadeCandidate` busca un punto dentro del volumen duro con costes
@@ -65,9 +67,11 @@ Archivos:
 - `servidor/task_lib/src/dstar_lite_3d.cpp`
 - `servidor/task_lib/src/reservation_table.cpp`
 
-`DStarLite3D` mantiene el grafo incremental y admite perfiles que exigen
-`require_known_free=true`. Para el barrido de fachada, el destino y el corredor
-proceden de la inspeccion depth y D* no usa UNKNOWN como atajo.
+`DStarLitePlanner` mantiene el grafo incremental y admite perfiles que pueden
+exigir `require_known_free=true`. El barrido de fachada usa ese perfil estricto:
+D* solo atraviesa FREE y nunca UNKNOWN, OCCUPIED o RESERVED. La misma identidad
+de perfil debe conservarse en la simplificacion de la ruta, la cola, la reserva
+y cualquier replanificacion.
 
 Las reservas son una capa temporal distinta de la ocupacion persistente. Se
 tratan como bloqueadas para otros drones durante la planificacion, pero no
@@ -83,3 +87,15 @@ Tests relevantes:
 - `servidor/task_lib/test/test_reservation_table.cpp`
 
 Validacion vigente: build correcto y CTest `9/9`.
+
+## Score continuo depth
+
+`ReversibleVoxelMap` conserva `sparse_score=sum(scores)/N` por identidades
+MapPoint y declara `OCCUPIED` sobre `0.4`. Las fuentes
+`ReplaceDirectDepthFreeCells` y `ReplaceDepthOccupiedCells` resuelven una
+observacion frontal depth a `FREE=0` en rayo y `OCCUPIED=1` en endpoint; al
+retirarlas reaparece la media sparse. `SelectFacadeCoverageCandidate` elige
+una seccion U pendiente y una pose fisica de coste. Si el destino o el corredor
+no son FREE, `task_server` inspecciona el objetivo visual y despues solo puede
+despachar toda la ruta FREE o su prefijo FREE continuo. Nunca devuelve el
+centro visual como pose fisica de vuelo.

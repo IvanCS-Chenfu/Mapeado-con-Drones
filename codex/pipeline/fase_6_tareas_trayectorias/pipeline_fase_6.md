@@ -17,6 +17,24 @@ interfaces de mision dentro de orbslam3_msgs
 secuencia artificial 6A-6T
 ```
 
+## Migracion vigente: inspeccion exterior por secciones U
+
+Los contratos actuales de `6H`, `6I`, `6F`, `6G` y `6J` prevalecen sobre los
+pasajes genericos de este documento que describan frontiers, seleccion por
+score intermedio o coverage lineal. La migracion acordada usa una U situada a
+dos voxeles de las tres caras exteriores del subROI, dejando abierta la cara
+mas cercana al centro del ROI global. Sus secciones volumetricas solo guian la
+seleccion: pendientes valen `0`, activas `10`, y no son obstaculos para D*.
+
+Una seccion se activa por `vista_pared` al materializar un impacto depth
+directo `OCCUPIED=1`, o como `SIN_FACHADA` en una esquina si una vista valida
+aporta FREE hasta 4 m sin impacto. La seleccion usa secciones pendientes,
+distancia preferida a pared de 4 m, altura central y desplazamiento preferido.
+Una ruta FREE se ejecuta como `MOVE_AND_CAPTURE`; una pose UNKNOWN solo usa
+`LOOK_AND_CAPTURE` para despejarla. D* no atraviesa UNKNOWN, no usa la U y
+solo realiza prefijos FREE. Este es un contrato preparado: los componentes que
+aun tengan la politica anterior deben migrarse sin mezclar ambos modelos.
+
 ## Objetivo
 
 Ejecutar misiones multidron configuradas, repartir responsabilidades regionales

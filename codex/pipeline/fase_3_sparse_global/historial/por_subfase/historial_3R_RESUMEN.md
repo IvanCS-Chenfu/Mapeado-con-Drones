@@ -3,7 +3,9 @@
 ## Estado
 
 ```text
-CONSEGUIDA: RECALIBRACION TECNICA Y VISUAL CONFIRMADAS
+PARCIAL: aislamiento confirmado; mascara fisica compilada, testeada y ejecutada
+en simulacion conjunta. Solo queda la confirmacion visual del usuario de que
+los MapPoints del otro dron se vieron con score cero.
 ```
 
 ## Implementado
@@ -11,6 +13,14 @@ CONSEGUIDA: RECALIBRACION TECNICA Y VISUAL CONFIRMADAS
 - raw = base ORB * distancia * aislamiento + `0.04` por inlier;
 - factores configurables, acotados y recuperables, con indice voxel;
 - fused = media de todos los miembros + `0.04*N`;
+- desde 2026-09-15, un MP maduro sin dos vecinos globales validos a `<=0.30 m` tiene
+  score raw duro `0`, aunque reciba inliers; la recuperacion por vecino es
+  incremental y un track solo de miembros aislados publica fused `0`;
+- desde 2026-09-15, los MapPoints dentro de la esfera fisica de cualquier
+  KeyFrame global activo de un dron registrado tambien reciben cero duro. La
+  esfera se centra en `base_link`, tiene radio igual a la semidiagonal de las
+  dimensiones y se actualiza por vecindad al mover/inutilizar KFs o cambiar el
+  registro; no depende de ownership del MapPoint;
 - propagacion incremental tras raw/anchors/poses/merges;
 - visibilidad sparse solo diagnostica; oclusion para Fase 8;
 - builder sin filtro, RViz2 score/rgb rojo-amarillo-verde;
@@ -55,3 +65,10 @@ La prueba 194 valida la recalibracion:
 El usuario confirma que los scores de 194 han salido perfectos y concluye 3R.
 La mala optimizacion final del dron antihorario junto al fiducial 2 se investiga
 como incidencia separada 3Q/fiducial y no invalida el scoring.
+
+La prueba 767 se ejecuto correctamente tras corregir su modo de concurrencia a
+`simultaneous`: ambos drones recibieron sus dos tramos GT en paralelo y el
+escenario termino con `success=true`. El primer arranque de Gazebo murio pronto,
+pero el reintento limpio del helper completo la prueba. El log confirma los dos
+registros y publicaciones sparse con score en `[0,1]`; la GUI es la evidencia
+final pendiente para verificar visualmente los puntos del otro dron con cero.

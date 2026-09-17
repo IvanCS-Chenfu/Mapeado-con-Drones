@@ -266,6 +266,51 @@ ScoreChangeSet SparseGlobalBackend::RefreshGeometryScores(
   return score_manager_.ApplyGeometryChanges(upserts, geometry_removals);
 }
 
+ScoreChangeSet SparseGlobalBackend::RefreshDroneBodyMasks(
+  const std::set<RawKeyFrameId> & keyframe_ids)
+{
+  std::vector<DroneBodySphere> upserts;
+  std::vector<RawKeyFrameId> removals;
+  upserts.reserve(keyframe_ids.size());
+
+  Eigen::Isometry3d body_T_camera = Eigen::Isometry3d::Identity();
+  Eigen::Isometry3d configured_body_T_camera;
+  if (PoseToIsometry(body_T_camera_, &configured_body_T_camera)) {
+    body_T_camera = configured_body_T_camera;
+  }
+  for (const auto & keyframe_id : keyframe_ids) {
+    const auto dimensions = drone_dimensions_.find(keyframe_id.drone_id);
+    const auto pose = pose_store_.GetPose(keyframe_id);
+    if (dimensions == drone_dimensions_.end() || !pose.has_value() || !pose->active ||
+      dimensions->second.x <= 0.0 || dimensions->second.y <= 0.0 ||
+      dimensions->second.z <= 0.0)
+    {
+      removals.push_back(keyframe_id);
+      body_keyframes_by_drone_[keyframe_id.drone_id].erase(keyframe_id);
+      continue;
+    }
+    Eigen::Isometry3d world_T_camera;
+    if (!PoseToIsometry(pose->world_pose, &world_T_camera)) {
+      removals.push_back(keyframe_id);
+      body_keyframes_by_drone_[keyframe_id.drone_id].erase(keyframe_id);
+      continue;
+    }
+    const Eigen::Isometry3d world_T_body = world_T_camera * body_T_camera.inverse();
+    DroneBodySphere sphere;
+    sphere.keyframe_id = keyframe_id;
+    sphere.center.x = world_T_body.translation().x();
+    sphere.center.y = world_T_body.translation().y();
+    sphere.center.z = world_T_body.translation().z();
+    sphere.radius_m = 0.5 * std::sqrt(
+      dimensions->second.x * dimensions->second.x +
+      dimensions->second.y * dimensions->second.y +
+      dimensions->second.z * dimensions->second.z);
+    upserts.push_back(sphere);
+    body_keyframes_by_drone_[keyframe_id.drone_id].insert(keyframe_id);
+  }
+  return score_manager_.UpdateDroneBodySpheres(upserts, removals);
+}
+
 void SparseGlobalBackend::RefreshScoresAfterPoseChanges(
   const std::vector<PoseChangeSet> & changes)
 {
@@ -278,6 +323,7 @@ void SparseGlobalBackend::RefreshScoresAfterPoseChanges(
       change.control_propagated_ids.begin(), change.control_propagated_ids.end());
   }
   auto score_changes = RefreshGeometryScores(keyframes, {}, {});
+  MergeScoreChanges(&score_changes, RefreshDroneBodyMasks(keyframes));
   RefreshFusedScores(
     score_changes, &fused_landmark_manager_, &score_manager_, &score_changes);
   std::lock_guard<std::mutex> builder_lock(builder_mutex_);
@@ -439,6 +485,7 @@ PrimaryBackendResult SparseGlobalBackend::InsertDelta(
   const auto geometry_changes = RefreshGeometryScores(
     keyframes, mappoints, result.raw_result.invalidated_mappoint_ids);
   MergeScoreChanges(&result.score_changes, geometry_changes);
+  MergeScoreChanges(&result.score_changes, RefreshDroneBodyMasks(keyframes));
   RefreshFusedScores(
     result.score_changes, &fused_landmark_manager_, &score_manager_,
     &result.score_changes);
@@ -497,6 +544,7 @@ PrimaryBackendResult SparseGlobalBackend::InsertFullSnapshot(
   const auto geometry_changes = RefreshGeometryScores(
     keyframes, mappoints, result.raw_result.invalidated_mappoint_ids);
   MergeScoreChanges(&result.score_changes, geometry_changes);
+  MergeScoreChanges(&result.score_changes, RefreshDroneBodyMasks(keyframes));
   RefreshFusedScores(
     result.score_changes, &fused_landmark_manager_, &score_manager_,
     &result.score_changes);
@@ -1913,6 +1961,66 @@ void SparseGlobalBackend::ConfigureLandmarkScores(const LandmarkScoreConfig & co
   score_manager_.Configure(config);
 }
 
+void SparseGlobalBackend::ConfigureBodyCameraTransform(
+  const geometry_msgs::msg::Pose & body_T_camera)
+{
+  std::lock_guard<std::mutex> state_lock(state_commit_mutex_);
+  body_T_camera_ = body_T_camera;
+  std::set<RawKeyFrameId> keyframes;
+  for (const auto & [drone_id, ids] : body_keyframes_by_drone_) {
+    (void)drone_id;
+    keyframes.insert(ids.begin(), ids.end());
+  }
+  auto score_changes = RefreshDroneBodyMasks(keyframes);
+  RefreshFusedScores(
+    score_changes, &fused_landmark_manager_, &score_manager_, &score_changes);
+  if (score_changes.HasStoreChanges()) {
+    std::lock_guard<std::mutex> builder_lock(builder_mutex_);
+    global_map_builder_.MarkScoreChanges(score_changes);
+  }
+}
+
+void SparseGlobalBackend::SetDroneDimensions(
+  const std::map<uint32_t, geometry_msgs::msg::Vector3> & dimensions)
+{
+  std::lock_guard<std::mutex> state_lock(state_commit_mutex_);
+  std::set<uint32_t> changed_drones;
+  for (const auto & [drone_id, previous] : drone_dimensions_) {
+    const auto incoming = dimensions.find(drone_id);
+    if (incoming == dimensions.end() || previous.x != incoming->second.x ||
+      previous.y != incoming->second.y || previous.z != incoming->second.z)
+    {
+      changed_drones.insert(drone_id);
+    }
+  }
+  for (const auto & [drone_id, incoming] : dimensions) {
+    const auto previous = drone_dimensions_.find(drone_id);
+    if (previous == drone_dimensions_.end() || previous->second.x != incoming.x ||
+      previous->second.y != incoming.y || previous->second.z != incoming.z)
+    {
+      changed_drones.insert(drone_id);
+    }
+  }
+  if (changed_drones.empty()) {
+    return;
+  }
+  drone_dimensions_ = dimensions;
+  std::set<RawKeyFrameId> keyframes;
+  for (const uint32_t drone_id : changed_drones) {
+    const auto known = body_keyframes_by_drone_.find(drone_id);
+    if (known != body_keyframes_by_drone_.end()) {
+      keyframes.insert(known->second.begin(), known->second.end());
+    }
+  }
+  auto score_changes = RefreshDroneBodyMasks(keyframes);
+  RefreshFusedScores(
+    score_changes, &fused_landmark_manager_, &score_manager_, &score_changes);
+  if (score_changes.HasStoreChanges()) {
+    std::lock_guard<std::mutex> builder_lock(builder_mutex_);
+    global_map_builder_.MarkScoreChanges(score_changes);
+  }
+}
+
 FiducialTaskRevalidation SparseGlobalBackend::RevalidateFiducialTask(
   const FiducialOptimizationTask & task)
 {
@@ -2361,6 +2469,80 @@ std::optional<GlobalPoseRecord> SparseGlobalBackend::GetGlobalPose(
   const RawKeyFrameId & id) const
 {
   return pose_store_.GetPose(id);
+}
+
+std::optional<orbslam3_msgs::msg::OrbMapPoint> SparseGlobalBackend::GetRawMapPoint(
+  const RawMapPointId & id) const
+{
+  return raw_database_.GetMapPoint(id);
+}
+
+std::optional<KeyframeSparseEvidenceView> SparseGlobalBackend::GetKeyframeSparseEvidence(
+  const RawKeyFrameId & id, float minimum_score) const
+{
+  if (!std::isfinite(minimum_score) || minimum_score < 0.0F || minimum_score > 1.0F) {
+    return std::nullopt;
+  }
+  std::lock_guard<std::mutex> state_lock(state_commit_mutex_);
+  const auto keyframe = raw_database_.GetKeyFrame(id);
+  const auto pose = pose_store_.GetPose(id);
+  if (!keyframe.has_value() || keyframe->is_bad || !pose.has_value() || !pose->active) {
+    return std::nullopt;
+  }
+  Eigen::Isometry3d local_t_keyframe;
+  if (!PoseToIsometry(keyframe->pose, &local_t_keyframe)) {
+    return std::nullopt;
+  }
+  const auto keyframe_revision = raw_database_.GetKeyFrameRevision(id).value_or(0U);
+  constexpr uint64_t kFNVOffset = 1469598103934665603ULL;
+  constexpr uint64_t kFNVPrime = 1099511628211ULL;
+  uint64_t geometry_revision = kFNVOffset;
+  const auto hash_value = [&geometry_revision](uint64_t value) {
+      geometry_revision ^= value;
+      geometry_revision *= kFNVPrime;
+    };
+  hash_value(keyframe_revision);
+
+  KeyframeSparseEvidenceView result;
+  result.keyframe_id = id;
+  result.pose_revision = pose->pose_revision;
+  result.world_pose = pose->world_pose;
+  result.points_k.reserve(keyframe->mappoint_ids.size());
+  for (const auto local_mappoint_id : keyframe->mappoint_ids) {
+    const RawMapPointId mappoint_id{id.drone_id, id.map_epoch, local_mappoint_id};
+    result.member_mappoint_ids.insert(mappoint_id);
+    hash_value(local_mappoint_id);
+    hash_value(raw_database_.GetMapPointRevision(mappoint_id).value_or(0U));
+    const auto mappoint = raw_database_.GetMapPoint(mappoint_id);
+    const auto score = score_manager_.GetScore(mappoint_id);
+    if (!mappoint.has_value() || !score.has_value() || mappoint->is_bad || score->is_bad) {
+      continue;
+    }
+    // Fase 6 cambia su evidencia solo cuando se cruza uno de sus umbrales.
+    // El score continuo no debe reconstruir planos ni rayos equivalentes.
+    hash_value(score->score >= minimum_score ? 1U : 0U);
+    hash_value(score->score >= 0.5F ? 1U : 0U);
+    if (score->score < minimum_score || !std::isfinite(mappoint->position.x) ||
+      !std::isfinite(mappoint->position.y) || !std::isfinite(mappoint->position.z))
+    {
+      continue;
+    }
+    const Eigen::Vector3d position_local(
+      mappoint->position.x, mappoint->position.y, mappoint->position.z);
+    const Eigen::Vector3d position_k = local_t_keyframe.inverse() * position_local;
+    if (!position_k.allFinite()) {
+      continue;
+    }
+    KeyframeSparseEvidencePoint point;
+    point.local_mappoint_id = local_mappoint_id;
+    point.position_k.x = static_cast<float>(position_k.x());
+    point.position_k.y = static_cast<float>(position_k.y());
+    point.position_k.z = static_cast<float>(position_k.z());
+    point.score = score->score;
+    result.points_k.push_back(point);
+  }
+  result.geometry_revision = geometry_revision;
+  return result;
 }
 
 GlobalPoseQueryResult SparseGlobalBackend::QueryGlobalPose(

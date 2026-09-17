@@ -1,97 +1,45 @@
-# Subfase 6B - Geometria y semantica de MAP_SECTION
+# Subfase 6B - Registro y asignacion de subROI
 
 ## Estado
 
-```text
-CONSEGUIDA el 2026-09-07
-```
+`PARCIAL`.
 
-## Dependencia
+La disponibilidad ya entra por `TASK_ASSIGNMENT` y la asignacion por
+proximidad crea una continuacion `POINT_SELECTION`. El selector real aun no
+consume esa cola, por lo que el dispatcher legacy permanece transitoriamente
+activo.
 
-6A.
+## Objetivo
 
-## Objetivo tecnico
+Asignar trabajo regional sin retener el worker de asignacion. Un dron anclado,
+registrado y sin orden normal activa entra en `TaskAssignmentQueue`; el worker
+elige una tarea pendiente cercana, la asigna y encola el dron en
+`PointSelectionQueue`.
 
-Dividir el ROI en niveles y cuatro responsabilidades regionales solapadas por
-nivel, y formalizar ownership base/ramas sin convertirlas en rutas.
+## Contrato funcional
 
-## Comportamiento esperado
-
-El resto vertical se suma al ultimo nivel. En XY se fija
-`A=(xmin,ymin)`, `B=(xmax,ymin)`, `C=(xmax,ymax)` y `D=(xmin,ymax)`. Cada
-subROI conserva la longitud completa de su lado y llega exactamente hasta el
-centro del slice:
-
-```text
-AB = [xmin,xmax] x [ymin,ymid]
-BC = [xmid,xmax] x [ymin,ymax]
-CD = [xmin,xmax] x [ymid,ymax]
-DA = [xmin,xmid] x [ymin,ymax]
-```
-
-Cada una ocupa el 50 % del slice. Dos adyacentes solapan en un cuarto del
-slice, equivalente a la mitad de cada subROI; las opuestas solo comparten la
-frontera central. No existe ratio de solape configurable. No son 4/8 puntos,
-un recorrido A-B-C ni un sentido horario obligatorio.
-
-Una `MAP_SECTION` es responsabilidad inicial. Puede navegar por todo
-`hard_flight_volume`. Una expansion confirmada por frontier crea ownership 3D,
-puede cruzar nivel/subROI y no obliga a mapear fuera de `mapping_roi`.
-
-Si dos accesos conectan la misma region, se fusiona la identidad: primer owner
-para coverage detallada y segunda pasada ligera para loops/covisibilidad. Una
-region sin conectividad conocida no provoca busqueda infinita.
-
-Desde este bloque `task_server` publica un snapshot real de geometria
-`reliable+transient_local`. Antes de 6E contiene regiones de mision sin
-asignacion, no tareas ficticias. `mission_flow` conserva el flujo y eventos;
-la GUI F7 muestra los prismas mediante `MissionRegionLayer` y el menu superior
-`Regiones` permite activar varias regiones coloreadas a la vez.
+- La distancia de asignacion se calcula desde la pose navegable actual hasta
+  el subROI o intervalo pendiente, no desde un orden fijo de tarjetas.
+- Una tarea parcial conserva sus intervalos cubiertos y estado `TO_FINISH`.
+- `COMPLETED` solo se usa cuando alcanza el coverage acordado.
+- Al completar o liberar una tarea, el dron vuelve a la cola de asignacion.
+- Llegar a una cara compartida con otro subROI puede dejar el actual en
+  `TO_FINISH`; nunca se marca completo solo por proximidad.
 
 ## Cambios requeridos
 
-1. Definir `MappingLevel`, cuatro `BaseSubRoi` estables y las formulas exactas
-   de mitad/solape anteriores.
-2. Cubrir ROI menor que `level_height`, multiplo exacto y resto final.
-3. Definir `task_id`, `base_owner`, `branch_owner_task_id` y transferencia.
-4. Separar ownership geometrico base de `frontier lineage` dinamico de 6H.
-5. Formalizar merge de dos entradas y pasada secundaria ligera.
-6. Emitir resumen `MISSION_GEOMETRY_READY` y snapshot de geometria sin puntos,
-   tareas ni assignments ficticios.
-7. Añadir el menu superior `Regiones`, agrupado por nivel, con acciones
-   multiseleccionables, colores estables y controles de mostrar/ocultar.
-8. Renderizar cada prisma visible con relleno translucido, contorno y etiqueta
-   `Nivel N - lado`. Clicar un prisma solo abre su inspector; no altera la
-   visibilidad elegida en el menu. En 6E/7I la misma identidad se enlazara con
-   la tarea real del dron.
+- Migrar registro, disponibilidad y ownership a trabajos identificados.
+- El worker termina despues de asignar o de no encontrar tarea compatible.
+- Conservar una sola tarea regional asignada por dron.
+- Publicar snapshots de tarea para GUI sin usar esos snapshots como cola.
 
-## Limites
+## Exclusiones
 
-No detectar puertas/habitaciones semanticamente, no generar waypoints ni
-frontiers, no limitar una rama a su slice y no usar el ROI como pared fisica.
-No asignar regiones a drones ni declarar 7I conseguida antes de 6E.
+- No se ejecuta D*, depth ni reserva durante la asignacion.
+- No se decide aqui la geometria detallada de fachada.
 
-## Pruebas
+## Validacion y exito
 
-- Geometria determinista de uno/varios niveles y cuatro mitades exactas;
-  verificar areas, intersecciones adyacentes y frontera de opuestas.
-- Casos conceptuales: abierto, puerta en un lado, rama cruzando niveles, puerta
-  cerrada, pasillo L, dos entradas y reapertura posterior.
-- Visualizacion de geometria real no asignada en `mission_flow` y GUI con
-  Gazebo abierto; probar cambio de region, seleccion de otra entidad y click
-  vacio. No se exige movimiento.
-
-## Criterio de exito
-
-Cuatro responsabilidades del 50 % por nivel, intersecciones demostradas,
-snapshot real y seleccion GUI coherente, sin `tasks_per_level`, puntos A-B-C,
-rutas rigidas ni assignments prematuros.
-
-## Evidencia vigente
-
-- Unitarios de geometria: niveles, resto vertical, mitades, solapes y ownership
-  base; `task_lib` 5/5.
-- Smoke Qt/OpenGL y CTest `multidron_gui_lib` 9/9 correctos.
-- En 603 la GUI recibio 3 niveles y 12 regiones; la interaccion real verifico
-  visibilidad individual, mostrar todas y ocultar todas. Revision humana de
-  los prismas, etiquetas y colores: correcta.
+Dos drones anclados en una interseccion reciben tareas por proximidad. Un dron
+que termina y otro que deja `TO_FINISH` vuelven a competir sin duplicar
+ownership ni bloquear el worker.

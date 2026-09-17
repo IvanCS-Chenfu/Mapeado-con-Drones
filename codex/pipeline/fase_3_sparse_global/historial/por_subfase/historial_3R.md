@@ -95,3 +95,29 @@ la prueba 193.
   diagnostico 3Q/fiducial, sin reabrir 3R ni modificar codigo. La revision
   identifica dos loops 3Q asimetricos sobre el dron 2; el fiducial posterior no
   fue la causa.
+
+## 2026-09-15 - Prueba 767, mascara fisica con dos drones
+
+- Objetivo: verificar en Gazebo y GUI F7 que los MapPoints dentro del volumen
+  fisico de cualquiera de los drones reciben score cero durante un movimiento
+  GT paralelo.
+- Cambios de prueba: se corrigio el YAML, sustituyendo el modo invalido
+  `parallel` por `simultaneous` en los dos pasos concurrentes. No se alteraron
+  objetivos, tiempos ni codigo de producto.
+- Build y tests previos: `orbslam3_multi` y `orbslam3_server` correctos; CTest
+  dirigido 2/2, incluido cero duro, resistencia a inliers y recuperacion al
+  desplazar una esfera.
+- Prueba: D1 y D2 se registraron, recibieron los objetivos GT en paralelo
+  `(-10,-9.5,1)`/`(-10,-10.5,1)` y luego
+  `(0,-9.5,1)`/`(0,-10.5,1)`. El primer arranque de Gazebo murio durante la
+  estabilizacion y el helper realizo su reintento limpio.
+- Resultado objetivo: segundo intento con `SIM-SCENARIO-EXIT-CODE=0`,
+  `SIM-DONE success=true` y `SIM-EXIT-CODE=0`; el helper limpio todos los
+  procesos al final.
+- Evidencia: `global_map_server` recibio el registro transitorio de ambos
+  drones; la publicacion sparse mantuvo `score_min=0` y `score_max=1`.
+- Limitacion: el log no publica un contador de MapPoints enmascarados durante
+  el vuelo. La confirmacion de que los puntos del otro dron se vieron con score
+  cero corresponde a la revision visual de la GUI por el usuario.
+- Conclusion: `PARCIAL`; ejecucion conjunta correcta y mecanismo unitariamente
+  validado, pendiente solo de confirmacion visual del criterio final.

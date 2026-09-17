@@ -109,6 +109,9 @@ def generate_launch_description():
         'multidron_gui_start_delay_sec', default_value='0.0'))
     ld.add_action(DeclareLaunchArgument('launch_rviz', default_value='false'))
     ld.add_action(DeclareLaunchArgument('launch_phase6', default_value='true'))
+    for i in range(1, default_n + 1):
+        ld.add_action(DeclareLaunchArgument(
+            f'launch_drone_{i}', default_value='true'))
     ld.add_action(DeclareLaunchArgument('drone_stale_timeout_sec', default_value='1.0'))
     ld.add_action(DeclareLaunchArgument('spawn_fiducials', default_value='true'))
     ld.add_action(DeclareLaunchArgument('drone_start_stagger_sec', default_value='8.0'))
@@ -185,15 +188,29 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument(
         'phase6_waypoint_blend_sec', default_value='3.0'))
     ld.add_action(DeclareLaunchArgument(
-        'phase6_min_occupied_mappoints_per_voxel', default_value='4'))
+        'phase6_voxel_occupied_score_threshold', default_value='0.4'))
+    ld.add_action(DeclareLaunchArgument('phase6_visual_target_min_score', default_value='0.2'))
+    ld.add_action(DeclareLaunchArgument('phase6_visual_target_max_score', default_value='0.6'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_sparse_plane_min_map_point_score', default_value='0.2'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_debug_trajectory_diagnostics', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
-        'phase6_extra_obstacle_clearance_voxels', default_value='2'))
+        'phase6_debug_facade_dstar_failure', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_start_escape_radius_voxels', default_value='4'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_unknown_fallback_free_radius_voxels', default_value='8'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_facade_coverage_offset_voxels', default_value='2'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_coverage_neighbor_sections', default_value='2'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_extra_obstacle_clearance_voxels', default_value='1'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_voxel_worker_coalesce_ms', default_value='100'))
     ld.add_action(DeclareLaunchArgument(
-        'phase6_facade_preferred_wall_distance_m', default_value='2.5'))
+        'phase6_facade_preferred_wall_distance_m', default_value='4.0'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_facade_preferred_displacement_m', default_value='2.0'))
     ld.add_action(DeclareLaunchArgument('phase6_facade_wall_distance_weight', default_value='1.0'))
@@ -201,7 +218,6 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('phase6_facade_height_weight', default_value='1.0'))
     ld.add_action(DeclareLaunchArgument('phase6_facade_completion_ratio', default_value='0.99'))
     ld.add_action(DeclareLaunchArgument('phase6_facade_candidate_step_m', default_value='0.25'))
-    ld.add_action(DeclareLaunchArgument('phase6_facade_min_free_prefix_m', default_value='1.0'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_facade_orientation_tolerance_deg', default_value='25.0'))
     ld.add_action(DeclareLaunchArgument(
@@ -215,7 +231,27 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('phase6_depth_stop_distance_m', default_value='1.2'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_stop_cooldown_sec', default_value='5.0'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_min_confidence', default_value='0.25'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_min_support_points', default_value='20'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_max_points', default_value='128'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_far_measurement_max_distance_m', default_value='10.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_depth_far_free_distance_m', default_value='5.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_direct_surface_max_incidence_deg', default_value='30.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_sparse_plane_min_inliers', default_value='20'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_sparse_plane_residual_voxels', default_value='0.5'))
+    ld.add_action(DeclareLaunchArgument('phase6_sparse_plane_max_samples', default_value='1024'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_sparse_ray_free_min_score', default_value='0.5'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_candidate_frame_capacity', default_value='16'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_candidate_min_tracking_inliers', default_value='20'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_candidate_min_interval_sec', default_value='0.5'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_candidate_min_orientation_delta_deg', default_value='2.5'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_depth_max_disparity_gradient_px_per_pixel', default_value='2.0'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_min_texture_gradient', default_value='8.0'))
@@ -230,13 +266,23 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('phase6_visual_risk_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument('phase6_debug_visual_risk_display', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
-        'phase6_visual_risk_empty_region_fraction', default_value='0.75'))
+        'phase6_visual_risk_empty_region_fraction', default_value='0.60'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_visual_risk_persistence_frames', default_value='3'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_visual_risk_directional_max_inliers', default_value='3'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_visual_risk_reorientation_grace_sec', default_value='6.0'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_visual_risk_reorientation_step_deg', default_value='25.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_facade_normal_min_support', default_value='40'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_facade_normal_min_confidence', default_value='0.8'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_facade_normal_max_yaw_change_deg', default_value='25.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_inspection_max_yaw_rate_deg_s', default_value='5.0'))
     ld.add_action(DeclareLaunchArgument(
         'orb_visual_evidence_output_dir', default_value=''))
     ld.add_action(DeclareLaunchArgument(
@@ -377,11 +423,26 @@ def generate_launch_description():
             'trajectory_min_segment_duration_sec': ParameterValue(
                 LaunchConfiguration('phase6_trajectory_min_segment_duration_sec'),
                 value_type=float),
-            'min_occupied_mappoints_per_voxel': ParameterValue(
-                LaunchConfiguration('phase6_min_occupied_mappoints_per_voxel'),
-                value_type=int),
+            'voxel_occupied_score_threshold': ParameterValue(
+                LaunchConfiguration('phase6_voxel_occupied_score_threshold'), value_type=float),
+            'visual_target_min_score': ParameterValue(
+                LaunchConfiguration('phase6_visual_target_min_score'), value_type=float),
+            'visual_target_max_score': ParameterValue(
+                LaunchConfiguration('phase6_visual_target_max_score'), value_type=float),
+            'sparse_plane_min_map_point_score': ParameterValue(
+                LaunchConfiguration('phase6_sparse_plane_min_map_point_score'), value_type=float),
             'debug_trajectory_diagnostics': ParameterValue(
                 LaunchConfiguration('phase6_debug_trajectory_diagnostics'), value_type=bool),
+            'debug_facade_dstar_failure': ParameterValue(
+                LaunchConfiguration('phase6_debug_facade_dstar_failure'), value_type=bool),
+            'start_escape_radius_voxels': ParameterValue(
+                LaunchConfiguration('phase6_start_escape_radius_voxels'), value_type=int),
+            'unknown_fallback_free_radius_voxels': ParameterValue(
+                LaunchConfiguration('phase6_unknown_fallback_free_radius_voxels'), value_type=int),
+            'facade_coverage_offset_voxels': ParameterValue(
+                LaunchConfiguration('phase6_facade_coverage_offset_voxels'), value_type=int),
+            'depth_coverage_neighbor_sections': ParameterValue(
+                LaunchConfiguration('phase6_depth_coverage_neighbor_sections'), value_type=int),
             'extra_obstacle_clearance_voxels': ParameterValue(
                 LaunchConfiguration('phase6_extra_obstacle_clearance_voxels'),
                 value_type=int),
@@ -401,8 +462,6 @@ def generate_launch_description():
                 LaunchConfiguration('phase6_facade_completion_ratio'), value_type=float),
             'facade_candidate_step_m': ParameterValue(
                 LaunchConfiguration('phase6_facade_candidate_step_m'), value_type=float),
-            'facade_min_free_prefix_m': ParameterValue(
-                LaunchConfiguration('phase6_facade_min_free_prefix_m'), value_type=float),
             'facade_orientation_tolerance_deg': ParameterValue(
                 LaunchConfiguration('phase6_facade_orientation_tolerance_deg'), value_type=float),
             'facade_max_inspection_failures': ParameterValue(
@@ -416,8 +475,22 @@ def generate_launch_description():
                 LaunchConfiguration('phase6_depth_evidence_enabled'), value_type=bool),
             'depth_min_confidence': ParameterValue(
                 LaunchConfiguration('phase6_depth_min_confidence'), value_type=float),
+            'depth_min_support_points': ParameterValue(
+                LaunchConfiguration('phase6_depth_min_support_points'), value_type=int),
             'depth_max_points_per_observation': ParameterValue(
                 LaunchConfiguration('phase6_depth_max_points'), value_type=int),
+            'depth_far_free_distance_m': ParameterValue(
+                LaunchConfiguration('phase6_depth_far_free_distance_m'), value_type=float),
+            'depth_direct_surface_max_incidence_deg': ParameterValue(
+                LaunchConfiguration('phase6_depth_direct_surface_max_incidence_deg'), value_type=float),
+            'sparse_plane_min_inliers': ParameterValue(
+                LaunchConfiguration('phase6_sparse_plane_min_inliers'), value_type=int),
+            'sparse_plane_residual_voxels': ParameterValue(
+                LaunchConfiguration('phase6_sparse_plane_residual_voxels'), value_type=float),
+            'sparse_plane_max_samples': ParameterValue(
+                LaunchConfiguration('phase6_sparse_plane_max_samples'), value_type=int),
+            'sparse_ray_free_min_score': ParameterValue(
+                LaunchConfiguration('phase6_sparse_ray_free_min_score'), value_type=float),
         }], condition=IfCondition(LaunchConfiguration('launch_phase6'))))
 
     ld.add_action(Node(
@@ -481,7 +554,7 @@ def generate_launch_description():
     for i in range(1, default_n + 1):
         drone_name = f'{default_namespace_base}_{i}'
         local_map_frame = f'{drone_name}_orb_map'
-        drone_group = GroupAction([
+        drone_group = GroupAction(actions=[
             PushRosNamespace(drone_name),
             Node(
                 package='simulacion_dron', executable='generador_URDF',
@@ -548,6 +621,8 @@ def generate_launch_description():
                         'phase6_debug_visual_risk_display'),
                     'visual_risk_empty_region_fraction': LaunchConfiguration(
                         'phase6_visual_risk_empty_region_fraction'),
+                    'visual_risk_directional_max_inliers': LaunchConfiguration(
+                        'phase6_visual_risk_directional_max_inliers'),
                     'orb_visual_evidence_output_dir': LaunchConfiguration(
                         'orb_visual_evidence_output_dir'),
                     'orb_navigation_prediction_mode': LaunchConfiguration(
@@ -555,6 +630,16 @@ def generate_launch_description():
                     'depth_observation_enabled': LaunchConfiguration(
                         'phase6_depth_inspection_enabled'),
                     'depth_max_points': LaunchConfiguration('phase6_depth_max_points'),
+                    'depth_far_measurement_max_distance_m': LaunchConfiguration(
+                        'phase6_depth_far_measurement_max_distance_m'),
+                    'depth_candidate_frame_capacity': LaunchConfiguration(
+                        'phase6_depth_candidate_frame_capacity'),
+                    'depth_candidate_min_tracking_inliers': LaunchConfiguration(
+                        'phase6_depth_candidate_min_tracking_inliers'),
+                    'depth_candidate_min_interval_sec': LaunchConfiguration(
+                        'phase6_depth_candidate_min_interval_sec'),
+                    'depth_candidate_min_orientation_delta_deg': LaunchConfiguration(
+                        'phase6_depth_candidate_min_orientation_delta_deg'),
                     'depth_max_disparity_gradient_px_per_pixel': LaunchConfiguration(
                         'phase6_depth_max_disparity_gradient_px_per_pixel'),
                     'depth_min_texture_gradient': LaunchConfiguration(
@@ -580,14 +665,45 @@ def generate_launch_description():
                     'visual_risk_persistence_frames': ParameterValue(
                         LaunchConfiguration('phase6_visual_risk_persistence_frames'),
                         value_type=int),
+                    'visual_risk_directional_max_inliers': ParameterValue(
+                        LaunchConfiguration('phase6_visual_risk_directional_max_inliers'),
+                        value_type=int),
                     'visual_risk_reorientation_grace_sec': ParameterValue(
                         LaunchConfiguration('phase6_visual_risk_reorientation_grace_sec'),
                         value_type=float),
                     'visual_risk_reorientation_step_deg': ParameterValue(
                         LaunchConfiguration('phase6_visual_risk_reorientation_step_deg'),
                         value_type=float),
+                    'facade_normal_min_support': ParameterValue(
+                        LaunchConfiguration('phase6_facade_normal_min_support'),
+                        value_type=int),
+                    'facade_normal_min_confidence': ParameterValue(
+                        LaunchConfiguration('phase6_facade_normal_min_confidence'),
+                        value_type=float),
+                    'facade_normal_max_yaw_change_deg': ParameterValue(
+                        LaunchConfiguration('phase6_facade_normal_max_yaw_change_deg'),
+                        value_type=float),
+                    'inspection_max_yaw_rate_deg_s': ParameterValue(
+                        LaunchConfiguration('phase6_inspection_max_yaw_rate_deg_s'),
+                        value_type=float),
+                    'inspection_candidate_frame_capacity': ParameterValue(
+                        LaunchConfiguration('phase6_depth_candidate_frame_capacity'),
+                        value_type=int),
+                    'inspection_candidate_min_tracking_inliers': ParameterValue(
+                        LaunchConfiguration('phase6_depth_candidate_min_tracking_inliers'),
+                        value_type=int),
+                    'inspection_candidate_min_interval_sec': ParameterValue(
+                        LaunchConfiguration('phase6_depth_candidate_min_interval_sec'),
+                        value_type=float),
+                    'inspection_candidate_min_orientation_delta_deg': ParameterValue(
+                        LaunchConfiguration('phase6_depth_candidate_min_orientation_delta_deg'),
+                        value_type=float),
+                    'inspection_depth_min_confidence': ParameterValue(
+                        LaunchConfiguration('phase6_depth_min_confidence'), value_type=float),
+                    'inspection_depth_min_support_points': ParameterValue(
+                        LaunchConfiguration('phase6_depth_min_support_points'), value_type=int),
                 }], condition=IfCondition(LaunchConfiguration('launch_phase6'))),
-        ])
+        ], condition=IfCondition(LaunchConfiguration(f'launch_drone_{i}')))
         if i == 1:
             ld.add_action(drone_group)
         else:

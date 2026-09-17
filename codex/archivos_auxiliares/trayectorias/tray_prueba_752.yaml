@@ -1,0 +1,33 @@
+name: fase_6N_score_voxel_continuo_d1
+description: >-
+  Lleva solo D1 con GT al fiducial 2 y deja al planificador inspeccionar
+  candidatos visuales para validar score sparse continuo y evidencia depth
+  directa reversible.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 360.0
+steps:
+  - name: espera_registro_y_mapa
+    type: wait
+    seconds: 22.0
+  - name: anclaje_fiducial_2_d1_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: observacion_score_y_depth
+    type: wait
+    seconds: 120.0

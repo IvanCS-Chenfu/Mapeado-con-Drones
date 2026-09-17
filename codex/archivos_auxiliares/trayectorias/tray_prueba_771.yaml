@@ -1,0 +1,34 @@
+name: fase_6D_regresion_real_subroi_d1
+description: >-
+  D1 llega con autoridad GT al fiducial 2 y deja que el flujo real de coverage
+  de subROI opere durante 180 s. Esta prueba conserva GUI y Gazebo para revisar
+  la regresion de los bloques anteriores mientras 6D sigue esperando que
+  POINT_SELECTION produzca ordenes autonomas reales.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 600.0
+steps:
+  - name: espera_registro_y_mapa
+    type: wait
+    seconds: 22.0
+  - name: anclaje_fiducial_2_d1_gt_yaw_90
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+  - name: coverage_real_subroi_d1
+    type: wait
+    seconds: 180.0

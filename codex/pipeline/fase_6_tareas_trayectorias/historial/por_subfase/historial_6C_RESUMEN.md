@@ -1,4 +1,6 @@
 # Resumen historial 6C
 
-Estado agregado: `CONSEGUIDA` el 2026-09-07. `mission_msgs`, handshake y
-registro idempotente se compilaron, probaron y confirmaron con dos drones reales.
+La entrada de 2026-09-07 conserva evidencia legacy. Para el contrato nuevo,
+estado agregado: `PARCIAL` el 2026-09-16. Las replicas y handlers de comando/
+resultado compilan; falta comprobar aceptacion ROS real y conectar ejecucion y
+reporte terminal.

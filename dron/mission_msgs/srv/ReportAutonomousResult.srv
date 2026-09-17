@@ -1,0 +1,22 @@
+uint8 RESULT_COMPLETED=1
+uint8 RESULT_ABORTED=2
+uint8 RESULT_NO_USABLE_DEPTH=3
+uint8 RESULT_REJECTED=4
+
+string mission_id
+uint32 drone_id
+string task_id
+string workflow_id
+string command_id
+uint64 map_epoch
+uint64 map_revision
+uint8 command_type
+uint8 result_status
+geometry_msgs/Pose final_pose
+mission_msgs/DenseKFObservation[] depth_observations
+bool fiducial_seen
+string reason
+---
+bool accepted
+bool duplicate
+string reason

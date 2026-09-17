@@ -187,11 +187,17 @@ servidor realiza logs, telemetria y futuro handoff 4G fuera del lock.
   identicos no reindexan vecindad, evitando el backlog observado en 192.
 - `ConfigureLandmarkScores()` y `ConfigureFusedLandmarks()` centralizan
   parametros; el backend no crea threads, publica ni conoce GT.
+- `SetDroneDimensions()` recibe el cache ROS de dimensiones y
+  `ConfigureBodyCameraTransform()` la extrinseca estatica. En cada cambio de
+  pose anclada convierte `world_T_camera` a `world_T_base_link`, calcula la
+  semidiagonal fisica y actualiza solo las esferas de esos KFs dentro de
+  `LandmarkScoreManager`. No conoce tareas ni ocupacion de Fase 6.
 
 Referencias:
 
 ```text
 src/sparse_global_backend.cpp
   -> RefreshGeometryScores / RefreshScoresAfterPoseChanges / RefreshFusedScores
-  -> rg -n "RefreshGeometryScores|RefreshScoresAfterPoseChanges|RefreshFusedScores"
+  -> RefreshDroneBodyMasks
+  -> rg -n "RefreshGeometryScores|RefreshDroneBodyMasks|RefreshScoresAfterPoseChanges"
 ```

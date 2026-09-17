@@ -1,53 +1,49 @@
-# Subfase 6L - TRACKING_RISK y reorientacion local
+# Subfase 6L - Integracion, observabilidad y cierre de la migracion
 
 ## Estado
 
-CONSEGUIDA para deteccion direccional, STOP y reorientacion local. La migracion
-la integra con la inspeccion de fachada sin cambiar su autoridad.
+`PENDIENTE DE MIGRACION`.
 
-## Deteccion
+## Objetivo
 
-Para LEFT, RIGHT, TOP y BOTTOM se examina una region solapada que ocupa el 75 %
-del ancho o alto de la imagen. Si no contiene ningun keypoint ORB usado para
-tracking, el dron se mueve o gira hacia ella y la condicion persiste tres
-frames, se activa `TRACKING_RISK`.
+Validar la arquitectura desacoplada completa sin ocultar estados importantes
+ni reintroducir esperas entre servidor y dron.
 
-Con el flag de debug de Fase 6 se publica/muestra el frame con los keypoints y
-la region pobre marcada. Esta imagen no pertenece a la GUI F7.
+## Contrato funcional
 
-## Protocolo
+Los logs de fase deben identificar `drone_id`, `task_id`, `workflow_id`,
+`command_id`, `map_epoch`, cola de origen/destino, revision de mapa y motivo de
+cualquier STOP. La GUI muestra el subROI, coverage, tramo de fachada asociado
+a la tarea, reservas y solo la trayectoria que se esta ejecutando. No muestra
+rayos depth ni telemetria masiva.
 
-1. El dron ordena STOP local sin esperar permiso del servidor.
-2. Comunica el evento para retirar lifecycle, ruta y reserva movil.
-3. Reorienta yaw o pitch en incrementos configurables de 25 grados, evitando
-   exclusivamente el primer sector pobre.
-4. Clasifica esa direccion como precaucion local.
-5. En una inspeccion de fachada, restaura despues el yaw/pitch de fachada.
+Cada simulacion parte de ROS/Gazebo/GUI limpios y se valida antes del launch
+que no hay nodos de una prueba anterior. Los resultados se registran por
+prueba, incluso si fallan, sin reescribir conclusiones anteriores.
 
-Yaw y pitch son autoridad local del dron durante la maniobra. El servidor no
-cancela una reorientacion porque no tiene corredor XYZ.
+## Pruebas requeridas
 
-## Integracion con depth bajo demanda
+- Unitarias: FIFO, deduplicacion, IDs tardios, prioridad STOP, transiciones de
+  workflow, base de evidencia, delete/reproyeccion de fuente y prefijo FREE.
+- ROS: aceptacion inmediata de ambos servicios, ausencia de trabajo pesado en
+  callbacks y una orden normal activa por dron.
+- Gazebo D1: fiducial 2, asignacion, mirada/captura, aplicacion de evidence,
+  planificacion, movimiento, captura de fachada y nueva eleccion.
+- Gazebo D1+D2: dos subROIs, workers FIFO, corredores reservados concurrentes,
+  conflicto de reserva, STOP y continuaciones independientes por drone.
+- Fiducial oportunista: visto/no visto, aproximacion segura y salida sin
+  progreso.
 
-Si `TRACKING_RISK` ocurre al mirar el objetivo de una inspeccion, solo el frame
-exacto que dispara la persistencia se usa como segunda captura depth. Un buffer
-estereo local y acotado permite recuperarlo por `frame_id`; no se procesan ni se
-transmiten los frames anteriores. Ausencia de inliers no implica espacio FREE:
-solo disparidad valida genera rayos.
+## Criterios de exito
 
-## Limites
+Ningun worker espera la finalizacion de una accion remota. Un resultado del
+dron solo encola la siguiente fase y `VoxelMapBuilder` libera continuaciones
+despues de materializar. Los drones pueden progresar en paralelo y el mapa se
+actualiza por deltas sin reconstrucciones completas.
 
-No se implementa `VISUAL_RETREAT` ni politica permanente de zonas prohibidas.
-LOST conserva el HOLD de Fase 5 durante 10 s y no hace fallback ORB->GT.
+## Exclusiones y trabajo posterior
 
-## Pruebas
-
-- Persistencia y regiones LEFT/RIGHT/TOP/BOTTOM.
-- STOP y giro local sin cambio de `map_epoch`.
-- Inspeccion pobre: confirmar que el frame disparador es la segunda captura y
-  que se restaura la orientacion de fachada.
-
-## Criterio de exito
-
-El riesgo se detecta antes de LOST, la parada es segura, la correccion evita el
-sector pobre y la trayectoria/coverage no quedan huerfanos.
+La calibracion fina de scores, la topologia completa de ramas y la nube densa
+global pertenecen a fases posteriores. La migracion no corrige de paso la
+optimizacion por fiducial; se valida estabilidad inicial y se documentan sus
+fallos por separado.

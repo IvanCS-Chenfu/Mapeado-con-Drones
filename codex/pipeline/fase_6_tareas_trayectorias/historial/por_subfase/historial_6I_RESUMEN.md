@@ -1,6 +1,22 @@
 # Resumen - 6I
 
-Estado: PARCIAL. 632 valido FREE fisico discreto y reversible por KF. La entrega
+Estado: PARCIAL. La prueba 773 anadio diagnostico opcional de rechazo D*
+estricto y confirma que el origen de D1 era raw `FREE` pero navegablemente
+`occupied_inflated`, mientras la meta seguia raw/navegablemente `UNKNOWN`
+despues de aplicar el depth. D* rechazo primero la meta
+`goal_occupied_or_inflated`, por lo que su salida segura no llego a evaluarse.
+La continuacion `vista_unknown -> TRAJECTORY_PLANNING` debe revalidar el
+objetivo ya materializado y no puede ejecutar UNKNOWN en una futura salida.
+El acuerdo correctivo mantiene la inflacion global, pero permite al plan salir
+por raw FREE dentro de una burbuja de 4 voxeles alrededor de la pose actual.
+Si la meta sigue UNKNOWN, 6H buscara un fallback FREE de menor coste dentro de
+8 voxeles; sin alternativa, descarta el candidato visual.
+
+La prueba 772 incorpora `TrajectoryPlanningWorker` FIFO:
+tras depth UNKNOWN, D* genero y ejecuto prefijos FREE por el runtime 6D, sin
+cruzar UNKNOWN. El unico depth `vista_pared` observado fue tras
+`TRACKING_RISK`; falta una llegada FULL_FREE que capture una fachada de forma
+normal. 632 valido FREE fisico discreto y reversible por KF. La entrega
 de trayectoria continua compila: lifecycle en `TrajectoryPlan`, segmentos D*,
 mediacion `ExecuteTrajectory` y conversion W->O unica en `gen_tray`, con
 quinticas multi-waypoint. 640 corrigio la doble finalizacion legacy. 641 con
@@ -140,3 +156,30 @@ simulación GT, `dstar_1_3` quedó pendiente mientras D1 seguía `dstar_1_2` y l
 GUI registró `IGNORE`, sin reemplazar la línea; cada actualización ocurrió al
 entrar en `ACTIVE`. La corrección visual queda CONSEGUIDA; 6I global sigue
 PARCIAL por sus pendientes físicos y de política de inflación.
+
+Actualización 775: el despacho FIFO `MOVE_AND_CAPTURE` pasa por
+`ACTIVE_TRAJECTORY_MONITOR`. D1/GT comprometió corredores de 102--259 celdas,
+publicó la ruta activa y liberó cada reserva en el terminal normal o tras STOP,
+con `SIM-DONE success=true`. El `UnawareGoalHandleError` apareció solo durante
+el apagado forzado posterior del runner y queda como pendiente de lifecycle.
+La integración monitor/reserva queda CONSEGUIDA; 6I global continúa PARCIAL.
+# Actualización 777
+
+La validación integrada de la U no pasa: el monitor cancela muchas rutas con
+`occupied_or_inflated_corridor`, incluso antes de una captura wall, y el STOP
+falla con frecuencia. Se conservan reservas y planes publicados, pero la
+secuencia no llega de forma fiable a `MOVE_AND_CAPTURE`; queda pendiente aislar
+qué celda del corredor dispara cada STOP.
+
+Actualización 778/779: el avance FREE de respaldo después de una mirada
+UNKNOWN ya no se ejecuta sin captura. Se unifica con `FREE_PREFIX` como
+`VIEW_ADVANCE`, devuelve depth, espera su materialización y solo entonces
+reselecciona. La 779 valida el ciclo; 778 se conserva como fallo que detectó
+el anterior `depth=0`. Persisten interrupciones por STOP y la cobertura de
+fachada normal, así que el estado agregado sigue PARCIAL.
+
+Actualizacion 786: la inflacion adicional se reduce a un voxel y D1 navega con
+`(3,3,2)`, frente a una reserva fisica `(2,2,1)`. Las reservas fueron visibles
+en GUI. El diagnostico causal explica los tres STOP observados: dos cambios
+navegables UNKNOWN no resueltos y un ocupado real dentro del clearance. El
+ajuste y su trazabilidad quedan validados; 6I global sigue PARCIAL.

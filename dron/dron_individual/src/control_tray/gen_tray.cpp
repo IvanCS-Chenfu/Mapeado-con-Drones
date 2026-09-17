@@ -4,6 +4,7 @@
 #include "dron_individual/action/tray_action.hpp"               // Añadir interfaz usada en la acción.
 #include "dron_individual/navigation_goal_policy.hpp"
 #include "dron_individual/navigation_state_mux.hpp"
+#include "dron_individual/trajectory_yaw.hpp"
 #include "orbslam3_msgs/msg/navigation_state.hpp"
 #include "lib_tray/gen_tray_elipse.hpp"                         // Librería elipse
 #include "lib_tray/gen_tray_pol3_waypoints.hpp"
@@ -539,6 +540,13 @@ private:
       control_t_world.rotation.x() * control_t_world.rotation.y()),
       1.0 - 2.0 * (control_t_world.rotation.y() * control_t_world.rotation.y() +
       control_t_world.rotation.z() * control_t_world.rotation.z()));
+    const geometry_msgs::msg::PoseStamped initial_pose = [&initial_state]() {
+        geometry_msgs::msg::PoseStamped pose;
+        pose.pose = initial_state.o_t_body;
+        return pose;
+      }();
+    const double yaw0 = pose2yaw(initial_pose);
+    double yaw_reference = yaw0;
     std::vector<std::vector<double>> targets;
     std::vector<double> times;
     targets.reserve(goal->waypoint_targets.size());
@@ -562,18 +570,14 @@ private:
       std::vector<double> target = {control_target.x(), control_target.y(), control_target.z()};
       if (has_yaw) {
         // TrajectoryPlan define yaw en W; Pol3 controla en O igual que la ruta directa.
-        target.push_back(normalizar_angulo(control_yaw + goal->waypoint_yaws_rad[index]));
+        yaw_reference = dron_individual::NearestEquivalentYaw(
+          control_yaw + goal->waypoint_yaws_rad[index], yaw_reference);
+        target.push_back(yaw_reference);
       }
       targets.push_back(std::move(target));
       times.push_back(time);
     }
 
-    const geometry_msgs::msg::PoseStamped initial_pose = [&initial_state]() {
-        geometry_msgs::msg::PoseStamped pose;
-        pose.pose = initial_state.o_t_body;
-        return pose;
-      }();
-    const double yaw0 = pose2yaw(initial_pose);
     const std::size_t axes = has_yaw ? 4U : 3U;
     lib_tray::GenTrayPol3Waypoints trajectory(axes, waypoint_blend_sec_);
     try {
@@ -899,9 +903,6 @@ private:
         control_t_world.rotation.x() * control_t_world.rotation.y()),
         1.0 - 2.0 * (control_t_world.rotation.y() * control_t_world.rotation.y() +
         control_t_world.rotation.z() * control_t_world.rotation.z()));
-      const double absolute_yaw = normalizar_angulo(
-        control_yaw + pose2yaw(goal->target_pose));
-
       constexpr std::size_t N_EJES_TRAY = 4;
 
       geometry_msgs::msg::PoseStamped initial_pose;
@@ -910,6 +911,8 @@ private:
       const double y0 = initial_state.o_t_body.position.y;
       const double z0 = initial_state.o_t_body.position.z;
       const double yaw0 = pose2yaw(initial_pose);
+      const double absolute_yaw = dron_individual::NearestEquivalentYaw(
+        control_yaw + pose2yaw(goal->target_pose), yaw0);
       const double vx0 = initial_state.velocity.linear.x;
       const double vy0 = initial_state.velocity.linear.y;
       const double vz0 = initial_state.velocity.linear.z;
