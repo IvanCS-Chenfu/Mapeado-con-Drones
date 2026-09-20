@@ -88,8 +88,6 @@ CoefTrapVel GenTrayVelTrap::calcular_coeficientes(
 
   c.p0 = q0;
   c.pf = qf;
-  c.v0 = v0;
-  c.vf = vf;
 
   const double distancia = std::abs(qf - q0);
   const double eps = 1e-9;
@@ -127,8 +125,22 @@ CoefTrapVel GenTrayVelTrap::calcular_coeficientes(
   c.v_max = std::abs(vmax);
   c.a = c.v_max / t_a;
 
-  double x1 = (c.v_max * c.v_max - std::abs(v0) * std::abs(v0)) / (2.0 * c.a);
-  double x2 = (c.v_max * c.v_max - std::abs(vf) * std::abs(vf)) / (2.0 * c.a);
+  // VelTrap evalúa el perfil en la dirección del desplazamiento y usa la
+  // magnitud de las velocidades. Una velocidad residual contraria, o mayor
+  // que la velocidad máxima proyectada de un eje casi estacionario, produce
+  // tiempos negativos y perfiles que no llegan nunca al destino. En ese caso
+  // se parte de reposo para que el controlador pueda corregir el error.
+  const double v0_toward = c.s * v0;
+  const double vf_toward = c.s * vf;
+  const double v0_profile =
+    v0_toward >= 0.0 && v0_toward <= c.v_max ? v0_toward : 0.0;
+  const double vf_profile =
+    vf_toward >= 0.0 && vf_toward <= c.v_max ? vf_toward : 0.0;
+  c.v0 = c.s * v0_profile;
+  c.vf = c.s * vf_profile;
+
+  double x1 = (c.v_max * c.v_max - v0_profile * v0_profile) / (2.0 * c.a);
+  double x2 = (c.v_max * c.v_max - vf_profile * vf_profile) / (2.0 * c.a);
 
   if (x1 + x2 >= distancia) {         // Triangular
     c.triangular = true;
@@ -137,13 +149,13 @@ CoefTrapVel GenTrayVelTrap::calcular_coeficientes(
       std::sqrt(
       std::max(
         0.0,
-        c.a * distancia + 0.5 * (std::abs(v0) * std::abs(v0) + std::abs(vf) * std::abs(vf))));
+        c.a * distancia + 0.5 * (v0_profile * v0_profile + vf_profile * vf_profile)));
 
-    c.t1 = (c.v_max - std::abs(v0)) / c.a;
-    c.t2 = (c.v_max - std::abs(vf)) / c.a;
+    c.t1 = (c.v_max - v0_profile) / c.a;
+    c.t2 = (c.v_max - vf_profile) / c.a;
     c.tc = 0.0;
 
-    const double dx1 = 0.5 * (std::abs(v0) + c.v_max) * c.t1;
+    const double dx1 = 0.5 * (v0_profile + c.v_max) * c.t1;
     c.p1 = q0 + c.s * dx1;
     c.p2 = c.p1;
 
@@ -151,11 +163,11 @@ CoefTrapVel GenTrayVelTrap::calcular_coeficientes(
   } else {                          // Trapezoidal
     c.triangular = false;
 
-    c.t1 = (c.v_max - std::abs(v0)) / c.a;
+    c.t1 = (c.v_max - v0_profile) / c.a;
     c.tc = (distancia - x1 - x2) / c.v_max;
-    c.t2 = (c.v_max - std::abs(vf)) / c.a;
+    c.t2 = (c.v_max - vf_profile) / c.a;
 
-    const double dx1 = 0.5 * (std::abs(v0) + c.v_max) * c.t1;
+    const double dx1 = 0.5 * (v0_profile + c.v_max) * c.t1;
     c.p1 = q0 + c.s * dx1;
     c.p2 = c.p1 + c.s * (c.v_max * c.tc);
 

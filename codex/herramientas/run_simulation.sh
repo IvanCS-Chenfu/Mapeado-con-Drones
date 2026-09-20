@@ -5,8 +5,7 @@ set -uo pipefail
 # Ejecuta una prueba de simulación y guarda TODO el log en:
 #   src/codex/archivos_auxiliares/logs/prueba_X.log
 #
-# El YAML de trayectoria se busca por defecto en:
-#   src/codex/archivos_auxiliares/trayectorias/tray_prueba_X.yaml
+# El perfil de misión selecciona el YAML de trayectoria y el modo de ejecución.
 #
 # Uso mínimo:
 #   ./codex/herramientas/run_simulation.sh \
@@ -29,16 +28,16 @@ SRC_DIR="$(cd "$CODEX_DIR/.." && pwd)"
 WS_DIR="$(cd "$SRC_DIR/.." && pwd)"
 AUX_DIR="$CODEX_DIR/archivos_auxiliares"
 LOG_DIR="$AUX_DIR/logs"
-TRAY_DIR="$AUX_DIR/trayectorias"
 
 PRUEBA=""
 LAUNCH_CMD=""
-YAML_FILE=""
 POST_WAIT_SEC="20"
 STARTUP_WAIT_SEC="15"
 TIMEOUT_SEC="900"
 MAX_GAZEBO_RETRIES="2"
 GAZEBO_RETRY_WAIT_SEC="5"
+GAZEBO_MASTER_PORT="11345"
+GAZEBO_CLEANUP_WAIT_SEC="10"
 EXPECT_GAZEBO=true
 MONITOR_RESOURCES=false
 RESOURCE_SAMPLE_SEC="1"
@@ -47,7 +46,7 @@ RESOURCE_MAX_MEMORY_PSI_FULL_AVG10="20"
 RESOURCE_GUARD_CONSECUTIVE="3"
 SCENARIO_PACKAGE="simulacion_dron"
 SCENARIO_EXECUTABLE="scenario_runner_node"
-SCENARIO_PARAM_NAME="scenario_file"
+MISSION_PROFILE="$SRC_DIR/simulacion_dron/config/mission_profile.yaml"
 
 strip_workspace_paths() {
   local variable="$1"
@@ -93,9 +92,8 @@ Uso:
   $0 --prueba N --launch "ros2 launch paquete launch.py" [opciones]
 
 Opciones:
-  --prueba N                         Número de prueba. Genera prueba_N.log y usa tray_prueba_N.yaml.
+  --prueba N                         Identificador de prueba. Genera prueba_N.log.
   --launch CMD                       Comando launch principal entre comillas.
-  --yaml FILE                        YAML de trayectoria. Por defecto: codex/archivos_auxiliares/trayectorias/tray_prueba_N.yaml.
   --post-scenario-wait-sec SEC       Espera tras terminar scenario_runner_node. Defecto: 20.
   --startup-wait-sec SEC             Espera inicial tras lanzar simulación. Defecto: 15.
   --timeout-sec SEC                  Timeout para scenario_runner_node. Defecto: 900.
@@ -109,7 +107,7 @@ Opciones:
   --resource-guard-consecutive N     Muestras consecutivas para disparar la guarda. Defecto: 3.
   --scenario-package PKG             Paquete del nodo de escenarios. Defecto: simulacion_dron.
   --scenario-executable EXE          Ejecutable del nodo de escenarios. Defecto: scenario_runner_node.
-  --scenario-param-name NAME         Parámetro ROS del YAML. Defecto: scenario_file.
+  --mission-profile FILE             Perfil YAML común de modo, fuente y trayectoria.
 USAGE
 }
 
@@ -119,8 +117,6 @@ while [ "$#" -gt 0 ]; do
       PRUEBA="${2:-}"; shift 2 ;;
     --launch)
       LAUNCH_CMD="${2:-}"; shift 2 ;;
-    --yaml)
-      YAML_FILE="${2:-}"; shift 2 ;;
     --post-scenario-wait-sec)
       POST_WAIT_SEC="${2:-}"; shift 2 ;;
     --startup-wait-sec)
@@ -147,8 +143,8 @@ while [ "$#" -gt 0 ]; do
       SCENARIO_PACKAGE="${2:-}"; shift 2 ;;
     --scenario-executable)
       SCENARIO_EXECUTABLE="${2:-}"; shift 2 ;;
-    --scenario-param-name)
-      SCENARIO_PARAM_NAME="${2:-}"; shift 2 ;;
+    --mission-profile)
+      MISSION_PROFILE="${2:-}"; shift 2 ;;
     -h|--help)
       usage; exit 0 ;;
     *)
@@ -158,7 +154,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-mkdir -p "$LOG_DIR" "$TRAY_DIR"
+mkdir -p "$LOG_DIR"
 
 if [ -z "$PRUEBA" ]; then
   echo "[SIM-ERROR] Falta --prueba N" >&2
@@ -172,17 +168,18 @@ if [ -z "$LAUNCH_CMD" ]; then
   exit 2
 fi
 
-if [ -z "$YAML_FILE" ]; then
-  YAML_FILE="$TRAY_DIR/tray_prueba_${PRUEBA}.yaml"
-  if [ ! -f "$YAML_FILE" ] && [ -f "$AUX_DIR/tray_prueba_${PRUEBA}.yaml" ]; then
-    YAML_FILE="$AUX_DIR/tray_prueba_${PRUEBA}.yaml"
-  fi
-fi
-
-if [ ! -f "$YAML_FILE" ]; then
-  echo "[SIM-ERROR] No existe el YAML de trayectoria: $YAML_FILE" >&2
+if [ ! -f "$MISSION_PROFILE" ]; then
+  echo "[SIM-ERROR] No existe el perfil de misión: $MISSION_PROFILE" >&2
   exit 2
 fi
+
+case "$LAUNCH_CMD" in
+  *"mission_profile:="*) ;;
+  *)
+    printf -v MISSION_PROFILE_SHELL_QUOTED '%q' "$MISSION_PROFILE"
+    LAUNCH_CMD="$LAUNCH_CMD mission_profile:=$MISSION_PROFILE_SHELL_QUOTED"
+    ;;
+esac
 
 LOG_FILE="$LOG_DIR/prueba_${PRUEBA}.log"
 : > "$LOG_FILE"
@@ -348,9 +345,65 @@ terminate_test_guis() {
   pkill -KILL -f '/gui_tray_multi\.py' >> "$LOG_FILE" 2>&1 || true
 }
 
-kill_gazebo_processes() {
-  log "[SIM-GAZEBO-KILL] killall -9 gzserver gzclient gazebo"
-  killall -9 gzserver gzclient gazebo >> "$LOG_FILE" 2>&1 || true
+gazebo_processes_exist() {
+  pgrep -x gazebo >/dev/null 2>&1 ||
+    pgrep -x gzserver >/dev/null 2>&1 ||
+    pgrep -x gzclient >/dev/null 2>&1
+}
+
+gazebo_port_is_busy() {
+  if ! command -v ss >/dev/null 2>&1; then
+    return 1
+  fi
+  ss -ltnH 2>/dev/null |
+    awk -v port=":${GAZEBO_MASTER_PORT}" '$4 ~ (port "$") { found=1 } END { exit found ? 0 : 1 }'
+}
+
+gazebo_is_active() {
+  gazebo_processes_exist || gazebo_port_is_busy
+}
+
+wait_for_gazebo_release() {
+  local elapsed=0
+  while [ "$elapsed" -lt "$GAZEBO_CLEANUP_WAIT_SEC" ]; do
+    if ! gazebo_is_active; then
+      log "[SIM-GAZEBO-READY] puerto ${GAZEBO_MASTER_PORT} libre"
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  log "[SIM-GAZEBO-WARN] Gazebo o el puerto ${GAZEBO_MASTER_PORT} siguen activos tras ${GAZEBO_CLEANUP_WAIT_SEC}s"
+  return 1
+}
+
+cleanup_gazebo_processes() {
+  if [ "$EXPECT_GAZEBO" != true ] || ! gazebo_is_active; then
+    return 0
+  fi
+
+  if ! gazebo_processes_exist && gazebo_port_is_busy; then
+    log "[SIM-GAZEBO-ERROR] el puerto ${GAZEBO_MASTER_PORT} está ocupado por un proceso que no es Gazebo"
+    return 1
+  fi
+
+  log "[SIM-GAZEBO-TERM] killall -TERM gzserver gzclient gazebo"
+  killall -TERM gzserver gzclient gazebo >> "$LOG_FILE" 2>&1 || true
+  if wait_for_gazebo_release; then
+    return 0
+  fi
+
+  log "[SIM-GAZEBO-KILL] killall -KILL gzserver gzclient gazebo"
+  killall -KILL gzserver gzclient gazebo >> "$LOG_FILE" 2>&1 || true
+  wait_for_gazebo_release
+}
+
+prepare_gazebo() {
+  if [ "$EXPECT_GAZEBO" != true ] || ! gazebo_is_active; then
+    return 0
+  fi
+  log "[SIM-GAZEBO-STALE] se detectó una instancia residual antes del intento"
+  cleanup_gazebo_processes
 }
 
 gazebo_failed_during_startup() {
@@ -379,6 +432,11 @@ run_one_attempt() {
 
   log "[SIM-ATTEMPT-START] attempt=$CURRENT_ATTEMPT max_gazebo_retries=$MAX_GAZEBO_RETRIES"
 
+  if ! prepare_gazebo; then
+    log "[SIM-ERROR] no se pudo liberar Gazebo antes del intento $CURRENT_ATTEMPT"
+    return 1
+  fi
+
   log "[SIM-LAUNCH-START] $LAUNCH_CMD"
   # setsid crea un grupo de procesos propio. El cleanup puede enviar SIGINT
   # al grupo completo, que se parece mas a pulsar Ctrl+C en una terminal.
@@ -405,7 +463,9 @@ run_one_attempt() {
     terminate_launch
     stop_resource_monitor
     if [ "$EXPECT_GAZEBO" = true ]; then
-      kill_gazebo_processes
+      if ! cleanup_gazebo_processes; then
+        return 1
+      fi
     fi
     log "[SIM-RETRY-WAIT] seconds=$GAZEBO_RETRY_WAIT_SEC"
     sleep "$GAZEBO_RETRY_WAIT_SEC"
@@ -415,7 +475,7 @@ run_one_attempt() {
   SCENARIO_CMD=(
     ros2 run "$SCENARIO_PACKAGE" "$SCENARIO_EXECUTABLE"
     --ros-args
-    -p "${SCENARIO_PARAM_NAME}:=${YAML_FILE}"
+    -p "mission_profile:=${MISSION_PROFILE}"
     -p "use_sim_time:=true"
   )
 
@@ -463,6 +523,7 @@ cleanup() {
   local exit_code=$?
   terminate_scenario
   terminate_launch
+  cleanup_gazebo_processes || true
   terminate_test_guis
   stop_resource_monitor
   log "[SIM-EXIT-CODE] $exit_code"
@@ -475,7 +536,8 @@ trap cleanup EXIT
   echo "[WS_DIR] $WS_DIR"
   echo "[PRUEBA] $PRUEBA"
   echo "[LOG_FILE] $LOG_FILE"
-  echo "[YAML_FILE] $YAML_FILE"
+  echo "[YAML_FILE] seleccionado por mission_profile"
+  echo "[MISSION_PROFILE] $MISSION_PROFILE"
   echo "[LAUNCH_CMD] $LAUNCH_CMD"
   echo "[SCENARIO_NODE] ros2 run $SCENARIO_PACKAGE $SCENARIO_EXECUTABLE"
   echo "[STARTUP_WAIT_SEC] $STARTUP_WAIT_SEC"

@@ -26,8 +26,7 @@ groups:
       simulacion_dron: simulacion_dron
 
 # Excepciones permitidas en la raiz. No se exige que existan siempre.
-root_exceptions:
-  - mi_tfg
+root_exceptions: []
 
 interface_contracts:
   - package: orbslam3_msgs

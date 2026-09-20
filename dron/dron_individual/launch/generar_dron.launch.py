@@ -46,8 +46,9 @@ def generate_launch_description():
         FindPackageShare('dron_individual'), 'config', 'physical.yaml'])
     params_control = PathJoinSubstitution([
         FindPackageShare('dron_individual'), 'config', 'control.yaml'])
+    trajectory_config = LaunchConfiguration('trajectory_config')
     params_trajectory = PathJoinSubstitution([
-        FindPackageShare('dron_individual'), 'config', 'trajectory.yaml'])
+        FindPackageShare('dron_individual'), 'config', trajectory_config])
     params_actuators = PathJoinSubstitution([
         FindPackageShare('dron_individual'), 'config', 'actuators.yaml'])
 
@@ -88,6 +89,7 @@ def generate_launch_description():
         DeclareLaunchArgument('gt_fallback_enabled', default_value='false'),
         DeclareLaunchArgument('orb_loss_hold_sec', default_value='10.0'),
         DeclareLaunchArgument('waypoint_blend_sec', default_value='3.0'),
+        DeclareLaunchArgument('trajectory_config', default_value='trajectory.yaml'),
         DeclareLaunchArgument('orb_qualification_samples', default_value='20'),
         DeclareLaunchArgument(
             'orb_vocabulary_path',

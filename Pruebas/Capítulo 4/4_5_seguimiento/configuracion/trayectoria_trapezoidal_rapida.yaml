@@ -1,0 +1,25 @@
+name: fase4_5_trapezoidal_rapida
+description: Ruta 4.5 trapezoidal con velocidad doble y 2 s de asentamiento entre waypoints.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - {name: tramo_1, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 1, target: [0.0, 0.0, 1.0], yaw_deg: 0.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: asentamiento_1, type: wait, seconds: 2.0}
+  - {name: tramo_2, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 1, target: [8.0, 0.0, 1.0], yaw_deg: 0.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: asentamiento_2, type: wait, seconds: 2.0}
+  - {name: tramo_3, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 1, target: [8.0, 8.0, 2.0], yaw_deg: 45.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: asentamiento_3, type: wait, seconds: 2.0}
+  - {name: tramo_4, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 1, target: [0.0, 8.0, 2.0], yaw_deg: 90.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: asentamiento_4, type: wait, seconds: 2.0}
+  - {name: tramo_5, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 1, target: [0.0, 0.0, 3.0], yaw_deg: 180.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: asentamiento_5, type: wait, seconds: 2.0}
+  - {name: tramo_6, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 1, target: [-8.0, 0.0, 3.0], yaw_deg: 180.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: asentamiento_6, type: wait, seconds: 2.0}
+  - {name: tramo_7, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 1, target: [-8.0, -8.0, 1.0], yaw_deg: -135.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: asentamiento_7, type: wait, seconds: 2.0}
+  - {name: tramo_8, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 1, target: [0.0, -8.0, 1.0], yaw_deg: -90.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: asentamiento_8, type: wait, seconds: 2.0}
+  - {name: tramo_9, type: move, mode: sequential, goals: [{drone_id: 1, tipo_trayectoria: 1, target: [0.0, 0.0, 1.0], yaw_deg: 0.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}]}
+  - {name: asentamiento_9, type: wait, seconds: 2.0}

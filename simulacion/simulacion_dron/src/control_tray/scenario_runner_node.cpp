@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <future>
 #include <map>
 #include <memory>
@@ -53,19 +54,24 @@ public:
   {
     this->declare_parameter<std::string>("scenario_file", "");
     this->declare_parameter<std::string>("sim_config_file", "");
+    this->declare_parameter<std::string>("mission_profile", "");
     this->declare_parameter<std::string>("action_name", "AccionTrayectoria");
     this->declare_parameter<std::string>("namespace_base", "");
     this->declare_parameter<double>("default_action_timeout_sec", 120.0);
+    this->declare_parameter<bool>("gate_mapping_backpressure", true);
     this->declare_parameter<std::string>(
       "mapping_backpressure_topic",
       "/global_mapping/backpressure_active");
 
     scenario_file_ = this->get_parameter("scenario_file").as_string();
     sim_config_file_ = this->get_parameter("sim_config_file").as_string();
+    mission_profile_ = this->get_parameter("mission_profile").as_string();
     action_name_ = this->get_parameter("action_name").as_string();
     namespace_base_ = this->get_parameter("namespace_base").as_string();
     default_action_timeout_sec_ =
       this->get_parameter("default_action_timeout_sec").as_double();
+    gate_mapping_backpressure_ =
+      this->get_parameter("gate_mapping_backpressure").as_bool();
     mapping_backpressure_topic_ =
       this->get_parameter("mapping_backpressure_topic").as_string();
 
@@ -113,6 +119,10 @@ public:
 
   bool Run()
   {
+    if (!LoadMissionProfileIfNeeded()) {
+      return false;
+    }
+
     if (scenario_file_.empty()) {
       RCLCPP_ERROR(
         this->get_logger(),
@@ -227,6 +237,13 @@ public:
         step_name.c_str());
     }
 
+    if (mission_mode_ == "autonomous" && !EnableAutonomousExecution()) {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-FAILED] mission_mode=autonomous");
+      return false;
+    }
+
     RCLCPP_WARN(
       this->get_logger(),
       "[SCENARIO-RUNNER-DONE] scenario='%s' success=true",
@@ -306,9 +323,13 @@ private:
 private:
   std::string scenario_file_;
   std::string sim_config_file_;
+  std::string mission_profile_;
+  std::string mission_mode_ = "trajectory";
+  std::string mission_navigation_source_ = "gt";
   std::string action_name_;
   std::string namespace_base_;
   double default_action_timeout_sec_;
+  bool gate_mapping_backpressure_{true};
   std::string mapping_backpressure_topic_;
 
   std::map<std::string, ActionClientTray::SharedPtr> action_clients_;
@@ -332,6 +353,83 @@ private:
     }
 
     return node[key].as<T>();
+  }
+
+  bool LoadMissionProfileIfNeeded()
+  {
+    if (mission_profile_.empty()) {
+      try {
+        mission_profile_ =
+          ament_index_cpp::get_package_share_directory("simulacion_dron") +
+          "/config/mission_profile.yaml";
+      } catch (const std::exception & error) {
+        RCLCPP_ERROR(
+          get_logger(),
+          "[SCENARIO-RUNNER-MISSION-PROFILE-ERROR] no se pudo localizar el perfil: %s",
+          error.what());
+        return false;
+      }
+    }
+
+    try {
+      const YAML::Node profile = YAML::LoadFile(mission_profile_);
+      mission_mode_ = YamlGet<std::string>(profile, "mission_mode", "trajectory");
+      mission_navigation_source_ =
+        YamlGet<std::string>(profile, "navigation_source", "gt");
+      const std::string trajectory_file =
+        YamlGet<std::string>(profile, "trajectory_file", "");
+      std::transform(
+        mission_mode_.begin(), mission_mode_.end(), mission_mode_.begin(),
+        [](unsigned char character) {return static_cast<char>(std::tolower(character));});
+      std::transform(
+        mission_navigation_source_.begin(), mission_navigation_source_.end(),
+        mission_navigation_source_.begin(),
+        [](unsigned char character) {return static_cast<char>(std::tolower(character));});
+
+      if (trajectory_file.empty()) {
+        throw std::runtime_error("profile must contain trajectory_file");
+      }
+
+      std::filesystem::path resolved_trajectory(trajectory_file);
+      if (!resolved_trajectory.is_absolute()) {
+        resolved_trajectory =
+          std::filesystem::path(mission_profile_).parent_path() /
+          resolved_trajectory;
+      }
+      resolved_trajectory = resolved_trajectory.lexically_normal();
+      if (!std::filesystem::is_regular_file(resolved_trajectory)) {
+        throw std::runtime_error(
+                "trajectory_file does not exist: " + resolved_trajectory.string());
+      }
+      scenario_file_ = resolved_trajectory.string();
+    } catch (const std::exception & error) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-MISSION-PROFILE-ERROR] Could not load '%s': %s",
+        mission_profile_.c_str(), error.what());
+      return false;
+    }
+
+    if (mission_mode_ != "trajectory" && mission_mode_ != "autonomous") {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-MISSION-PROFILE-ERROR] mission_mode must be trajectory or autonomous");
+      return false;
+    }
+
+    if (mission_navigation_source_ != "gt" && mission_navigation_source_ != "orb") {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-MISSION-PROFILE-ERROR] navigation_source must be gt or orb");
+      return false;
+    }
+
+    RCLCPP_INFO(
+      get_logger(),
+      "[SCENARIO-RUNNER-MISSION-PROFILE] path='%s' mission_mode=%s navigation_source=%s trajectory_file='%s'",
+      mission_profile_.c_str(), mission_mode_.c_str(),
+      mission_navigation_source_.c_str(), scenario_file_.c_str());
+    return true;
   }
 
   void LoadSimulationConfigIfNeeded()
@@ -381,6 +479,39 @@ private:
     }
   }
 
+  bool EnableAutonomousExecution()
+  {
+    auto client = create_client<std_srvs::srv::SetBool>(
+      "/mission/set_coverage_execution_enabled");
+    if (!client->wait_for_service(10s)) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-ERROR] service_not_available service=/mission/set_coverage_execution_enabled");
+      return false;
+    }
+
+    auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
+    request->data = true;
+    auto future = client->async_send_request(request);
+    if (!WaitFuture(future, 10.0, "autonomous handoff")) {
+      return false;
+    }
+
+    const auto response = future.get();
+    if (!response || !response->success) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-ERROR] response='%s'",
+        response ? response->message.c_str() : "missing");
+      return false;
+    }
+
+    RCLCPP_WARN(
+      get_logger(),
+      "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF] mission_mode=autonomous execution_enabled=true");
+    return true;
+  }
+
   void ApplyScenarioOverrides(const YAML::Node & root)
   {
     if (root["action_name"]) {
@@ -394,6 +525,15 @@ private:
     if (root["defaults"] && root["defaults"]["timeout_sec"]) {
       default_action_timeout_sec_ =
         root["defaults"]["timeout_sec"].as<double>();
+    }
+
+    if (root["gate_mapping_backpressure"]) {
+      gate_mapping_backpressure_ =
+        root["gate_mapping_backpressure"].as<bool>();
+      RCLCPP_WARN(
+        get_logger(),
+        "[SCENARIO-RUNNER-BACKPRESSURE-POLICY] gate_mapping_backpressure=%s source=yaml",
+        gate_mapping_backpressure_ ? "true" : "false");
     }
 
     if (default_action_timeout_sec_ <= 0.0) {
@@ -1227,7 +1367,7 @@ private:
       YamlGet<bool>(goal_node, "retry_on_rejected", false);
 
     spec.navigation_source =
-      YamlGet<std::string>(goal_node, "navigation_source", "none");
+      YamlGet<std::string>(goal_node, "navigation_source", mission_navigation_source_);
     std::transform(
       spec.navigation_source.begin(), spec.navigation_source.end(),
       spec.navigation_source.begin(),
@@ -1328,6 +1468,14 @@ private:
 
   bool PrepareNavigationSource(const GoalSpec & spec)
   {
+    if (spec.navigation_source == "none") {
+      RCLCPP_INFO(
+        this->get_logger(),
+        "[SCENARIO-RUNNER-NAV-SOURCE] action='%s' requested=none inherited=true",
+        spec.action_full_name.c_str());
+      return true;
+    }
+
     std::string drone_namespace = spec.drone;
     if (drone_namespace.empty()) {
       drone_namespace = spec.action_full_name;
@@ -1607,6 +1755,14 @@ private:
 
   bool WaitForBackpressureClear()
   {
+    if (!gate_mapping_backpressure_) {
+      RCLCPP_WARN(
+        this->get_logger(),
+        "[SCENARIO-RUNNER-MOVE-GATE-BYPASS] active=%s policy=ignore_for_scenario",
+        mapping_backpressure_active_.load() ? "true" : "false");
+      return rclcpp::ok();
+    }
+
     const auto start = std::chrono::steady_clock::now();
     bool waiting_logged = false;
     while (rclcpp::ok() && mapping_backpressure_active_.load()) {

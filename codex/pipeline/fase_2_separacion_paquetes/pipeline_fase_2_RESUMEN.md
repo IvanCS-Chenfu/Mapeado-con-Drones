@@ -52,8 +52,7 @@ src/
 │   └── orbslam3_msgs/
 ├── simulacion/
 │   └── simulacion_dron/
-├── codex/
-└── mi_tfg/                 # legacy conservado temporalmente
+└── codex/
 ```
 
 `orbslam3_msgs` se copia completo en `dron` y `servidor`, conservando el mismo

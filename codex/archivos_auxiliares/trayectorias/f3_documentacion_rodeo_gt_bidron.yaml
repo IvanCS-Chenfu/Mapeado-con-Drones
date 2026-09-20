@@ -1,0 +1,119 @@
+name: f3_documentacion_rodeo_gt_bidron
+description: >-
+  F3 documental: dos drones recorren en sentidos opuestos vertices y centros
+  de arista del cuadrado [-10,10]x[-10,10] con GT estricto; ORB permanece en
+  sombra para alimentar el mapa sparse, score y el pipeline global.
+namespace_base: dron
+action_name: AccionTrayectoria
+gate_mapping_backpressure: false
+defaults:
+  timeout_sec: 360.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: preparacion_capturas
+    type: wait
+    seconds: 30.0
+
+  - name: ambos_al_centro_sur
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: 90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.5], yaw_deg: 90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+
+  - name: pausa_fiducial_sur
+    type: wait
+    seconds: 10.0
+
+  - name: esquinas_sur_opuestas
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [-10.0, -10.0, 1.0], yaw_deg: 90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [10.0, -10.0, 1.5], yaw_deg: 90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+
+  - name: pausa_esquinas_sur
+    type: wait
+    seconds: 4.0
+
+  - name: centros_laterales_subida
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [-10.0, 0.0, 1.0], yaw_deg: 0.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [10.0, 0.0, 1.5], yaw_deg: 90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: false}
+
+  - name: pausa_centros_laterales_subida
+    type: wait
+    seconds: 4.0
+
+  - name: esquinas_norte_opuestas
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [-10.0, 10.0, 1.0], yaw_deg: 0.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [10.0, 10.0, 1.5], yaw_deg: 0.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: false}
+
+  - name: pausa_esquinas_norte
+    type: wait
+    seconds: 4.0
+
+  - name: ambos_al_centro_norte
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, 10.0, 1.0], yaw_deg: -90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, 10.0, 1.5], yaw_deg: 90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: false}
+
+  - name: pausa_fiducial_norte
+    type: wait
+    seconds: 10.0
+
+  - name: esquinas_norte_regreso
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [10.0, 10.0, 1.0], yaw_deg: -90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [-10.0, 10.0, 1.5], yaw_deg: -90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+
+  - name: pausa_esquinas_norte_regreso
+    type: wait
+    seconds: 4.0
+
+  - name: centros_laterales_bajada
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [10.0, 0.0, 1.0], yaw_deg: -90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: false}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [-10.0, 0.0, 1.5], yaw_deg: 0.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+
+  - name: pausa_centros_laterales_bajada
+    type: wait
+    seconds: 4.0
+
+  - name: esquinas_sur_regreso
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [10.0, -10.0, 1.0], yaw_deg: 0.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: false}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [-10.0, -10.0, 1.5], yaw_deg: 0.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+
+  - name: pausa_esquinas_sur_regreso
+    type: wait
+    seconds: 4.0
+
+  - name: ambos_vuelven_al_centro_sur
+    type: move
+    mode: simultaneous
+    goals:
+      - {drone_id: 1, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.0], yaw_deg: -90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: false}
+      - {drone_id: 2, navigation_source: GT, tipo_trayectoria: 0, target: [0.0, -10.0, 1.5], yaw_deg: 90.0, tx: 40.0, ty: 40.0, tz: 40.0, tyaw: 13.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+
+  - name: observacion_final_mapa_y_flujo
+    type: wait
+    seconds: 30.0

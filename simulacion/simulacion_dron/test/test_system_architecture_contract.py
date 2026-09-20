@@ -243,7 +243,30 @@ def test_phase5_profile_disables_legacy_gt_fallback_by_default():
     ).read_text(encoding='utf-8')
     assert "'gt_fallback_enabled', default_value='false'" in multi_launch
     assert "'gt_fallback_enabled', default_value='false'" in drone_launch
-    assert "'phase5_navigation_source', default_value='orb'" in multi_launch
     assert "'phase5_navigation_source', default_value='orb'" in drone_launch
-    assert "'phase5_navigation_source': LaunchConfiguration(" in multi_launch
+    assert "'mission_profile', default_value=mission_profile_default_path" in multi_launch
+    assert "'navigation_source', default_value=default_navigation_source" in multi_launch
+    assert "'phase5_navigation_source': LaunchConfiguration('navigation_source')" in multi_launch
     assert "'phase5_navigation_source': ParameterValue(" in drone_launch
+
+
+def test_mission_profiles_keep_mode_and_source_outside_debug_yaml():
+    debug = yaml.safe_load(
+        (PACKAGE_ROOT / 'config/debug.yaml').read_text(encoding='utf-8'))
+    assert 'mission_mode' not in debug.get('debug', {})
+    assert 'navigation_source' not in debug.get('debug', {})
+    profiles = {
+        path.name: yaml.safe_load(path.read_text(encoding='utf-8'))
+        for path in (PACKAGE_ROOT / 'config/mission_profiles').glob('*.yaml')}
+    assert profiles['autonomous_gt.yaml'] == {
+        'mission_mode': 'autonomous', 'navigation_source': 'gt',
+        'trajectory_file': '../scenarios/autonomous_gt_fiducial2.yaml'}
+    assert profiles['trajectory_gt.yaml'] == {
+        'mission_mode': 'trajectory', 'navigation_source': 'gt',
+        'trajectory_file': '../scenarios/trajectory_gt.yaml'}
+    assert profiles['trajectory_gt_orb.yaml'] == {
+        'mission_mode': 'trajectory', 'navigation_source': 'gt',
+        'trajectory_file': '../scenarios/trajectory_gt_orb.yaml'}
+    assert profiles['trajectory_gt_square_5_levels.yaml'] == {
+        'mission_mode': 'trajectory', 'navigation_source': 'gt',
+        'trajectory_file': '../scenarios/trajectory_gt_square_5_levels.yaml'}

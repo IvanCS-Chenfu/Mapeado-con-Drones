@@ -73,14 +73,13 @@ src/
 ├── simulacion/
 │   └── simulacion_dron/
 │
-├── codex/
-└── mi_tfg/                 # legacy conservado temporalmente
+└── codex/
 ```
 
 `codex` permanece en `src/codex/`; no es un cuarto grupo de despliegue.
-`mi_tfg` permanece temporalmente en la raíz como paquete legacy y queda fuera
-de los builds y dependencias de los tres grupos. `ORB_SLAM3_MULTI` fue retirado
-completamente antes de ejecutar Fase 2.
+El paquete legacy `mi_tfg` fue retirado tras el cierre del proyecto y queda
+fuera de los builds y dependencias de los tres grupos. `ORB_SLAM3_MULTI` fue
+retirado completamente antes de ejecutar Fase 2.
 
 Los nombres de paquetes ROS 2 no se cambian en Fase 2 salvo que exista una
 imposibilidad técnica demostrada. La ruta física puede cambiar sin renombrar el

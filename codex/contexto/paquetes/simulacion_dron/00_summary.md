@@ -1,10 +1,44 @@
 # 00_summary - simulacion_dron
 
+El perfil operativo comun se selecciona con `mission_profile` y contiene
+`mission_mode: trajectory|autonomous`, `navigation_source: gt|orb` y
+`trajectory_file`. El runner resuelve este archivo relativo al perfil (o como
+ruta absoluta) y `run_simulation.sh` ya no selecciona una trayectoria aparte. En
+`trajectory`, `multi_dron.launch.py` no lanza `task_server` ni `task_manager`,
+aunque `launch_phase6` o sus flags esten activos. En `autonomous` se lanzan y
+respetan los flags de Fase 6; `scenario_runner_node` abre automaticamente
+`/mission/set_coverage_execution_enabled` al terminar toda la trayectoria
+seleccionada, aunque no termine en un fiducial.
+Los perfiles de las pruebas estan en `config/mission_profiles/`, incluyendo
+`trajectory_gt_square_3_levels.yaml` y
+`trajectory_gt_square_5_levels.yaml` para recorridos cuadrados GT con yaw
+absoluto/relativo.
+
 Para 6G/7G, los grafos web describen el `PlanningWorker` y la ruta de
 `/mission/planned_routes` hasta `RosDataBridge`; el launch de validacion usa
 Gazebo y una unica GUI F7, sin RViz2 ni la GUI legacy. La prueba 615 valido un
 plan y un replan D* cortos con fuente GT; 616 solo verifico el arranque limpio
 del worker porque no se pudieron emitir sus solicitudes de servicio.
+
+La instrumentacion visual preliminar de F1 usa un perfil aislado de
+`multi_dron.launch.py`: puede omitir ORB-SLAM3 y `global_map_server` sin
+cambiar sus defaults, y activar opcionalmente una grafica namespaced de
+GT frente a la referencia `Tray`. Es pasiva y solo sirve para documentacion
+visual; no interviene en control, estimacion ni mapa.
+
+La prueba 4.5 usa `multi_dron.launch.py` con `world_name:=empty`, un único
+dron, fuente GT y el registrador pasivo `fase45_recorder`. Los perfiles y
+escenarios reproducibles viven en
+`Pruebas/Capítulo 4/4_5_seguimiento/configuracion/`; la herramienta offline de
+resultados produce CSV sincronizados, figuras y la tabla cuantitativa.
+
+Las pruebas elementales de actuacion usan
+`launch/fase1_actuacion.launch.py` con un unico dron en `empty.world` y el
+publicador auxiliar `src/fase1_actuacion_publisher.py`. El modo `force`
+publica una fuerza vertical configurable; los modos `torque_x` y `torque_z`
+publican el torque configurable en el eje correspondiente. Todos parametrizan
+el tiempo de reposo y el de actuacion (por defecto 10 s y 20 s, 30 s totales), sin iniciar servidor,
+ORB-SLAM3 ni controlador PD.
 
 Para 6D/6I, `multi_dron.launch.py` propaga
 `phase6_voxel_occupied_score_threshold=0.4`, el rango visual
@@ -55,11 +89,11 @@ launch expone `phase5_global_pose_rviz_enabled=false` y el modo de prueba
 `use_legacy_gt_goal_policy_for_simulation=false`; este último gobierna solo el
 control legacy GT y no alimenta las poses estimadas.
 
-`multi_dron.launch.py` expone `phase5_navigation_source=gt|orb` y lo propaga
-al `navigation_state_mux` de cada dron. El default del binario y del launch es
-`orb`; las pruebas GT lo inyectan explicitamente. En modo GT ORB permanece
-activo en sombra y los fiduciales siguen siendo exclusivamente visuales. El
-fallback GT legado queda desactivado por defecto.
+`multi_dron.launch.py` lee `navigation_source=gt|orb` desde `mission_profile.yaml`
+y lo propaga internamente como `phase5_navigation_source` al
+`navigation_state_mux` de cada dron, `task_manager` y `task_server`. En modo GT
+ORB permanece en sombra y los fiduciales siguen siendo exclusivamente visuales.
+El fallback GT legado queda desactivado por defecto.
 
 Los goals YAML pueden sobrescribir esa fuente con
 `navigation_source: None|GT|ORB`. `None` hereda el launch y `ORB` conserva la

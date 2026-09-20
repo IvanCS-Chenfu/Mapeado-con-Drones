@@ -108,12 +108,6 @@ Proporciona Gazebo, GT permitido para fiduciales/debug y el launch oficial:
 ros2 launch simulacion_dron multi_dron.launch.py
 ```
 
-## Paquetes legacy o de bajo interés
-
-| Paquete | Regla |
-|---|---|
-| `mi_tfg` | No usar salvo petición explícita. |
-
 `ORB_SLAM3_MULTI/` fue retirado completamente en la correccion final de 3T.
 
 Más detalles:

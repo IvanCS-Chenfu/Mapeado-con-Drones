@@ -70,8 +70,8 @@ simulacion_dron         -> src/simulacion/
 ```
 
 `codex` permanece en `src/codex/`.
-`mi_tfg` permanece en la raíz como excepción legacy explícita y no participa en
-los builds. `ORB_SLAM3_MULTI` debe permanecer ausente.
+`mi_tfg` fue retirado durante la limpieza final y no participa en los builds.
+`ORB_SLAM3_MULTI` debe permanecer ausente.
 
 Fallar si un paquete principal reaparece en la raíz de `src/` o en un grupo no
 permitido.

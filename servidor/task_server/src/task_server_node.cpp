@@ -4298,6 +4298,12 @@ private:
   {
     execution_enabled_.store(request->data, std::memory_order_release);
     execution_gate_update_pending_.store(true, std::memory_order_release);
+    if (request->data) {
+      for (const auto & entry : navigation_poses_) {
+        EnqueueTaskAvailableDrone(entry.first, "execution_gate_enabled");
+      }
+      AssignAvailableTasks();
+    }
     response->success = true;
     response->message = request->data ? "ejecucion F6I habilitada" : "ejecucion F6I pausada";
     RCLCPP_INFO(
@@ -4708,7 +4714,8 @@ private:
 
   void EnqueueTaskAvailableDrone(std::uint32_t drone_id, const std::string & reason)
   {
-    if (drone_id == 0U || !IsRegisteredDrone(drone_id) ||
+    if (!execution_enabled_.load(std::memory_order_acquire) ||
+      drone_id == 0U || !IsRegisteredDrone(drone_id) ||
       eligible_drones_.count(drone_id) == 0U ||
       HasActivePrimaryTask(drone_id) ||
       fiducial_interrupt_task_by_drone_.count(drone_id) != 0U ||
@@ -4789,6 +4796,9 @@ private:
 
   void AssignAvailableTasks()
   {
+    if (!execution_enabled_.load(std::memory_order_acquire)) {
+      return;
+    }
     while (true) {
       const auto assignment = workflow_scheduler_.Dequeue(
         task_server::WorkflowQueue::TASK_ASSIGNMENT);

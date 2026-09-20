@@ -1,0 +1,3 @@
+mission_mode: trajectory
+navigation_source: gt
+trajectory_file: trayectoria_cubica_lenta.yaml

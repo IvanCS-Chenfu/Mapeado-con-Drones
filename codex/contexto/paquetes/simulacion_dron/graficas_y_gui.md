@@ -23,13 +23,34 @@ Nodo Python de visualización de arrays numéricos publicados en:
 
 - `graficar_GT.cpp`: publica valores GT para graficar.
 - `graficar_tray.cpp`: publica referencias de trayectoria desde feedback de action.
-- `graficar_GTvsTray.cpp`: publica errores entre GT y trayectoria.
+- `graficar_GTvsTray.cpp`: observador pasivo namespaced. Sincroniza la pose GT
+  disponible con el feedback de `AccionTrayectoria` y publica
+  `graficas/gt_vs_tray` como ocho valores: `Tray(x,y,z,yaw), GT(x,y,z,yaw)`.
+- `fase1_gt_tray_plotter.py`: suscriptor del topic anterior con cuatro paneles
+  temporales `x`, `y`, `z` y `yaw`. Solo se inicia con
+  `enable_fase1_gt_tray_plot=true`; ignora muestras incompletas y no publica
+  consignas ni modifica el control.
 
 ## Estado
 
-Útiles para debug de control, no para validar directamente el mapa global.
+Útiles para debug de control y para evidencia visual descriptiva de F1, no
+para validar directamente el mapa global.
 
 Para las fases de Codex, la validación principal debe venir de logs del servidor, nubes en RViz/GUI futura y métricas automáticas.
+
+## `fase45_recorder`
+
+`src/graficar/fase45_recorder.cpp` es un registrador pasivo de un único dron.
+Suscribe a `sensor/GT/pose`, `sensor/GT/vel`, `sensor/GT/acc` y al feedback de
+`AccionTrayectoria`, y guarda cuatro CSV con timestamp físico, timestamp de
+recepción y los valores de pose, velocidad y aceleración. Se activa desde
+`multi_dron.launch.py` mediante `phase45_recorder_enabled`; no publica ni
+interviene en el control.
+
+La herramienta offline
+`Pruebas/Capítulo 4/4_5_seguimiento/generar_resultados_4_5.py` interpola los
+cuatro registros sobre el tiempo de recepción de GT, genera el CSV sincronizado,
+las figuras XY y 3x4, y las métricas de posición de la tabla.
 
 ## `pose_metrics_node.py` (5F)
 

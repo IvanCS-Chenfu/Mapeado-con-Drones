@@ -3,8 +3,62 @@
 `multi_dron.launch.py` expone `phase5_pose_metrics_enabled` y
 `phase5_pose_metrics_output_dir`. Al activarlos lanza `phase5_pose_metrics` con
 `use_sim_time=true`, numero/namespaces de drones y salida de artefactos propia.
+También expone `world_name`, que por defecto toma `world.activar`, y las
+opciones `phase45_recorder_enabled`, `phase45_recorder_output_dir` y
+`phase45_recorder_drone_namespace` para registrar la prueba 4.5.
+
+También expone `trajectory_config`, nombre de un YAML instalado en
+`dron_individual/config` que se reenvía a cada `gen_tray`. El valor por defecto
+es `trajectory.yaml`; una variante experimental puede seleccionar, por
+ejemplo, `trajectory_fast.yaml` sin modificar el YAML nominal ni el código del
+generador.
+
+## `fase1_actuacion.launch.py`
+
+Launch aislado para las pruebas elementales de actuacion de Fase 1. Arranca
+`empty.world`, un unico `generador_URDF` bajo `dron_1`,
+`aplicar_fuerzas_dron` y el publicador auxiliar
+`fase1_actuacion_publisher.py`; no inicia trayectoria, ORB-SLAM3, servidor ni
+controlador PD. El publicador y el cierre del launch parametrizan los tiempos de
+reposo y actuacion; sus valores por defecto son 10 s y 20 s, respectivamente,
+con 30 s totales y 1 s adicional para registrar el cierre.
+
+Argumentos de la prueba:
+
+```text
+mission_profile=<perfil con steps vacio>
+actuation_mode=force|torque_x|torque_z
+force_value=<N>
+torque_x_nm=<N*m>
+torque_z_nm=<N*m>
+idle_duration_sec=<s>
+actuation_duration_sec=<s>
+```
+
+En `force`, la fuerza configurada se publica despues del reposo y durante el
+tiempo de actuacion, con torque nulo. En `torque_x`, la fuerza permanece en
+cero y el torque configurado en X o Z se publica durante el tiempo de actuacion.
+Los
+tiempos se pueden cambiar sin crear otro nodo; por ejemplo, la prueba de
+1.5 N*m usa `idle_duration_sec:=20.0` y `actuation_duration_sec:=20.0`.
 
 ## `multi_dron.launch.py`
+
+El argumento `mission_profile` selecciona un YAML con:
+
+```yaml
+mission_mode: trajectory  # trajectory | autonomous
+navigation_source: orb    # gt | orb
+trajectory_file: scenarios/trajectory_gt_orb.yaml
+```
+
+`trajectory` es una puerta maestra que omite `task_server` y `task_manager`.
+`autonomous` lanza ambos nodos y fuerza la puerta de ejecucion del servidor a
+cerrada hasta que `scenario_runner_node` termina toda la trayectoria indicada
+por `trajectory_file` y solicita el handoff automatico. La fuente del perfil
+se propaga internamente como `phase5_navigation_source` y es la fuente por
+defecto de los goals; `navigation_source` dentro de un goal conserva su
+precedencia para cambiar GT/ORB durante una trayectoria.
 
 Arranca Gazebo, el numero de drones definido en `config/sim_dron.yaml`,
 wrappers y `global_map_server`. RViz2, bridge web, navegador y telemetria de
@@ -29,11 +83,20 @@ Desde 4F, `config/global_map/runtime.yaml` incluye
 `debug_architecture_telemetry=true`, la arista de batches wrapper→Servidor se
 activa en live; si telemetry es false el grafo permanece estatico.
 
+Para la evidencia visual preliminar de F1, el launch conserva los defaults
+operativos y anade tres puertas opt-in: `activar_orbslam=true`,
+`launch_global_server=true` y `enable_fase1_gt_tray_plot=false`. El perfil
+aislado fija las dos primeras a `false`, desactiva fiduciales/F6/GUI auxiliares
+y usa `phase5_navigation_source=gt`; el tercer argumento inicia, bajo el
+namespace de `fase1_graph_drone=dron_1`, el adaptador y plotter pasivos de
+GT frente a `Tray`. El plotter recibe un entorno GUI saneado y no usa paquetes
+Python del usuario, para no heredar incompatibilidades de Snap o VS Code.
+
 Referencia:
 
 ```text
 simulacion_dron/launch/multi_dron.launch.py
-rg -n "fiducial_spawner|spawn_fiducials|global_map_config_dir|pipeline_flow" \
+rg -n "activar_orbslam|launch_global_server|enable_fase1_gt_tray_plot|fiducial_spawner" \
   simulacion_dron/launch/multi_dron.launch.py
 ```
 
@@ -84,6 +147,7 @@ Otros argumentos de rendimiento/operacion:
 
 ```text
 launch_gazebo_gui=true
+world_name=<empty|house_1|...>
 launch_mission_gui=true
 spawn_fiducials=true
 drone_start_stagger_sec=8.0
@@ -123,6 +187,9 @@ phase6_depth_candidate_min_orientation_delta_deg=2.5
 phase6_depth_min_confidence=0.25
 phase6_depth_min_support_points=20
 phase6_debug_facade_dstar_failure=false
+phase45_recorder_enabled=false
+phase45_recorder_output_dir=/tmp/fase45
+phase45_recorder_drone_namespace=dron_1
 ```
 
 Cuando se habilita la ejecucion 6I, el launch entrega

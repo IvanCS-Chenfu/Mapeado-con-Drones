@@ -12,6 +12,11 @@
 
 `gen_tray.cpp` actúa como action server ROS 2 que envuelve estas clases.
 
+`generar_dron.launch.py` acepta `trajectory_config` para seleccionar el YAML de
+parámetros de trayectoria instalado en `config/`. Esto permite variar
+`crear.tray.v_max_lin`, `crear.tray.v_max_ang` y `crear.tray.t_a` por ejecución;
+el valor nominal es `trajectory.yaml`.
+
 ## Action `TrayAction`
 
 Entrada:
@@ -104,6 +109,13 @@ La integración física de cambios de corredor sigue en diagnóstico: la prueba
 la excepcion de una retirada concurrente. El worker conserva la regla de que
 solo su propio hilo finaliza su goal; el guard evita que el apagado de ROS o una
 preempcion ya procesada termine el proceso por un segundo resultado.
+
+Para los goals trapezoidales absolutos, `gen_tray` recibe también estados
+iniciales con pequeñas velocidades residuales al enlazar waypoints. La
+generación en `lib_tray` descarta las componentes contrarias al desplazamiento
+o incompatibles con `v_max` antes de calcular las fases del perfil; así el
+action server puede completar el siguiente goal sin quedar bloqueado por
+tiempos de aceleración negativos.
 
 ## STOP interno de 6I
 

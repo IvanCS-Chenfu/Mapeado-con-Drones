@@ -1,0 +1,8 @@
+| Métrica | Cúbica lenta | Cúbica normal | Trapezoidal lenta | Trapezoidal rápida |
+|---|---:|---:|---:|---:|
+| RMSE de posición [m] | 0.023118 | 0.148723 | 0.025235 | 0.077503 |
+| MAE de posición [m] | 0.017730 | 0.117639 | 0.021206 | 0.063862 |
+| Error máximo de posición [m] | 0.090066 | 0.514862 | 0.058969 | 0.210434 |
+| Error final de posición [m] | 0.016373 | 0.133695 | 0.009549 | 0.038231 |
+| Suma de t_total de los goals [s] | 152.000000 | 76.000000 | 141.600000 | 93.546000 |
+| Duración total del recorrido [s] | 153.260000 | 76.950000 | 174.590000 | 110.480000 |

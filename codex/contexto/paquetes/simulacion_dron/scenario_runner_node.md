@@ -2,14 +2,23 @@
 
 ## Rol
 
+El parametro `mission_profile` lee el mismo perfil que el launch y obtiene de
+`trajectory_file` el YAML que debe ejecutar. La ruta puede ser absoluta o
+relativa al perfil. Si contiene `mission_mode: autonomous`, el runner llama automaticamente a
+`/mission/set_coverage_execution_enabled` con `true` despues de completar todos
+los pasos de esa trayectoria. En `trajectory` no realiza ese handoff. La
+transferencia se produce por finalizacion del ultimo goal, sin exigir una
+deteccion de fiducial.
+
 Ejecuta escenarios YAML y envía lotes de goals a
 `/dron_X/AccionTrayectoria`. Desde 3C su gate de backpressure está activo. En
 4B incorpora el paso generico `wait_for_bool` para esperar readiness externo
 sin acoplar el runner al spawner.
 
-Cada goal `move` admite `navigation_source: None|GT|ORB` sin distinguir
-mayusculas. Antes de enviar la action, el runner llama al servicio namespaced
-correspondiente. `None`, valor por defecto, hereda el selector global. Los
+Cada goal `move` admite `navigation_source: GT|ORB` sin distinguir mayusculas.
+Antes de enviar la action, el runner llama al servicio namespaced
+correspondiente. Si el campo falta, hereda `navigation_source` del perfil; un
+goal explicito conserva precedencia para cambiar GT/ORB. Los
 marcadores `[SCENARIO-RUNNER-NAV-SOURCE]` y
 `[SCENARIO-RUNNER-NAV-SOURCE-ERROR]` hacen observable la preparacion.
 
@@ -84,6 +93,12 @@ El callback actualiza un flag atómico. Un lote ya enviado termina normalmente;
 los pasos `wait` no se bloquean; antes del siguiente lote `move`, el runner
 espera a `false` y envía una sola vez los destinos originales. La espera del
 gate ocurre antes de crear los goals y no consume su timeout.
+
+`gate_mapping_backpressure` es `true` por defecto, tanto como parámetro ROS
+como cuando falta en el YAML. Un escenario puede declararlo `false` para una
+toma visual no formal: el runner no retiene los siguientes goals, pero el
+servidor conserva la detección, publicación y telemetría de backpressure. El
+bypass queda explícito en `[SCENARIO-RUNNER-MOVE-GATE-BYPASS]`.
 
 Marcadores:
 

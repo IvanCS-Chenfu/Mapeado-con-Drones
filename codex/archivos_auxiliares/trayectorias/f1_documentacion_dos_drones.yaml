@@ -1,0 +1,49 @@
+name: f1_documentacion_dos_drones
+description: "F1 documental: actividad independiente de dos ramas namespaced para rqt_graph."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 90.0
+steps:
+  - name: espera_arranque_simulacion
+    type: wait
+    seconds: 6.0
+
+  - name: preparacion_captura_rqt_bidron
+    type: wait
+    seconds: 25.0
+
+  - name: despegue_independiente
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, 0.0, 1.3]
+        yaw_deg: 0.0
+        tx: 5.0
+        ty: 5.0
+        tz: 5.0
+        tyaw: 4.0
+        absoluto_x: false
+        absoluto_y: false
+        absoluto_z: false
+        absoluto_yaw: false
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, 0.0, 1.5]
+        yaw_deg: 30.0
+        tx: 5.0
+        ty: 5.0
+        tz: 5.0
+        tyaw: 4.0
+        absoluto_x: false
+        absoluto_y: false
+        absoluto_z: false
+        absoluto_yaw: false
+
+  - name: observacion_rqt
+    type: wait
+    seconds: 10.0

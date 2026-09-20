@@ -110,7 +110,7 @@ Los scripts se ejecutan normalmente desde `src/`:
 
 El usuario autoriza a Codex a ejecutar directamente, sin pedir confirmación por chat:
 
-1. `colcon build` a través de `build_selected_packages.sh`, aunque escriba en `build/`, `install/` y `log/`.
+1. `colcon build` a través de `build_selected_packages.sh`, aunque escriba en `../build/`, `../install/` y `../log/`.
 2. Limpiezas mínimas de artefactos generados dentro de `build/`, `install/` o `log/` si bloquean una compilación o simulación.
 3. Simulaciones con `run_simulation.sh`, incluyendo generación de logs, cierre de Gazebo y reintentos automáticos.
 
@@ -151,7 +151,9 @@ Si ya existía un `colcon_build.log`, se sobrescribe. Al compilar
 ```
 
 Cada invocación selecciona exactamente un paquete y escribe en
-`build/install/log/<grupo>`. Simulación carga los prefijos de Dron y Servidor.
+`../build/<grupo>`, `../install/<grupo>` y `../log/<grupo>` respecto a `src/`.
+La comprobación previa `colcon list` usa el mismo log externo. Simulación carga
+los prefijos de Dron y Servidor.
 No usar un build global de `src/`: existen dos copias de `orbslam3_msgs`.
 
 ### Paquetes pesados

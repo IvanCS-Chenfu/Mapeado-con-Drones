@@ -1,4 +1,10 @@
-# mi_tfg - referencia historica de vision
+# mi_tfg - referencia histórica retirada
+
+## Estado
+
+El paquete fuente `src/mi_tfg` fue retirado durante la limpieza final del
+workspace. Este documento conserva únicamente contexto histórico; sus rutas no
+son ejecutables ni deben usarse como dependencias del proyecto vigente.
 
 ## Alcance
 

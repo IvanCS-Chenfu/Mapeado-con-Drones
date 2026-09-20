@@ -89,7 +89,7 @@ source_setup() {
   echo "[COLCON-LOG-BASE] $COLCON_LOG_BASE"
 } | tee -a "$BUILD_LOG"
 
-if ! colcon list --base-paths "$GROUP_SRC_DIR" --names-only | grep -Fqx "$PACKAGE"; then
+if ! colcon --log-base "$COLCON_LOG_BASE" list --base-paths "$GROUP_SRC_DIR" --names-only | grep -Fqx "$PACKAGE"; then
   echo "[BUILD-ERROR] $PACKAGE no pertenece al grupo $GROUP" | tee -a "$BUILD_LOG"
   exit 2
 fi

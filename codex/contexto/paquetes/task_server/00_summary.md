@@ -11,6 +11,13 @@ Archivo principal: `servidor/task_server/src/task_server_node.cpp` ->
 
 ## Infraestructura que ya existe
 
+La puerta `execution_enabled_` bloquea tambien la puesta en cola y asignacion
+inicial de drones elegibles. En modo autonomo el servidor arranca con esa
+puerta cerrada durante el bootstrap GT; al recibir
+`/mission/set_coverage_execution_enabled=true` vuelve a encolar los drones
+elegibles y comienza la asignacion normal. La configuracion monodron de las
+pruebas es `config/mission_house_single_drone.yaml` con `drones: [1]`.
+
 `WorkflowScheduler` mantiene las colas FIFO `TASK_ASSIGNMENT`,
 `POINT_SELECTION`, `TRAJECTORY_PLANNING`, `DEPTH_INTEGRATION` y
 `ACTIVE_TRAJECTORY_MONITOR`. Toda entrada transporta como minimo

@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    # Variante de Fase 4.5: duplica las velocidades lineal y angular nominales.
+    crear.tray.v_max_lin: 1.6
+    crear.tray.v_max_ang: 1.0
+    crear.tray.t_a: 5.0
+    stop_duration_sec: 5.0
+    waypoint_blend_sec: 3.0

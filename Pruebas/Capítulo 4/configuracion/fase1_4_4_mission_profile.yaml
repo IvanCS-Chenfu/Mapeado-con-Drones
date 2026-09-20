@@ -1,0 +1,3 @@
+mission_mode: trajectory
+navigation_source: gt
+trajectory_file: fase1_4_4_trayectoria_vacia.yaml

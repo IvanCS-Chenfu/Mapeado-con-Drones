@@ -155,8 +155,8 @@ src/simulacion/ -> Gazebo, escenarios, integracion y visualizadores
 
 Los builds usan bases separadas `build/install/log/{dron,servidor,simulacion}`
 y exactamente un paquete por invocacion. `orbslam3_msgs` es canonico en
-Servidor y replica exacta en Dron. `mi_tfg` permanece como legacy fuera de los
-tres grupos.
+Servidor y replica exacta en Dron. El paquete legacy `mi_tfg` fue retirado del
+workspace y queda únicamente como referencia histórica documental.
 
 ## Configuracion y debug
 

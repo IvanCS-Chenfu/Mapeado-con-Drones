@@ -13,6 +13,7 @@ __pycache__/
 venv/
 .env
 .pytest_cache/
+pytest-of-*/
 
 # IDE and editor files
 .vscode/
@@ -62,12 +63,4 @@ codex/archivos_auxiliares/chrome-*
 # Vocabulario ORB-SLAM descomprimido (>100 MB)
 dron/ORB_SLAM3/Vocabulary/ORBvoc.txt
 dron/dron_individual/config/orbslam/vocabulary/ORBvoc.txt
-mi_tfg/config/orbslam/vocabulary/ORBvoc.txt
 simulacion/simulacion_dron/config/orbslam/vocabulary/ORBvoc.txt
-
-# Cachés
-.pytest_cache/
-__pycache__/
-
-# Logs
-log/

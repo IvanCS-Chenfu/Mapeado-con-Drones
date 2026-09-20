@@ -8,6 +8,8 @@ from launch.actions import (
     ExecuteProcess,
     GroupAction,
     IncludeLaunchDescription,
+    OpaqueFunction,
+    SetLaunchConfiguration,
     TimerAction,
 )
 from launch.conditions import IfCondition, UnlessCondition
@@ -39,6 +41,25 @@ def generate_launch_description():
         debug_yaml = yaml.safe_load(stream) or {}
     debug_values = debug_yaml.get('debug', {})
 
+    mission_profile_default_path = os.path.join(
+        get_package_share_directory('simulacion_dron'),
+        'config', 'mission_profile.yaml')
+
+    def read_mission_profile(path):
+        with open(path, 'r', encoding='utf-8') as stream:
+            profile = yaml.safe_load(stream) or {}
+        mode = str(profile.get('mission_mode', 'trajectory')).lower()
+        source = str(profile.get('navigation_source', 'orb')).lower()
+        if mode not in ('trajectory', 'autonomous'):
+            raise RuntimeError(
+                "mission_mode debe ser 'trajectory' o 'autonomous'")
+        if source not in ('gt', 'orb'):
+            raise RuntimeError("navigation_source debe ser 'gt' u 'orb'")
+        return mode, source
+
+    default_mission_mode, default_navigation_source = read_mission_profile(
+        mission_profile_default_path)
+
     def debug_default(name):
         value = debug_values.get(name)
         if not isinstance(value, bool):
@@ -58,7 +79,7 @@ def generate_launch_description():
     world_path = PathJoinSubstitution([
         FindPackageShare('simulacion_dron'),
         'worlds',
-        PythonExpression(["'", default_world, "' + '.world'"])
+        PythonExpression(["'", LaunchConfiguration('world_name'), "' + '.world'"])
     ])
 
     params_physical_model = PathJoinSubstitution([
@@ -100,15 +121,30 @@ def generate_launch_description():
     rviz_environment['XDG_DATA_HOME'] = os.path.expanduser('~/.local/share')
     rviz_environment['XDG_CONFIG_HOME'] = os.path.expanduser('~/.config')
     rviz_environment['XDG_CACHE_HOME'] = os.path.expanduser('~/.cache')
+    plotter_environment = dict(rviz_environment)
+    plotter_environment['PYTHONNOUSERSITE'] = '1'
 
     ld = LaunchDescription()
     ld.add_action(DeclareLaunchArgument('launch_gazebo_gui', default_value='true'))
+    ld.add_action(DeclareLaunchArgument('world_name', default_value=default_world))
     ld.add_action(DeclareLaunchArgument('launch_mission_gui', default_value='true'))
     ld.add_action(DeclareLaunchArgument('launch_multidron_gui', default_value='true'))
     ld.add_action(DeclareLaunchArgument(
         'multidron_gui_start_delay_sec', default_value='0.0'))
     ld.add_action(DeclareLaunchArgument('launch_rviz', default_value='false'))
     ld.add_action(DeclareLaunchArgument('launch_phase6', default_value='true'))
+    ld.add_action(DeclareLaunchArgument(
+        'mission_profile', default_value=mission_profile_default_path))
+    ld.add_action(DeclareLaunchArgument(
+        'mission_mode', default_value=default_mission_mode))
+    ld.add_action(DeclareLaunchArgument(
+        'navigation_source', default_value=default_navigation_source))
+    ld.add_action(DeclareLaunchArgument('activar_orbslam', default_value='true'))
+    ld.add_action(DeclareLaunchArgument('launch_global_server', default_value='true'))
+    ld.add_action(DeclareLaunchArgument(
+        'enable_fase1_gt_tray_plot', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'fase1_graph_drone', default_value='dron_1'))
     for i in range(1, default_n + 1):
         ld.add_action(DeclareLaunchArgument(
             f'launch_drone_{i}', default_value='true'))
@@ -167,12 +203,16 @@ def generate_launch_description():
         'phase5_pose_metrics_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
         'phase5_pose_metrics_output_dir', default_value='/tmp/fase5_pose_metrics'))
+    ld.add_action(DeclareLaunchArgument('phase45_recorder_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase45_recorder_output_dir', default_value='/tmp/fase45'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase45_recorder_drone_namespace', default_value='dron_1'))
+    ld.add_action(DeclareLaunchArgument('trajectory_config', default_value='trajectory.yaml'))
     ld.add_action(DeclareLaunchArgument(
         'phase5_global_pose_rviz_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
         'gt_fallback_enabled', default_value='false'))
-    ld.add_action(DeclareLaunchArgument(
-        'phase5_navigation_source', default_value='orb'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_execute_facade_sweeps', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
@@ -295,6 +335,27 @@ def generate_launch_description():
         "'.lower() == 'true'",
     ])
 
+    phase6_enabled = PythonExpression([
+        "'", LaunchConfiguration('mission_mode'),
+        "'.lower() == 'autonomous' and '",
+        LaunchConfiguration('launch_phase6'), "'.lower() == 'true'",
+    ])
+    autonomous_execution_start = PythonExpression([
+        "'false' if '", LaunchConfiguration('mission_mode'),
+        "'.lower() == 'autonomous' else '",
+        LaunchConfiguration('phase6_execution_enabled_on_start'), "'",
+    ])
+
+    def apply_mission_profile(context):
+        profile_path = LaunchConfiguration('mission_profile').perform(context)
+        mode, source = read_mission_profile(profile_path)
+        return [
+            SetLaunchConfiguration('mission_mode', mode),
+            SetLaunchConfiguration('navigation_source', source),
+        ]
+
+    ld.add_action(OpaqueFunction(function=apply_mission_profile))
+
     ld.add_action(ExecuteProcess(
         cmd=['gazebo', '--verbose', world_path, '-s', 'libgazebo_ros_factory.so'],
         output='screen',
@@ -334,6 +395,18 @@ def generate_launch_description():
         }],
         output='screen',
         condition=IfCondition(LaunchConfiguration('phase5_pose_metrics_enabled'))))
+
+    ld.add_action(Node(
+        package='simulacion_dron',
+        executable='fase45_recorder',
+        name='fase45_recorder',
+        parameters=[{
+            'use_sim_time': True,
+            'output_dir': LaunchConfiguration('phase45_recorder_output_dir'),
+            'drone_namespace': LaunchConfiguration('phase45_recorder_drone_namespace'),
+        }],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('phase45_recorder_enabled'))))
 
     ld.add_action(Node(
         package='simulacion_dron',
@@ -408,11 +481,11 @@ def generate_launch_description():
                 LaunchConfiguration('debug_mission_flow_web'), value_type=bool),
             'system_architecture_events_enabled': ParameterValue(
                 architecture_telemetry_enabled, value_type=bool),
-            'phase5_navigation_source': LaunchConfiguration('phase5_navigation_source'),
+            'phase5_navigation_source': LaunchConfiguration('navigation_source'),
             'execute_facade_sweeps': ParameterValue(
                 LaunchConfiguration('phase6_execute_facade_sweeps'), value_type=bool),
             'execution_enabled_on_start': ParameterValue(
-                LaunchConfiguration('phase6_execution_enabled_on_start'), value_type=bool),
+                autonomous_execution_start, value_type=bool),
             'execution_nominal_velocity_mps': ParameterValue(
                 LaunchConfiguration('phase6_execution_nominal_velocity_mps'), value_type=float),
             'execution_timing_factor': ParameterValue(
@@ -491,7 +564,7 @@ def generate_launch_description():
                 LaunchConfiguration('phase6_sparse_plane_max_samples'), value_type=int),
             'sparse_ray_free_min_score': ParameterValue(
                 LaunchConfiguration('phase6_sparse_ray_free_min_score'), value_type=float),
-        }], condition=IfCondition(LaunchConfiguration('launch_phase6'))))
+        }], condition=IfCondition(phase6_enabled)))
 
     ld.add_action(Node(
         package='simulacion_dron',
@@ -551,6 +624,20 @@ def generate_launch_description():
         parameters=[params_sim, {'use_sim_time': True}], output='screen',
         condition=IfCondition(LaunchConfiguration('launch_mission_gui'))))
 
+    ld.add_action(Node(
+        package='simulacion_dron', executable='graficar_GTvsTray',
+        name='fase1_gt_tray_adapter',
+        namespace=LaunchConfiguration('fase1_graph_drone'),
+        parameters=[{'use_sim_time': True}], output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_fase1_gt_tray_plot'))))
+
+    ld.add_action(Node(
+        package='simulacion_dron', executable='fase1_gt_tray_plotter.py',
+        name='fase1_gt_tray_plotter',
+        namespace=LaunchConfiguration('fase1_graph_drone'),
+        parameters=[{'use_sim_time': True}], env=plotter_environment, output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_fase1_gt_tray_plot'))))
+
     for i in range(1, default_n + 1):
         drone_name = f'{default_namespace_base}_{i}'
         local_map_frame = f'{drone_name}_orb_map'
@@ -594,6 +681,7 @@ def generate_launch_description():
                     'local_map_frame': local_map_frame,
                     'use_sim_time': 'true',
                     'orb_vocabulary_path': LaunchConfiguration('orb_vocabulary_path'),
+                    'activar_orbslam': LaunchConfiguration('activar_orbslam'),
                     'debug_architecture_telemetry': architecture_telemetry_enabled,
                     'debug_fase_1': LaunchConfiguration('debug_fase_1'),
                     'debug_fiducial_visualization': LaunchConfiguration(
@@ -608,9 +696,10 @@ def generate_launch_description():
                     'gt_fallback_enabled': LaunchConfiguration(
                         'gt_fallback_enabled'),
                     'phase5_navigation_source': LaunchConfiguration(
-                        'phase5_navigation_source'),
+                        'navigation_source'),
                     'orb_loss_hold_sec': LaunchConfiguration('orb_loss_hold_sec'),
                     'waypoint_blend_sec': LaunchConfiguration('phase6_waypoint_blend_sec'),
+                    'trajectory_config': LaunchConfiguration('trajectory_config'),
                     'camera_pitch_enabled': LaunchConfiguration(
                         'camera_pitch_enabled'),
                     'orb_qualification_samples': LaunchConfiguration(
@@ -627,8 +716,7 @@ def generate_launch_description():
                         'orb_visual_evidence_output_dir'),
                     'orb_navigation_prediction_mode': LaunchConfiguration(
                         'orb_navigation_prediction_mode'),
-                    'depth_observation_enabled': LaunchConfiguration(
-                        'phase6_depth_inspection_enabled'),
+                    'depth_observation_enabled': phase6_enabled,
                     'depth_max_points': LaunchConfiguration('phase6_depth_max_points'),
                     'depth_far_measurement_max_distance_m': LaunchConfiguration(
                         'phase6_depth_far_measurement_max_distance_m'),
@@ -646,7 +734,7 @@ def generate_launch_description():
                         'phase6_depth_min_texture_gradient'),
                     'depth_texture_window_radius_px': LaunchConfiguration(
                         'phase6_depth_texture_window_radius_px'),
-                    'depth_stop_enabled': LaunchConfiguration('phase6_depth_stop_enabled'),
+                    'depth_stop_enabled': phase6_enabled,
                     'depth_stop_distance_m': LaunchConfiguration('phase6_depth_stop_distance_m'),
                     'depth_stop_cooldown_sec': LaunchConfiguration(
                         'phase6_depth_stop_cooldown_sec'),
@@ -659,7 +747,7 @@ def generate_launch_description():
                     'system_architecture_events_enabled': ParameterValue(
                         architecture_telemetry_enabled, value_type=bool),
                     'phase5_navigation_source': LaunchConfiguration(
-                        'phase5_navigation_source'),
+                        'navigation_source'),
                     'visual_risk_enabled': ParameterValue(
                         LaunchConfiguration('phase6_visual_risk_enabled'), value_type=bool),
                     'visual_risk_persistence_frames': ParameterValue(
@@ -702,7 +790,7 @@ def generate_launch_description():
                         LaunchConfiguration('phase6_depth_min_confidence'), value_type=float),
                     'inspection_depth_min_support_points': ParameterValue(
                         LaunchConfiguration('phase6_depth_min_support_points'), value_type=int),
-                }], condition=IfCondition(LaunchConfiguration('launch_phase6'))),
+                }], condition=IfCondition(phase6_enabled)),
         ], condition=IfCondition(LaunchConfiguration(f'launch_drone_{i}')))
         if i == 1:
             ld.add_action(drone_group)
@@ -740,6 +828,7 @@ def generate_launch_description():
                 "'info' if '", LaunchConfiguration('debug_fase3_logs_terminal'),
                 "'.lower() == 'true' else 'error'",
             ]),
-        }.items()))
+        }.items(),
+        condition=IfCondition(LaunchConfiguration('launch_global_server'))))
 
     return ld

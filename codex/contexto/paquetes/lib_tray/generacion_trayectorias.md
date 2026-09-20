@@ -78,6 +78,14 @@ le impone un tiempo final. Calcula la duración efectiva de cada tramo a partir
 de posición, velocidades, `v_max` y `t_a`, y construye desde ello sus tiempos
 acumulados. Por tanto, una lista temporal externa no puede alterar ese perfil.
 
+En `GenTrayVelTrap`, las velocidades inicial y final usadas para construir el
+perfil se proyectan sobre el sentido del desplazamiento. Si una velocidad es
+contraria al movimiento, o supera `v_max`, se toma como cero para el perfil.
+Esto evita tiempos de fase negativos y perfiles que no alcanzan el objetivo
+cuando un waypoint absoluto empieza con una pequeña velocidad residual del
+controlador. La corrección conserva la API pública y solo afecta a la
+interpretación de estados iniciales incompatibles.
+
 La limpieza asociada retiró de `gen_tray` el perfil paralelo
 `ExecuteMultiWaypoint`: sus quinticas por tramo, tangentes centrales, primer
 punto artificial y temporización propia no forman parte de `lib_tray` ni se

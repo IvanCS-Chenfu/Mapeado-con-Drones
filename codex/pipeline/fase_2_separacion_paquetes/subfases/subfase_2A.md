@@ -231,8 +231,8 @@ Comparar inventario antes/después:
 - ningún paquete perdido;
 - ninguna copia accidental adicional;
 - `codex` permanece en su ruta;
-- `mi_tfg` permanece temporalmente en la raíz como legacy y no se incorpora a
-  ningún grupo;
+- `mi_tfg` se retira durante la limpieza final y no se incorpora a ningún
+  grupo;
 - `ORB_SLAM3_MULTI` no existe, porque fue retirado antes de Fase 2.
 
 ## Archivos probables a modificar

@@ -131,7 +131,10 @@ add_executable(graficar_tray src/graficar/graficar_tray.cpp)
 ament_target_dependencies(graficar_tray rclcpp std_msgs dron_individual)
 
 add_executable(graficar_GTvsTray src/graficar/graficar_GTvsTray.cpp)
-ament_target_dependencies(graficar_GTvsTray rclcpp std_msgs dron_individual)
+ament_target_dependencies(graficar_GTvsTray rclcpp geometry_msgs std_msgs dron_individual)
+
+add_executable(fase45_recorder src/graficar/fase45_recorder.cpp)
+ament_target_dependencies(fase45_recorder rclcpp geometry_msgs dron_individual)
 
 
 
@@ -149,6 +152,7 @@ install(TARGETS
   graficar_GT
   graficar_tray
   graficar_GTvsTray
+  fase45_recorder
 
   scenario_runner_node
 
@@ -158,6 +162,7 @@ install(TARGETS
 
 install(PROGRAMS
   src/graficar/graficar.py
+  src/graficar/fase1_gt_tray_plotter.py
   src/control_tray/gui_tray_multi.py
   src/visualizer/pipeline_flow_bridge.py
   src/visualizer/pipeline_flow_browser.py
@@ -166,6 +171,7 @@ install(PROGRAMS
   src/fiducials/fiducial_spawner.py
   src/graficar/pose_metrics_node.py
   src/visualizer/global_drone_pose_visualizer.py
+  src/fase1_actuacion_publisher.py
 
   DESTINATION lib/${PROJECT_NAME}
 )

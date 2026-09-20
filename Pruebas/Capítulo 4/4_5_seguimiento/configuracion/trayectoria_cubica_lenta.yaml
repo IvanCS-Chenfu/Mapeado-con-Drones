@@ -1,0 +1,20 @@
+name: fase4_5_cubica_lenta
+description: Ruta 4.5 cubica con el doble de tiempo en todos los waypoints.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: ruta_cubica_lenta
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, 0.0, 1.0], yaw_deg: 0.0, tx: 24.0, ty: 24.0, tz: 24.0, tyaw: 24.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 1, tipo_trayectoria: 0, target: [8.0, 0.0, 1.0], yaw_deg: 0.0, tx: 16.0, ty: 16.0, tz: 16.0, tyaw: 16.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 1, tipo_trayectoria: 0, target: [8.0, 8.0, 2.0], yaw_deg: 45.0, tx: 16.0, ty: 16.0, tz: 16.0, tyaw: 16.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, 8.0, 2.0], yaw_deg: 90.0, tx: 16.0, ty: 16.0, tz: 16.0, tyaw: 16.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, 0.0, 3.0], yaw_deg: 180.0, tx: 16.0, ty: 16.0, tz: 16.0, tyaw: 16.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-8.0, 0.0, 3.0], yaw_deg: 180.0, tx: 16.0, ty: 16.0, tz: 16.0, tyaw: 16.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 1, tipo_trayectoria: 0, target: [-8.0, -8.0, 1.0], yaw_deg: -135.0, tx: 16.0, ty: 16.0, tz: 16.0, tyaw: 16.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, -8.0, 1.0], yaw_deg: -90.0, tx: 16.0, ty: 16.0, tz: 16.0, tyaw: 16.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, 0.0, 1.0], yaw_deg: 0.0, tx: 16.0, ty: 16.0, tz: 16.0, tyaw: 16.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
