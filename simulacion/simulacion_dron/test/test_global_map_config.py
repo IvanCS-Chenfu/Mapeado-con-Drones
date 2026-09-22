@@ -24,6 +24,8 @@ LAUNCH_OWNED_SERVER_PARAMETERS = {
     'debug_pipeline_flow_events',
     'debug_architecture_telemetry',
     'fiducial_objects_config',
+    'keyframe_sparse_evidence_enabled',
+    'raw_stats_telemetry_enabled',
 }
 
 

@@ -34,6 +34,21 @@ Scheduler global de trabajos secundarios con un unico consumidor persistente.
   criticos para que un backlog post-opt de fusion no detenga la trayectoria;
 - no impone limite destructivo y conserva un unico worker no preemptivo.
 
+## Barrera durante optimizacion 3Q
+
+`CancelPendingLoopsForKeyFrames()` elimina unicamente tareas `Loop` pendientes
+del carril NORMAL cuyo query pertenece al conjunto de KFs del grafo. No toca
+tareas fiduciales, `DatabaseUpdateTask` ni la tarea activa, que sigue siendo
+no preemptiva. `GlobalMapServer` mantiene la barrera mientras el backend
+construye, resuelve y compromete el grafo; las nuevas tareas del mismo conjunto
+se difieren y el reencolado autorizado se hace despues con `FusionRefresh`.
+
+```text
+include/orbslam3_server/secondary_queue.hpp
+  -> CancelPendingLoopsForKeyFrames
+  -> rg -n "CancelPendingLoopsForKeyFrames"
+```
+
 ## Referencias
 
 ```text

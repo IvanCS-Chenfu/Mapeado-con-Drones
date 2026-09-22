@@ -97,6 +97,13 @@ StereoSlamNode::StereoSlamNode(
     this->declare_parameter<bool>("debug_architecture_telemetry", false);
     this->declare_parameter<int>("fiducial_queue_capacity", 4);
     this->declare_parameter<bool>("debug_fiducial_visualization", false);
+    this->declare_parameter<bool>("debug_fiducial_gt_error", false);
+    this->declare_parameter<std::string>(
+        "debug_fiducial_gt_error_objects_config", "");
+    this->declare_parameter<std::string>(
+        "debug_fiducial_gt_error_rendering_config", "");
+    this->declare_parameter<double>(
+        "debug_fiducial_gt_error_max_skew_sec", 0.075);
     this->declare_parameter<bool>("depth_observation_enabled", false);
     this->declare_parameter<int>("depth_frame_buffer_capacity", 12);
     this->declare_parameter<int>("depth_candidate_frame_capacity", 16);
@@ -439,6 +446,21 @@ StereoSlamNode::StereoSlamNode(
     depth_stop_cooldown_sec_ = this->get_parameter("depth_stop_cooldown_sec").as_double();
     debug_fiducial_visualization_ =
         this->get_parameter("debug_fiducial_visualization").as_bool();
+    debug_fiducial_gt_error_ =
+        this->get_parameter("debug_fiducial_gt_error").as_bool();
+    debug_fiducial_gt_error_max_skew_sec_ =
+        this->get_parameter("debug_fiducial_gt_error_max_skew_sec").as_double();
+    if (debug_fiducial_gt_error_)
+    {
+        if (!std::isfinite(debug_fiducial_gt_error_max_skew_sec_) ||
+            debug_fiducial_gt_error_max_skew_sec_ <= 0.0)
+        {
+            throw std::invalid_argument("debug_fiducial_gt_error_max_skew_sec invalido");
+        }
+        fiducial_ground_truth_.Load(
+            this->get_parameter("debug_fiducial_gt_error_objects_config").as_string(),
+            this->get_parameter("debug_fiducial_gt_error_rendering_config").as_string());
+    }
 
     if (delta_publish_period_frames_ <= 0)
     {
@@ -677,6 +699,13 @@ StereoSlamNode::StereoSlamNode(
                 "orbslam/fiducial_debug/image",
                 rclcpp::QoS(rclcpp::KeepLast(1)).best_effort());
     }
+    if (debug_fiducial_gt_error_)
+    {
+        fiducial_gt_pose_subscription_ =
+            this->create_subscription<geometry_msgs::msg::PoseStamped>(
+                "sensor/GT/pose", rclcpp::QoS(100),
+                std::bind(&StereoSlamNode::HandleFiducialGtPose, this, _1));
+    }
 
     // ============================================================
     // Suscriptores estéreo sincronizados
@@ -745,6 +774,14 @@ StereoSlamNode::StereoSlamNode(
         debug_fiducial_visualization_ ? "true" : "false",
         fiducial_debug_image_pub_
             ? "orbslam/fiducial_debug/image" : "disabled");
+    RCLCPP_INFO(
+        this->get_logger(),
+        "[FID-GT-ERROR-INIT] enabled=%s max_skew_sec=%.3f pose_topic=%s "
+        "body_camera_mode=%s",
+        debug_fiducial_gt_error_ ? "true" : "false",
+        debug_fiducial_gt_error_max_skew_sec_,
+        fiducial_gt_pose_subscription_ ? "sensor/GT/pose" : "disabled",
+        body_camera_transform_mode_.c_str());
     RCLCPP_INFO(
         this->get_logger(),
         "[F6N-DEPTH-INIT] enabled=%s frame_buffer_capacity=%d candidate_capacity=%d "
@@ -1029,6 +1066,7 @@ void StereoSlamNode::FiducialWorkerLoop()
                 result.decoded_tags.size(), valid_count,
                 result.undecoded_candidates, result.detection_ms,
                 result.pose_ms, result.total_ms);
+            EmitFiducialGtErrors(job, result);
             PublishFiducialObservations(job, result);
             if (fiducial_debug_image_pub_ &&
                 !result.decoded_tags.empty())
@@ -1045,6 +1083,139 @@ void StereoSlamNode::FiducialWorkerLoop()
                 static_cast<unsigned long>(job.event.keyframe_id),
                 error.what());
         }
+    }
+}
+
+void StereoSlamNode::HandleFiducialGtPose(
+    geometry_msgs::msg::PoseStamped::ConstSharedPtr message)
+{
+    const double stamp_sec = RosTimeToSeconds(message->header.stamp);
+    if (!std::isfinite(stamp_sec) || stamp_sec <= 0.0)
+    {
+        return;
+    }
+    const Sophus::SE3f world_t_body = PoseMsgToSophus(message->pose);
+    std::lock_guard<std::mutex> lock(fiducial_gt_poses_mutex_);
+    if (!fiducial_gt_poses_.empty() &&
+        stamp_sec <= fiducial_gt_poses_.back().stamp_sec)
+    {
+        if (stamp_sec == fiducial_gt_poses_.back().stamp_sec)
+        {
+            fiducial_gt_poses_.back().world_t_body = world_t_body;
+        }
+        return;
+    }
+    fiducial_gt_poses_.push_back({stamp_sec, world_t_body});
+    while (fiducial_gt_poses_.size() > 1000U ||
+           stamp_sec - fiducial_gt_poses_.front().stamp_sec > 20.0)
+    {
+        fiducial_gt_poses_.pop_front();
+    }
+}
+
+void StereoSlamNode::EmitFiducialGtErrors(
+    const FiducialJob& job,
+    const orbslam3_ros2::FiducialDetectionResult& result)
+{
+    if (!debug_fiducial_gt_error_)
+    {
+        return;
+    }
+    FiducialGtPose nearest_pose;
+    double nearest_skew_sec = std::numeric_limits<double>::infinity();
+    {
+        std::lock_guard<std::mutex> lock(fiducial_gt_poses_mutex_);
+        for (const auto& candidate : fiducial_gt_poses_)
+        {
+            const double skew_sec = std::abs(candidate.stamp_sec - job.event.timestamp);
+            if (skew_sec < nearest_skew_sec)
+            {
+                nearest_skew_sec = skew_sec;
+                nearest_pose = candidate;
+            }
+        }
+    }
+    if (nearest_skew_sec > debug_fiducial_gt_error_max_skew_sec_)
+    {
+        RCLCPP_WARN(
+            this->get_logger(),
+            "[FID-GT-ERROR-SKIP] drone_id=%u keyframe_id=%lu reason=gt_skew "
+            "kf_stamp_sec=%.9f nearest_skew_sec=%.6f",
+            job.drone_id, static_cast<unsigned long>(job.event.keyframe_id),
+            job.event.timestamp, nearest_skew_sec);
+        return;
+    }
+
+    Sophus::SE3f body_t_camera = body_t_camera_;
+    if (!ResolveBodyTCamera(TimestampToRosTime(job.event.timestamp), body_t_camera))
+    {
+        RCLCPP_WARN(
+            this->get_logger(),
+            "[FID-GT-ERROR-SKIP] drone_id=%u keyframe_id=%lu reason=body_camera_tf",
+            job.drone_id, static_cast<unsigned long>(job.event.keyframe_id));
+        return;
+    }
+    const Sophus::SE3f world_t_camera = nearest_pose.world_t_body * body_t_camera;
+    for (const auto& detection : result.decoded_tags)
+    {
+        const bool reprojection_rejected =
+            detection.rejection_reason == "reprojection_error";
+        const bool pnp_pose_available =
+            detection.valid || reprojection_rejected;
+        if (!pnp_pose_available || !std::isfinite(detection.translation_vector[0]) ||
+            !std::isfinite(detection.translation_vector[1]) ||
+            !std::isfinite(detection.translation_vector[2]) ||
+            !std::isfinite(detection.rotation_vector[0]) ||
+            !std::isfinite(detection.rotation_vector[1]) ||
+            !std::isfinite(detection.rotation_vector[2]))
+        {
+            continue;
+        }
+        Sophus::SE3f world_t_tag;
+        if (!fiducial_ground_truth_.WorldTTag(detection.tag_id, &world_t_tag))
+        {
+            continue;
+        }
+        cv::Mat rotation_matrix;
+        cv::Rodrigues(detection.rotation_vector, rotation_matrix);
+        cv::Mat rotation_float;
+        rotation_matrix.convertTo(rotation_float, CV_32F);
+        Eigen::Matrix3f camera_r_tag;
+        for (int row = 0; row < 3; ++row)
+        {
+            for (int column = 0; column < 3; ++column)
+            {
+                camera_r_tag(row, column) = rotation_float.at<float>(row, column);
+            }
+        }
+        const Sophus::SE3f camera_t_tag_measured(
+            camera_r_tag,
+            Eigen::Vector3f(
+                static_cast<float>(detection.translation_vector[0]),
+                static_cast<float>(detection.translation_vector[1]),
+                static_cast<float>(detection.translation_vector[2])));
+        const Sophus::SE3f camera_t_tag_gt = world_t_camera.inverse() * world_t_tag;
+        const double distance_gt_m = camera_t_tag_gt.translation().norm();
+        const Eigen::Vector3f tag_direction_camera =
+            camera_t_tag_gt.translation().normalized();
+        const double viewing_angle_deg = std::acos(std::max(
+            -1.0f, std::min(1.0f, tag_direction_camera.z()))) * 180.0 / M_PI;
+        const double translation_error_m =
+            (camera_t_tag_measured.translation() - camera_t_tag_gt.translation()).norm();
+        const double rotation_error_rad =
+            (camera_t_tag_measured.so3().inverse() * camera_t_tag_gt.so3()).log().norm();
+        RCLCPP_INFO(
+            this->get_logger(),
+            "[FID-GT-ERROR] drone_id=%u epoch=%lu keyframe_id=%lu tag_id=%d "
+            "valid=%s reason=%s kf_stamp_sec=%.9f gt_stamp_sec=%.9f "
+            "gt_skew_sec=%.6f distance_gt_m=%.6f translation_error_m=%.6f "
+            "rotation_error_rad=%.6f viewing_angle_deg=%.6f",
+            job.drone_id, static_cast<unsigned long>(job.map_epoch),
+            static_cast<unsigned long>(job.event.keyframe_id), detection.tag_id,
+            detection.valid ? "true" : "false",
+            detection.valid ? "accepted" : detection.rejection_reason.c_str(),
+            job.event.timestamp, nearest_pose.stamp_sec, nearest_skew_sec,
+            distance_gt_m, translation_error_m, rotation_error_rad, viewing_angle_deg);
     }
 }
 

@@ -14,6 +14,7 @@
   <depend>sensor_msgs</depend>
   <depend>cv_bridge</depend>
   <depend>mission_msgs</depend>
+  <depend>yaml-cpp</depend>
   <depend>message_filters</depend>
   <depend>Pangolin</depend>
   <!-- AÑADIDO -->

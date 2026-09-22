@@ -81,6 +81,27 @@ bool IsRawMutable(PoseSourceKind source)
          source == PoseSourceKind::FiducialControlDerived;
 }
 
+PoseMovementMetric MeasurePoseMovement(
+  const RawKeyFrameId & keyframe_id,
+  const geometry_msgs::msg::Pose & previous,
+  const geometry_msgs::msg::Pose & current)
+{
+  Eigen::Matrix4d previous_matrix;
+  Eigen::Matrix4d current_matrix;
+  if (!PoseToMatrix(previous, &previous_matrix) ||
+    !PoseToMatrix(current, &current_matrix))
+  {
+    throw std::invalid_argument("poses no validas para medir movimiento");
+  }
+  PoseMovementMetric metric;
+  metric.keyframe_id = keyframe_id;
+  metric.translation_m =
+    (current_matrix.block<3, 1>(0, 3) - previous_matrix.block<3, 1>(0, 3)).norm();
+  metric.rotation_rad = Eigen::AngleAxisd(
+    current_matrix.block<3, 3>(0, 0) * previous_matrix.block<3, 3>(0, 0).transpose()).angle();
+  return metric;
+}
+
 RawSubmapId SubmapOf(const RawKeyFrameId & id)
 {
   return {id.drone_id, id.map_epoch};
@@ -854,6 +875,8 @@ PoseChangeSet GlobalPoseStore::CommitAcceptedPoses(
     record.hard_fiducial = previous.hard_fiducial || update.mark_hard_fiducial;
     if (!PosesNear(previous.world_pose, update.world_pose, 1e-10, 1e-10)) {
       result.updated_ids.push_back(update.keyframe_id);
+      result.movement_metrics.push_back(
+        MeasurePoseMovement(update.keyframe_id, previous.world_pose, update.world_pose));
     } else {
       result.preserved_ids.push_back(update.keyframe_id);
     }
@@ -914,6 +937,8 @@ PoseChangeSet GlobalPoseStore::CommitAcceptedPoses(
         if (!PosesNear(previous_world, pose.world_pose, 1e-10, 1e-10)) {
           result.updated_ids.push_back(id);
           result.control_propagated_ids.push_back(id);
+          result.movement_metrics.push_back(
+            MeasurePoseMovement(id, previous_world, pose.world_pose));
           moved_controls.insert(id);
         }
       }
@@ -1123,6 +1148,10 @@ AcceptedPoseBatchResult GlobalPoseStore::CommitAcceptedPoseBatch(
       if (!PosesNear(previous.world_pose, record.world_pose, 1e-10, 1e-10)) {
         changes.updated_ids.push_back(update.keyframe_id);
         result.dirty_keyframe_ids.push_back(update.keyframe_id);
+        const auto metric = MeasurePoseMovement(
+          update.keyframe_id, previous.world_pose, record.world_pose);
+        changes.movement_metrics.push_back(metric);
+        result.movement_metrics.push_back(metric);
         moved_controls.insert(update.keyframe_id);
       } else {
         changes.preserved_ids.push_back(update.keyframe_id);
@@ -1219,6 +1248,7 @@ AcceptedPoseBatchResult GlobalPoseStore::CommitAcceptedPoseBatch(
           result.status = PoseCommitStatus::AtomicBatchConflict;
           return result;
         }
+        const auto previous_world = pose.world_pose;
         pose.world_pose = MatrixToPose(delta * world);
         pose.raw_world_pose = MatrixToPose(delta * raw_world);
         pose.correction_pose = CorrectionFromRawWorld(pose.world_pose, pose.raw_world_pose);
@@ -1231,6 +1261,9 @@ AcceptedPoseBatchResult GlobalPoseStore::CommitAcceptedPoseBatch(
         changes.control_propagated_ids.push_back(id);
         result.dirty_keyframe_ids.push_back(id);
         result.propagated_keyframe_ids.push_back(id);
+        const auto metric = MeasurePoseMovement(id, previous_world, pose.world_pose);
+        changes.movement_metrics.push_back(metric);
+        result.movement_metrics.push_back(metric);
         moved_controls.insert(id);
       }
       Eigen::Matrix4d anchor;

@@ -228,6 +228,28 @@ public:
     return stats;
   }
 
+  size_t CancelPendingLoopsForKeyFrames(
+    const std::set<orbslam3_multi::RawKeyFrameId> & keyframes)
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    size_t removed = 0U;
+    for (auto it = normal_queue_.begin(); it != normal_queue_.end(); ) {
+      if (!it->loop.has_value() ||
+        keyframes.count(it->loop->query_keyframe_id) == 0U)
+      {
+        ++it;
+        continue;
+      }
+      pending_loops_.erase(KeyFor(*it->loop));
+      it = normal_queue_.erase(it);
+      ++removed;
+    }
+    if (removed != 0U) {
+      condition_.notify_all();
+    }
+    return removed;
+  }
+
   void Close()
   {
     std::lock_guard<std::mutex> lock(mutex_);

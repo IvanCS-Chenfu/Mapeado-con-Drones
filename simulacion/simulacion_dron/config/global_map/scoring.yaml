@@ -1,5 +1,6 @@
 /**:
   ros__parameters:
+    score_drone_body_mask_enabled: true
     score_isolation_radius_m: 0.30
     score_isolation_min_neighbors: 2
     score_isolation_min_observations: 3

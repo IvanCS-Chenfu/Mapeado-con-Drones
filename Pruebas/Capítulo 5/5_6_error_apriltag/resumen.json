@@ -1,0 +1,14 @@
+{
+  "sample_count": 12,
+  "accepted_count": 12,
+  "reprojection_rejected_count": 0,
+  "distance_gt_m_min": 1.188086,
+  "distance_gt_m_max": 3.125551,
+  "translation_error_m_mean": 0.038052166666666665,
+  "translation_error_m_rmse": 0.10010118839537654,
+  "translation_error_m_max": 0.344841,
+  "rotation_error_rad_mean": 0.12164908333333334,
+  "rotation_error_rad_rmse": 0.26244176890518656,
+  "rotation_error_rad_max": 0.724433,
+  "gt_skew_sec_max": 0.007
+}

@@ -56,6 +56,10 @@ Argumentos:
 - `local_map_frame`.
 - `debug_fiducial_visualization`;
 - `debug_fiducial_display_seconds`.
+- `debug_fiducial_gt_error`;
+- `debug_fiducial_gt_error_objects_config`;
+- `debug_fiducial_gt_error_rendering_config`;
+- `debug_fiducial_gt_error_max_skew_sec`.
 - `debug_orb_control_state`.
 
 Los nodos mono, estereo y visualizador reciben el entorno saneado. Los nodos
@@ -85,6 +89,13 @@ El wrapper publica `orbslam/fiducial_debug/image` dentro del namespace del
 dron y el visualizador lo consume con cola latest-only. El parametro
 `debug_fiducial_display_seconds` se entrega solo al visualizador. Por tanto,
 cerrar o matar su ventana no termina `orbslam3_stereo` ni detiene sus deltas.
+
+Los cuatro parametros `debug_fiducial_gt_error*` se limitan al diagnostico
+opt-in de error PnP frente a GT de simulacion. `generar_dron.launch.py` los
+propaga sin interpretarlos; `multi_dron.launch.py` es quien entrega las rutas
+instaladas de objetos y rendering. Todos permanecen desactivados o vacios por
+defecto, de modo que no cargan YAML ni crean la suscripcion GT en ejecucion
+normal.
 
 Las configuraciones mono y estéreo fijan:
 

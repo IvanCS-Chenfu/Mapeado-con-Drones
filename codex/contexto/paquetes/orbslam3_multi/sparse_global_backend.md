@@ -172,6 +172,11 @@ servidor realiza logs, telemetria y futuro handoff 4G fuera del lock.
   crea un representante `FusionRefresh` por region. El filtrado espacial fino
   se realiza despues en `LoopPipeline`, de modo que un commit grande no genera
   una busqueda global por cada KF movido.
+- `ProcessLoopOptimization()` puede notificar al servidor cuando el grafo esta
+  construido y expone las metricas de movimiento por KF del commit. El
+  reencolado loop solo incluye IDs con traslacion `>0.20 m` o rotacion
+  `>0.12 rad`; `dirty_keyframe_ids` sigue describiendo la actualizacion de mapa
+  completa y no se usa como filtro de scheduling.
 
 ## Operaciones 3R
 
@@ -192,6 +197,25 @@ servidor realiza logs, telemetria y futuro handoff 4G fuera del lock.
   pose anclada convierte `world_T_camera` a `world_T_base_link`, calcula la
   semidiagonal fisica y actualiza solo las esferas de esos KFs dentro de
   `LandmarkScoreManager`. No conoce tareas ni ocupacion de Fase 6.
+- `ConfigureLandmarkScores()` conserva tambien
+  `drone_body_mask_enabled`. Si es falso, `RefreshDroneBodyMasks()` retorna
+  antes de consultar poses, dimensiones o construir esferas; el gate no es
+  meramente visual ni depende de que exista `/mission/registry`.
+- En la ingesta vigente, el mismo conjunto `keyframes` mezcla altas/cambios de
+  pose con cambios solo de asociaciones y se entrega tambien a
+  `RefreshDroneBodyMasks()`, aunque una asociacion no cambia la esfera fisica.
+  Ademas, `score_input_changed_mappoint_ids` entra en
+  `RefreshGeometryScores()` pese a que `ApplyRawChanges()` ya actualiza su base
+  ORB. Ambas expansiones son redundantes y ocurren antes de que el worker pueda
+  publicar el KF.
+- `GetKeyframeSparseEvidence()` se incorporo en `cd50829`. Por cada KF vuelve a
+  recorrer todos sus MPs y realiza consultas individuales de revision, raw y
+  score. Su `geometry_revision` mezcla la revision raw generica del MP, que
+  tambien aumenta ante cambios estadisticos sin geometria; por ello no cumple
+  del todo el contrato comentado de cambiar solo por geometria, asociaciones,
+  pose o cruces de umbral y puede regenerar evidencia Fase 6 equivalente. Este
+  defecto queda documentado, pero no se corregira durante las pruebas actuales:
+  se revisara especificamente al retomar las pruebas de Fase 6.
 
 Referencias:
 

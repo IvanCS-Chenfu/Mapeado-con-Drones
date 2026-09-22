@@ -67,6 +67,13 @@ def generate_launch_description():
             'debug_fiducial_visualization', default_value='false'),
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
+        DeclareLaunchArgument('debug_fiducial_gt_error', default_value='false'),
+        DeclareLaunchArgument(
+            'debug_fiducial_gt_error_objects_config', default_value=''),
+        DeclareLaunchArgument(
+            'debug_fiducial_gt_error_rendering_config', default_value=''),
+        DeclareLaunchArgument(
+            'debug_fiducial_gt_error_max_skew_sec', default_value='0.075'),
         DeclareLaunchArgument('debug_fase_5', default_value='false'),
         DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
         DeclareLaunchArgument('debug_f6i_trajectory', default_value='false'),
@@ -87,6 +94,7 @@ def generate_launch_description():
         DeclareLaunchArgument('phase5_navigation_source', default_value='orb'),
         DeclareLaunchArgument('camera_pitch_enabled', default_value='false'),
         DeclareLaunchArgument('gt_fallback_enabled', default_value='false'),
+        DeclareLaunchArgument('orb_loss_protocol_enabled', default_value='true'),
         DeclareLaunchArgument('orb_loss_hold_sec', default_value='10.0'),
         DeclareLaunchArgument('waypoint_blend_sec', default_value='3.0'),
         DeclareLaunchArgument('trajectory_config', default_value='trajectory.yaml'),
@@ -110,6 +118,13 @@ def generate_launch_description():
         'debug_fiducial_visualization')
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
+    debug_fiducial_gt_error = LaunchConfiguration('debug_fiducial_gt_error')
+    debug_fiducial_gt_error_objects_config = LaunchConfiguration(
+        'debug_fiducial_gt_error_objects_config')
+    debug_fiducial_gt_error_rendering_config = LaunchConfiguration(
+        'debug_fiducial_gt_error_rendering_config')
+    debug_fiducial_gt_error_max_skew_sec = LaunchConfiguration(
+        'debug_fiducial_gt_error_max_skew_sec')
     debug_fase_5 = LaunchConfiguration('debug_fase_5')
     debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
     debug_f6i_trajectory = LaunchConfiguration('debug_f6i_trajectory')
@@ -132,6 +147,7 @@ def generate_launch_description():
     phase5_navigation_source = LaunchConfiguration('phase5_navigation_source')
     camera_pitch_enabled = LaunchConfiguration('camera_pitch_enabled')
     gt_fallback_enabled = LaunchConfiguration('gt_fallback_enabled')
+    orb_loss_protocol_enabled = LaunchConfiguration('orb_loss_protocol_enabled')
     orb_loss_hold_sec = LaunchConfiguration('orb_loss_hold_sec')
     waypoint_blend_sec = LaunchConfiguration('waypoint_blend_sec')
     orb_qualification_samples = LaunchConfiguration('orb_qualification_samples')
@@ -170,6 +186,8 @@ def generate_launch_description():
             executable='gen_tray',
             name='gen_tray',
             parameters=[common_debug, params_trajectory, {
+                'orb_loss_protocol_enabled': ParameterValue(
+                    orb_loss_protocol_enabled, value_type=bool),
                 'orb_loss_hold_sec': ParameterValue(orb_loss_hold_sec, value_type=float),
                 'waypoint_blend_sec': ParameterValue(waypoint_blend_sec, value_type=float),
                 'debug_f6i_trajectory': ParameterValue(
@@ -217,6 +235,13 @@ def generate_launch_description():
                     debug_fiducial_visualization,
                 'debug_fiducial_display_seconds':
                     debug_fiducial_display_seconds,
+                'debug_fiducial_gt_error': debug_fiducial_gt_error,
+                'debug_fiducial_gt_error_objects_config':
+                    debug_fiducial_gt_error_objects_config,
+                'debug_fiducial_gt_error_rendering_config':
+                    debug_fiducial_gt_error_rendering_config,
+                'debug_fiducial_gt_error_max_skew_sec':
+                    debug_fiducial_gt_error_max_skew_sec,
                 'debug_fase_5': debug_fase_5,
                 'debug_orb_control_state': debug_orb_control_state,
                 'debug_orb_visual_evidence': debug_orb_visual_evidence,

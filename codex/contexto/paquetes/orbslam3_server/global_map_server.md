@@ -90,6 +90,13 @@ fin:
 dequeue -> revalidate -> graph -> solve -> validate -> atomic commit/refine
 ```
 
+Un `FIRST_ANCHOR` no entra en esa cola: es la primera autoridad absoluta de un
+submapa y se aplica directamente como transformacion rigida hard, con
+`[F3E-FID-FIRST-ANCHOR]`. Solo el estado `OptimizationRequired` crea una tarea
+MAX y emite despues un `F3Q-OPT-START`. Por ello, en la prueba
+`c5_5_3_two_drones_turn270_fid3_v3`, el objeto 3 reancla correctamente el
+nuevo epoch de D2 sin una optimizacion iterativa posterior.
+
 - una tarea activa no se interrumpe;
 - cada KF distinto se conserva; solo una identidad exacta pendiente/activa se
   deduplica;
@@ -185,6 +192,17 @@ otra optimizacion. Una tarea `Full` pendiente prevalece al coalescer y los
 retries conservan el intent de la tarea que los origino. El servidor usa
 `CreateFusionRefreshTasks()` para agrupar KFs movidos por region temporal y
 publica `moved/grouped/created/enqueued` en `[F3Q-POST-OPT-LOOPS]`.
+
+Durante una optimizacion loop el servidor activa una barrera acotada al grafo.
+Cuando `ProcessLoopOptimization()` termina de construirlo, el callback registra
+sus KFs y `SecondaryTaskQueue::CancelPendingLoopsForKeyFrames()` retira las
+Loop/Fusion pendientes de ese conjunto, sin cancelar la tarea activa ni las
+actualizaciones de base o fiduciales. Las nuevas tareas del grafo se difieren
+durante el solve. El backend conserva una metrica por KF y solo entrega para el
+refresh los que superan `0.20 m` o `0.12 rad`; el refresh se encola mientras la
+barrera sigue activa y solo entonces se libera `optimization_active` y el
+backpressure. Marcadores: `[F3Q-OPT-BARRIER]` y
+`[F3Q-OPT-BARRIER-END]`.
 
 El backpressure secundario se calcula con pendientes `critical`: fiduciales,
 MEDIA y loops `Full`. Los `FusionRefresh` pendientes se cuentan como
@@ -287,6 +305,48 @@ orbslam3_server/launch/global_orb_map_server.launch.py
 ```
 
 No publica desde callbacks, snapshots ni el worker secundario.
+
+## Latencia de publicacion Fase 6
+
+Desde `cd50829`, `BuildAndPublishGlobalMap()` podia construir de forma sincrona
+`KeyframeSparseEvidenceDelta` antes de publicar cloud y KFs incluso con Fase 6
+apagada. La puerta `keyframe_sparse_evidence_enabled`, alimentada por el
+`phase6_enabled` efectivo del despliegue, evita ahora crear el publisher y evita
+llamar al builder F6N cuando Fase 6 no se ejecuta. Cada MP dirty sigue
+expandiendo KFs observadores cuando el flag esta activo; esa ruta interna no se
+ha optimizado en esta correccion.
+
+La evidencia medida situa el retraso visual en el worker principal: entradas
+36-151 promedian `0.770 s` de proceso, `13.089 s` de espera y alcanzan 35
+pendientes. No hubo optimizacion 3Q activa. `GlobalMapBuilder` sigue siendo
+incremental; la latencia procede del exceso de score/evidencia recalculado y de
+su ejecucion previa a `keyframes_publisher_->publish(markers)`. La correccion
+queda validada en `c5_5_3_two_drones_gates_off_v2`: cero deltas F6N, 261
+trabajos primarios terminados, pending maximo 1, proceso medio `0.119 s` y
+maximo `0.743 s`; hubo 224 publicaciones y la ultima contenia 113 KFs. Cuando
+F6N se usa, todavia debe invalidarse por cambios materiales y construirse
+mediante snapshots por lote, sin modificar la semantica incremental del
+builder. Por decision del usuario, esa correccion interna se aplaza a las
+pruebas de Fase 6.
+
+`score_drone_body_mask_enabled=false` se propaga al backend y evita tambien la
+subscription `/mission/registry`. `[GLOBAL-FEATURE-GATES]` registra ambos gates
+al arrancar para que una prueba demuestre la configuracion efectiva.
+
+## Telemetria raw opt-in de la prueba 5.5
+
+`raw_stats_telemetry_enabled=false` es una puerta de observabilidad exclusiva
+para capturar la evolucion de `RawMapDatabase`, sin crear un nodo, topic ni
+consulta adicional. Si esta activa, `WorkerLoop()` emite `[F3A-RAW-STATS]`
+inmediatamente despues de `InsertDelta` o `InsertFullSnapshot`, usando
+`RawInsertResult::stats`: `submaps`, `keyframes`, `mappoints`,
+`delta_entries` y `fiducial_observations`, junto a `arrival_id`, fuente,
+submapa y `full_snapshot`. Con el flag apagado el bloque se omite completo.
+
+`journal_entries` no se emite porque hoy coincide con `delta_entries`; el
+identificador de llegada ya representa `last_arrival_id`. La telemetria no
+expone datos derivados del backend ni contadores nuevos para asociaciones o
+covisibilidad.
 
 Desde la actualizacion 664, cada commit publicable emite tambien
 `/global_sparse_map_delta` reliable/transient-local con `map_revision`,

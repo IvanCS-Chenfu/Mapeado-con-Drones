@@ -327,6 +327,9 @@ void LandmarkScoreManager::RemoveBodySphere(const DroneBodySphere & sphere)
 
 float LandmarkScoreManager::BodyFactor(const geometry_msgs::msg::Point & point) const
 {
+  if (!config_.drone_body_mask_enabled) {
+    return 1.0F;
+  }
   const auto candidates = body_spatial_index_.find(VoxelFor(point));
   if (candidates == body_spatial_index_.end()) {
     return 1.0F;
@@ -353,6 +356,10 @@ ScoreChangeSet LandmarkScoreManager::ApplyGeometryChanges(
   ScoreChangeSet result;
   std::lock_guard<std::mutex> lock(mutex_);
   result.score_revision_before = score_revision_;
+  if (!config_.drone_body_mask_enabled) {
+    result.score_revision_after = score_revision_;
+    return result;
+  }
   std::set<RawMapPointId> affected;
   std::set<std::array<int64_t, 3>> affected_voxels;
   const auto mark_neighbor_voxels = [&affected_voxels](

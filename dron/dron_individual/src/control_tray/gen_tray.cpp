@@ -80,6 +80,8 @@ public:
     this->declare_parameter<int64_t>("drone_id", 0);
     this->declare_parameter<bool>("debug_architecture_telemetry", false);
     this->declare_parameter<double>("navigation_state_timeout_sec", 0.5);
+    orb_loss_protocol_enabled_ =
+      this->declare_parameter<bool>("orb_loss_protocol_enabled", true);
     this->declare_parameter<double>("orb_loss_hold_sec", 10.0);
     this->declare_parameter<double>("trajectory_source_handshake_timeout_sec", 1.0);
 
@@ -641,7 +643,7 @@ private:
       bool orb_lost = false;
       {
         std::lock_guard<std::mutex> lock(navigation_state_mtx_);
-        orb_lost = navigation_state_received_ &&
+        orb_lost = orb_loss_protocol_enabled_ && navigation_state_received_ &&
           last_navigation_state_.tracking_state ==
           orbslam3_msgs::msg::NavigationState::TRACKING_LOST &&
           !last_navigation_state_.local_valid;
@@ -1214,7 +1216,7 @@ private:
           bool orb_lost = false;
           {
             std::lock_guard<std::mutex> lock(navigation_state_mtx_);
-            orb_lost = navigation_state_received_ &&
+            orb_lost = orb_loss_protocol_enabled_ && navigation_state_received_ &&
               last_navigation_state_.tracking_state ==
               orbslam3_msgs::msg::NavigationState::TRACKING_LOST &&
               !last_navigation_state_.local_valid;
@@ -1324,6 +1326,7 @@ private:
   double v_max_ang;
   double t_a;
   double navigation_state_timeout_sec_{0.5};
+  bool orb_loss_protocol_enabled_{true};
   double orb_loss_hold_sec_{10.0};
   double trajectory_source_handshake_timeout_sec_{1.0};
   bool navigation_state_received_{false};

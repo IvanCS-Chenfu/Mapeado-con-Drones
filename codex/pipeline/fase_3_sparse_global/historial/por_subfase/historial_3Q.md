@@ -737,3 +737,143 @@
   histeresis minima. Mantener la ventana completa y endurecer la degradacion
   estructural local que en 220 alcanzo 0.289 m. No cambiar runtime sin nueva
   preparacion/autorizacion.
+
+## 2026-09-21 - Barrera de grafo y filtro de reencolado
+
+- objetivo intentado: cortar la cadena de tareas `stale/retry` observada con
+  dos drones, cancelando Loop/Fusion pendientes del grafo durante una
+  optimizacion y reencolando solo KFs con movimiento individual superior a
+  `0.20 m` o `0.12 rad`;
+- archivos modificados: `secondary_queue.hpp`, `global_map_server.cpp`,
+  `test_secondary_queue.cpp`, `global_pose_types.hpp`, `loop_pipeline.hpp`,
+  `sparse_global_backend.hpp`, `global_pose_store.cpp` y
+  `sparse_global_backend.cpp`;
+- builds: `orbslam3_multi` PASS en 1 min 1 s; `orbslam3_server` PASS en 26,0 s
+  y recompilacion posterior PASS en 25,5 s;
+- tests: CTest de `orbslam3_server` PASS, 13/13. El nuevo test confirma que la
+  cancelacion selectiva retira un Loop del grafo y conserva otro Loop y la
+  `DatabaseUpdateTask`;
+- prueba Gazebo: `c5_5_3_two_drones_anchor_loss_barrier` arranco con dos drones,
+  GT y gate estricto. Los dos primeros bloques y la separacion terminaron;
+  backpressure paso a `true` por `primary_pending=8` y volvio a `false` tras
+  45,058 s, permitiendo enviar el movimiento de perdida visual;
+- evidencia negativa: esta ejecucion no emitio `[F3Q-OPT-START]` ni
+  `[F3Q-OPT-BARRIER]`, por lo que no valida aun el camino de optimizacion de
+  grafo. El goal de perdida visual termino con `action_code=6` y
+  `success=false`; despues `scenario_runner_node` lanzo
+  `UnknownGoalHandleError` al intentar cancelar un handle ya desconocido y
+  salio con codigo 250;
+- conclusion: PARCIAL. La compilacion, la cola y la liberacion del gate quedan
+  validadas; falta repetir una ejecucion que alcance una optimizacion 3Q para
+  comprobar los marcadores de barrera, la poda pendiente y el filtro de
+  movimiento. La cancelacion del goal y la excepcion del runner pertenecen al
+  flujo de perdida visual, no a la barrera del servidor;
+- interpretacion ampliada de la misma ejecucion: el retraso visual de KFs no lo
+  produjo la barrera ni una optimizacion, sino la cola principal. Entre arrivals
+  36-151 el proceso medio fue `0.770 s`, la espera media `13.089 s` y el pico
+  35 pendientes. La comparacion con `origin/main` (`0cedea1`) y sus commits
+  identifica `cd50829` como punto de regresion: hizo exacto el conteo de
+  vecinos recorriendo candidatos y anadio `KeyframeSparseEvidenceDelta` a la
+  ruta sincrona anterior a publicar los markers. En esta prueba Fase 6 estaba
+  desactivada, pero el servidor genero 200 deltas F6N porque ese flag no se le
+  propaga. No hubo `[F3R-BODY-REGISTRY]`, de modo que la mascara por esfera del
+  dron no fue el coste dominante de esta ejecucion. El builder permanece
+  incremental y no es objeto de la correccion;
+- siguiente paso recomendado: corregir o parametrizar el escenario para que
+  una perdida visual esperada no aborte el runner; eliminar los refrescos
+  geometricos estadisticos, limitar el conteo exacto al umbral y gatear/corregir
+  la evidencia Fase 6; despues repetir la misma prueba antes de cerrar 3Q.
+
+## 2026-09-21 18:19 - Gates apagados, escenario invalido
+
+- objetivo intentado: repetir la trayectoria GT de dos drones con F6N, mascara
+  fisica y protocolo de perdida ORB desactivados;
+- archivos modificados antes de la prueba: gates y propagacion en
+  `gen_tray`, `multi_dron.launch.py`, backend sparse y servidor global;
+- paquetes compilados: `dron_individual`, `orbslam3_multi`,
+  `orbslam3_server` y `simulacion_dron`, todos PASS;
+- pruebas previas: CTest `dron_individual` 8/8 y `orbslam3_server` 13/13;
+  `orbslam3_multi` 8/9 por timeout del test de escalabilidad y
+  `simulacion_dron` 8/13 por incidencias preexistentes, con los contratos
+  nuevos aprobados;
+- prueba Gazebo: `c5_5_3_two_drones_gates_off`, dos drones, GT, GUI Gazebo y
+  GUI global. Los goals iniciales y de separacion terminaron correctamente;
+- evidencia positiva: `[GLOBAL-FEATURE-GATES]` confirma F6N y body mask a
+  `false`; no aparecen deltas F6N ni body registry;
+- evidencia negativa: el giro relativo de D2 aborto antes de moverse con
+  `los tiempos de llegada deben aumentar estrictamente`: el escenario usaba
+  `tx=ty=tz=0` aunque Pol3 exige duracion positiva por eje. Exit 250;
+- conclusion: NO CONSEGUIDA como escenario integrado; fallo de configuracion,
+  no de los gates ni de perdida ORB;
+- siguiente paso recomendado: representar el giro en el sitio con
+  `tx=ty=tz=tyaw=16 s`, recompilar la configuracion y repetir.
+
+## 2026-09-21 18:26 - Gates apagados y cola primaria en tiempo real
+
+- objetivo intentado: validar la misma prueba tras corregir exclusivamente los
+  tiempos del giro y medir cola, optimizaciones y publicacion;
+- archivos modificados: escenario de dos drones y documentacion del paquete;
+- build: `simulacion_dron` PASS en 0,82 s;
+- prueba Gazebo: `c5_5_3_two_drones_gates_off_v2`, escenario completo,
+  `success=true`, exit 0 y seis de seis goals correctos;
+- patrones de reduccion: gates, F6N, body registry, cola primaria,
+  backpressure, publicaciones, barrera 3Q, resultados de goals y perdida ORB;
+- evidencia positiva de ingesta: 261 trabajos primarios terminaron; el pending
+  maximo fue 1, con proceso medio `0,119 s` y maximo `0,743 s`. Hubo 224
+  publicaciones globales y la ultima contenia 113 KFs;
+- evidencia positiva 3Q: se ejecutaron ocho optimizaciones. Todas activaron y
+  liberaron backpressure con `primary_pending=0`; las barreras registraron el
+  grafo, cancelaron selectivamente hasta 29 tareas pendientes y completaron el
+  reencolado filtrado. Solo dos solves movieron KFs por encima del umbral y
+  crearon un loop post-opt cada uno;
+- evidencia de gates: cero deltas F6N, cero body registry y cero marcadores de
+  perdida ORB. Las acciones del giro y del desplazamiento final devolvieron
+  exito;
+- revision visual posterior: el exito de la accion no valida el recorrido
+  angular. `yaw_deg=-270` se convirtio a quaternion y `pose2yaw()` lo redujo a
+  `+90`, por lo que D2 giro a la izquierda 90 grados. En la aproximacion final
+  se crearon los KFs 60-83, todos con `decoded=0`; no existe ninguna deteccion
+  de tags 301-305, observacion del objeto 3 ni optimizacion posterior. El ultimo
+  KF aparecio 4,70 s antes de acabar el goal. Despues continuaron publicaciones
+  globales con cambios estadisticos de MPs, pero sin nueva geometria de KFs;
+- evidencia residual: el backpressure se activo ocho veces por
+  `optimization_active=true`, nunca por cola primaria. Una optimizacion duro
+  aproximadamente 5,25 s y retraso el comienzo del siguiente bloque, pero no
+  acumulo deltas ni reprodujo el retraso visual anterior;
+- conclusion revisada: CONSEGUIDA para los gates, la barrera 3Q y la cola
+  primaria, cuyo pico baja de 35 a 1. PARCIAL como escenario visual de
+  perdida/reanclaje: no se ejecuto el giro largo solicitado ni se observo el
+  fiducial 3;
+- siguiente paso recomendado: no modificar `GlobalMapBuilder` ni el
+  aislamiento exacto en este cierre. Evaluar por separado el coste interno de
+  F6N solo cuando se retomen sus pruebas autonomas.
+
+## 2026-09-21 19:02 - Giro segmentado y reanclaje visual en fiducial 3
+
+- objetivo intentado: corregir la visualizacion de D2 tras la perdida ORB sin
+  cambiar el contrato de la accion: tres giros relativos de `-90°` y un tramo
+  final hasta `(10,2,1.3)` que cruza el campo de vista del fiducial 3;
+- archivos modificados: solo
+  `simulacion_dron/config/scenarios/trajectory_gt_two_drones_anchor_loss.yaml`
+  y documentacion de contexto;
+- build: `simulacion_dron` PASS, codigo 0, 0,84 s;
+- prueba Gazebo: `c5_5_3_two_drones_turn270_fid3_v3`, GT, dos drones, GUI
+  Gazebo/global, Fase 6, mascara y protocolo de perdida ORB desactivados;
+- evidencia de giro: se enviaron tres goals `yaw_deg=-90`. Los yaws iniciales
+  de D2 fueron aproximadamente `+90°`, `0°`, `-90°` y `±180°` al comenzar el
+  tramo final, demostrando tres giros horarios consecutivos;
+- evidencia de reanclaje: los KFs 79 y 80 del epoch 1 detectaron los tags 304
+  y 301 del objeto 3 con calidad `0.724` y `0.988`. El servidor aplico
+  `[F3E-FID-FIRST-ANCHOR]` para `(2,1)` en el KF 79 y cerro con tres anchors;
+- interpretacion de optimizacion: no hubo `F3Q-OPT-START` posterior porque el
+  evento fue el primer ancla absoluta del nuevo submapa, que se aplica de forma
+  rigida directa. `F3Q` se reserva para un `OptimizationRequired` por error de
+  un ancla ya existente;
+- evidencia de continuidad: escenario `success=true`, codigo 0, 254 s, sin
+  guarda de recursos; el servidor publico hasta `arrival_id=269` con 112 KFs;
+- conclusion: CONSEGUIDA para el giro largo expresado mediante tres acciones y
+  para el reanclaje visual en el fiducial 3. No corresponde exigir una
+  optimizacion F3Q en este primer ancla;
+- siguiente paso recomendado: si se desea validar especificamente la
+  optimizacion fiducial, preparar otra prueba donde un submapa ya anclado reciba
+  una observacion posterior con error superior a los umbrales.

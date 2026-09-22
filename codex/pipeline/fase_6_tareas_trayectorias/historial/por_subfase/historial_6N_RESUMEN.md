@@ -2,6 +2,20 @@
 
 Estado agregado: PARCIAL.
 
+## Rendimiento F6N pendiente
+
+La prueba GT de dos drones del 2026-09-21 descubrio que el productor
+`KeyframeSparseEvidenceDelta` seguia ejecutandose con Fase 6 apagada y emitio
+200 deltas F6N dentro de la ruta sincrona anterior a publicar KFs. Se corrige
+solo la puerta de despliegue: `phase6_enabled=false` impide crear y calcular
+F6N. La prueba integrada `c5_5_3_two_drones_gates_off_v2` valida el gate con
+dos drones GT: cero deltas F6N, escenario completo y cola primaria maxima 1
+frente a 35 en la ejecucion anterior. Quedan documentadas para las pruebas
+especificas de Fase 6, sin cambio interno ahora, la invalidacion por revisiones raw meramente estadisticas, la
+expansion repetida de KFs observadores, las consultas por MP y la construccion
+sincrona de evidencia equivalente. No se consideraran cerradas sin una prueba
+autonoma con F6N habilitado y temporizacion propia.
+
 La prueba 769 valida la correccion de prioridad depth con dos drones. D1 y D2
 llegaron por GT al fiducial 2 en posiciones verticalmente separadas y con yaw
 `+90 deg`; el coverage empezo solo entonces. Una pareja de D2

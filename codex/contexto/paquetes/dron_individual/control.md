@@ -131,6 +131,31 @@ autoritativo. Si deja de cumplirse, publica `TRACKING_LOST`/estado no valido;
 no existe `ORB -> GT_FALLBACK` automatico. `gen_tray` congela la referencia por
 `orb_loss_hold_sec=10 s` y aborta el goal si la perdida persiste.
 
+Estado diagnosticado en la prueba GT de dos drones del 2026-09-21: las dos
+rutas de ejecucion de `gen_tray` comprueban `TRACKING_LOST && !local_valid`
+sin condicionar la proteccion por `pose_source`. Por ello una perdida del ORB
+en sombra tambien congela y aborta un goal cuya fuente efectiva es
+`POSE_SOURCE_GT_FORCED`. `orb_loss_protocol_enabled` permite ahora desactivar
+explicitamente esas dos comprobaciones sin alterar la fuente de navegacion ni
+`orb_loss_hold_sec`; su default `true` conserva la proteccion productiva. Con
+`false`, una perdida ORB en sombra no congela ni aborta la trayectoria GT.
+`orb_loss_hold_sec` sigue siendo solo la duracion y un valor no positivo se
+sustituye por `10.0 s`.
+
+La prueba `c5_5_3_two_drones_gates_off_v2` valida el camino desactivado: los
+goals terminaron sin marcadores `F5-ORB-LOST` ni abortos. No valida, sin
+embargo, el giro largo solicitado: `target_pose` representa `-270°` con el
+mismo quaternion que `+90°` y `pose2yaw()` devuelve el angulo principal, por
+lo que D2 giro a la izquierda 90 grados. Tampoco valida el reanclaje final,
+porque no se genero una observacion del fiducial 3.
+
+La repeticion `c5_5_3_two_drones_turn270_fid3_v3` evita esa limitacion sin
+cambiar la accion: emite tres goals relativos de `-90°`. Los yaws iniciales
+registrados fueron aproximadamente `+90°`, `0°`, `-90°` y finalmente `±180°`,
+por lo que se completo el giro horario total. Con el protocolo de perdida
+desactivado, D2 prosiguio en GT tras el nuevo epoch y alcanzo los KFs 79 y 80,
+que detectaron el fiducial 3.
+
 En GT, el control no deja de usar la pose y velocidad GT. No obstante,
 `EpochAnchorLatch` sigue recibiendo el estado ORB en sombra: una vez que el
 epoch queda anclado, el `NavigationState` GT se publica como global y

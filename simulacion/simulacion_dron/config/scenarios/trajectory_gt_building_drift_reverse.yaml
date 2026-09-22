@@ -1,0 +1,96 @@
+name: trajectory_gt_building_drift_reverse
+description: "D1 recorre el edificio de norte a sur para observar deriva visual."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: borde_norte_hacia_este
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, 10.0, 1.0]
+        yaw_deg: -90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 16.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 240.0
+
+  - name: borde_norte_hacia_oeste
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [-10.0, 10.0, 1.0]
+        yaw_deg: -90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 240.0
+
+  - name: lateral_oeste_hacia_centro
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [-10.0, 0.0, 1.0]
+        yaw_deg: 0.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 16.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 240.0
+
+  - name: lateral_oeste_hacia_sur
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [-10.0, -10.0, 1.0]
+        yaw_deg: 0.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 240.0
+
+  - name: espera_observacion_deriva
+    type: wait
+    seconds: 30.0

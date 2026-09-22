@@ -15,7 +15,7 @@
 | 6K | PARCIAL | FIFO de subtareas y runtime por dron validados en 686, incluida ejecución ACTIVE paralela y STOP/HOLD local; faltan prioridades completas y reparación estructural de ruta. |
 | 6L | CONSEGUIDA | 746 valida deteccion al 65 %, STOP y correccion `-25 deg` sin perdida ni cambio de epoch. |
 | 6M | CONSEGUIDA | Transporte fisico y persistencia yaw/pitch ordinaria validados en 700/701; no hay politica de vista ordinaria y depth/normales quedan para 6N. |
-| 6N | PARCIAL | Pareja depth atomica y fallback implementados. La 769 valida prioridad FIFO por pareja y KFs propios D1/D2; quedan criterios depth/cobertura y reducir reintentos de pose. |
+| 6N | PARCIAL | Gate F6N apagado validado con cero deltas y cola primaria pico 1. La 769 valida prioridad FIFO por pareja; quedan costes internos F6N, criterios depth/cobertura y reintentos. |
 
 6N tiene implementacion y validacion parcial. 6O y 6P no tienen ejecucion
 funcional completa todavia. Desde la reordenacion documental, 6N es depth, 6O

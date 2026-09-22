@@ -51,10 +51,15 @@ def _launch_server(context):
             LaunchConfiguration('debug_architecture_telemetry').perform(context)),
         'fiducial_objects_config': LaunchConfiguration(
             'fiducial_objects_config').perform(context),
+        'keyframe_sparse_evidence_enabled': _as_bool(
+            LaunchConfiguration('phase6_enabled').perform(context)),
+        'raw_stats_telemetry_enabled': _as_bool(
+            LaunchConfiguration('raw_stats_telemetry_enabled').perform(context)),
     }
     optional = (
         ('rawdb_record_enabled', _as_bool),
         ('rawdb_record_path', str),
+        ('full_snapshot_enabled', _as_bool),
         ('rawdb_replay_path', str),
         ('rawdb_replay_entry_delay_ms', int),
         ('pose_store_debug_anchor_enabled', _as_bool),
@@ -72,6 +77,7 @@ def _launch_server(context):
         ('fiducial_visual_consistency_rotation_rad', float),
         ('fiducial_visual_visit_gap_sec', float),
         ('fiducial_visual_recent_capacity_per_drone', int),
+        ('score_drone_body_mask_enabled', _as_bool),
     )
     for name, cast in optional:
         _optional_override(context, overrides, name, cast)
@@ -121,6 +127,8 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         DeclareLaunchArgument('drone_count', default_value='2'),
         DeclareLaunchArgument('drone_namespace_base', default_value='dron'),
+        DeclareLaunchArgument('phase6_enabled', default_value='true'),
+        DeclareLaunchArgument('raw_stats_telemetry_enabled', default_value='false'),
         DeclareLaunchArgument('log_level', default_value='info'),
         DeclareLaunchArgument(
             'debug_pipeline_flow_events', default_value='false'),
@@ -130,6 +138,7 @@ def generate_launch_description():
     for name in (
         'rawdb_record_enabled',
         'rawdb_record_path',
+        'full_snapshot_enabled',
         'rawdb_replay_path',
         'rawdb_replay_entry_delay_ms',
         'pose_store_debug_anchor_enabled',
@@ -147,6 +156,7 @@ def generate_launch_description():
         'fiducial_visual_consistency_rotation_rad',
         'fiducial_visual_visit_gap_sec',
         'fiducial_visual_recent_capacity_per_drone',
+        'score_drone_body_mask_enabled',
     ):
         arguments.append(DeclareLaunchArgument(name, default_value=YAML_SENTINEL))
 

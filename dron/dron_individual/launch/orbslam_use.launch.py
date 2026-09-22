@@ -79,6 +79,14 @@ def generate_launch_description():
             'debug_fiducial_visualization', default_value='false'),
         DeclareLaunchArgument(
             'debug_fiducial_display_seconds', default_value='5.0'),
+        DeclareLaunchArgument(
+            'debug_fiducial_gt_error', default_value='false'),
+        DeclareLaunchArgument(
+            'debug_fiducial_gt_error_objects_config', default_value=''),
+        DeclareLaunchArgument(
+            'debug_fiducial_gt_error_rendering_config', default_value=''),
+        DeclareLaunchArgument(
+            'debug_fiducial_gt_error_max_skew_sec', default_value='0.075'),
         DeclareLaunchArgument('debug_fase_5', default_value='false'),
         DeclareLaunchArgument('debug_orb_control_state', default_value='false'),
         DeclareLaunchArgument('debug_orb_visual_evidence', default_value='false'),
@@ -113,6 +121,13 @@ def generate_launch_description():
         'debug_fiducial_visualization')
     debug_fiducial_display_seconds = LaunchConfiguration(
         'debug_fiducial_display_seconds')
+    debug_fiducial_gt_error = LaunchConfiguration('debug_fiducial_gt_error')
+    debug_fiducial_gt_error_objects_config = LaunchConfiguration(
+        'debug_fiducial_gt_error_objects_config')
+    debug_fiducial_gt_error_rendering_config = LaunchConfiguration(
+        'debug_fiducial_gt_error_rendering_config')
+    debug_fiducial_gt_error_max_skew_sec = LaunchConfiguration(
+        'debug_fiducial_gt_error_max_skew_sec')
     debug_fase_5 = LaunchConfiguration('debug_fase_5')
     debug_orb_control_state = LaunchConfiguration('debug_orb_control_state')
     debug_orb_visual_evidence = LaunchConfiguration('debug_orb_visual_evidence')
@@ -150,6 +165,14 @@ def generate_launch_description():
         debug_architecture_telemetry, value_type=bool)
     stereo_params['debug_fiducial_visualization'] = ParameterValue(
         debug_fiducial_visualization, value_type=bool)
+    stereo_params['debug_fiducial_gt_error'] = ParameterValue(
+        debug_fiducial_gt_error, value_type=bool)
+    stereo_params['debug_fiducial_gt_error_objects_config'] = ParameterValue(
+        debug_fiducial_gt_error_objects_config, value_type=str)
+    stereo_params['debug_fiducial_gt_error_rendering_config'] = ParameterValue(
+        debug_fiducial_gt_error_rendering_config, value_type=str)
+    stereo_params['debug_fiducial_gt_error_max_skew_sec'] = ParameterValue(
+        debug_fiducial_gt_error_max_skew_sec, value_type=float)
     stereo_params['debug_orb_control_state'] = ParameterValue(
         PythonExpression([
             "'", debug_fase_5, "'.lower() == 'true' and '",

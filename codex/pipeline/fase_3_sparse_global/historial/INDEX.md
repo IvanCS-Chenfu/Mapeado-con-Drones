@@ -28,7 +28,7 @@ fragmentos solo si falta evidencia concreta.
 | `3N` | `por_subfase/historial_3N_RESUMEN.md` | `CONSEGUIDA`: indice BoW, regiones y ledger causal con cola drenada. |
 | `3O` | `por_subfase/historial_3O_RESUMEN.md` | `CONSEGUIDA`: reanchor, propagacion, carga y validacion RViz2/web completados. |
 | `3P` | `por_subfase/historial_3P_RESUMEN.md` | `CONSEGUIDA`: prueba 161 y cierre del usuario; queda pulido de layout web. |
-| `3Q` | `por_subfase/historial_3Q_RESUMEN.md` | `A REVISAR`: 373 no ejecuta optimizaciones de cierre esperadas y 688 de Fase 6 observo degradacion grave tras una optimizacion por fiducial; ambos diagnosticos quedan aplazados. |
+| `3Q` | `por_subfase/historial_3Q_RESUMEN.md` | `A REVISAR`: barrera de grafo validada en ocho optimizaciones; cola primaria pico 1. La prueba visual valida tres giros -90 y el primer ancla en fiducial 3; persisten 373 y 688 aplazadas. |
 | `3R` | `por_subfase/historial_3R_RESUMEN.md` | `PARCIAL`: aislamiento visual confirmado a 0.30 m; mascara fisica reversible compilada/testeada y ejecutada con dos drones. Falta confirmar visualmente el cero de los puntos del otro dron. |
 | `3S` | `por_subfase/historial_3S_RESUMEN.md` | `CONSEGUIDA`: perfil silencioso validado por prueba 196, sin RViz2/web ni marcadores F3. |
 | `3T` | `por_subfase/historial_3T_RESUMEN.md` | `CONSEGUIDA`: limpieza, renumeracion y handoff final; antes denominada 3X. |

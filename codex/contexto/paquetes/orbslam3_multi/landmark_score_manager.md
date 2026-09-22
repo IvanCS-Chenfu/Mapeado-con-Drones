@@ -32,6 +32,9 @@ KeyFrame global activo cuyo dron tenga dimensiones registradas en
 `/mission/registry`. La esfera se centra en `base_link`, usa como radio la
 semidiagonal de `dimensions_m` y no anade margen de seguridad. No depende de
 ownership ni de la relacion observador-observado del MapPoint.
+`LandmarkScoreConfig::drone_body_mask_enabled=false` neutraliza este factor a
+`1`, rechaza las actualizaciones de esferas antes de indexarlas y no altera
+distancia, aislamiento, base ORB ni evidencia de fusion.
 
 En el runtime 3R `positive_adjustment` recibe `+0.04` por inlier de fusion
 confirmado. `negative_adjustment` se conserva en el modelo/rollback, pero 3R no
@@ -55,6 +58,23 @@ genera penalizaciones sparse: la oclusion queda para Fase 8 con nube densa.
 - Altas, movimientos y bajas agrupan primero voxels afectados; cada punto se
   reevalua en coste constante respecto al tamaño global. Una geometria
   identica solo reevalua el propio MP y no reindexa vecinos.
+- En el flujo principal vigente, `SparseGlobalBackend::InsertDelta()` incluye
+  tambien `score_input_changed_mappoint_ids` en `RefreshGeometryScores()`. Por
+  ello cambios estadisticos ORB como `found_ratio`, aun sin movimiento, vuelven
+  a construir la entrada geometrica y `ApplyGeometryChanges()` reevalua el MP
+  identico. La prueba GT de dos drones del 2026-09-21 confirma que este trabajo
+  se combina con cientos o miles de MPs por delta y amplifica el coste previo a
+  publicar. Esta ruta ya existia antes de `cd50829`, pero entonces
+  `NeighborCount()` sumaba ocupacion de 27 celdas; ese commit hizo exacto el
+  radio y paso a recorrer, consultar y medir cada candidato de las 27 celdas.
+  La combinacion frecuencia antigua + coste nuevo explica la regresion. Retirar
+  la reevaluacion geometrica de cambios solo estadisticos exige conservar
+  `ApplyRawChanges()` como autoridad de los cambios de score base.
+- `IsolationFactor()` solo distingue si hay menos de
+  `isolation_min_neighbors`, pero `NeighborCount()` recorre hoy todos los
+  candidatos incluso despues de alcanzar ese minimo. Un corte temprano al
+  alcanzar el umbral conserva exactamente el resultado publicado y reduce el
+  coste en zonas densas.
 - `UpdateDroneBodySpheres()` mantiene un segundo indice de esferas por KF. Al
   mover, invalidar o registrar una esfera solo consulta las celdas que
   intersectan sus volumenes antiguo/nuevo; las altas de MapPoint resuelven su
@@ -68,7 +88,8 @@ restaura exactamente el estado anterior.
 ## Configuracion y stats
 
 `LandmarkScoreConfig` contiene radio/minimo/madurez/factor de aislamiento,
-umbral/factor de cercania y multiplicador/fallback/factor minimo lejano. Sus
+flag de mascara fisica, umbral/factor de cercania y
+multiplicador/fallback/factor minimo lejano. Sus
 defaults de distancia son `1.0`, `0.05`, `83.333333`, `5.0` y `0.25`.
 `GetStats()` expone tracked/bad/anchored/isolated/body_masked/near/far y
 min/media/max.

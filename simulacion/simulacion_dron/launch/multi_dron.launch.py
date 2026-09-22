@@ -134,6 +134,14 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('launch_rviz', default_value='false'))
     ld.add_action(DeclareLaunchArgument('launch_phase6', default_value='true'))
     ld.add_action(DeclareLaunchArgument(
+        'score_drone_body_mask_enabled', default_value='true'))
+    ld.add_action(DeclareLaunchArgument(
+        'raw_stats_telemetry_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'debug_fiducial_gt_error', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'debug_fiducial_gt_error_max_skew_sec', default_value='0.075'))
+    ld.add_action(DeclareLaunchArgument(
         'mission_profile', default_value=mission_profile_default_path))
     ld.add_action(DeclareLaunchArgument(
         'mission_mode', default_value=default_mission_mode))
@@ -154,6 +162,7 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument(
         'dron_spawn_override_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument('camera_pitch_enabled', default_value='true'))
+    ld.add_action(DeclareLaunchArgument('dron_spawn_x', default_value='-1.0'))
     ld.add_action(DeclareLaunchArgument('dron_spawn_y', default_value='-10.8'))
     ld.add_action(DeclareLaunchArgument(
         'dron_spawn_yaw_deg', default_value='90.0'))
@@ -199,6 +208,8 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('rawdb_record_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
         'rawdb_record_path', default_value='/tmp/f3c_raw.record'))
+    ld.add_action(DeclareLaunchArgument(
+        'full_snapshot_enabled', default_value='__from_yaml__'))
     ld.add_action(DeclareLaunchArgument(
         'phase5_pose_metrics_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
@@ -297,6 +308,7 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('phase6_depth_min_texture_gradient', default_value='8.0'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_depth_texture_window_radius_px', default_value='2'))
+    ld.add_action(DeclareLaunchArgument('orb_loss_protocol_enabled', default_value='true'))
     ld.add_action(DeclareLaunchArgument('orb_loss_hold_sec', default_value='10.0'))
     ld.add_action(DeclareLaunchArgument(
         'orb_qualification_samples', default_value='20'))
@@ -664,7 +676,9 @@ def generate_launch_description():
                         'dron.spawn_override_enabled': ParameterValue(
                             LaunchConfiguration('dron_spawn_override_enabled'),
                             value_type=bool),
-                        'dron.spawn_x': -1.0 if i % 2 == 1 else 1.0,
+                        'dron.spawn_x': ParameterValue(
+                            LaunchConfiguration('dron_spawn_x'), value_type=float)
+                        if i == 1 else 1.0,
                         'dron.spawn_y': ParameterValue(
                             LaunchConfiguration('dron_spawn_y'),
                             value_type=float),
@@ -688,6 +702,12 @@ def generate_launch_description():
                         'debug_fiducial_visualization'),
                     'debug_fiducial_display_seconds': LaunchConfiguration(
                         'debug_fiducial_display_seconds'),
+                    'debug_fiducial_gt_error': LaunchConfiguration(
+                        'debug_fiducial_gt_error'),
+                    'debug_fiducial_gt_error_objects_config': fiducial_objects_config,
+                    'debug_fiducial_gt_error_rendering_config': fiducial_rendering_config,
+                    'debug_fiducial_gt_error_max_skew_sec': LaunchConfiguration(
+                        'debug_fiducial_gt_error_max_skew_sec'),
                     'debug_orb_control_state': LaunchConfiguration(
                         'debug_orb_control_state'),
                     'debug_f6i_trajectory': LaunchConfiguration(
@@ -697,6 +717,8 @@ def generate_launch_description():
                         'gt_fallback_enabled'),
                     'phase5_navigation_source': LaunchConfiguration(
                         'navigation_source'),
+                    'orb_loss_protocol_enabled': LaunchConfiguration(
+                        'orb_loss_protocol_enabled'),
                     'orb_loss_hold_sec': LaunchConfiguration('orb_loss_hold_sec'),
                     'waypoint_blend_sec': LaunchConfiguration('phase6_waypoint_blend_sec'),
                     'trajectory_config': LaunchConfiguration('trajectory_config'),
@@ -822,6 +844,12 @@ def generate_launch_description():
             'drone_namespace_base': default_namespace_base,
             'rawdb_record_enabled': LaunchConfiguration('rawdb_record_enabled'),
             'rawdb_record_path': LaunchConfiguration('rawdb_record_path'),
+            'full_snapshot_enabled': LaunchConfiguration('full_snapshot_enabled'),
+            'phase6_enabled': phase6_enabled,
+            'raw_stats_telemetry_enabled': LaunchConfiguration(
+                'raw_stats_telemetry_enabled'),
+            'score_drone_body_mask_enabled': LaunchConfiguration(
+                'score_drone_body_mask_enabled'),
             'debug_pipeline_flow_events': LaunchConfiguration('debug_pipeline_flow_web'),
             'debug_architecture_telemetry': architecture_telemetry_enabled,
             'log_level': PythonExpression([

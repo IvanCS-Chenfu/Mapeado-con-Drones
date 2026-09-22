@@ -2,21 +2,746 @@
 
 ## Trabajo activo
 
-Peticion vigente: ejecutar la prueba 4.5 de seguimiento de trayectoria con dos
-perfiles, cúbico y trapezoidal, usando un dron, fuente GT, mundo vacío, GUI,
-registro sincronizado y 60 s de espera posterior para grabación manual.
+Peticion vigente: prueba 5.6 de error visual AprilTag por traslacion. Un dron
+con fuente GT se acercara al fiducial 2 en `(0,-10,1,90 deg)` y se alejara en
+`-Y` hasta `(0,-14.5,1)` durante 45 s, con GUI de Gazebo, GUI global y ventana
+fiducial activos. Se medira por KF la pose `camera_T_tag` PnP frente al GT del
+instante de ese KF; la figura separara mediciones aceptadas de rechazadas por
+reproyeccion. La prueba de rotacion queda expresamente posterior.
 
 Preparacion: CERRADA
 Acuerdo cerrado: si
 Autorizacion funcional: CONCEDIDA
-Prueba acordada: dos ejecuciones independientes con los mismos waypoints
-absolutos y yaw absoluto; una con `tipo_trayectoria: 0` (cúbica) y otra con
-`tipo_trayectoria: 1` (trapezoidal); un solo dron; `navigation_source: gt`;
-registro de GT y feedback de trayectoria en CSV; gráficas XY, matriz 3x4 de
-GT frente a trayectoria, matriz 3x4 de errores y tabla cuantitativa; GUI de
-Gazebo abierta; mundo `empty`; 60 s después de terminar la trayectoria.
-Dudas abiertas: ninguna.
+Prueba acordada: compilar `orbslam3_ros2` y `simulacion_dron`, ejecutar
+`c5_6_apriltag_translation_gt` y crear CSV, resumen y grafica bajo
+`Pruebas/Capitulo 5/5_6_error_apriltag/`. El flag
+`debug_fiducial_gt_error=false` por defecto carga la geometria real de tag
+desde los YAML de simulacion solo al activarse y consume GT sellado para el
+diagnostico; no modifica detector, batches, mapa, control ni semantica de la
+ventana: rojo conserva el significado de rechazo por reproyeccion y la ausencia
+de decode no genera aviso. Fase 6, mascara fisica y protocolo de perdida ORB
+estaran desactivados. Dudas abiertas: ninguna.
 Trabajo activo: no
+
+Cierre 5.6 traslacion AprilTag: CONSEGUIDA. `orbslam3` y
+`simulacion_dron` compilan; el test nuevo pasa aislado. La simulacion
+`c5_6_apriltag_translation_gt` completo 6/6 pasos con codigo 0, GUI de Gazebo,
+GUI global y visualizador fiducial. El diagnostico produjo 14 PnP aceptados de
+1.192 a 3.184 m, RMSE de traslacion 0.106 m, media 0.050 m, maximo 0.284 m y
+skew GT maximo 0.010 s. No hubo rechazos por reproyeccion; despues el tag dejo
+de decodificarse, segun la semantica visual acordada. Artefactos finales:
+`Pruebas/Capitulo 5/5_6_error_apriltag/`. `git diff --check` PASS y no quedan
+nodos ROS 2 ni procesos Gazebo. El contrato fiducial completo conserva 1 fallo
+preexistente por trayectoria auxiliar historica divergente. Siguiente accion:
+esperar la revision del usuario antes de preparar la prueba de rotacion.
+
+Preparacion nueva, Capitulo 5 prueba 5.6 de rotacion: CERRADA. Un dron GT
+partira de `(0,-10,1,90 deg)` y ejecutara tres goals secuenciales: yaw relativo
+`-30 deg` con X absoluto `-0.5 m`, despues `-30 deg` con X `-1.0 m`, y por
+ultimo `-30 deg` con X `-1.5 m`; Y/Z se conservan. Se extendera solo el log
+opt-in `FID-GT-ERROR` con el angulo GT entre eje optico y tag, y el procesador
+offline graficara errores de traslacion y rotacion frente a dicho angulo. Se
+mantienen GUI, flags de la prueba anterior y semantica visual. Preparacion:
+CERRADA. Acuerdo cerrado: si. Autorizacion funcional: CONCEDIDA. Prueba
+acordada: cada giro horario y desplazamiento asociado dura 15 s; se compilara,
+se ejecutara `c5_6_apriltag_rotation_gt` y se generaran CSV, resumen y grafica
+de ambos errores frente al angulo GT. Dudas abiertas: ninguna.
+
+Implementacion de rotacion completada y pendiente de validacion: el marcador
+opt-in `[FID-GT-ERROR]` incorpora `viewing_angle_deg`, calculado en GT entre el
+eje optico de la camara y el tag. Se anadieron el perfil y escenario de tres
+giros relativos `-30 deg` con los desplazamientos X acordados, el procesador
+offline de ambos errores frente a ese angulo, contratos estaticos y
+documentacion de paquete. Siguiente accion exacta: comprobar sintaxis, compilar
+`orbslam3_ros2` y `simulacion_dron`, y ejecutar el contrato dirigido antes de
+lanzar la simulacion con GUI.
+
+Build de rotacion `orbslam3`: PASS, codigo 0, 41.1 s. El primer comando uso el
+nombre de directorio `orbslam3_ros2`, que el helper rechazo porque el paquete
+ROS se llama `orbslam3`; se repitio con ese nombre sin modificar codigo. Solo
+persisten advertencias conocidas de ORB-SLAM3 y `cv_bridge`. Siguiente accion
+exacta: compilar `simulacion_dron` y ejecutar el contrato de rotacion dirigido.
+
+Build de rotacion `simulacion_dron`: PASS, codigo 0, 0.82 s. Contrato dirigido
+`rotation_error_diagnostic`: PASS, 1/1. Siguiente accion exacta: comprobar que
+no quedan procesos ROS 2/Gazebo y ejecutar `c5_6_apriltag_rotation_gt` con D1
+GT, GUI de Gazebo, GUI global, visualizador fiducial y el diagnostico GT
+activos; Fase 6, mascara fisica, protocolo ORB y pitch permaneceran apagados.
+
+Resultado de simulacion `c5_6_apriltag_rotation_gt`: PASS, codigo 0,
+`success=true`, escenario terminado y espera posterior completada. La guarda
+de recursos no se activo (`min_mem_available=4487.8 MiB`,
+`max_group_rss=1379.8 MiB`). Siguiente accion exacta: reducir el log solo a
+marcadores de escenario, KeyFrame, tag y `FID-GT-ERROR`, generar y revisar los
+artefactos de rotacion y documentar la conclusion medida.
+
+Analisis de rotacion 5.6: CONSEGUIDA. El log reducido confirma los tres goals
+relativos `-30 deg`, cada uno terminado con exito en 15 s, y el escenario
+completo. `FID-GT-ERROR` produjo 29 PnP aceptados, sin rechazos por
+reproyeccion, de `3.002` a `35.675 deg` de angulo de vision; los KFs continuan
+despues pero no decodifican el tag, asi que no existe PnP medible hasta el
+giro final de `-90 deg`. RMSE: `0.0109 m` de traslacion y `0.0173 rad` de
+rotacion; skew maximo 0.009 s. CSV, resumen y figura se guardan bajo
+`Pruebas/Capitulo 5/5_6_error_apriltag/`. Siguiente accion exacta: comprobar
+cierre de procesos, verificar el worktree y esperar la siguiente prueba.
+
+Cierre de rotacion 5.6: `git diff --check` PASS; el CSV contiene 29 filas con
+angulo GT y la figura fue revisada visualmente. No quedan procesos `gzserver`,
+`gzclient`, `ros2` ni nodos ROS 2. Trabajo activo: no; esperar la siguiente
+prueba del Capitulo 5.
+
+Nueva repeticion 5.6 traslacion: el usuario pide repetir la misma trayectoria
+GT y producir una figura con error de traslacion y error de rotacion frente a
+distancia GT, como en la figura de giro. Preparacion: CERRADA. Acuerdo cerrado:
+si. Autorizacion funcional: CONCEDIDA. Prueba acordada:
+`c5_6_apriltag_translation_gt_v2`, con D1, GUI de Gazebo, GUI global y
+visualizador fiducial; Fase 6, mascara fisica, protocolo ORB y pitch apagados.
+Se modifica unicamente el procesador offline y se sustituyen los artefactos
+documentales de traslacion por la nueva ejecucion. Dudas abiertas: ninguna.
+
+Implementacion de repeticion: completada. `generar_grafica_traslacion.py`
+produce ahora dos paneles frente a distancia GT y el resumen incorpora las
+metricas angulares; no se modifica ningun nodo, launch ni YAML runtime.
+Siguiente accion exacta: comprobar la sintaxis del procesador y procesos
+residuales, lanzar `c5_6_apriltag_translation_gt_v2`, reducir el log y generar
+los artefactos actualizados.
+
+Resultado de repeticion `c5_6_apriltag_translation_gt_v2`: PASS, codigo 0,
+`success=true`, escenario y espera posterior completados. La guarda de
+recursos no se activo (`min_mem_available=4475.2 MiB`,
+`max_group_rss=1372.6 MiB`). Siguiente accion exacta: reducir los marcadores
+AprilTag, generar CSV, resumen y figura doble de traslacion, y documentar las
+metricas de esta nueva ejecucion.
+
+Analisis de repeticion traslacion 5.6: CONSEGUIDA. El log reducido contiene 13
+PnP aceptados, sin rechazos por reproyeccion, entre 1.202 y 1.981 m; mas lejos
+el tag deja de decodificarse. La nueva figura posee dos paneles frente a
+distancia GT: RMSE `0.0182 m` de traslacion y `0.0353 rad` de rotacion, con
+skew GT maximo 0.010 s. CSV, resumen y figura se actualizaron bajo
+`Pruebas/Capitulo 5/5_6_error_apriltag/`. Sesion visual posterior autorizada:
+repetir la trayectoria sin diagnostico ni procesado de resultados, solo con
+GUI de Gazebo y 60 s de espera final para fotos. No modifica ni documenta la
+prueba 5.6.
+
+Cierre de repeticion traslacion 5.6: `git diff --check` PASS y el CSV conserva
+13 filas con ambos errores. No quedan procesos `gzserver`, `gzclient` ni nodos
+ROS 2; la coincidencia puntual de `ros2` durante la comprobacion era el propio
+comando `ros2 node list`. Trabajo activo: no.
+
+Nueva repeticion medida de traslacion 5.6: el usuario autoriza sustituir los
+datos y graficas actuales por una nueva ejecucion de la misma trayectoria GT.
+Preparacion: CERRADA. Acuerdo cerrado: si. Autorizacion funcional: CONCEDIDA.
+Prueba acordada: `c5_6_apriltag_translation_gt_v3`, D1 con Gazebo, GUI global
+y visualizador fiducial; `debug_fiducial_gt_error=true`; Fase 6, mascara,
+protocolo ORB y pitch apagados. Se reducira solo el log de esta ejecucion y se
+regeneraran los artefactos de traslacion dobles. Dudas abiertas: ninguna.
+
+Resultado de repeticion medida `c5_6_apriltag_translation_gt_v3`: PASS,
+codigo 0, `success=true`; escenario y espera posterior completados. La guarda
+de recursos no se activo (`min_mem_available=4408.0 MiB`,
+`max_group_rss=1365.4 MiB`). Siguiente accion exacta: reducir los marcadores
+AprilTag, reemplazar CSV, resumen y figura doble de traslacion, y documentar
+la nueva evidencia.
+
+Nueva prueba visual de deriva: Preparacion CERRADA. Acuerdo cerrado: si.
+Autorizacion funcional: CONCEDIDA. Un unico dron con control GT seguira
+`(0,-10,1,90 deg) -> (-10,-10,1,90 deg) -> (-10,0,1,0 deg) ->
+(-10,10,1,0 deg)`. Se anadiran perfil y escenario aislados, se compilara
+`simulacion_dron` y se ejecutara con Gazebo y GUI global. Se desactivan
+`debug_fiducial_gt_error`, `debug_fiducial_visualization`, Fase 6, mascara,
+protocolo ORB y pitch; no se generan metricas ni se alteran los artefactos de
+error AprilTag. Dudas abiertas: ninguna.
+
+Implementacion de deriva completada y pendiente de validacion: se anadieron
+`trajectory_gt_building_drift.yaml` como perfil y escenario, un contrato
+estatico de los cuatro goals, y documentacion de paquete. Siguiente accion
+exacta: validar sintaxis, compilar `simulacion_dron`, ejecutar el contrato
+dirigido y lanzar la observacion visual.
+
+Build de deriva `simulacion_dron`: PASS, codigo 0, 0.82 s. Contrato dirigido
+`building_drift`: PASS, 1/1. Siguiente accion exacta: comprobar que no queden
+procesos ROS 2/Gazebo y ejecutar `c5_5_building_drift_visual` con GUI de Gazebo
+y GUI global, sin medicion ni visualizador fiducial.
+
+Analisis de repeticion medida traslacion 5.6: CONSEGUIDA. El log reducido de
+`v3` genero 12 PnP aceptados, sin rechazos por reproyeccion, entre 1.188 y
+3.126 m, y reemplazo los artefactos anteriores de traslacion. La figura doble
+conserva todos los puntos: RMSE `0.1001 m` de traslacion y `0.2624 rad` de
+rotacion, con skew GT maximo 0.007 s. El tag deja de decodificarse despues del
+rango observado. Siguiente accion exacta: verificar CSV, procesos y worktree;
+despues cerrar esta repeticion.
+
+Variante rapida de deriva autorizada: tres tramos de 10 m pasan de 24 s a 12 s
+(doble velocidad lineal), manteniendo aproximacion, waypoints, yaws, GT y
+flags visuales. Se crearan perfil/escenario aislados, se compilara
+`simulacion_dron` y se ejecutara solo para observacion en Gazebo/GUI global;
+no se generan metricas AprilTag. Dudas abiertas: ninguna.
+
+Cierre de repeticion medida traslacion 5.6: `git diff --check` PASS; el CSV
+contiene 12 filas con ambos errores y la figura doble fue revisada. No quedan
+procesos Gazebo ni nodos ROS 2. Trabajo activo: no.
+
+Cierre Capitulo 5: el usuario declara concluidas las pruebas. La ultima
+observacion visual de deriva inversa completo con `success=true`, spawn de D1
+en `(-10,10)` y ambos diagnosticos fiduciales desactivados; no se generaron
+metricas de esa observacion. Las evidencias documentales se encuentran en
+`Pruebas/Capitulo 5/`. Se prepara commit y push de codigo, configuracion,
+documentacion y resultados; se excluyen `codex/archivos_auxiliares/ros_logs/`
+vacio y el patron interno de diagnostico. Trabajo activo: no.
+
+Implementacion 5.6: completada y pendiente de build. Se anadio
+`FiducialGroundTruth`, que reproduce las caras y `surface_offset_m` del
+spawner solo cuando el nuevo flag opt-in esta activo; `StereoSlamNode` conserva
+una ventana corta de GT sellado, resuelve `world_T_camera` del KF y registra
+`[FID-GT-ERROR]` para PnP aceptado o rechazado por reproyeccion. Los launches
+de dron/simulacion propagan el flag y las rutas de configuracion; el escenario
+de un dron y el generador offline de CSV/figura estan creados. `py_compile` y
+`git diff --check` PASS. Siguiente accion exacta: compilar `orbslam3_ros2` y
+`simulacion_dron`, y ejecutar el contrato fiducial dirigido antes de lanzar la
+simulacion GUI.
+
+Primer build `orbslam3`: FALLIDO, codigo 2. El log reducido identifica un solo
+error nuevo en la conversion Rodrigues->Eigen: el constructor de `Matrix3f` no
+admite nueve escalares. Se corrigio mecanicamente mediante copia `3x3` tras
+`convertTo(CV_32F)`; no cambia la geometria ni el comportamiento. Siguiente
+accion exacta: repetir el build de `orbslam3` y continuar solo si pasa.
+
+Segundo build `orbslam3`: PASS, codigo 0, 42,5 s. El ejecutor solo corto la
+salida a los 30 s; el log reducido confirma la instalacion correcta. Persisten
+advertencias conocidas de ORB-SLAM3/cv_bridge, sin errores nuevos. Siguiente
+accion exacta: compilar `simulacion_dron` y ejecutar el contrato fiducial.
+
+Build `simulacion_dron`: PASS, codigo 0, 0,89 s. CTest `fiducial_contract`:
+PARCIAL, 7/8 PASS. El nuevo contrato de diagnostico, rutas YAML y escenario
+pasa; el unico fallo preexistente compara la copia auxiliar historica de la
+trayectoria tipica con su escenario canonico, que ya no coinciden. No afecta
+5.6. Siguiente accion exacta: ejecutar aisladamente el test nuevo y preparar
+la simulacion GUI si pasa.
+
+Test aislado `translation_error_diagnostic`: PASS, 1/1. Pre-simulacion 5.6:
+no quedan procesos Gazebo ni nodos ROS 2. Se ejecutara
+`c5_6_apriltag_translation_gt` con el perfil GT de traslacion, solo D1,
+Gazebo GUI, GUI global y visualizador fiducial activos; Fase 6, mascara fisica
+y protocolo de perdida ORB desactivados, pitch de camara desactivado y
+`debug_fiducial_gt_error=true`. Timeout 420 s, espera posterior 20 s y monitor
+de recursos. Siguiente accion exacta: lanzar la simulacion y reducir solo sus
+marcadores al terminar.
+
+Intento de launch 5.6: INVALIDO antes de iniciar procesos. `run_simulation.sh`
+exige `--mission-profile` y su default aun apunta a la ruta legacy
+`/home/chenfu/Gazebo/src/simulacion_dron/config/mission_profile.yaml`. No hay
+Gazebo ni nodos residuales y no se genero medicion. Correccion mecanica:
+repetir el mismo launch pasando el perfil absoluto a la herramienta.
+
+Diagnostico visual posterior completado sobre
+`c5_5_3_two_drones_gates_off_v2`. El runner codifica `yaw_deg=-270` como
+quaternion y `gen_tray::pose2yaw()` lo recupera con `atan2` en `[-pi,pi]`, por
+lo que recibe `+90` y ejecuta el giro corto a la izquierda. Durante el tramo
+final D2 creo los KFs 60-83, pero todos terminaron con `decoded=0`; no hubo
+ninguna observacion del objeto 3 ni una optimizacion posterior. El ultimo KF se
+creo 4,70 s antes de terminar el goal y, ya detenido frente al fiducial, no se
+crearon mas KFs; como el detector solo trabaja ante
+`keyframe_event.created`, la espera no podia producir el reanclaje. El servidor
+continuo publicando revisiones estadisticas de MPs, pero sin nueva geometria de
+KFs. No se modifica codigo ni escenario en este diagnostico. Siguiente accion
+exacta: corregir la documentacion de la prueba y presentar al usuario las
+alternativas de solucion antes de pedir autorizacion funcional.
+
+Cierre del diagnostico posterior: documentacion de paquetes, estado, ultima
+sesion e historial 3Q sincronizados. `git diff --check` PASS. No se modificaron
+codigo, launch, YAML ni configuracion funcional, y no se repitio la simulacion.
+La ejecucion conserva validez para gates, cola primaria y barrera 3Q, pero queda
+PARCIAL para el giro largo y el reanclaje visual. Siguiente accion: acordar con
+el usuario la representacion del yaw relativo largo y una trayectoria que
+fuerce un KF decodificable frente al fiducial 3.
+
+Repeticion autorizada 2026-09-21: conservar GT, GUI Gazebo/global y los gates
+de Fase 6, mascara y perdida ORB desactivados. En
+`trajectory_gt_two_drones_anchor_loss.yaml`, sustituir el unico giro relativo
+de `-270` por tres goals secuenciales de `-90` con las mismas duraciones Pol3,
+y llevar el tramo final de D2 hasta `(10,2,1.3)`. Compilar
+`simulacion_dron`, y ejecutar una prueba nueva con espera posterior de 60 s.
+Criterios: tres giros hacia la derecha, escenario completo, alguna observacion
+valida del objeto 3 y una optimizacion posterior; conservar el resultado de la
+cola/gates como evidencia secundaria. Siguiente accion exacta: editar el YAML
+acordado y registrar el build de `simulacion_dron`.
+
+Build de repeticion: `simulacion_dron` PASS, codigo 0, 0,84 s, mediante
+`build_selected_packages.sh --group simulacion simulacion_dron`. El YAML se
+parsea correctamente. Siguiente accion exacta: comprobar procesos residuales,
+verificar argumentos de `multi_dron.launch.py` y lanzar
+`c5_5_3_two_drones_turn270_fid3_v3` con 60 s de espera posterior.
+
+Pre-simulacion `c5_5_3_two_drones_turn270_fid3_v3`: no quedan procesos ROS 2
+ni Gazebo. Se ejecutara `multi_dron.launch.py` con el perfil fuente
+`trajectory_gt_two_drones_anchor_loss.yaml`, `launch_gazebo_gui=true`,
+`launch_multidron_gui=true`, `launch_mission_gui=false`, `launch_phase6=false`,
+`orb_loss_protocol_enabled=false`,
+`score_drone_body_mask_enabled=false` y logs Fase 3 de terminal. Timeout del
+runner 900 s y espera posterior 60 s. Siguiente accion exacta: ejecutar la
+simulacion y registrar su resultado antes de reducir el log.
+
+Simulacion en curso `c5_5_3_two_drones_turn270_fid3_v3`: el
+`scenario_runner_node` termino con codigo 0 y comienza la espera posterior de
+60 s; el launch y Gazebo aun siguen activos. Siguiente accion exacta: registrar
+el resultado final del orquestador al cerrar, reducir el log con giro, KFs,
+fiduciales, optimizacion, gates y publicaciones, y contrastarlo con los
+criterios acordados.
+
+Resultado de simulacion `c5_5_3_two_drones_turn270_fid3_v3`: PASS, codigo 0,
+`success=true`, duracion del orquestador 254 s y guarda de recursos no activada
+(`min_mem_available=3404,8 MiB`, `max_group_rss=2066,6 MiB`). Log completo
+conservado en
+`codex/archivos_auxiliares/logs/prueba_c5_5_3_two_drones_turn270_fid3_v3.log`.
+Siguiente accion exacta: generar y analizar el log reducido; el exito final no
+se considerara prueba suficiente hasta verificar giro, objeto 3 y optimizacion.
+
+Analisis y cierre de `c5_5_3_two_drones_turn270_fid3_v3`: tres goals
+`-90°` se enviaron y los yaws iniciales sucesivos confirman el giro horario
+total. El tramo a `(10,2,1.3)` creo KFs 79-80 con tags validos del objeto 3;
+el servidor aplico `F3E-FID-FIRST-ANCHOR` al nuevo epoch `(2,1)`. No hubo
+`F3Q-OPT-START` porque un primer ancla absoluta se aplica rigidamente y no
+crea una tarea `OptimizationRequired`. La prueba queda CONSEGUIDA para giro y
+reanclaje; una prueba de optimizacion fiducial requeriria una autoridad ya
+existente con error alto. Documentacion e historial 3Q sincronizados. Siguiente
+accion: ninguna dentro de este alcance; esperar indicacion del usuario.
+
+Preparacion nueva, Capitulo 5 prueba 5.5: el usuario da por concluida la
+prueba visual anterior y decide no realizar la prueba de snapshots. Se
+preparara una prueba incremental que grafique en el tiempo exclusivamente los
+datos realmente almacenados por `RawMapDatabase`: KFs, MapPoints, submapas y
+otros contadores raw nativos que existan. Se excluyen poses world, score,
+tracks fused, optimizacion y toda reconstruccion derivada. Preparacion:
+CERRADA. Acuerdo cerrado: si. Autorizacion funcional: CONCEDIDA. Prueba
+acordada: `c5_5_5_raw_stats_two_drones_v1`, reutilizando el perfil GT de dos
+drones con giro en tres tramos de `-90` y reanclaje ante el fiducial 3, sin
+GUI. Se anadira solo una telemetria de log tras cada insercion raw, protegida
+por `raw_stats_telemetry_enabled=false` por defecto y sin nodo nuevo ni
+snapshot: `submaps`, `keyframes`, `mappoints`, `delta_entries` y
+`fiducial_observations`. `journal_entries` y `last_arrival_id` no se grafican
+por duplicar respectivamente `delta_entries` y el eje/identificador de cada
+insercion; calibraciones, asociaciones y covisibilidad no tienen contador raw
+agregado nativo y no se extendera la base solo para esta prueba. Se generaran
+CSV y grafica desde el log reducido en `Pruebas/Capitulo 5/5_5_datos_raw/`.
+Dudas abiertas: ninguna. Siguiente accion exacta: localizar el punto exacto
+de insercion raw, los argumentos de launch y los tests de contrato, y aplicar
+el cambio minimo acordado.
+
+Implementacion 5.5 completada y pendiente de validacion: `GlobalMapServer`
+declara `raw_stats_telemetry_enabled=false` y, solo al activarlo, emite
+`[F3A-RAW-STATS]` tras cada insercion con los contadores ya presentes en
+`RawInsertResult::stats`. El argumento se propaga desde `multi_dron.launch.py`
+al launch del servidor; no cambia `RawMapDatabase`, no crea un nodo y no
+habilita snapshots. Se anadieron contratos estaticos y el procesador offline
+`Pruebas/Capitulo 5/5_5_datos_raw/generar_grafica_raw.py`; este requiere
+`PYTHONNOUSERSITE=1` por la incompatibilidad local Matplotlib/NumPy, igual que
+el entorno aislado usado por la simulacion. `git diff --check` PASS. Siguiente
+accion exacta: compilar `orbslam3_server` y `simulacion_dron`, ejecutar los
+contratos dirigidos y preparar la simulacion headless autorizada.
+
+Build 5.5 `orbslam3_server`: PASS, codigo 0, 23,0 s. La telemetria condicional
+y su launch instalan correctamente; solo aparece la advertencia conocida de
+colcon por sobrescribir el paquete de un underlay. Siguiente accion exacta:
+compilar `simulacion_dron` para validar la propagacion del argumento de
+integracion.
+
+Build 5.5 `simulacion_dron`: PASS, codigo 0, 0,81 s. CTest dirigido: el
+contrato `test_sparse_cloud_contract` del servidor y `mission_flow_contract`
+de simulacion PASS. `global_map_config_contract` queda PARCIAL por dos fallos
+preexistentes y ajenos al nuevo flag: divergencia ya presente entre las copias
+de `scoring.yaml` y extrinsecas `body_T_camera_*` ausentes de su lista de
+parametros launch-owned. El fallo no menciona
+`raw_stats_telemetry_enabled`, cuya cobertura se valida ademas por los dos
+contratos que pasan. Siguiente accion exacta: verificar que no queden procesos
+ROS/Gazebo y ejecutar `c5_5_5_raw_stats_two_drones_v1` headless con la
+telemetria raw activada, Fase 6, mascara y protocolo de perdida apagados.
+
+Pre-simulacion 5.5: no quedan procesos ROS 2/Gazebo. Se ejecutara
+`c5_5_5_raw_stats_two_drones_v1` con el perfil fuente
+`trajectory_gt_two_drones_anchor_loss.yaml`, sin interfaces GUI, fuente GT,
+`launch_phase6=false`, `orb_loss_protocol_enabled=false`,
+`score_drone_body_mask_enabled=false`, `raw_stats_telemetry_enabled=true` y
+logs Fase 3 en nivel info. Timeout 900 s, espera posterior 20 s y monitor de
+recursos. Criterios: escenario completo, al menos una muestra F3A por entrada
+raw, todas `source=live`, cero `full_snapshot=true` y artefactos CSV/grafica
+generados a partir solo del log reducido.
+
+Simulacion 5.5 finalizada: ya no quedan procesos de `run_simulation`, ROS 2,
+Gazebo, servidor ni runner. El resultado funcional aun no se declara hasta
+reducir el log completo y comprobar escenario, gates y todas las muestras
+`F3A-RAW-STATS`. Siguiente accion exacta: ejecutar el reductor tematico y
+generar CSV/grafica exclusivamente a partir del artefacto reducido.
+
+Analisis del intento inicial `c5_5_5_raw_stats_two_drones_v1`: INVALIDO solo
+para la medicion acordada porque el perfil normal tenia
+`full_snapshot_enabled=true`; F3A registro snapshots en los arrivals 2, 49 y
+50. La ejecucion no se borra ni se usa para resultados. Correccion mecanica
+acordada por el contrato previo: `full_snapshot_enabled` se vuelve override
+opcional de ambos launches con sentinel `__from_yaml__`, por lo que conserva
+el YAML normal y solo la repeticion lo fijara a `false`. Siguiente accion
+exacta: compilar `orbslam3_server` y `simulacion_dron`, ejecutar el contrato de
+launch y repetir como `c5_5_5_raw_stats_two_drones_v2`.
+
+Build de correccion 5.5 `orbslam3_server`: PASS, codigo 0, 0,68 s. Solo se
+instalo el launch; permanece la advertencia conocida de underlay. Siguiente
+accion exacta: compilar `simulacion_dron` y validar `mission_flow_contract`.
+
+Build de correccion 5.5 `simulacion_dron`: PASS, codigo 0, 0,81 s.
+`mission_flow_contract` PASS en 0,46 s y cubre la nueva propagacion del
+override. Pre-simulacion v2: no quedan procesos residuales. Se ejecutara el
+mismo perfil GT de dos drones headless con los tres gates previos apagados,
+`raw_stats_telemetry_enabled=true` y `full_snapshot_enabled=false`; timeout
+900 s, espera posterior 20 s y monitor de recursos. Solo esta ejecucion podra
+generar los artefactos finales de 5.5.
+
+Ejecucion v2 en diagnostico: el intento 0 detecto `gazebo_died_early` tras 19
+s sin activar la guarda de recursos y el runner inicio automaticamente el
+intento 1. Este tambien termino antes de iniciar escenario; no se usara ninguna
+muestra v2 hasta reducir los marcadores del runner y clasificar el cierre.
+Siguiente accion exacta: reducir solo `SIM-*`/Gazebo y decidir una repeticion
+limpia sin mezclar intentos.
+
+Clasificacion v2: el intento 0 es invalido por `gazebo_died_early` (19 s,
+guarda de recursos inactiva). El intento 1 si alcanzo
+`SCENARIO-RUNNER-START` y las muestras F3A no mostraron snapshots, pero el log
+no contiene resultado terminal `SIM-*` ni `SCENARIO-RUNNER-DONE`; solo llega a
+82,8 s de simulacion. Por tanto v2 es INCOMPLETA y no aportara dataset. No hay
+cambio funcional adicional: se repetira una vez como
+`c5_5_5_raw_stats_two_drones_v3` con la misma configuracion, pero mediante una
+sesion TTY persistente para conservar el runner durante toda su duracion y
+capturar su cierre ordenado. Dudas abiertas: ninguna.
+
+Resultado v3: FALLIDA, `SIM-EXIT-CODE=1`, duracion 86 s, sin activacion de la
+guarda de recursos. La configuracion efectiva confirma Fase 6 y mascara
+apagadas, con telemetria raw activa; no hubo `full_snapshot=true`. Se recibieron
+41 muestras F3A antes de que `scenario_runner_node` terminara con codigo 1.
+La reduccion dirigida clasifica la causa: tras `espera_anclaje_inicial` de
+10 s, ambos `gen_tray` rechazan los goals del paso
+`separacion_de_drones` como `reject_stale_state`. No es Fase 6, snapshots ni
+telemetria raw. `NavigationStateMuxNode::PublishForcedGt` solo publica cuando
+recibe pose y velocidad GT con menos de `gt_timeout_sec=0.5 s`; al permanecer
+el dron quieto se deja de recibir la velocidad GT, el ultimo estado envejece y
+`gen_tray` lo rechaza. No se generan artefactos 5.5 con una ejecucion parcial.
+La prueba queda SUSPENDIDA hasta decidir entre corregir esa semantica del mux
+(el estado GT estacionario debe seguir siendo utilizable) o usar para 5.5 un
+perfil equivalente sin esperas estacionarias. Ninguna de las dos opciones se
+aplica sin autorizacion funcional adicional.
+
+Revision del acuerdo 5.5 2026-09-21: el usuario descarta seguir especulando
+sobre el mux y autoriza repetir exactamente el perfil GT de dos drones que ya
+se uso en la prueba visual, ahora con GUI de Gazebo y GUI global abiertos. Se
+mantienen los gates Fase 6, mascara y protocolo ORB apagados, la telemetria raw
+activa y los snapshots desactivados solo por override para no mezclarlos en la
+medicion. No se modifica codigo, controlador ni YAML. Criterio: escenario
+completo y artefactos raw generados solo si todas las muestras son live y no
+hay snapshots. Siguiente accion exacta: verificar que no queden procesos y
+ejecutar `c5_5_5_raw_stats_two_drones_v4_gui`.
+
+Ejecucion `c5_5_5_raw_stats_two_drones_v4_gui`: lanzada limpia con Gazebo y
+GUI global activos; transcurrio la ventana completa de 300 s que cubre mision,
+espera posterior y cierre esperado. Resultado aun pendiente de clasificacion:
+no se usaran los datos ni se generaran artefactos hasta reducir el log y
+verificar el terminal del runner, los gates efectivos, `source=live` y ausencia
+de `full_snapshot=true`. Siguiente accion exacta: reducir el log tematico.
+
+Resultado 5.5 `c5_5_5_raw_stats_two_drones_v4_gui`: CONSEGUIDA. El runner
+completo los diez pasos y cerro con `success=true`/codigo 0. Gates efectivos:
+Fase 6 y mascara fisica apagadas, telemetria raw activa; el log no contiene
+snapshots. El reductor registro 216 inserciones raw live, desde el arrival 1
+al 216, durante 190,068 s. El ultimo estado raw es 4 submapas, 138 KFs,
+14.608 MapPoints, 216 entradas delta y 28 observaciones fiduciales. Se
+generaron `datos_raw.csv`, `grafica_datos_raw.png` y `resumen.json` bajo
+`Pruebas/Capitulo 5/5_5_datos_raw/`. El lector offline deduplica repeticiones
+identicas que el formato del log reducido incluye en sus secciones de patrones,
+pero rechaza un mismo arrival con valores distintos. `git diff --check` PASS y
+no quedan procesos ROS 2/Gazebo de la ejecucion. Trabajo activo 5.5: no.
+Siguiente accion: esperar la siguiente prueba del Capitulo 5.
+
+Revision 5.5 autorizada 2026-09-21: el usuario pide retirar los artefactos de
+la ejecucion incremental y repetir la misma trayectoria como una ejecucion
+normal, con snapshots habilitados. Se conservaran script, notas e historial de
+intentos. La figura mantendra delta/observaciones en el eje izquierdo y anadira
+en el derecho el contador acumulado de snapshots. Se retiro solo el CSV, PNG y
+JSON previos; no se modifica controlador, YAML ni logica de servidor. Siguiente
+accion exacta: ejecutar `c5_5_5_raw_stats_two_drones_v5_snapshots` con GUI de
+Gazebo/global y sin el override `full_snapshot_enabled=false`.
+
+Ejecucion `c5_5_5_raw_stats_two_drones_v5_snapshots`: transcurrio la ventana
+completa de la mision normal con Gazebo y GUI global. Resultado pendiente de
+clasificar: los artefactos previos permanecen retirados y solo se regeneraran
+tras verificar cierre del runner, fuentes live y snapshots del log reducido.
+Siguiente accion exacta: reducir el log de v5.
+
+Cierre revisado 5.5: CONSEGUIDA con la ejecucion normal
+`c5_5_5_raw_stats_two_drones_v5_snapshots`. Completo 10/10 pasos con codigo 0,
+217 inserciones `source=live` en 174,339 s y 9 snapshots. Estado final raw: 4
+submapas, 120 KFs, 13.438 MapPoints, 217 deltas y 30 observaciones fiduciales.
+Los artefactos finales de 5.5 sustituyen la version sin snapshots; la grafica
+usa eje izquierdo para deltas/observaciones y derecho para snapshots
+acumulados. Trabajo 5.5: cerrado.
+
+Preparacion nueva, Capitulo 5 prueba de error visual AprilTag: EN_DEBATE.
+Objetivo propuesto: con un dron GT, Gazebo y GUI global, registrar la deteccion
+por KF al llegar al objeto 2 y durante alejamiento lento en -Y; comparar la
+transformacion medida `camera_T_tag` frente a su GT en el instante del KF y
+graficar error frente a distancia GT camara-tag. Una segunda ejecucion variara
+orientacion conservando el objetivo. Alcance probable: flag de diagnostico
+apagado por defecto en `StereoSlamNode`, sin alterar la deteccion ni los datos
+productivos, y procesador offline de los logs. Hallazgo: el debug actual pinta
+rojo solo un tag decodificado que excede reproyeccion; no existe cancelacion
+visual por distancia y, si no se decodifica, no se publica imagen. Tambien el
+detector corre solo para KFs, por lo que las muestras no son uniformes en una
+ruta continua. Preparacion: EN_DEBATE. Acuerdo cerrado: no. Autorizacion
+funcional: PENDIENTE. Prueba acordada: pendiente de fijar metricas, trayectorias
+y semantica del limite rojo. Dudas abiertas: definicion de error y comportamiento
+visual fuera de rango.
+
+Acuerdo cerrado, Capitulo 5 prueba de traslacion AprilTag 2026-09-21:
+Preparacion: CERRADA. Acuerdo cerrado: si. Autorizacion funcional: CONCEDIDA.
+Un dron con fuente GT, Gazebo, GUI global y ventana fiducial activa llegara a
+`(0,-10,1)` con yaw absoluto `90 deg`, esperara para observar los KFs y se
+alejara a `(0,-14.5,1)` conservando yaw durante 45 s. Un flag de diagnostico
+apagado por defecto en `StereoSlamNode` calculara en cada tag con PnP finito
+la `camera_T_tag` GT del timestamp del KF y emitira distancia y error de
+traslacion; no altera detector, batches ni control. La grafica usara distancia
+GT camara-tag frente al error y distinguira aceptados/rechazados. Se mantiene
+la semantica visual actual: rojo solo por tag decodificado rechazado por
+reproyeccion; perder el tag no produce aviso visual por distancia. Prueba
+acordada: build de `orbslam3_ros2`/`simulacion_dron`, simulacion
+`c5_6_apriltag_translation_gt` y grafica en `Pruebas/Capitulo 5/`. Dudas
+abiertas: ninguna. Siguiente accion exacta: localizar contratos de launch,
+datos de pose GT y puntos de deteccion antes de editar.
+
+Plan autorizado 2026-09-21: modificar `gen_tray.cpp` y sus launches para
+`orb_loss_protocol_enabled`; anadir el gate de mascara al backend/servidor y
+`scoring.yaml`; propagar `phase6_enabled` hasta el servidor para no crear ni
+publicar F6N; anadir tests de contrato/dominio; actualizar docs de
+`dron_individual`, `orbslam3_multi`, `orbslam3_server`, `simulacion_dron` y el
+historial de Fase 6. Paquetes previstos: `dron_individual`, `orbslam3_multi`,
+`orbslam3_server`, `simulacion_dron`. Siguiente accion exacta: releer los MDs
+de los componentes y localizar los simbolos concretos antes de editar.
+
+Implementacion de gates completada: `gen_tray` declara y aplica
+`orb_loss_protocol_enabled` en sus dos rutas; `LandmarkScoreConfig` y
+`SparseGlobalBackend` cortan la mascara antes de construir esferas;
+`GlobalMapServer` declara ambos gates, omite registry/publisher y no llama F6N
+si estan desactivados; los launches propagan `phase6_enabled`, mascara y perdida;
+se anadieron regresiones de dominio/contrato y se documentaron los defectos
+F6N aplazados. No se modificaron aislamiento MP-contra-MP, invalidacion F6N ni
+`GlobalMapBuilder`. Siguiente accion exacta: compilar por separado
+`dron_individual`, `orbslam3_multi`, `orbslam3_server` y `simulacion_dron`.
+
+Build `dron_individual`: PASS, codigo 0, 13,3 s. El nuevo parametro de perdida
+ORB compila e instala correctamente. Log completo de build conservado por la
+herramienta. Siguiente accion exacta: compilar `orbslam3_multi` con grupo
+`servidor`.
+
+Build `orbslam3_multi`: PASS, codigo 0, 44,8 s. El flag de mascara compila con
+el backend y el test de dominio nuevo. Siguiente accion exacta: compilar
+`orbslam3_server` con grupo `servidor`.
+
+Build `orbslam3_server`: PASS, codigo 0, 24,1 s. El gate de F6N, el publisher
+opcional y la subscription condicional compilan correctamente. Siguiente accion
+exacta: compilar `simulacion_dron` con grupo `simulacion`.
+
+Build `simulacion_dron`: PASS, codigo 0, 0,89 s. Los cuatro paquetes afectados
+compilan e instalan. Siguiente accion exacta: ejecutar CTest de
+`dron_individual`, `orbslam3_multi`, `orbslam3_server` y `simulacion_dron`, con
+atencion a las regresiones nuevas de mascara y contratos de launch/F6N.
+
+CTest `dron_individual`: PASS, 8/8 en 2,63 s. Siguiente accion exacta: ejecutar
+CTest de `orbslam3_multi`.
+
+CTest `orbslam3_multi` intento 1: INVALIDO de entorno, codigo 8; 0/9 binarios
+llegaron a ejecutarse porque faltaba `liborbslam3_msgs__rosidl_generator_c.so`
+en `LD_LIBRARY_PATH`. No es un fallo de tests ni de codigo. Siguiente accion
+exacta: repetir la misma bateria tras sourcear `/opt/ros/iron`, install de
+`dron` e install de `servidor`.
+
+CTest `orbslam3_multi` intento 2: PARCIAL, codigo 8, 8/9 PASS. Pasan raw,
+backend, fiducial, `test_landmark_score_manager` con el gate nuevo, builder,
+optimizacion, loops y fused. Solo `test_scalability_3g` agota el timeout fijo de
+60 s al comenzar FourDrones; TwoDrones termino en 32,282 s y midio unos 16 s
+en update/insert por el coste de scoring vigente. No se cambia porque el
+aislamiento MP-contra-MP esta fuera del alcance acordado. Siguiente accion
+exacta: ejecutar CTest de `orbslam3_server` y despues `simulacion_dron`.
+
+CTest `orbslam3_server`: PASS, 13/13 en 5,09 s, incluido el contrato nuevo que
+exige gatear F6N antes de construir evidencia. Siguiente accion exacta:
+ejecutar CTest de `simulacion_dron`.
+
+CTest `simulacion_dron`: PARCIAL, 8/13 PASS. El contrato relevante
+`mission_flow_contract` pasa y valida la propagacion de los flags nuevos. Los
+cinco fallos restantes son incidencias previas y ajenas a este cambio:
+divergencias antiguas entre ambos `scoring.yaml` y parametros de calibracion
+sin clasificar en `global_map_config_contract`, una trayectoria auxiliar no
+sincronizada en `fiducial_contract`, incompatibilidad local
+Matplotlib/NumPy en `pose_metrics_contract`, una linea preexistente en
+`flake8` y formato previo de `scenario_runner_node.cpp`/
+`fase45_recorder.cpp` en `uncrustify`. No se amplía el alcance para
+corregirlas. Siguiente accion exacta: comprobar que no quedan procesos ROS 2 o
+Gazebo activos y preparar la simulacion
+`trajectory_gt_two_drones_anchor_loss` con los tres gates desactivados.
+
+Preparacion de simulacion: no quedan procesos ROS 2/Gazebo activos. Se
+ejecutara `c5_5_3_two_drones_gates_off` con el perfil
+`trajectory_gt_two_drones_anchor_loss.yaml`, mundo `house_1`, dos drones,
+fuente GT, Gazebo GUI y GUI global; `launch_phase6:=false`,
+`orb_loss_protocol_enabled:=false`, `score_drone_body_mask_enabled:=false` y
+`debug_fase3_logs_terminal:=true`. Timeout del escenario: 900 s; espera
+posterior: 60 s. Siguiente accion exacta: iniciar esta simulacion y registrar
+su codigo de salida antes de reducir el log.
+
+Resultado simulacion `c5_5_3_two_drones_gates_off`: FALLIDA en el escenario,
+codigo `250`, con arranque correcto en el primer intento. La ejecucion duro
+158 s incluida la espera posterior; la guarda de recursos no se activo
+(`min_mem_available=3328 MiB`, `max_group_rss=2103 MiB`). El launch y las GUI
+se cerraron ordenadamente. Aun no se atribuye causa al fallo. Log completo
+conservado como artefacto en
+`codex/archivos_auxiliares/logs/prueba_c5_5_3_two_drones_gates_off.log`.
+Siguiente accion exacta: reducir ese log con marcadores de gates, escenario,
+goals, perdida ORB, F6N, mascara, cola primaria, backpressure, publicacion y
+errores; analizar solo el reducido.
+
+Analisis `c5_5_3_two_drones_gates_off`: los gates se aplicaron
+(`phase6_sparse_evidence=false`, `body_mask=false`) y no aparecen marcadores
+F6N ni de body registry. Los goals iniciales y de separacion terminaron con
+exito. El fallo no fue por perdida ORB: el goal de giro relativo de D2 aborto
+antes de moverse porque `tx=ty=tz=0` viola el contrato Pol3 de duracion
+positiva por eje (`los tiempos de llegada deben aumentar estrictamente`). Se
+corrigio mecanicamente el escenario a `tx=ty=tz=tyaw=16 s`, conservando
+posicion nula relativa y giro de -270 grados, y se actualizo el resumen del
+paquete. Siguiente accion exacta: compilar `simulacion_dron`, validar el YAML y
+repetir la prueba con la configuracion identica.
+
+Build `simulacion_dron` tras corregir el giro: PASS, codigo 0, 0,82 s. El YAML
+corregido queda instalado mediante `--symlink-install`. Siguiente accion
+exacta: confirmar ausencia de procesos residuales y ejecutar
+`c5_5_3_two_drones_gates_off_v2` con exactamente los mismos flags.
+
+Resultado simulacion `c5_5_3_two_drones_gates_off_v2`: PASS, codigo 0,
+`success=true`. El escenario completo termino, incluida la rotacion relativa,
+perdida visual y reanclaje; el launch cerro ordenadamente tras 60 s de espera.
+Duracion total del ejecutor: 226 s. La guarda de recursos no se activo
+(`min_mem_available=3253,4 MiB`, `max_group_rss=2094,6 MiB`). Log completo
+conservado en
+`codex/archivos_auxiliares/logs/prueba_c5_5_3_two_drones_gates_off_v2.log`.
+Siguiente accion exacta: reducir el log y cuantificar gates, F6N/body mask,
+perdida ORB, cola primaria, optimizaciones y publicaciones.
+
+Analisis final `c5_5_3_two_drones_gates_off_v2`: seis de seis goals y escenario
+completo; cero deltas F6N, cero body registry y cero marcadores de perdida ORB.
+Terminaron 261 trabajos primarios con pending maximo 1, proceso medio 0,119 s
+y maximo 0,743 s; hubo 224 publicaciones y la ultima contenia 113 KFs. Las
+ocho activaciones de backpressure fueron exclusivamente por optimizacion, con
+`primary_pending=0`; todas ejercitaron y liberaron la barrera, cancelando hasta
+29 tareas pendientes. Dos solves reencolaron un loop post-opt por movimiento
+superior al umbral. Conclusion: CONSEGUIDA para los gates, continuidad GT,
+barrera 3Q y publicacion de KFs en tiempo real. La cola baja de 35 a 1.
+
+Documentacion sincronizada: docs de los cuatro paquetes afectados, resumen y
+detalle de 3Q, resumen y detalle de 6N, indices, estado actual y ultima sesion.
+La primera ejecucion fallida se conserva por separado y la segunda no la
+sobrescribe. 3Q permanece `A REVISAR` por 373/688; 6N permanece `PARCIAL` por
+costes internos con F6N activo y frescura/soporte depth. Siguiente accion
+exacta: ejecutar `git diff --check`, revisar el estado de archivos y cerrar el
+trabajo activo sin iniciar mas simulaciones.
+
+Cierre: `git diff --check` PASS. No quedan procesos de la simulacion. Estado
+final del trabajo autorizado: CONSEGUIDA. La autorizacion queda consumida; no
+hay dudas abiertas ni acciones funcionales pendientes dentro de este alcance.
+Los cambios conviven con modificaciones previas del worktree y no se ha
+revertido ninguna. Siguiente accion: ninguna; esperar la revision del usuario.
+
+Implementacion completada antes del build: `SecondaryTaskQueue` puede cancelar
+solo Loop/Fusion pendientes cuyo query KF pertenece al grafo; el servidor
+mantiene una barrera durante la optimizacion y difiere nuevas tareas del grafo
+hasta el commit; el backend expone el grafo al servidor y filtra el reencolado
+por movimiento individual `>0.20 m` o `>0.12 rad`. Tambien se anadio un test
+unitario de cancelacion selectiva. Archivos funcionales tocados:
+`servidor/orbslam3_server/include/orbslam3_server/secondary_queue.hpp`,
+`servidor/orbslam3_server/src/global_map_server.cpp`,
+`servidor/orbslam3_server/test/test_secondary_queue.cpp`,
+`servidor/orbslam3_multi/include/orbslam3_multi/{global_pose_types,loop_pipeline,sparse_global_backend}.hpp`,
+`servidor/orbslam3_multi/src/{global_pose_store,sparse_global_backend}.cpp`.
+Resultado build intento 1: INVALIDO de uso, codigo `2`; el script solo acepta
+un paquete por invocacion. No se compilo ningun paquete ni hubo diagnostico de
+codigo. Siguiente accion exacta: ejecutar por separado `orbslam3_multi` y
+`orbslam3_server` con `--group servidor`.
+
+Resultado build `orbslam3_multi` intento 1: FALLIDO, codigo `2`, a los 17,9 s.
+El error fue que `movement_metrics` se insertaba en `PoseChangeSet` sin que
+esa estructura tuviera el campo; se corrigio declarando la metrica antes de
+ambas estructuras y agregandola tambien al resultado de lote que consume el
+filtro. Siguiente accion exacta: repetir el build de `orbslam3_multi`.
+
+Resultado build `orbslam3_multi` intento 2: FALLIDO, codigo `2`, a los 17,6 s.
+El error fue una variable `previous_world` no declarada al medir una pose
+propagada en el commit por lote. Se corrigio guardando la pose previa antes de
+aplicar la transformacion. Siguiente accion exacta: repetir el build.
+
+Resultado build `orbslam3_multi` intento 3: PASS, codigo `0`, en 1 min 1 s.
+Siguiente accion exacta: compilar `orbslam3_server` con el mismo grupo.
+
+Resultado build `orbslam3_server`: PASS, codigo `0`, en 26,0 s. Siguiente
+accion exacta: ejecutar los tests C++ del paquete, incluido
+`test_secondary_queue`, antes de la simulacion.
+
+Resultado CTest intento 1: INVALIDO de permisos, codigo `8`; CTest no pudo
+crear `build/servidor/orbslam3_server/Testing/Temporary/LastTest.log` en el
+entorno aislado. No se ejecuto ningun test. Siguiente accion exacta: repetir
+CTest con escritura autorizada sobre los artefactos de build.
+
+Resultado CTest intento 2: PARCIAL, codigo `8`; 12/13 tests pasaron, incluidos
+los cuatro GTests, `test_secondary_queue` con la cancelacion nueva,
+`cppcheck`, `flake8`, `lint_cmake`, `pep257` y `xmllint`. Solo fallo
+`uncrustify` por formato en la linea nueva y cinco divergencias de estilo del
+archivo `global_map_server.cpp`; se corrigieron. Siguiente accion exacta:
+recompilar `orbslam3_server` y repetir CTest.
+
+Build `orbslam3_server` tras formato: PASS, codigo `0`, en 25,5 s. Siguiente
+accion exacta: repetir CTest completo con escritura autorizada.
+
+Resultado CTest intento 3: PASS, codigo `0`; 13/13 tests pasaron en 5,05 s.
+Siguiente accion exacta: ejecutar `c5_5_3_two_drones_anchor_loss_barrier` con
+el perfil `simulacion/simulacion_dron/config/mission_profiles/trajectory_gt_two_drones_anchor_loss.yaml`,
+Gazebo GUI, fuente GT, Fase 6 desactivada, `debug_fase3_logs_terminal:=true`,
+timeout 900 s y 60 s de espera posterior.
+
+Resultado simulacion `c5_5_3_two_drones_anchor_loss_barrier`: FALLIDA,
+`run_simulation.sh` codigo `250`; arranco en un unico intento con Gazebo GUI y
+dos drones, pero `scenario_runner_node` termino con codigo `250` antes de
+completar el escenario. El log completo se conserva en
+`codex/archivos_auxiliares/logs/prueba_c5_5_3_two_drones_anchor_loss_barrier.log`.
+Siguiente accion exacta: reducir el log con marcadores de compuerta,
+backpressure, optimizacion, stale/retry y goals.
+
+Analisis de la simulacion: los dos primeros movimientos y la separacion
+terminaron correctamente. El backpressure se activo por `primary_pending=8`
+en `17:3932.358` y se libero en `17:4000.515`; el runner espero 45,058 s y
+envio el movimiento de perdida visual. No aparecieron
+`[F3Q-OPT-START]`, `[F3Q-OPT-BARRIER]` ni `[F3Q-POST-OPT-LOOPS]`, asi que la
+barrera no quedo ejercitada por una optimizacion 3Q en esta ejecucion. El goal
+de perdida visual fue abortado por el propio `gen_tray` tras perder tracking
+ORB, aunque el escenario solicito GT; despues el runner intento cancelar el
+handle ya terminado y lanzo `UnknownGoalHandleError`. Conclusion de la prueba:
+PARCIAL. Logs reducidos conservados en el mismo directorio con sufijo
+`.reduced.log`.
+
+Cierre actual: implementacion, build y CTest conseguidos; validacion Gazebo
+parcial. No queda ningun proceso de `run_simulation` activo. Pendiente
+funcional: hacer que la perdida visual esperada no aborte el runner y repetir
+la prueba hasta observar una optimizacion 3Q y sus marcadores de barrera.
+Comprobacion final `ros2 node list`: salida vacia, sin nodos activos.
+
+Acuerdo vigente: durante una optimizacion se aplicara una barrera de grafo que
+cancelara trabajo derivado Loop/Fusion pendiente del grafo, conservara la
+ingesta raw y las tareas fiduciales, y coalescera el reencolado posterior. Se
+usaran `0.20 m` y `0.12 rad` como umbrales de movimiento. La barrera seguira
+activa hasta terminar la cancelacion y el reencolado; despues se publicara
+`backpressure=false`. El criterio de exito es que la prueba supere la espera
+de `MOVE-GATE`, reduzca la cadena stale/retry y conserve la prioridad de
+fiduciales.
 
 Plan autorizado vigente para 4.5:
 
@@ -238,6 +963,44 @@ terminó antes de iniciar Gazebo porque no pudo crear
 `/home/chenfu/.ros/log/...`: `OSError: [Errno 30] Read-only file system`.
 Ningún marcador de actuación llegó a ejecutarse. Se repetirá la misma prueba
 en un entorno con escritura habilitada para `~/.ros`.
+
+## Nueva prueba iniciada: Capítulo 5, configuración de cámaras
+
+Petición vigente: documentar la configuración efectiva de las dos cámaras del
+dron, sin modificar código, launch ni YAML del proyecto. Se debe conservar la
+`CameraInfo` real de `/dron_1`, contrastarla con `dron_plugins.xacro`,
+`simulated_sensors.yaml`, `calibration_dron.yaml` y el YAML efectivo de
+ORB-SLAM3, y dejar los resultados en `Pruebas/Capítulo 5/5_1_configuracion_camara/`.
+
+Preparacion: CERRADA
+Acuerdo cerrado: si
+Autorizacion funcional: CONCEDIDA
+Prueba acordada: un dron, mundo vacío, consulta de ambas `CameraInfo`, tópicos
+de imagen y documentación comparativa; sin compilar ni modificar paquetes.
+Dudas abiertas: ninguna
+Trabajo activo: si
+
+Resultado `c5_5_1_camera_info` intento 1: INVALIDO de infraestructura. El
+ejecutor usó por defecto la ruta antigua `src/simulacion_dron/config`, mientras
+el paquete actual está en `src/simulacion/simulacion_dron`; Gazebo no llegó a
+iniciarse. La incidencia se conserva y no implica fallo de la cámara.
+
+Resultado `c5_5_1_camera_info_v2`: PASS. Con la ruta de `mission_profile`
+explícita, `run_simulation.sh` terminó con código 0 y `success=true`, con un
+solo dron, mundo `empty`, ORB-SLAM3, servidor, Fase 6, RViz y GUIs desactivados.
+Las dos `CameraInfo` se publicaron en sus tópicos esperados y las imágenes
+mantuvieron una frecuencia nominal aproximada de 20 Hz. El `fiducial_spawner`
+emitió un error de contexto durante el apagado, irrelevante para esta prueba y
+sin afectar a Gazebo ni a las mediciones. Log completo y reducido conservados
+en `codex/archivos_auxiliares/logs/`.
+
+Mediciones `c5_5_1_camera_info_v2`: ambas cámaras reportan `480x360`, modelo
+`plumb_bob`, distorsión nula, `fx=fy=286.02185016085167`,
+`cx=240.5`, `cy=180.5`, matriz `R` identidad y `P` sin desplazamiento
+horizontal. Ambas muestras llevan `header.frame_id: cuerpo`. El YAML efectivo
+de `dron_individual` coincide con esas intrínsecas y con `bf=16.303245459168547`
+para una línea base de `0.057 m`. Siguiente acción exacta: crear la
+documentación de resultados y verificarla sin tocar código del proyecto.
 
 Resultado `f1_4_4A_torque_x_140Nm_v2`: `run_simulation.sh` terminó con código
 0 y `success=true`; Gazebo y el escenario arrancaron correctamente, el nodo de
@@ -1819,3 +2582,295 @@ Duraciones registradas: `cubica_lenta` 153,260 s, `cubica_normal` 76,950 s,
 de posición: 0,023118 m, 0,148723 m, 0,025235 m y 0,077503 m respectivamente.
 La documentación final queda en `Pruebas/Capítulo 4/4_5_seguimiento/notas.md`.
 La campaña queda cerrada; trabajo activo: no.
+
+## Nueva prueba iniciada: Capítulo 5, configuración de cámaras
+
+Petición vigente: documentar la configuración efectiva de las cámaras estéreo
+sin modificar código ni YAML de producción. Se acordó usar un solo dron
+(`dron_1`), mundo vacío y obtener el `CameraInfo` real de las cámaras izquierda
+y derecha para compararlo con `simulacion_dron/urdf/dron_plugins.xacro`,
+`simulated_sensors.yaml`, `calibration.yaml` y el YAML estéreo efectivo de
+`dron_individual`.
+
+Preparacion: CERRADA
+Acuerdo cerrado: si
+Autorizacion funcional: CONCEDIDA
+Prueba acordada: arranque mínimo de Gazebo con las cámaras activas, captura de
+ambos `CameraInfo`, cálculo del baseline y redacción de resultados en
+`Pruebas/Capítulo 5/5_1_configuracion_camara/`.
+Dudas abiertas: ninguna
+Trabajo activo: si
+
+Alcance: no compilar ni modificar paquetes; usar únicamente los artefactos
+estáticos existentes y la publicación real de ROS. Siguiente acción exacta:
+arrancar la simulación mínima, guardar los dos mensajes `CameraInfo`, comparar
+los valores y documentar cualquier diferencia.
+
+Intento `c5_5_1_camera_info`: `run_simulation.sh` no inició Gazebo porque su
+perfil por defecto conserva la ruta antigua `src/simulacion_dron/config`; el
+paquete actual vive en `src/simulacion/simulacion_dron`. Incidencia de ruta del
+helper, sin cambios funcionales ni evidencia de cámara. Siguiente acción:
+repetir la misma prueba usando `--mission-profile` con la ruta actual explícita.
+
+Resultado `c5_5_1_camera_info_v2`: PASS. Con la ruta actual explícita,
+`run_simulation.sh` terminó con código 0 y `success=true`. Se usó un solo dron,
+mundo `empty`, cámaras activas y ORB-SLAM3, servidor, Fase 6, RViz y GUIs
+desactivados. Ambas `CameraInfo` se publicaron con `480x360`,
+`fx=fy=286.02185016085167`, `cx=240.5`, `cy=180.5`, distorsión nula y
+`header.frame_id: cuerpo`; las imágenes mantuvieron una frecuencia aproximada
+de `20 Hz`. El `fiducial_spawner` informó de un contexto invalidado durante el
+apagado, sin afectar a la prueba.
+
+Cierre `c5_5_1_camera_info_v2`: documentación creada y validada en
+`Pruebas/Capítulo 5/5_1_configuracion_camara/`, con las dos muestras YAML,
+parámetros del `.xacro`, calibración, YAML efectivo de ORB-SLAM3, comparativa y
+resultado. `git diff --check` y la validación YAML pasan. No se modificó código,
+launch ni configuración del proyecto. La prueba queda `CONSEGUIDA`; permanece
+como observación futura la diferencia entre `header.frame_id: cuerpo` y el
+`frameName` óptico declarado por el plugin. Trabajo activo: no.
+
+## Nueva prueba iniciada: visualización nativa de ORB-SLAM3
+
+Petición vigente: ejecutar un solo dron desde su posición inicial hasta
+`(0, -10, 1)` con `yaw=90` grados absoluto, manteniendo abiertos Gazebo y el
+visor nativo de ORB-SLAM3, y sin iniciar el servidor global. El usuario hará
+fotos y vídeos; no se recogerán métricas adicionales.
+
+Preparacion: CERRADA
+Acuerdo cerrado: si
+Autorizacion funcional: CONCEDIDA
+Prueba acordada: cambiar únicamente `bool visualization` de `false` a `true`
+en `dron/orbslam3_ros2/src/stereo/stereo.cpp`; activar ORB-SLAM3, dejar
+`launch_gazebo_gui=true`, `launch_global_server=false`, un solo dron y ejecutar
+la trayectoria al waypoint indicado.
+Dudas abiertas: ninguna
+Trabajo activo: si
+
+Siguiente acción exacta: aplicar el cambio de una línea, compilar
+`orbslam3_ros2` y ejecutar la simulación visual con el perfil de trayectoria GT
+que contiene el waypoint `(0,-10,1,90 grados)`.
+
+Build intento 1: INVALIDO de herramienta. `build_selected_packages.sh` rechazó
+`--group orbslam` porque los grupos válidos son `dron`, `servidor` y
+`simulacion`; no se llegó a compilar ni a modificar más archivos. Siguiente
+acción exacta: repetir el build con el grupo `dron` para `orbslam3_ros2`.
+
+Build intento 2: INVALIDO de selección. El paquete ROS 2 situado en
+`dron/orbslam3_ros2` se llama `orbslam3`, no `orbslam3_ros2`; el script rechazó
+la selección antes de compilar. La modificación sigue limitada a
+`visualization=true`. Siguiente acción exacta: compilar `orbslam3` dentro del
+grupo `dron`.
+
+Build `orbslam3`: PASS. `build_selected_packages.sh --group dron orbslam3`
+terminó con código 0 en 69 s. Aparecieron avisos preexistentes de `cv_bridge`,
+Eigen y cabeceras de ORB-SLAM3, pero no errores. El ejecutable estéreo quedó
+compilado con `visualization=true`. Siguiente acción exacta: ejecutar la prueba
+visual `c5_5_2_orbslam_viewer` con Gazebo abierto, servidor global cerrado y un
+solo dron.
+
+Prueba preparada `c5_5_2_orbslam_viewer`: perfil `autonomous_gt`, escenario
+`autonomous_gt_fiducial2.yaml`, un único goal a `(0,-10,1)` con `yaw_deg=90.0` absoluto;
+`launch_gazebo_gui=true`, `launch_global_server=false`, `launch_mission_gui=false`,
+`launch_multidron_gui=false`, `launch_rviz=false`, `launch_phase6=false`,
+`activar_orbslam=true`, `spawn_fiducials=true`, timeout 360 s y sin cierre
+automático inmediato para permitir fotos y vídeo del usuario. Siguiente acción:
+iniciar la simulación.
+
+Resultado `c5_5_2_orbslam_viewer` intento 1: `run_simulation.sh` terminó con
+código 0 tras el cierre manual de la espera posterior, pero
+`scenario_runner_node` terminó con código 1 antes de completar el movimiento.
+Gazebo y el visor nativo de ORB-SLAM3 sí llegaron a abrirse. El log completo
+queda conservado en
+`codex/archivos_auxiliares/logs/prueba_c5_5_2_orbslam_viewer.log`; siguiente
+acción exacta: reducirlo y diagnosticar el primer error de la acción.
+
+Diagnóstico `c5_5_2_orbslam_viewer` intento 1: el visor se inició y el goal GT
+se envió correctamente, pero el wrapper quedó esperando el servicio
+`/global_mapping/get_fiducial_config` porque se desactivó por completo el
+servidor global. Esto no corresponde a un GUI; el servidor puede ejecutarse sin
+abrir una interfaz. Siguiente acción exacta: repetir la misma prueba con
+`launch_global_server=true`, manteniendo cerrados `launch_mission_gui` y
+`launch_multidron_gui`.
+
+Prueba preparada `c5_5_2_orbslam_viewer_v2`: misma trayectoria y misma
+modificación `visualization=true`, con Gazebo y ORB-SLAM3 visibles, un solo
+dron, `launch_global_server=true` sin GUI de misión ni GUI multidron, Fase 6
+desactivada y una espera posterior de 300 s para capturas. Siguiente acción:
+iniciar la repetición.
+
+Resultado `c5_5_2_orbslam_viewer_v2`: `run_simulation.sh` terminó con código 0
+tras el cierre manual solicitado por el usuario. Gazebo, el servidor global sin
+GUI y el visor nativo de ORB-SLAM3 llegaron a arrancar; el log completo queda
+conservado en
+`codex/archivos_auxiliares/logs/prueba_c5_5_2_orbslam_viewer_v2.log`.
+Siguiente acción exacta: reducir el log para confirmar el resultado del
+`scenario_runner` y después restaurar `visualization=false`.
+
+Análisis `c5_5_2_orbslam_viewer_v2`: el visor se abrió (`Starting the Viewer`) y
+el goal se envió al dron con destino `(0,-10,1)` y yaw `90` grados. La prueba se
+interrumpió manualmente antes de recibir el resultado del goal, por petición
+del usuario; no se clasifica como fallo funcional de la trayectoria. El
+servidor global estuvo activo sin sus GUIs y el proceso quedó limpio tras el
+cierre. Se restaura ahora `visualization=false`. Siguiente acción exacta:
+compilar el workspace para dejar instalado el comportamiento original.
+
+Restauración de código: `dron/orbslam3_ros2/src/stereo/stereo.cpp` vuelve a
+`bool visualization = false`; no se realizan más cambios funcionales.
+
+Build de restauración preparado: recompilar todos los paquetes detectados en
+`dron` (`ORB_SLAM3`, `dron_individual`, `lib_tray`, `mission_msgs`, `orbslam3`,
+`orbslam3_msgs`, `task_manager`, `task_manager_lib`), `servidor`
+(`mission_msgs`, `multidron_gui`, `multidron_gui_lib`, `orbslam3_msgs`,
+`orbslam3_multi`, `orbslam3_server`, `task_lib`, `task_server`) y `simulacion`
+(`simulacion_dron`) mediante `build_selected_packages.sh`. Siguiente acción:
+ejecutar los builds secuencialmente y registrar cada resultado.
+
+Build de restauración: PASS. Todos los paquetes detectados en los grupos
+`dron`, `servidor` y `simulacion` terminaron con código 0. La primera espera
+se agotó mientras `multidron_gui_lib` aún compilaba; se reanudó ese paquete de
+forma aislada y terminó correctamente. El único cambio funcional temporal de
+la prueba visual queda restaurado a `visualization=false` en
+`dron/orbslam3_ros2/src/stereo/stereo.cpp`. No se ejecuta una nueva simulación
+porque el usuario solicitó cerrar esta prueba y dejar el proyecto preparado
+para la siguiente.
+
+Trabajo activo: no. Siguiente acción: esperar la definición de la próxima
+prueba del capítulo 5.
+
+Verificación de cierre: `stereo.cpp` contiene `bool visualization = false`,
+`git diff --check` no detecta errores y no quedan procesos de Gazebo, ORB-SLAM3
+ni ROS 2 de la prueba visual activos. Permanecen sin tocar los artefactos y
+cambios no relacionados del worktree.
+
+## Nueva prueba preparada: dos drones, perdida y reanclaje visual
+
+Peticion vigente: ejecutar una prueba con dos drones y fuente `GT`. Dron 1
+debe ir a `(0,-10,1,90 grados)`, despues a `(-10,-10,1,90 grados)` y quedar
+detenido. Dron 2 debe ir a `(0,-10,1.3,90 grados)`, despues a
+`(10,-10,1.3,90 grados)`, girar `-270 grados` relativos manteniendo la
+posicion y finalmente ir a `(10,0,1.3)` con `0 grados` relativos. El objetivo
+visual es observar en `multidron_gui` el anclaje inicial, la perdida de D2 y su
+reanclaje mediante los colores de keyframes y mappoints.
+
+Preparacion: CERRADA
+Acuerdo cerrado: si
+Autorizacion funcional: CONCEDIDA
+Prueba acordada: crear un perfil y escenario aislados con `mission_mode:
+trajectory`, `navigation_source: gt`, dos drones, `launch_gazebo_gui=true`,
+`launch_multidron_gui=true`, servidor global activo, GUI de mision y RViz
+desactivados, y sin cierre automatico tras terminar el escenario. El usuario
+tomara fotos y video y avisara cuando haya terminado.
+Dudas abiertas: ninguna
+Trabajo activo: si
+
+Siguiente accion exacta: crear los dos YAML, actualizar la documentacion breve
+del paquete, compilar `simulacion_dron` y lanzar la simulacion con una espera
+posterior larga para mantener abiertas Gazebo y la GUI del servidor.
+
+Preparacion completada: se anadieron
+`config/mission_profiles/trajectory_gt_two_drones_anchor_loss.yaml` y
+`config/scenarios/trajectory_gt_two_drones_anchor_loss.yaml`. El giro de D2
+usa un goal relativo sin desplazamiento; el ultimo goal mantiene su orientacion
+con `absoluto_yaw: false` y `yaw_deg: 0.0`.
+
+Build `simulacion_dron`: PASS, codigo 0. Los YAML pasan validacion y el paquete
+instala la nueva configuracion. Siguiente accion exacta: ejecutar la prueba con
+`world_name:=house_1`, dos drones, fuente GT, Gazebo GUI y
+`launch_multidron_gui=true`, dejando una espera posterior larga para que el
+usuario haga fotos y video.
+
+Diagnostico `c5_5_3_two_drones_anchor_loss`: los dos drones completaron el
+primer bloque hacia `(0,-10,1)` y `(0,-10,1.3)` con `success=true` y
+`t_total=16.000 s`. El escenario termino la espera de anclaje inicial y llego
+al siguiente bloque, pero `scenario_runner_node` quedo en `MOVE-GATE-WAIT`
+antes de enviar la separacion porque `/global_mapping/backpressure_active`
+paso a `true`. El log reducido no contiene los contadores
+`[F3C-BACKPRESSURE]`: el lanzamiento uso `debug_fase3_logs_terminal=false` y
+el servidor se ejecuto con nivel `error`, por lo que no se puede distinguir
+retrospectivamente si la causa inmediata fue la cola primaria, la secundaria o
+`optimization_active`. El codigo confirma que la senal es la OR de esas tres
+condiciones, con umbrales primarios 8/2 y secundarios criticos 64/16; el gate
+del runner no tiene timeout. La ejecucion termino por timeout del escenario
+(codigo 124) y ya no quedan procesos Gazebo/ROS activos. Para aislar la causa
+exacta hay que repetir con `debug_fase3_logs_terminal:=true` y conservar los
+marcadores `[F3C-BACKPRESSURE]`, `[F3H-*]` y `[F3Q-*]`.
+
+Nueva ejecucion autorizada `c5_5_3_two_drones_anchor_loss_debug`: repetir la
+misma prueba de dos drones, GT, `house_1`, Gazebo GUI y GUI multidron, activando
+`debug_fase3_logs_terminal:=true` para conservar los contadores internos del
+servidor global cuando cambie `/global_mapping/backpressure_active`.
+
+Prearranque de `c5_5_3_two_drones_anchor_loss_debug`: la primera tentativa se
+interrumpio a peticion del usuario porque el ejecutor detecto una instancia
+residual de Gazebo antes de arrancar. El grupo de lanzamiento fue cerrado con
+SIGINT/SIGTERM; la comprobacion posterior no muestra procesos Gazebo, ROS del
+proyecto ni el puerto 11345. `ros2 node list` no pudo consultar su daemon por
+restricciones de permisos del entorno.
+
+La segunda tentativa de diagnostico tambien se cerro antes del analisis a
+peticion del usuario. Tras el cierre, `ps` no muestra procesos `ros2 launch`,
+`scenario_runner`, `global_map_server`, ORB-SLAM3 ni Gazebo; solo quedaron los
+comandos de inspeccion. Se relanza ahora desde ese estado limpio manteniendo
+`debug_fase3_logs_terminal:=true`.
+
+Comprobacion posterior solicitada: tras detener la simulacion,
+`ros2 node list` llego a mostrar 15 entradas, incluyendo dos
+`/global_map_server`, pero `ps` no encontro ningun proceso correspondiente.
+Se detuvo el daemon con `ros2 daemon stop` y una nueva consulta de
+`ros2 node list` no devuelve nodos. Conclusion: esas 15 entradas eran registros
+obsoletos del daemon ROS 2, no procesos vivos; no queda ninguna simulacion
+activa y no se relanza hasta nueva indicacion.
+
+Nueva ejecucion autorizada `c5_5_3_two_drones_anchor_loss_debug_clean`: lanzar
+la misma prueba desde el grafo ROS 2 limpio, con fuente GT, dos drones,
+`house_1`, Gazebo GUI, GUI multidron y `debug_fase3_logs_terminal:=true`.
+Conservar los contadores `[F3C-BACKPRESSURE]`, `[F3H-*]` y `[F3Q-*]` para
+determinar la causa exacta si aparece backpressure.
+
+Resultado `c5_5_3_two_drones_anchor_loss_debug_clean`: diagnostico conseguido.
+El primer backpressure aparece con `primary_pending=0`,
+`secondary_critical=12` frente a un umbral de 64 y
+`optimization_active=true`; por tanto no lo disparan los umbrales de las
+colas, sino una optimizacion global iniciada por `F3Q-OPT-START` (task
+1000000000119, query de D2). Se libera cuando termina la optimizacion
+(`F3Q-OPT-END`, `optimization_active=false`) y vuelve a activarse al comenzar
+nuevas optimizaciones (tasks 1000000000121, 170, 205, 232 y posteriores).
+El runner queda esperando en `MOVE-GATE-WAIT`; la separacion no llega a
+enviarse y termina por timeout en el paso 5. La causa de la repeticion es la
+cadena de optimizaciones/actualizaciones derivada de los datos visuales de
+ambos drones alrededor del fiducial 2, no una cola primaria saturada. Log
+completo: `codex/archivos_auxiliares/logs/prueba_c5_5_3_two_drones_anchor_loss_debug_clean.log`.
+Tras cerrar la prueba, `ros2 daemon stop` y `ros2 node list` confirman que no
+quedan nodos registrados.
+
+Interpretacion refinada del retraso: no es una unica optimizacion lenta. Cada
+`F3Q-OPT-START` mueve keyframes y cambia revisiones; despues el servidor crea
+`F3Q-POST-OPT-LOOPS` para refrescar fusiones, y las tareas que ya estaban en la
+cola quedan obsoletas (`query_revision_changed_or_inactive` o
+`fusion_dependencies_changed_before_commit`). Algunas provocan
+`F3P-FUSION-RETRY`. En la prueba hubo refrescos de 36 y 45 keyframes que
+crearon nuevas tareas, mientras ambos drones seguian produciendo datos. Las
+optimizaciones individuales duraron aproximadamente 1.2, 1.6, 2.5, 1.9, 3.9
+y 4.6 s, pero la cadena de tareas y reintentos mantiene activo el gate y hace
+crecer el tiempo total.
+
+Valoracion tecnica: subir `secondary_queue_high_watermark` no resolveria este
+caso porque el backpressure entra por `optimization_active`, con solo 12 tareas
+criticas frente a 64. La solucion prioritaria debe actuar sobre la
+planificacion: coalescer/cancelar tareas Loop obsoletas por revision antes de
+procesarlas, agrupar los `FusionRefresh` posteriores a una optimizacion y
+espaciar las optimizaciones Full durante una ventana de keyframes o un periodo
+de quietud. Como segunda decision, separar la senal de optimizacion activa del
+gate de movimiento; `gate_mapping_backpressure=false` queda solo como bypass
+visual, no como solucion del servidor. No se modifica codigo en esta consulta.
+
+Comparacion con la propuesta del usuario: el codigo actual ya activa
+`optimization_active` al entrar en `ProcessLoopOptimization`, libera la senal
+al terminar y crea `FusionRefresh` para `rerun_keyframe_ids`. Pero no cancela
+ni elimina las tareas pendientes pertenecientes al grafo mientras la
+optimizacion esta activa; esas tareas se extraen despues y se declaran stale o
+se reintentan. Ademas, `rerun_keyframe_ids` procede de `dirty_keyframe_ids` y
+`propagated_keyframe_ids`, no de un umbral geometrico explicito de movimiento.
+La propuesta requiere implementar una barrera de grafo, invalidacion/eliminacion
+de tareas obsoletas y un filtro de movimiento antes del reencolado.
+y visualizador fiducial; `debug_fiducial_gt_error=true`; Fase 6, mascara,

@@ -85,6 +85,13 @@ struct LoopAnchorDependencySnapshot
   uint64_t source_commit_id = 0;
 };
 
+struct PoseMovementMetric
+{
+  RawKeyFrameId keyframe_id;
+  double translation_m = 0.0;
+  double rotation_rad = 0.0;
+};
+
 struct PoseChangeSet
 {
   PoseCommitStatus status = PoseCommitStatus::NoChanges;
@@ -101,6 +108,7 @@ struct PoseChangeSet
   std::vector<RawKeyFrameId> hard_fiducial_ids;
   std::vector<RawKeyFrameId> control_propagated_ids;
   std::vector<RawKeyFrameId> conflict_ids;
+  std::vector<PoseMovementMetric> movement_metrics;
 };
 
 struct GlobalPoseStoreStats
@@ -162,6 +170,7 @@ struct AcceptedPoseBatchResult
   std::vector<PoseChangeSet> submap_changes;
   std::vector<RawKeyFrameId> dirty_keyframe_ids;
   std::vector<RawKeyFrameId> propagated_keyframe_ids;
+  std::vector<PoseMovementMetric> movement_metrics;
 };
 
 const char * ToString(PoseSourceKind kind);

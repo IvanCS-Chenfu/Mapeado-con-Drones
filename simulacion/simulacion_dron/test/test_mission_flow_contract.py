@@ -46,6 +46,11 @@ def test_launch_gates_phase6_and_both_observers_without_rviz_dependency():
     assert "'.lower() == 'autonomous' and '" in launch
     assert "'depth_observation_enabled': phase6_enabled" in launch
     assert "'depth_stop_enabled': phase6_enabled" in launch
+    assert "'phase6_enabled': phase6_enabled" in launch
+    assert "'score_drone_body_mask_enabled': LaunchConfiguration(" in launch
+    assert "'raw_stats_telemetry_enabled': LaunchConfiguration(" in launch
+    assert "'full_snapshot_enabled': LaunchConfiguration(" in launch
+    assert "'orb_loss_protocol_enabled': LaunchConfiguration(" in launch
     assert "'debug_mission_flow_web'" in launch
     assert "'debug_open_mission_flow_browser'" in launch
     assert "'topic': '/mission/flow_events'" in launch

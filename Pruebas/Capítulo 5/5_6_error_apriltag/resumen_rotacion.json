@@ -1,0 +1,14 @@
+{
+  "sample_count": 29,
+  "accepted_count": 29,
+  "reprojection_rejected_count": 0,
+  "viewing_angle_deg_min": 3.002375,
+  "viewing_angle_deg_max": 35.675366,
+  "translation_error_m_mean": 0.010241379310344825,
+  "translation_error_m_rmse": 0.01091852205168371,
+  "translation_error_m_max": 0.021798,
+  "rotation_error_rad_mean": 0.011955068965517245,
+  "rotation_error_rad_rmse": 0.017256608805983828,
+  "rotation_error_rad_max": 0.073499,
+  "gt_skew_sec_max": 0.009
+}

@@ -31,6 +31,7 @@ find_package(std_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(mission_msgs REQUIRED)
+find_package(yaml-cpp REQUIRED)
 # AÑADIDO #
 
 include_directories(
@@ -70,13 +71,14 @@ add_executable(stereo
   src/stereo/navigation-state-estimator.cpp
   src/stereo/visual-evidence-metrics.cpp
   src/stereo/fiducial-detector.cpp
+  src/stereo/fiducial-ground-truth.cpp
   src/stereo/depth-observation-processor.cpp
 )
 # AÑADIDO #
 # ament_target_dependencies(stereo rclcpp sensor_msgs cv_bridge message_filters ORB_SLAM3 Pangolin)
 ament_target_dependencies(stereo rclcpp sensor_msgs cv_bridge message_filters ORB_SLAM3 Pangolin mission_msgs orbslam3_msgs geometry_msgs std_msgs tf2_ros tf2_geometry_msgs)
 # AÑADIDO #
-target_link_libraries(stereo ${OpenCV_LIBS})
+target_link_libraries(stereo ${OpenCV_LIBS} yaml-cpp)
 
 add_executable(fiducial_visualizer
   src/stereo/fiducial-visualizer-node.cpp

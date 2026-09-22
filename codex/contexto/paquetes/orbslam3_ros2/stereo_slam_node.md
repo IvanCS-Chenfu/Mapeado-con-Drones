@@ -185,6 +185,19 @@ geometria; solo con configuracion `READY` mueve la copia efectiva a una cola de
 capacidad cuatro. Si se llena elimina el trabajo mas antiguo. No hay sondeo de
 `GetLastKeyFrameInfo`, buffer pre-READY ni deteccion en el callback.
 
+Consecuencia operativa: permanecer detenido frente a un fiducial no fuerza una
+deteccion nueva. Si ORB-SLAM3 deja de crear KFs antes de que el tag sea
+decodificable, no se crea otro trabajo fiducial y el servidor no puede recibir
+la observacion, aunque sigan llegando imagenes. En la prueba
+`c5_5_3_two_drones_gates_off_v2`, los KFs 60-83 de D2 terminaron con
+`decoded=0`; el KF 83 fue el ultimo y se creo 4,70 s antes de terminar el
+movimiento hacia el objeto 3.
+
+La correccion de escenario `c5_5_3_two_drones_turn270_fid3_v3` confirma el
+patron esperado: prolongar el movimiento hasta `y=2` hizo que se crearan los
+KFs 79 y 80 cerca del cruce visual. Ambos decodificaron un tag valido del
+objeto 3, con calidades `0.724` y `0.988`, respectivamente.
+
 Desde 5B, `StereoTrackingReceipt` incluye `tracking_state`, reference KF real y
 `Tcr` del mismo frame. `NavigationStateEstimator` fija `O_T_Kref` y compone
 `O_T_B` mediante la extrínseca `body_T_camera`; un cambio de reference KF
@@ -518,6 +531,23 @@ terminar el proceso `stereo`; este sigue procesando y publicando deltas.
 Para evitar carreras de creacion de HighGUI, solo clasifica `user_close`
 despues de haber observado la ventana visible al menos una vez; antes de eso
 un valor transitorio cero de `WND_PROP_VISIBLE` no la destruye.
+
+`debug_fiducial_gt_error=false` habilita un diagnostico exclusivamente de
+simulacion y no cambia el flujo anterior cuando queda apagado. Con el flag
+activo, `FiducialGroundTruth` carga los objetos y la configuracion de render
+para reconstruir `world_T_tag` usando las mismas RPY, caras y
+`surface_offset_m` que `fiducial_spawner.py`. El nodo conserva hasta veinte
+segundos de `sensor/GT/pose`, selecciona la muestra mas proxima al timestamp
+del KF con `debug_fiducial_gt_error_max_skew_sec=0.075`, compone
+`world_T_camera = world_T_body * body_T_camera` y compara contra la solucion
+PnP. `[FID-GT-ERROR]` contiene distancia GT, angulo entre el eje optico y el
+tag, error de traslacion, error de rotacion y skew; solo se emite para
+soluciones aceptadas o rechazadas por
+`reprojection_error`. Ausencia de decode, tag desconocido o geometria PnP
+invalida no crea muestra. Referencias: `fiducial-ground-truth.cpp` ->
+`FiducialGroundTruth::Load`; `stereo-slam-node.cpp` ->
+`HandleFiducialGtPose` / `EmitFiducialGtErrors`; buscar
+`debug_fiducial_gt_error|FID-GT-ERROR`.
 
 El launch de Dron elimina rutas `/snap/` del entorno de ambos ejecutables para
 evitar cargar bibliotecas glibc incompatibles al abrir HighGUI.

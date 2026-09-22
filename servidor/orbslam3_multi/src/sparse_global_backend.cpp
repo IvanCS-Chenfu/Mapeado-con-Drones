@@ -269,6 +269,9 @@ ScoreChangeSet SparseGlobalBackend::RefreshGeometryScores(
 ScoreChangeSet SparseGlobalBackend::RefreshDroneBodyMasks(
   const std::set<RawKeyFrameId> & keyframe_ids)
 {
+  if (!drone_body_mask_enabled_) {
+    return {};
+  }
   std::vector<DroneBodySphere> upserts;
   std::vector<RawKeyFrameId> removals;
   upserts.reserve(keyframe_ids.size());
@@ -1629,7 +1632,8 @@ AcceptedPoseBatchResult SparseGlobalBackend::CommitGraphProposal(
 }
 
 LoopTaskComputation SparseGlobalBackend::ProcessLoopOptimization(
-  LoopTaskComputation computation)
+  LoopTaskComputation computation,
+  const std::function<void(const std::vector<RawKeyFrameId> &)> & graph_ready_callback)
 {
   computation.optimization.attempted = true;
   if (computation.decision != LoopTaskDecisionKind::OptimizationEvidence) {
@@ -1747,6 +1751,14 @@ LoopTaskComputation SparseGlobalBackend::ProcessLoopOptimization(
     computation.optimization.temporal_edges = graph.problem.temporal_edges.size();
     computation.optimization.covisibility_edges = graph.problem.covisibility_edges.size();
     computation.optimization.loop_edges = graph.problem.loop_edges.size();
+    computation.optimization_graph_keyframe_ids.clear();
+    computation.optimization_graph_keyframe_ids.reserve(graph.problem.keyframes.size());
+    for (const auto & keyframe : graph.problem.keyframes) {
+      computation.optimization_graph_keyframe_ids.push_back(keyframe.id);
+    }
+    if (graph_ready_callback) {
+      graph_ready_callback(computation.optimization_graph_keyframe_ids);
+    }
 
     const auto solve_start = std::chrono::steady_clock::now();
     proposal = optimization_manager_.Optimize(graph.problem);
@@ -1854,10 +1866,13 @@ LoopTaskComputation SparseGlobalBackend::ProcessLoopOptimization(
     commit.rebased_skipped_controls;
   computation.optimization.rebased_inactive_controls =
     commit.rebased_inactive_controls;
-  computation.rerun_keyframe_ids = commit.dirty_keyframe_ids;
-  computation.rerun_keyframe_ids.insert(
-    computation.rerun_keyframe_ids.end(), commit.propagated_keyframe_ids.begin(),
-    commit.propagated_keyframe_ids.end());
+  for (const auto & metric : commit.movement_metrics) {
+    if (metric.translation_m > loop_pipeline_config_.fusion_translation_threshold_m ||
+      metric.rotation_rad > loop_pipeline_config_.fusion_rotation_threshold_rad)
+    {
+      computation.rerun_keyframe_ids.push_back(metric.keyframe_id);
+    }
+  }
   std::sort(computation.rerun_keyframe_ids.begin(), computation.rerun_keyframe_ids.end());
   computation.rerun_keyframe_ids.erase(
     std::unique(
@@ -1958,6 +1973,7 @@ void SparseGlobalBackend::ConfigureFusedLandmarks(const FusedLandmarkConfig & co
 void SparseGlobalBackend::ConfigureLandmarkScores(const LandmarkScoreConfig & config)
 {
   std::lock_guard<std::mutex> state_lock(state_commit_mutex_);
+  drone_body_mask_enabled_ = config.drone_body_mask_enabled;
   score_manager_.Configure(config);
 }
 

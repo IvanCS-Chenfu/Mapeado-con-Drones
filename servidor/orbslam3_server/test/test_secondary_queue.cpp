@@ -185,4 +185,21 @@ TEST(SecondaryTaskQueue, SeparatesFusionRefreshMaintenanceFromCriticalPending)
   queue.Close();
 }
 
+TEST(SecondaryTaskQueue, CancelsOnlyPendingLoopsInsideOptimizationGraph)
+{
+  orbslam3_server::SecondaryTaskQueue queue;
+  ASSERT_TRUE(queue.PushLoop(MakeLoopTask(80, 10)).enqueued);
+  ASSERT_TRUE(queue.PushLoop(MakeLoopTask(81, 11)).enqueued);
+  ASSERT_TRUE(queue.PushDatabaseUpdate(MakeDatabaseTask(82)).enqueued);
+
+  const std::set<orbslam3_multi::RawKeyFrameId> graph{{1, 2, 10}};
+  EXPECT_EQ(queue.CancelPendingLoopsForKeyFrames(graph), 1U);
+  EXPECT_EQ(queue.Pending(), 2U);
+
+  orbslam3_server::SecondaryTask task;
+  ASSERT_TRUE(queue.WaitPop(&task));
+  EXPECT_EQ(task.kind, orbslam3_server::SecondaryTaskKind::DatabaseUpdate);
+  queue.Close();
+}
+
 }  // namespace

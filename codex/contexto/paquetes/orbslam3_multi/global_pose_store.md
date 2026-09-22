@@ -52,6 +52,10 @@ src/global_pose_store.cpp
   los conteos `rebased_skipped_controls`/`rebased_inactive_controls`. Los
   apoyos virtuales se usan para interpolar fuera del store: no se reactivan ni
   se escriben en el batch.
+- `AcceptedPoseBatchResult::movement_metrics` conserva por KF la traslacion y
+  rotacion realmente aplicadas, incluidos los KFs propagados. Es una medida de
+  scheduling posterior a commit y no cambia los IDs dirty usados por el
+  builder.
 - El commit 3Q actualiza continuidades por submapa y propaga rigidamente tails,
   KFs llegados durante el solve y dependencias soft afectadas. El changeset
   diferencia IDs optimizados de `control_propagated_ids`.

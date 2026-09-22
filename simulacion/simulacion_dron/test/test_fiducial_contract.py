@@ -51,6 +51,10 @@ def test_phase4c_receipt_and_phase4d_async_contract_are_explicit():
     assert 'FID-QUEUE-DROP-OLDEST' in wrapper
     assert 'FiducialWorkerLoop' in wrapper
     assert 'PublishFiducialDebugImage' in wrapper
+    assert 'EmitFiducialGtErrors' in wrapper
+    assert '[FID-GT-ERROR]' in wrapper
+    assert 'viewing_angle_deg' in wrapper
+    assert 'debug_fiducial_gt_error' in wrapper
     assert 'orbslam/fiducial_debug/image' in wrapper
     assert 'cv::namedWindow' not in wrapper
     assert 'cv::imshow' not in wrapper
@@ -60,6 +64,12 @@ def test_phase4c_receipt_and_phase4d_async_contract_are_explicit():
     assert "if '/snap/' not in part" in orbslam_launch
     assert 'additional_env=orbslam_environment' in orbslam_launch
     assert "executable='fiducial_visualizer'" in orbslam_launch
+    assert "'debug_fiducial_gt_error'" in orbslam_launch
+    ground_truth = (
+        SRC_ROOT / 'dron/orbslam3_ros2/src/stereo/fiducial-ground-truth.cpp'
+    ).read_text(encoding='utf-8')
+    assert 'surface_offset_m' in ground_truth
+    assert 'FaceTransform' in ground_truth
     visualizer = (
         SRC_ROOT / 'dron/orbslam3_ros2/src/stereo/'
         'fiducial-visualizer-node.cpp'
@@ -136,3 +146,93 @@ def test_launch_and_scenario_gate_motion_after_spawn():
         SRC_ROOT / 'codex/archivos_auxiliares/trayectorias/'
         'prueba_tipica_rodeo_edificio_dos_fiduciales.yaml')
     assert auxiliary == scenario
+
+
+def test_translation_error_diagnostic_is_opt_in_and_uses_simulation_geometry():
+    launch = (PACKAGE_ROOT / 'launch/multi_dron.launch.py').read_text(encoding='utf-8')
+    assert "'debug_fiducial_gt_error', default_value='false'" in launch
+    assert "'debug_fiducial_gt_error_objects_config': fiducial_objects_config" in launch
+    assert "'debug_fiducial_gt_error_rendering_config': fiducial_rendering_config" in launch
+    profile = load(
+        PACKAGE_ROOT / 'config/mission_profiles/trajectory_gt_apriltag_translation.yaml')
+    assert profile == {
+        'mission_mode': 'trajectory',
+        'navigation_source': 'gt',
+        'trajectory_file': '../scenarios/trajectory_gt_apriltag_translation.yaml'}
+    scenario = load(
+        PACKAGE_ROOT / 'config/scenarios/trajectory_gt_apriltag_translation.yaml')
+    goals = [goal for step in scenario['steps'] if step['type'] == 'move'
+             for goal in step['goals']]
+    assert [goal['target'] for goal in goals] == [[0.0, -10.0, 1.0], [0.0, -14.5, 1.0]]
+    assert all(goal['yaw_deg'] == 90.0 and goal['absoluto_yaw'] for goal in goals)
+
+
+def test_rotation_error_diagnostic_uses_three_relative_clockwise_turns():
+    profile = load(
+        PACKAGE_ROOT / 'config/mission_profiles/trajectory_gt_apriltag_rotation.yaml')
+    assert profile == {
+        'mission_mode': 'trajectory',
+        'navigation_source': 'gt',
+        'trajectory_file': '../scenarios/trajectory_gt_apriltag_rotation.yaml'}
+    scenario = load(
+        PACKAGE_ROOT / 'config/scenarios/trajectory_gt_apriltag_rotation.yaml')
+    turns = [goal for step in scenario['steps'] if step['name'].startswith('giro_horario')
+             for goal in step['goals']]
+    assert [goal['target'] for goal in turns] == [
+        [-0.5, -10.0, 1.0], [-1.0, -10.0, 1.0], [-1.5, -10.0, 1.0]]
+    assert all(goal['yaw_deg'] == -30.0 and not goal['absoluto_yaw'] for goal in turns)
+    assert all((goal['tx'], goal['ty'], goal['tz'], goal['tyaw']) ==
+               (15.0, 15.0, 15.0, 15.0) for goal in turns)
+    rotation_plotter = (
+        SRC_ROOT / 'Pruebas/Capítulo 5/5_6_error_apriltag/'
+        'generar_grafica_rotacion.py').read_text(encoding='utf-8')
+    assert 'viewing_angle_deg' in rotation_plotter
+    assert 'rotation_error_rad' in rotation_plotter
+
+
+def test_building_drift_scenario_keeps_the_requested_gt_route():
+    profile = load(
+        PACKAGE_ROOT / 'config/mission_profiles/trajectory_gt_building_drift.yaml')
+    assert profile == {
+        'mission_mode': 'trajectory',
+        'navigation_source': 'gt',
+        'trajectory_file': '../scenarios/trajectory_gt_building_drift.yaml'}
+    scenario = load(
+        PACKAGE_ROOT / 'config/scenarios/trajectory_gt_building_drift.yaml')
+    goals = [goal for step in scenario['steps'] if step['type'] == 'move'
+             for goal in step['goals']]
+    assert [goal['target'] for goal in goals] == [
+        [0.0, -10.0, 1.0], [-10.0, -10.0, 1.0],
+        [-10.0, 0.0, 1.0], [-10.0, 10.0, 1.0]]
+    assert [goal['yaw_deg'] for goal in goals] == [90.0, 90.0, 0.0, 0.0]
+    assert all(goal['navigation_source'] == 'GT' and goal['absoluto_yaw']
+               for goal in goals)
+
+
+def test_fast_building_drift_doubles_only_the_requested_segment_speed():
+    scenario = load(
+        PACKAGE_ROOT / 'config/scenarios/trajectory_gt_building_drift_fast.yaml')
+    goals = [goal for step in scenario['steps'] if step['type'] == 'move'
+             for goal in step['goals']]
+    assert [goal['target'] for goal in goals] == [
+        [0.0, -10.0, 1.0], [-10.0, -10.0, 1.0],
+        [-10.0, 0.0, 1.0], [-10.0, 10.0, 1.0]]
+    assert [goal['tx'] for goal in goals] == [16.0, 12.0, 12.0, 12.0]
+    assert [goal['ty'] for goal in goals] == [16.0, 12.0, 12.0, 12.0]
+    assert [goal['yaw_deg'] for goal in goals] == [90.0, 90.0, 0.0, 0.0]
+
+
+def test_reverse_building_drift_starts_from_the_launch_owned_northwest_spawn():
+    launch = (PACKAGE_ROOT / 'launch/multi_dron.launch.py').read_text(encoding='utf-8')
+    assert "DeclareLaunchArgument('dron_spawn_x', default_value='-1.0')" in launch
+    profile = load(
+        PACKAGE_ROOT / 'config/mission_profiles/trajectory_gt_building_drift_reverse.yaml')
+    assert profile['trajectory_file'] == '../scenarios/trajectory_gt_building_drift_reverse.yaml'
+    scenario = load(
+        PACKAGE_ROOT / 'config/scenarios/trajectory_gt_building_drift_reverse.yaml')
+    goals = [goal for step in scenario['steps'] if step['type'] == 'move'
+             for goal in step['goals']]
+    assert [goal['target'] for goal in goals] == [
+        [0.0, 10.0, 1.0], [-10.0, 10.0, 1.0],
+        [-10.0, 0.0, 1.0], [-10.0, -10.0, 1.0]]
+    assert [goal['yaw_deg'] for goal in goals] == [-90.0, -90.0, 0.0, 0.0]

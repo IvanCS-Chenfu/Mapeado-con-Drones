@@ -17,6 +17,7 @@
 
 #include "utility.hpp"
 #include "fiducial-detector.hpp"
+#include "fiducial-ground-truth.hpp"
 #include "navigation-state-estimator.hpp"
 #include "depth-observation-processor.hpp"
 
@@ -192,6 +193,18 @@ class StereoSlamNode : public rclcpp::Node
         bool debug_fiducial_visualization_ = false;
         rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr
             fiducial_debug_image_pub_;
+        bool debug_fiducial_gt_error_ = false;
+        double debug_fiducial_gt_error_max_skew_sec_ = 0.075;
+        orbslam3_ros2::FiducialGroundTruth fiducial_ground_truth_;
+        struct FiducialGtPose
+        {
+            double stamp_sec = 0.0;
+            Sophus::SE3f world_t_body;
+        };
+        std::deque<FiducialGtPose> fiducial_gt_poses_;
+        std::mutex fiducial_gt_poses_mutex_;
+        rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr
+            fiducial_gt_pose_subscription_;
 
         void ManageFiducialConfig();
         void HandleFiducialConfigResponse(
@@ -206,6 +219,11 @@ class StereoSlamNode : public rclcpp::Node
             const FiducialJob& job,
             const orbslam3_ros2::FiducialDetectionResult& result);
         void PublishFiducialDebugImage(
+            const FiducialJob& job,
+            const orbslam3_ros2::FiducialDetectionResult& result);
+        void HandleFiducialGtPose(
+            geometry_msgs::msg::PoseStamped::ConstSharedPtr message);
+        void EmitFiducialGtErrors(
             const FiducialJob& job,
             const orbslam3_ros2::FiducialDetectionResult& result);
         void StoreStereoFrame(

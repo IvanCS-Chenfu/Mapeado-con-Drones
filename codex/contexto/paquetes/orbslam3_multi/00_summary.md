@@ -91,6 +91,10 @@ submission, matches y estadisticas; todavia no interpreta objetos.
   virtual sin reactivarlo ni escribirlo. Exige dos controles activos por
   submapa e incluye KFs tardios/tail compatibles. Solo los KFs activos movidos
   se notifican dirty.
+- `AcceptedPoseBatchResult` conserva metricas de movimiento por KF. La ruta
+  loop filtra el reencolado posterior a `>0.20 m` o `>0.12 rad` y puede avisar
+  al servidor cuando el grafo esta listo para que este cancele trabajo derivado
+  pendiente del mismo conjunto.
 - La admision exige apoyo 2/4/6 segun perdida/asimetria, ambiguedad y correccion
   grande, con progresion coherente de query y candidate. El corredor es senal
   de riesgo, no una segunda clase de hard.

@@ -1,0 +1,14 @@
+{
+  "sample_count": 217,
+  "duration_sec": 174.3387839794159,
+  "all_sources_live": true,
+  "full_snapshot_count": 9,
+  "final": {
+    "arrival_id": 217,
+    "submaps": 4,
+    "keyframes": 120,
+    "mappoints": 13438,
+    "delta_entries": 217,
+    "fiducial_observations": 30
+  }
+}

@@ -3,7 +3,9 @@
 ## Estado vigente
 
 `A REVISAR`: la correccion reabierta tras la prueba 213 y la mejora conservadora
-posterior estan implementadas y validadas. La prueba 220 da un resultado visual
+posterior estan implementadas y validadas. La barrera de grafo tambien queda
+validada en runtime: ocho optimizaciones no acumularon cola primaria y
+cancelaron trabajo pendiente selectivamente. La prueba 220 da un resultado visual
 general excelente. Nueva evidencia 373: desde `marker_id=368`, al final del
 rodeo, debieron ejecutarse varias optimizaciones por loop para corregir el
 cierre y no se hicieron; seis tareas fueron rechazadas por
@@ -40,6 +42,51 @@ investigarlo ni corregirlo ahora.
   segundo apoyo independiente o un fiducial. Fuera de esa banda sigue 2/4/6.
 
 ## Evidencia reciente
+
+- 2026-09-21: la barrera de grafo, cancelacion selectiva y filtro de movimiento
+  compilan y pasan CTest 13/13. La prueba de dos drones GT completa los dos
+  primeros bloques y libera el gate tras 45,058 s, pero la perdida visual
+  aborta el goal (`action_code=6`) y el runner lanza `UnknownGoalHandleError`
+  antes de cualquier `[F3Q-OPT-START]`; queda pendiente una repeticion que
+  alcance el solve 3Q. Una repeticion posterior con los gates nuevos tambien
+  fallo, esta vez por `tx=ty=tz=0` invalidos en el giro Pol3; se conserva como
+  ejecucion NO CONSEGUIDA y se corrigio a 16 s por eje.
+- La repeticion valida `c5_5_3_two_drones_gates_off_v2` completa seis de seis
+  goals y todo el escenario. Ejecuta ocho optimizaciones con barrera activa:
+  todas liberan backpressure con `primary_pending=0`, cancelan selectivamente
+  hasta 29 tareas y dos generan un unico loop post-opt por movimiento superior
+  al umbral. La cola primaria queda en pico 1, proceso medio 0,119 s y maximo
+  0,743 s; 261 trabajos terminan y se publican 224 revisiones globales. La
+  barrera queda validada; 3Q conserva `A REVISAR` solo por los pendientes 373 y
+  688 ya aplazados.
+- Revision visual de esa misma ejecucion: `success=true` solo acredita el
+  terminal de las acciones. El `-270°` relativo se redujo a `+90°` al viajar
+  como quaternion, y D2 giro por la izquierda. Los KFs 60-83 del tramo final
+  dieron `decoded=0`; no hubo objeto 3 ni optimizacion de reanclaje. Por tanto,
+  los gates, la cola y la barrera siguen validados, pero el objetivo visual de
+  perdida/reanclaje queda PARCIAL y exige una nueva prueba.
+- La repeticion `c5_5_3_two_drones_turn270_fid3_v3` resuelve ese objetivo
+  visual: tres goals de `-90°` sustituyen el `-270°` ambiguo y el tramo hasta
+  `(10,2,1.3)` crea los KFs 79-80, que observan el objeto 3. El primer ancla
+  del epoch 1 se aplica directamente como hard; la ausencia de `F3Q` es el
+  comportamiento previsto, no un fallo de optimizacion.
+- El analisis posterior de esa misma ejecucion localiza ademas la latencia
+  visual de KFs en la cola principal, no en ORB-SLAM3: antes de disponer de mapa
+  publicable, 35 entradas promedian `0.014 s`; entre las entradas 36-151,
+  scoring, materializacion y publicacion sincronicos elevan el proceso a
+  `0.770 s`, la espera media a `13.089 s` y el pico a 35 pendientes. Se
+  recalculan en promedio 956 MPs por delta. La comparacion con Git acota la
+  regresion a `cd50829`: el flujo estadistico ya refrescaba geometria, pero el
+  conteo de vecinos paso de 27 sumas por celda a recorrer y medir todos los
+  candidatos; el mismo commit anadio evidencia sparse Fase 6 sincrona. Esta se
+  construye incluso con `launch_phase6=false` y genero 200 deltas en la prueba,
+  porque el flag no llega al servidor global. La mascara fisica por esfera no
+  fue dominante en esta ejecucion concreta: no hubo registro de drones ni
+  `[F3R-BODY-REGISTRY]`. `GlobalMapBuilder` conserva correctamente caches y
+  dirty sets; se descarta modificarlo o coalescerlo. La correccion propuesta se
+  se limito finalmente a gatear F6N, mascara y perdida ORB. Con F6N y mascara
+  apagados, la repeticion valida reduce el pico de cola de 35 a 1. El coste
+  exacto MP-contra-MP no se modifica y queda separado de este cierre.
 
 - Prueba 218: escenario correcto, pero 0 commits loop; diez propuestas validas
   se cancelaron por `hard_corridor_displacement_exceeded`. Demostro que la

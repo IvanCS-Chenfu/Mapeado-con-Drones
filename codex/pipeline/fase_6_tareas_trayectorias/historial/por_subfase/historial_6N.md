@@ -270,3 +270,29 @@
   La correccion funcional a debatir es que un objetivo visual demasiado cercano
   no active `TargetOrientation`: debe conservar la fachada o inspeccionarse
   desde una pose vecina al UNKNOWN, no desde su propio centro.
+
+## 2026-09-21 - Gate efectivo de evidencia sparse F6N
+
+- objetivo: garantizar que `mission_mode=trajectory` o
+  `launch_phase6=false` detengan por completo la construccion y publicacion de
+  `KeyframeSparseEvidenceDelta`, sin cambiar aun su implementacion interna;
+- implementacion: `multi_dron.launch.py` propaga la Fase 6 efectiva al servidor
+  global; este no crea el publisher F6N ni llama
+  `BuildKeyframeSparseEvidenceDelta()` cuando el gate esta apagado. El gate de
+  mascara fisica y el protocolo de perdida ORB quedan independientes;
+- build y tests: los cuatro paquetes afectados compilan. El contrato del
+  servidor F6N pasa dentro de CTest 13/13 y el contrato de propagacion del
+  launch pasa en `mission_flow_contract`;
+- prueba integrada valida: `c5_5_3_two_drones_gates_off_v2`, dos drones GT,
+  modo trayectoria, Gazebo y GUI global. Escenario y seis goals terminan con
+  exito;
+- evidencia: `[GLOBAL-FEATURE-GATES] phase6_sparse_evidence=false
+  body_mask=false`; cero deltas F6N y cero registros de mascara. La cola
+  primaria alcanza solo un pending, frente a 35 cuando F6N se construia de
+  forma sincrona aun estando apagada;
+- conclusion: CONSEGUIDA para el gate de despliegue. 6N permanece PARCIAL
+  porque la invalidacion por revisiones estadisticas, expansion repetida de
+  observadores, consultas por MP y construccion sincrona con F6N habilitado no
+  se han modificado ni validado;
+- siguiente paso recomendado: medir y corregir esos costes solo en una prueba
+  autonoma de Fase 6 con F6N habilitado y temporizacion propia.

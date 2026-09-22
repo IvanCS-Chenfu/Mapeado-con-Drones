@@ -313,6 +313,8 @@ public:
         "fusion_score_member_bonus", 0.04));
     backend_.ConfigureFusedLandmarks(fused_config);
     orbslam3_multi::LandmarkScoreConfig score_config;
+    score_config.drone_body_mask_enabled = declare_parameter<bool>(
+      "score_drone_body_mask_enabled", true);
     score_config.isolation_radius_m = declare_parameter<double>(
       "score_isolation_radius_m", 0.35);
     score_config.isolation_min_neighbors = static_cast<uint32_t>(declare_parameter<int>(
@@ -332,6 +334,17 @@ public:
     score_config.far_min_factor = static_cast<float>(declare_parameter<double>(
         "score_far_min_factor", 0.25));
     backend_.ConfigureLandmarkScores(score_config);
+    drone_body_mask_enabled_ = score_config.drone_body_mask_enabled;
+    keyframe_sparse_evidence_enabled_ = declare_parameter<bool>(
+      "keyframe_sparse_evidence_enabled", true);
+    raw_stats_telemetry_enabled_ = declare_parameter<bool>(
+      "raw_stats_telemetry_enabled", false);
+    RCLCPP_INFO(
+      get_logger(),
+      "[GLOBAL-FEATURE-GATES] phase6_sparse_evidence=%s body_mask=%s raw_stats_telemetry=%s",
+      keyframe_sparse_evidence_enabled_ ? "true" : "false",
+      drone_body_mask_enabled_ ? "true" : "false",
+      raw_stats_telemetry_enabled_ ? "true" : "false");
     const double deg_to_rad = std::acos(-1.0) / 180.0;
     const double body_roll = declare_parameter<double>("body_T_camera_roll_deg", -90.0) *
       deg_to_rad;
@@ -397,19 +410,23 @@ public:
       "/global_sparse_cloud", map_qos);
     sparse_delta_publisher_ = create_publisher<mission_msgs::msg::GlobalSparseMapDelta>(
       "/global_sparse_map_delta", map_qos);
-    keyframe_sparse_evidence_publisher_ =
-      create_publisher<mission_msgs::msg::KeyframeSparseEvidenceDelta>(
-      "/global_keyframe_sparse_evidence_delta", map_qos);
+    if (keyframe_sparse_evidence_enabled_) {
+      keyframe_sparse_evidence_publisher_ =
+        create_publisher<mission_msgs::msg::KeyframeSparseEvidenceDelta>(
+        "/global_keyframe_sparse_evidence_delta", map_qos);
+    }
     fiducial_primary_publisher_ =
       create_publisher<mission_msgs::msg::FiducialPrimaryObservation>(
       "/mission/fiducial_primary_observations", rclcpp::QoS(64).reliable());
-    rclcpp::QoS registry_qos(rclcpp::KeepLast(1));
-    registry_qos.reliable().transient_local();
-    drone_registry_subscription_ = create_subscription<mission_msgs::msg::DroneRegistry>(
-      "/mission/registry", registry_qos,
-      [this](mission_msgs::msg::DroneRegistry::ConstSharedPtr registry) {
-        OnDroneRegistry(std::move(registry));
-      });
+    if (drone_body_mask_enabled_) {
+      rclcpp::QoS registry_qos(rclcpp::KeepLast(1));
+      registry_qos.reliable().transient_local();
+      drone_registry_subscription_ = create_subscription<mission_msgs::msg::DroneRegistry>(
+        "/mission/registry", registry_qos,
+        [this](mission_msgs::msg::DroneRegistry::ConstSharedPtr registry) {
+          OnDroneRegistry(std::move(registry));
+        });
+    }
     keyframes_publisher_ = create_publisher<visualization_msgs::msg::MarkerArray>(
       "/global_keyframes", map_qos);
 
@@ -1415,6 +1432,17 @@ private:
           raw.stats.journal_entries, journal_storage.resident_entries,
           journal_storage.record_bytes_written, raw.stats.submaps,
           raw.stats.keyframes, raw.stats.mappoints);
+        if (raw_stats_telemetry_enabled_) {
+          RCLCPP_INFO(
+            get_logger(),
+            "[F3A-RAW-STATS] arrival_id=%lu source=%s full_snapshot=%s submap=(%u,%lu) "
+            "submaps=%lu keyframes=%lu mappoints=%lu delta_entries=%lu "
+            "fiducial_observations=%lu",
+            input.arrival_id, ToString(input.source), raw.full_snapshot ? "true" : "false",
+            raw.submap_id.drone_id, raw.submap_id.map_epoch, raw.stats.submaps,
+            raw.stats.keyframes, raw.stats.mappoints, raw.stats.delta_entries,
+            raw.stats.fiducial_observations);
+        }
 
         for (const auto & match : raw.synchronized_fiducial_batches) {
           HandleSynchronizedFiducialBatch(match);
@@ -1735,6 +1763,7 @@ private:
           if (loop.decision ==
             orbslam3_multi::LoopTaskDecisionKind::OptimizationEvidence)
           {
+            BeginOptimizationBarrier();
             optimization_active_.store(true);
             UpdateBackpressure();
             F2_SECONDARY_FLOW_EVENT(
@@ -1750,13 +1779,15 @@ private:
               queued.loop->query_keyframe_id.local_kf_id,
               orbslam3_multi::ToString(queued.loop->intent),
               loop.geometry_results.size(), loop.optimization_geometry_indices.size());
-            loop = backend_.ProcessLoopOptimization(std::move(loop));
+            loop = backend_.ProcessLoopOptimization(
+              std::move(loop),
+              [this](const std::vector<orbslam3_multi::RawKeyFrameId> & keyframes) {
+                ActivateOptimizationGraphBarrier(keyframes);
+              });
             if (loop.optimization.committed) {
               post_optimization_rerun_ids = loop.rerun_keyframe_ids;
               post_optimization_arrival = queued.loop->source_arrival_id;
             }
-            optimization_active_.store(false);
-            UpdateBackpressure();
           }
           stale = loop.decision == orbslam3_multi::LoopTaskDecisionKind::Stale;
           hard_failure = loop.decision == orbslam3_multi::LoopTaskDecisionKind::Error;
@@ -2186,14 +2217,18 @@ private:
           final_reason = "secondary_payload_missing";
         }
       } catch (const std::exception & ex) {
-        optimization_active_.store(false);
+        if (!optimization_barrier_active_) {
+          optimization_active_.store(false);
+        }
         hard_failure = true;
         final_reason = std::string("secondary_exception:") + ex.what();
         RCLCPP_ERROR(
           get_logger(), "[F3H-SECONDARY-EXCEPTION] task=%lu kind=%s error=%s",
           queued.task_id, ToString(queued.kind), ex.what());
       } catch (...) {
-        optimization_active_.store(false);
+        if (!optimization_barrier_active_) {
+          optimization_active_.store(false);
+        }
         hard_failure = true;
         final_reason = "secondary_exception:unknown";
         RCLCPP_ERROR(
@@ -2271,7 +2306,7 @@ private:
           post_optimization_arrival, post_optimization_rerun_ids);
         const size_t created = reruns.size();
         const size_t enqueued = EnqueueLoopTasks(
-          &reruns, "post_optimization_pose_change", true);
+          &reruns, "post_optimization_pose_change", true, true);
         RCLCPP_WARN(
           get_logger(),
           "[F3Q-POST-OPT-LOOPS] previous_task=%lu moved=%zu grouped=%zu created=%zu "
@@ -2323,13 +2358,19 @@ private:
             queued.task_id, ex.what());
         }
       }
+      if (optimization_barrier_active_) {
+        EndOptimizationBarrier();
+        optimization_active_.store(false);
+        UpdateBackpressure();
+      }
     }
   }
 
   size_t EnqueueLoopTasks(
     std::vector<orbslam3_multi::LoopTask> * tasks,
     const std::string & cause,
-    bool retry_completed_revision = false)
+    bool retry_completed_revision = false,
+    bool bypass_optimization_barrier = false)
   {
     if (tasks == nullptr) {
       return 0;
@@ -2338,6 +2379,13 @@ private:
     for (auto & task : *tasks) {
       if (task.task_id == 0U) {
         task.task_id = next_pipeline_task_id_.fetch_add(1);
+      }
+      std::lock_guard<std::mutex> barrier_lock(optimization_barrier_mutex_);
+      if (optimization_barrier_active_ && !bypass_optimization_barrier &&
+        optimization_graph_keyframes_.count(task.query_keyframe_id) != 0U)
+      {
+        ++optimization_barrier_deferred_tasks_;
+        continue;
       }
       const auto enqueue = secondary_queue_.PushLoop(task, retry_completed_revision);
       if (enqueue.enqueued) {
@@ -2362,6 +2410,44 @@ private:
     }
     UpdateBackpressure();
     return enqueued_count;
+  }
+
+  void BeginOptimizationBarrier()
+  {
+    std::lock_guard<std::mutex> lock(optimization_barrier_mutex_);
+    optimization_barrier_active_ = true;
+    optimization_graph_keyframes_.clear();
+    optimization_barrier_deferred_tasks_ = 0U;
+  }
+
+  void ActivateOptimizationGraphBarrier(
+    const std::vector<orbslam3_multi::RawKeyFrameId> & keyframes)
+  {
+    std::lock_guard<std::mutex> lock(optimization_barrier_mutex_);
+    if (!optimization_barrier_active_) {
+      return;
+    }
+    optimization_graph_keyframes_.insert(keyframes.begin(), keyframes.end());
+    const size_t cancelled =
+      secondary_queue_.CancelPendingLoopsForKeyFrames(optimization_graph_keyframes_);
+    RCLCPP_WARN(
+      get_logger(),
+      "[F3Q-OPT-BARRIER] graph_keyframes=%zu cancelled_pending=%zu deferred=%zu",
+      optimization_graph_keyframes_.size(), cancelled, optimization_barrier_deferred_tasks_);
+  }
+
+  void EndOptimizationBarrier()
+  {
+    std::lock_guard<std::mutex> lock(optimization_barrier_mutex_);
+    const size_t deferred = optimization_barrier_deferred_tasks_;
+    const size_t graph_size = optimization_graph_keyframes_.size();
+    optimization_barrier_active_ = false;
+    optimization_graph_keyframes_.clear();
+    optimization_barrier_deferred_tasks_ = 0U;
+    RCLCPP_WARN(
+      get_logger(),
+      "[F3Q-OPT-BARRIER-END] graph_keyframes=%zu deferred=%zu",
+      graph_size, deferred);
   }
 
   void EnqueueSecondaryWork(
@@ -2760,7 +2846,7 @@ private:
       candidates.insert(keyframe.keyframe_id);
     }
     const auto add_mappoint_observers = [this, &candidates](
-        const orbslam3_multi::RawMapPointId & mappoint_id) {
+      const orbslam3_multi::RawMapPointId & mappoint_id) {
         const auto previous = sparse_evidence_observers_.find(mappoint_id);
         if (previous != sparse_evidence_observers_.end()) {
           candidates.insert(previous->second.begin(), previous->second.end());
@@ -2769,11 +2855,13 @@ private:
         if (!raw.has_value()) {
           return;
         }
-        candidates.insert({mappoint_id.drone_id, mappoint_id.map_epoch,
-          raw->reference_keyframe_id});
+        candidates.insert(
+          {mappoint_id.drone_id, mappoint_id.map_epoch,
+            raw->reference_keyframe_id});
         for (const auto & observation : raw->observations) {
-          candidates.insert({mappoint_id.drone_id, mappoint_id.map_epoch,
-            observation.keyframe_id});
+          candidates.insert(
+            {mappoint_id.drone_id, mappoint_id.map_epoch,
+              observation.keyframe_id});
         }
       };
     for (const auto & point : build.delta_upserts) {
@@ -2942,15 +3030,20 @@ private:
     const auto cloud = BuildPointCloud(build, stamp);
     const auto markers = BuildKeyFrameMarkers(build, stamp);
     const auto sparse_delta = BuildSparseDelta(build, stamp);
-    const auto keyframe_sparse_delta = BuildKeyframeSparseEvidenceDelta(build, stamp);
+    std::optional<mission_msgs::msg::KeyframeSparseEvidenceDelta> keyframe_sparse_delta;
+    if (keyframe_sparse_evidence_enabled_) {
+      keyframe_sparse_delta = BuildKeyframeSparseEvidenceDelta(build, stamp);
+    }
     sparse_cloud_publisher_->publish(cloud);
     sparse_delta_publisher_->publish(sparse_delta);
-    if (!keyframe_sparse_delta.upserts.empty() || !keyframe_sparse_delta.deletes.empty()) {
-      keyframe_sparse_evidence_publisher_->publish(keyframe_sparse_delta);
+    if (keyframe_sparse_delta.has_value() &&
+      (!keyframe_sparse_delta->upserts.empty() || !keyframe_sparse_delta->deletes.empty()))
+    {
+      keyframe_sparse_evidence_publisher_->publish(*keyframe_sparse_delta);
       RCLCPP_INFO(
         get_logger(), "[F6N-KF-SPARSE-DELTA] revision=%lu upserts=%zu deletes=%zu",
-        keyframe_sparse_delta.map_revision, keyframe_sparse_delta.upserts.size(),
-        keyframe_sparse_delta.deletes.size());
+        keyframe_sparse_delta->map_revision, keyframe_sparse_delta->upserts.size(),
+        keyframe_sparse_delta->deletes.size());
     }
     keyframes_publisher_->publish(markers);
     if (architecture_telemetry_enabled_) {
@@ -3280,6 +3373,9 @@ private:
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr architecture_activity_publisher_;
   bool pipeline_flow_events_enabled_ = false;
   bool architecture_telemetry_enabled_ = false;
+  bool drone_body_mask_enabled_ = true;
+  bool keyframe_sparse_evidence_enabled_ = true;
+  bool raw_stats_telemetry_enabled_ = false;
   std::mutex architecture_telemetry_mutex_;
   std::map<std::string, std::chrono::steady_clock::time_point> architecture_last_emit_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr backpressure_publisher_;
@@ -3309,11 +3405,11 @@ private:
   std::map<uint32_t, bool> snapshot_deferred_;
   std::map<uint32_t, uint64_t> last_map_sequence_;
   std::map<orbslam3_multi::RawKeyFrameId, std::set<orbslam3_multi::RawMapPointId>>
-    published_keyframe_sparse_members_;
+  published_keyframe_sparse_members_;
   std::map<orbslam3_multi::RawKeyFrameId, std::pair<uint64_t, uint64_t>>
-    published_keyframe_sparse_revisions_;
+  published_keyframe_sparse_revisions_;
   std::map<orbslam3_multi::RawMapPointId, std::set<orbslam3_multi::RawKeyFrameId>>
-    sparse_evidence_observers_;
+  sparse_evidence_observers_;
 
   std::atomic<uint32_t> active_primary_tasks_{0};
   std::atomic<uint32_t> max_active_primary_tasks_{0};
@@ -3327,6 +3423,10 @@ private:
   std::atomic<uint64_t> next_pipeline_task_id_{1000000000000ULL};
   std::atomic<bool> optimization_active_{false};
   std::atomic<bool> shutting_down_{false};
+  std::mutex optimization_barrier_mutex_;
+  std::atomic<bool> optimization_barrier_active_{false};
+  std::set<orbslam3_multi::RawKeyFrameId> optimization_graph_keyframes_;
+  size_t optimization_barrier_deferred_tasks_ = 0U;
   uint64_t replay_total_ = 0;
   size_t high_watermark_ = 8;
   size_t low_watermark_ = 2;

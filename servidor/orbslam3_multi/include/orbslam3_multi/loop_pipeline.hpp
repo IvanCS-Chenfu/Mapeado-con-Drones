@@ -244,6 +244,7 @@ struct LoopTaskComputation
   std::vector<LoopAnchorBatchEntry> anchor_entries;
   LoopAnchorBatchResult anchor_commit;
   std::vector<RawKeyFrameId> rerun_keyframe_ids;
+  std::vector<RawKeyFrameId> optimization_graph_keyframe_ids;
   bool recent_loss_gate_checked = false;
   bool recent_loss_gate_passed = false;
   double recent_loss_translation_m = 0.0;

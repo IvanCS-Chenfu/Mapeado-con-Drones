@@ -269,6 +269,35 @@ TEST(LandmarkScoreManager, DroneBodySphereHardZeroIsIndependentAndReversible)
   EXPECT_EQ(scores.GetStats().body_masked_points, 0U);
 }
 
+TEST(LandmarkScoreManager, DisabledDroneBodyMaskLeavesScoreUntouched)
+{
+  orbslam3_multi::RawMapDatabase raw;
+  orbslam3_multi::LandmarkScoreManager scores;
+  orbslam3_multi::LandmarkScoreConfig config;
+  config.drone_body_mask_enabled = false;
+  config.isolation_min_neighbors = 0;
+  scores.Configure(config);
+  scores.ApplyRawChanges(raw.InsertDelta(1, MakeMap(1.0F)), raw);
+  const orbslam3_multi::RawMapPointId id{1, 4, 10};
+
+  orbslam3_multi::LandmarkScoreGeometryInput geometry;
+  geometry.mappoint_id = id;
+  geometry.world_position.z = 2.0;
+  geometry.observer_distance_m = 2.0;
+  scores.ApplyGeometryChanges({geometry}, {});
+  const float unmasked_score = scores.GetScore(id)->score;
+  ASSERT_GT(unmasked_score, 0.0F);
+
+  orbslam3_multi::DroneBodySphere sphere;
+  sphere.keyframe_id = {2, 8, 12};
+  sphere.center.z = 2.0;
+  sphere.radius_m = 0.25;
+  EXPECT_FALSE(scores.UpdateDroneBodySpheres({sphere}, {}).HasChanges());
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->body_factor, 1.0F);
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->score, unmasked_score);
+  EXPECT_EQ(scores.GetStats().body_masked_points, 0U);
+}
+
 TEST(LandmarkScoreManager, InlierRewardIsAddedAfterGeometryFactors)
 {
   orbslam3_multi::RawMapDatabase raw;

@@ -79,6 +79,16 @@ HighGUI y mantiene la ventana durante `debug_fiducial_display_seconds=5.0`.
 Cerrar o matar ese proceso no termina `stereo`; el entorno launch elimina
 rutas Snap de ambos procesos.
 
+El diagnostico de simulacion `debug_fiducial_gt_error=false` permanece apagado
+en uso normal. Al activarlo, el wrapper carga las poses exactas de las caras
+desde `fiducial_objects.yaml` y `fiducial_rendering.yaml`, incluida la
+separacion de superficie del spawner, conserva GT sellado de
+`sensor/GT/pose` y registra por KF `[FID-GT-ERROR]`. La muestra compara el PnP
+`camera_T_tag` con su GT, emite distancia, angulo de vision respecto al eje
+optico, error de traslacion y de rotacion, y solo incluye PnP aceptado o
+rechazado por reproyeccion. No publica interfaces
+nuevas ni altera detector, batch, mapa o control.
+
 Fase 2 añade `debug_architecture_telemetry=false`. Cuando Simulacion activa el
 master de `system_architecture`, el wrapper emite eventos ligeros y muestreados
 en `/system_architecture/activity` al consumir el par estereo; no publica ni

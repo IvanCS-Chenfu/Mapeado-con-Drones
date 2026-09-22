@@ -50,6 +50,16 @@ de simulacion lo establece en `error` cuando `fase3_logs_terminal=false`, de
 modo que desaparece la telemetria `[F3*]` pero siguen visibles los errores
 reales.
 
+`raw_stats_telemetry_enabled=false` es un argumento de launch no persistente
+en YAML. Solo para la prueba documental 5.5 lo activa la simulacion y hace que
+el servidor emita el marcador `[F3A-RAW-STATS]` tras cada insercion raw; en
+despliegue normal permanece apagado.
+
+`full_snapshot_enabled` mantiene el valor del YAML si recibe el sentinel
+`__from_yaml__`. La prueba 5.5 lo fija a `false` para medir exclusivamente la
+ingesta incremental, sin cambiar el perfil normal ni la prueba independiente
+de snapshots.
+
 Con `rawdb_replay_path` no vacío, el nodo no crea subscriptions wrapper,
 clientes ni timers snapshot. Reinyecta deltas y observaciones normalizadas por
 la misma cola y backend; solo admite observaciones fiduciales visuales. El drop

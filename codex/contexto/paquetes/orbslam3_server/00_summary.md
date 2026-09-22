@@ -15,6 +15,11 @@ fiducial MAX / loop BAJA -> SecondaryWorker -> backend commit dirty
 construye grafo, optimiza, valida y compromete; no publica ni despierta al
 principal.
 
+La telemetria `raw_stats_telemetry_enabled=false` es opt-in y, solo cuando se
+activa, registra `[F3A-RAW-STATS]` justo tras cada insercion raw. Usa los
+contadores nativos ya presentes en `RawInsertResult::stats`; no crea un nodo,
+topic, snapshot ni trabajo cuando esta apagada.
+
 La cola secundaria tiene carriles MAX/HIGH/NORMAL, mostrados funcionalmente
 como MAXIMA/MEDIA/BAJA, FIFO por carril y un unico worker no preemptivo. Los
 tres payloads reales son `FiducialOptimizationTask`, `DatabaseUpdateTask` y

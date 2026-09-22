@@ -1,0 +1,167 @@
+name: trajectory_gt_two_drones_anchor_loss
+description: "Dos drones GT para observar anclaje, perdida y reanclaje visual de D2."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: ambos_al_punto_inicial
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 16.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 180.0
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.3]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 16.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 180.0
+
+  - name: espera_anclaje_inicial
+    type: wait
+    seconds: 10.0
+
+  - name: separacion_de_drones
+    type: move
+    mode: simultaneous
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [-10.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 240.0
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [10.0, -10.0, 1.3]
+        yaw_deg: 90.0
+        tx: 24.0
+        ty: 24.0
+        tz: 24.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 240.0
+
+  - name: espera_despues_de_anclaje
+    type: wait
+    seconds: 8.0
+
+  - name: perdida_visual_dron_2
+    type: move
+    mode: sequential
+    goals:
+      # El quaternion no conserva vueltas completas: tres goals explicitos
+      # fuerzan el giro horario total de -270 grados.
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, 0.0, 0.0]
+        yaw_deg: -90.0
+        # Pol3 requiere una duracion positiva por eje, aunque la posicion no cambie.
+        tx: 16.0
+        ty: 16.0
+        tz: 16.0
+        tyaw: 16.0
+        absoluto_x: false
+        absoluto_y: false
+        absoluto_z: false
+        absoluto_yaw: false
+        timeout_sec: 180.0
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, 0.0, 0.0]
+        yaw_deg: -90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 16.0
+        tyaw: 16.0
+        absoluto_x: false
+        absoluto_y: false
+        absoluto_z: false
+        absoluto_yaw: false
+        timeout_sec: 180.0
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, 0.0, 0.0]
+        yaw_deg: -90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 16.0
+        tyaw: 16.0
+        absoluto_x: false
+        absoluto_y: false
+        absoluto_z: false
+        absoluto_yaw: false
+        timeout_sec: 180.0
+
+  - name: espera_perdida_dron_2
+    type: wait
+    seconds: 8.0
+
+  - name: reanclaje_dron_2
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 2
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [10.0, 2.0, 1.3]
+        yaw_deg: 0.0
+        tx: 20.0
+        ty: 20.0
+        tz: 20.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: false
+        timeout_sec: 240.0
+
+  - name: espera_reanclaje
+    type: wait
+    seconds: 20.0

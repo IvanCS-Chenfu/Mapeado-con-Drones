@@ -132,6 +132,14 @@ orientacion objetivo o un incremento desde la orientacion actual. La
 trayectoria tipica de Fase 4 usa seis incrementos relativos alrededor de
 `±180°` para forzar giros cortos; los targets XYZ permanecen absolutos.
 
+Limitacion vigente: `BuildActionGoal()` transporta `yaw_deg` dentro de
+`target_pose.pose.orientation`. Un quaternion conserva la orientacion, pero no
+el numero de vueltas ni el sentido de un recorrido angular equivalente. Al
+decodificarlo con `gen_tray::pose2yaw()`, cualquier incremento queda reducido a
+`[-pi,pi]`; por ejemplo, `-270°` llega como `+90°`. Por tanto, los giros
+relativos de magnitud superior a `180°` no se pueden expresar de forma univoca
+con el contrato directo actual.
+
 `codex/archivos_auxiliares/trayectorias/tray_prueba_155.yaml` construye el caso
 dirigido A fiducial 2 -> B anchor por loop en fachada norte -> A fiducial 1.
 Las pruebas 157/158 lo usan para verificar que el apoyo loop sea posterior al

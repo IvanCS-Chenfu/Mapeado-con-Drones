@@ -1,0 +1,24 @@
+# Muestra real obtenida durante c5_5_1_camera_info_v2.
+topic: /dron_1/sensor/camara_der/camera_info
+node: /dron_1/camera_controller_der
+message_type: sensor_msgs/msg/CameraInfo
+sample_timestamp:
+  sec: 56
+  nanosec: 401000000
+header:
+  frame_id: cuerpo
+height: 360
+width: 480
+distortion_model: plumb_bob
+d: [0.0, 0.0, 0.0, 0.0, 0.0]
+k: [286.02185016085167, 0.0, 240.5, 0.0, 286.02185016085167, 180.5, 0.0, 0.0, 1.0]
+r: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+p: [286.02185016085167, 0.0, 240.5, -0.0, 0.0, 286.02185016085167, 180.5, 0.0, 0.0, 0.0, 1.0, 0.0]
+binning_x: 0
+binning_y: 0
+roi:
+  x_offset: 0
+  y_offset: 0
+  height: 0
+  width: 0
+  do_rectify: false

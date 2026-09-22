@@ -17,3 +17,17 @@ def test_sparse_cloud_keeps_score_and_stable_identity_without_rgb():
     assert 'MakePointField("rgb"' not in SOURCE
     assert 'ScoreRgb(' not in SOURCE
     assert 'rgb_field=false' in SOURCE
+
+
+def test_phase6_sparse_evidence_is_gated_before_building():
+    assert 'keyframe_sparse_evidence_enabled_' in SOURCE
+    assert 'if (keyframe_sparse_evidence_enabled_) {' in SOURCE
+    assert 'keyframe_sparse_delta = BuildKeyframeSparseEvidenceDelta' in SOURCE
+
+
+def test_raw_statistics_telemetry_is_opt_in_and_uses_post_insert_stats():
+    assert '"raw_stats_telemetry_enabled", false' in SOURCE
+    assert 'if (raw_stats_telemetry_enabled_) {' in SOURCE
+    assert '[F3A-RAW-STATS]' in SOURCE
+    assert 'raw.stats.delta_entries' in SOURCE
+    assert 'raw.stats.fiducial_observations' in SOURCE

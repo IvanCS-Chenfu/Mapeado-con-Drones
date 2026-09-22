@@ -60,6 +60,24 @@ se propaga internamente como `phase5_navigation_source` y es la fuente por
 defecto de los goals; `navigation_source` dentro de un goal conserva su
 precedencia para cambiar GT/ORB durante una trayectoria.
 
+La puerta efectiva `phase6_enabled = mission_mode==autonomous &&
+launch_phase6` se propaga tambien al servidor global. Con valor falso no se
+crea ni calcula `/global_keyframe_sparse_evidence_delta` y no aparece trabajo
+`F6N`. `score_drone_body_mask_enabled` controla de forma independiente la
+mascara fisica de score alrededor de KFs; `orb_loss_protocol_enabled` controla
+la congelacion/abort de `gen_tray` ante perdida ORB. Ambos conservan `true` por
+defecto y pueden desactivarse en una prueba sin cambiar GT/ORB ni Fase 6.
+La ejecucion `c5_5_3_two_drones_gates_off_v2` valida la propagacion conjunta:
+cero F6N, cero body registry, seis goals correctos y escenario completo.
+
+`raw_stats_telemetry_enabled=false` se reenvia solo al servidor global. Es una
+telemetria opt-in usada por la prueba documental 5.5 para registrar los
+contadores de `RawMapDatabase`; no crea nodos, topics ni snapshots.
+
+`full_snapshot_enabled=__from_yaml__` conserva el comportamiento configurado
+del servidor. La prueba 5.5 lo anula a `false` para aislar los deltas live sin
+modificar `runtime.yaml` ni alterar las ejecuciones normales.
+
 Arranca Gazebo, el numero de drones definido en `config/sim_dron.yaml`,
 wrappers y `global_map_server`. RViz2, bridge web, navegador y telemetria de
 terminal son opcionales mediante `config/debug.yaml`. Pasa
@@ -76,6 +94,26 @@ Desde 4D pasa `config/fiducial_objects.yaml` al `fiducial_config_server` y
 propaga `debug_fiducial_visualization` y
 `debug_fiducial_display_seconds` a todos los wrappers. Sus defaults son
 `false` y `5.0`; el debug no altera la deteccion ni la publicacion del SLAM.
+
+`debug_fiducial_gt_error=false` es independiente de la ventana visual. Cuando
+se activa, `multi_dron.launch.py` entrega a cada wrapper las rutas instaladas
+de `fiducial_objects.yaml` y `fiducial_rendering.yaml`, mas el skew maximo
+configurable de `0.075 s`, para medir PnP contra GT por KF. No crea nodos ni
+topics nuevos. El perfil `trajectory_gt_apriltag_translation.yaml` ejecuta D1
+en GT hasta `(0,-10,1,90 deg)`, espera y se aleja hasta `(0,-14.5,1)` en 45 s;
+es la base reproducible de la prueba 5.6 de traslacion.
+El perfil hermano `trajectory_gt_apriltag_rotation.yaml` realiza tres goals
+relativos de `-30 deg` y `-0.5 m` sucesivos en X, con 15 s por goal, para
+medir ambos errores frente al angulo GT entre eje optico y tag.
+El perfil `trajectory_gt_building_drift.yaml` conduce D1 por
+`(0,-10)->(-10,-10)->(-10,0)->(-10,10)` con los yaws absolutos `90,90,0,0`
+para la observacion visual de deriva; se usa con ambos flags de diagnostico
+fiducial apagados.
+`trajectory_gt_building_drift_fast.yaml` conserva los mismos goals y reduce a
+12 s cada tramo de 10 m para duplicar la velocidad lineal de observacion.
+El perfil `trajectory_gt_building_drift_reverse.yaml` usa el spawn override de
+D1 con `dron_spawn_x=-10` y `dron_spawn_y=10`, y recorre el edificio de norte
+a sur con los yaws `-90,-90,0,0`.
 
 Desde 4F, `config/global_map/runtime.yaml` incluye
 `fiducial_pending_capacity_per_drone=10`. Con
@@ -153,6 +191,7 @@ spawn_fiducials=true
 drone_start_stagger_sec=8.0
 orb_vocabulary_path=<ORBvoc.txt completo>
 dron_spawn_override_enabled=false
+dron_spawn_x=-1.0
 dron_spawn_y=-10.8
 dron_spawn_yaw_deg=90.0
 phase6_execution_timing_factor=2.0

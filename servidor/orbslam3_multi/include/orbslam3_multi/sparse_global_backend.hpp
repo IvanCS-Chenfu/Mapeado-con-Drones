@@ -13,6 +13,7 @@
 #include "orbslam3_multi/raw_map_database.hpp"
 
 #include <memory>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -99,7 +100,9 @@ public:
     const std::vector<RawKeyFrameId> & keyframe_ids) const;
   CovisibilityUpdateResult ProcessDatabaseUpdate(const DatabaseUpdateTask & task);
   LoopTaskComputation ProcessLoopTask(const LoopTask & task);
-  LoopTaskComputation ProcessLoopOptimization(LoopTaskComputation computation);
+  LoopTaskComputation ProcessLoopOptimization(
+    LoopTaskComputation computation,
+    const std::function<void(const std::vector<RawKeyFrameId> &)> & graph_ready_callback = {});
   CovisibilityDatabaseStats GetCovisibilityStats() const;
   FusedLandmarkStats GetFusedLandmarkStats() const;
 
@@ -190,6 +193,7 @@ private:
   geometry_msgs::msg::Pose body_T_camera_;
   std::map<uint32_t, geometry_msgs::msg::Vector3> drone_dimensions_;
   std::map<uint32_t, std::set<RawKeyFrameId>> body_keyframes_by_drone_;
+  bool drone_body_mask_enabled_ = true;
   GlobalMapBuilder global_map_builder_;
   CovisibilityDatabase covisibility_database_;
   LoopPipeline loop_pipeline_;

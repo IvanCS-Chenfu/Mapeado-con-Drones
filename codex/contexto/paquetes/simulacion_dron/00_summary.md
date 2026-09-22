@@ -14,6 +14,38 @@ Los perfiles de las pruebas estan en `config/mission_profiles/`, incluyendo
 `trajectory_gt_square_5_levels.yaml` para recorridos cuadrados GT con yaw
 absoluto/relativo.
 
+La prueba documental 5.6 usa
+`trajectory_gt_apriltag_translation.yaml`: D1 llega al fiducial 2 con GT,
+espera la observacion y se aleja en `-Y` durante 45 s. Al combinarlo con el
+flag opt-in `debug_fiducial_gt_error`, el wrapper registra la comparacion PnP
+contra GT por KF sin afectar SLAM, control ni servidor.
+`trajectory_gt_apriltag_rotation.yaml` conserva esa aproximacion y ejecuta tres
+giros horarios relativos de `-30 deg`, desplazando D1 `0.5 m` en `-X` en cada
+tramo de 15 s, hasta `-90 deg` acumulados.
+`trajectory_gt_building_drift.yaml` recorre con D1/GT los bordes sur y oeste
+desde el fiducial 2 hasta `(-10,10,1)`, para observar en la GUI global la
+deriva visual acumulada sin metricas AprilTag ni Fase 6.
+Su variante `trajectory_gt_building_drift_fast.yaml` reduce de 24 a 12 s los
+tres tramos de 10 m, manteniendo el resto de la ruta y la configuracion, para
+contrastar visualmente la deriva a doble velocidad.
+El launch permite sobrescribir la X de spawn de D1 con
+`dron_spawn_x=-1.0` por defecto, sin cambiar el spawn de D2. El perfil
+`trajectory_gt_building_drift_reverse.yaml` usa ese override con
+`(-10,10)` y recorre norte-oeste-sur con yaws `-90,-90,0,0`.
+
+La prueba visual de dos drones usa el perfil
+`config/mission_profiles/trajectory_gt_two_drones_anchor_loss.yaml` y el
+escenario `config/scenarios/trajectory_gt_two_drones_anchor_loss.yaml`: D1 se
+detiene tras el segundo waypoint y D2 ejecuta tres giros relativos secuenciales
+de `-90°` antes de desplazarse desde `(10,-10,1.3)` hasta `(10,2,1.3)`, para
+observar perdida y reanclaje en la GUI `multidron_gui`. El giro en el sitio
+mantiene `tx=ty=tz=tyaw=16 s`: Pol3 exige una duracion positiva para cada eje
+incluso cuando su desplazamiento es cero. Esta descomposicion evita la
+ambiguedad del quaternion de la accion directa, que no puede diferenciar
+`-270°` de `+90°`. En `c5_5_3_two_drones_turn270_fid3_v3`, el cruce por
+`y=0` produjo los KFs 79 y 80 con tags del objeto 3 y el primer ancla del nuevo
+epoch de D2.
+
 Para 6G/7G, los grafos web describen el `PlanningWorker` y la ruta de
 `/mission/planned_routes` hasta `RosDataBridge`; el launch de validacion usa
 Gazebo y una unica GUI F7, sin RViz2 ni la GUI legacy. La prueba 615 valido un

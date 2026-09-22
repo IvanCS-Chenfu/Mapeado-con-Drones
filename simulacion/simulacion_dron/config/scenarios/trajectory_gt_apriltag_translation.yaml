@@ -1,0 +1,62 @@
+name: trajectory_gt_apriltag_translation
+description: "Un dron GT para medir error AprilTag al alejarse del fiducial 2."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: aproximacion_fiducial_2
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 16.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 180.0
+
+  - name: espera_observacion_inicial
+    type: wait
+    seconds: 8.0
+
+  - name: alejamiento_lento_menos_y
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -14.5, 1.0]
+        yaw_deg: 90.0
+        tx: 45.0
+        ty: 45.0
+        tz: 45.0
+        tyaw: 8.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 240.0
+
+  - name: espera_observacion_final
+    type: wait
+    seconds: 10.0
