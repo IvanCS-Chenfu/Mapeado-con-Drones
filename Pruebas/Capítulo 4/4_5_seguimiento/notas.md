@@ -82,6 +82,26 @@ dispone de más tiempo de asentamiento entre segmentos.
 - Métricas y tabla: `resultados/`.
 - Logs reducidos: `codex/archivos_auxiliares/logs/prueba_f45_<variante>.reduced.log`.
 
+## Movimiento único lento
+
+Se añaden dos ensayos de un único tramo medido desde `(0, 0, 1, 0 deg)` hasta
+`(10, 10, 3, 180 deg)`: uno cúbico de 24 s por eje y otro trapezoidal con los
+límites nominales `0.8 m/s` y `0.5 rad/s`. El despegue previo desde la altura
+de spawn y los 3 s de asentamiento no pertenecen al análisis: el procesador
+selecciona el último goal mediante el reinicio de `t_act`. Cada ensayo genera
+solo `gt_vs_trayectoria_3x4.png` y `errores_3x4.png`, con tiempo relativo en el
+eje horizontal, bajo `figuras/movimiento_unico_<perfil>/`.
+
+| Perfil | Muestras sincronizadas | Duración medida [s] | RMSE posición [m] | Error máximo de posición [m] |
+|---|---:|---:|---:|---:|
+| Cúbica lenta | 1199 | 23.990 | 0.016862 | 0.044641 |
+| Trapezoidal lenta | 1143 | 22.860 | 0.038377 | 0.065571 |
+
+En la trayectoria trapezoidal el objetivo de `180 deg` se representa como
+`-180 deg`: ambas expresiones describen la misma orientación y el generador
+elige el giro angular más corto. Las figuras conservan ese signo para reflejar
+la referencia realmente aplicada.
+
 La primera ejecución técnica de la trapezoidal rápida se descartó porque el
 override numérico de launch no llegaba al nodo. Se repitió usando
 `trajectory_fast.yaml`; solo esta segunda captura forma parte de los resultados.

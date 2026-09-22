@@ -49,6 +49,16 @@ def unique_sorted(data, time_key="receive_sec"):
     return result
 
 
+def select_last_action(data):
+    """Aísla el último goal directo a partir del reinicio de ``t_act``."""
+    elapsed = data["t_act"]
+    reset_indices = np.flatnonzero(np.diff(elapsed) < -0.1)
+    if not len(reset_indices):
+        raise RuntimeError("No se detectó un segundo goal en trajectory_feedback.csv")
+    start_index = int(reset_indices[-1] + 1)
+    return {key: values[start_index:] for key, values in data.items()}
+
+
 def interp(data, timeline, names):
     return {
         name: np.interp(timeline, data["receive_sec"], data[name])
@@ -75,7 +85,7 @@ def write_csv(path, timeline, columns):
     path.parent.mkdir(parents=True, exist_ok=True)
     names = ["time_sec"] + list(columns)
     with path.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.writer(stream)
+        writer = csv.writer(stream, lineterminator="\n")
         writer.writerow(names)
         for index, time_value in enumerate(timeline):
             writer.writerow([f"{time_value:.9f}"] + [f"{columns[name][index]:.9f}" for name in columns])
@@ -106,23 +116,23 @@ def plot_xy(path, data, title):
     plt.close(fig)
 
 
-def plot_comparison(path, data, title):
+def plot_comparison(path, data, time_sec, title):
     labels = {
-        "pose": ("Posición", "m", ("x", "y", "z", "yaw")),
-        "velocidad": ("Velocidad", "m/s; yaw: deg/s", ("x", "y", "z", "yaw")),
-        "aceleracion": ("Aceleración", "m/s²; yaw: deg/s²", ("x", "y", "z", "yaw")),
+        "pose": ("Posición", "m", "deg"),
+        "velocidad": ("Velocidad", "m/s", "deg/s"),
+        "aceleracion": ("Aceleración", "m/s²", "deg/s²"),
     }
     fig, axes = plt.subplots(3, 4, figsize=(18, 10), sharex=False)
     for row_index, row_name in enumerate(ROWS):
         for col_index, axis_name in enumerate(AXES):
             ax = axes[row_index, col_index]
-            ax.plot(data["gt_" + row_name + "_" + axis_name], label="GT", linewidth=1.0)
-            ax.plot(data["tray_" + row_name + "_" + axis_name], label="Trayectoria", linewidth=1.0)
+            ax.plot(time_sec, data["gt_" + row_name + "_" + axis_name], label="GT", linewidth=1.0)
+            ax.plot(time_sec, data["tray_" + row_name + "_" + axis_name], label="Trayectoria", linewidth=1.0)
             ax.set_title(f"{labels[row_name][0]} {axis_name}")
-            ax.set_ylabel(labels[row_name][1])
+            ax.set_ylabel(labels[row_name][2] if axis_name == "yaw" else labels[row_name][1])
             ax.grid(True, alpha=0.25)
             if row_index == 2:
-                ax.set_xlabel("Muestra sincronizada")
+                ax.set_xlabel("Tiempo relativo [s]")
             if row_index == 0 and col_index == 0:
                 ax.legend(fontsize=8)
     fig.suptitle(title)
@@ -131,31 +141,32 @@ def plot_comparison(path, data, title):
     plt.close(fig)
 
 
-def plot_errors(path, data, title):
+def plot_errors(path, data, time_sec, title):
     units = {
-        "pose": "m; yaw: deg",
-        "velocidad": "m/s; yaw: deg/s",
-        "aceleracion": "m/s²; yaw: deg/s²",
+        "pose": ("m", "deg"),
+        "velocidad": ("m/s", "deg/s"),
+        "aceleracion": ("m/s²", "deg/s²"),
     }
     fig, axes = plt.subplots(3, 4, figsize=(18, 10), sharex=False)
     for row_index, row_name in enumerate(ROWS):
         for col_index, axis_name in enumerate(AXES):
             ax = axes[row_index, col_index]
             key = "error_" + row_name + "_" + axis_name
-            ax.plot(data[key], color="#b22222", linewidth=1.0)
+            ax.plot(time_sec, data[key], color="#b22222", linewidth=1.0)
             ax.axhline(0.0, color="black", linewidth=0.6)
             ax.set_title(f"Error {row_name} {axis_name}")
-            ax.set_ylabel(units[row_name])
+            ax.set_ylabel(units[row_name][1] if axis_name == "yaw" else units[row_name][0])
             ax.grid(True, alpha=0.25)
             if row_index == 2:
-                ax.set_xlabel("Muestra sincronizada")
+                ax.set_xlabel("Tiempo relativo [s]")
     fig.suptitle(title)
     fig.tight_layout()
     fig.savefig(path, dpi=180)
     plt.close(fig)
 
 
-def process_profile(profile_dir, profile, data_profile=None, action_duration=None):
+def process_profile(profile_dir, profile, data_profile=None, action_duration=None,
+                    last_action=False, include_xy=True):
     variant = data_profile or profile
     data_dir = profile_dir / "datos" / variant
     figure_dir = profile_dir / "figuras" / variant
@@ -166,6 +177,8 @@ def process_profile(profile_dir, profile, data_profile=None, action_duration=Non
     velocity = unique_sorted(read_csv(data_dir / "gt_velocity.csv"))
     acceleration = unique_sorted(read_csv(data_dir / "gt_acceleration.csv"))
     tray = unique_sorted(read_csv(data_dir / "trajectory_feedback.csv"))
+    if last_action:
+        tray = select_last_action(tray)
 
     start = max(
         pose["receive_sec"][0], velocity["receive_sec"][0],
@@ -213,7 +226,8 @@ def process_profile(profile_dir, profile, data_profile=None, action_duration=Non
                 columns[f"tray_{row_name}_{axis_name}"] - columns[f"gt_{row_name}_{axis_name}"])
     columns["error_pose_yaw"] = wrap_degrees(columns["error_pose_yaw"])
 
-    write_csv(data_dir / "synchronized.csv", timeline, columns)
+    relative_timeline = timeline - timeline[0]
+    write_csv(data_dir / "synchronized.csv", relative_timeline, columns)
     position_error = np.column_stack([
         columns["error_pose_x"], columns["error_pose_y"], columns["error_pose_z"]])
     position_norm = np.linalg.norm(position_error, axis=1)
@@ -221,8 +235,8 @@ def process_profile(profile_dir, profile, data_profile=None, action_duration=Non
         "profile": variant,
         "trajectory_type": profile,
         "sample_count": int(len(timeline)),
-        "duration_sec": float(timeline[-1] - timeline[0]),
-        "action_duration_sec": None if action_duration is None else float(action_duration),
+        "duration_sec": float(relative_timeline[-1]),
+        "action_duration_sec": float(tray["t_act"][-1]) if action_duration is None else float(action_duration),
         "rmse_position_m": float(np.sqrt(np.mean(position_norm ** 2))),
         "mae_position_m": float(np.mean(np.abs(position_norm))),
         "max_position_error_m": float(np.max(np.abs(position_norm))),
@@ -235,10 +249,12 @@ def process_profile(profile_dir, profile, data_profile=None, action_duration=Non
     }
     with (result_dir / f"{variant}_metrics.json").open("w", encoding="utf-8") as stream:
         json.dump(metrics, stream, indent=2, ensure_ascii=False)
-    plot_xy(figure_dir / "xy_gt_vs_trayectoria.png", columns, f"4.5 {variant}: plano XY")
-    plot_comparison(figure_dir / "gt_vs_trayectoria_3x4.png", columns,
+    if include_xy:
+        plot_xy(figure_dir / "xy_gt_vs_trayectoria.png", columns, f"4.5 {variant}: plano XY")
+    plot_comparison(figure_dir / "gt_vs_trayectoria_3x4.png", columns, relative_timeline,
                     f"4.5 {variant}: GT frente a trayectoria")
-    plot_errors(figure_dir / "errores_3x4.png", columns, f"4.5 {variant}: errores")
+    plot_errors(figure_dir / "errores_3x4.png", columns, relative_timeline,
+                f"4.5 {variant}: errores")
     print(json.dumps(metrics, indent=2, ensure_ascii=False))
 
 
@@ -293,10 +309,14 @@ def main():
     parser.add_argument("--profile", choices=("cubica", "trapezoidal"))
     parser.add_argument("--data-profile")
     parser.add_argument("--action-duration", type=float)
+    parser.add_argument("--last-action", action="store_true")
+    parser.add_argument("--skip-xy", action="store_true")
     parser.add_argument("--build-table", action="store_true")
     args = parser.parse_args()
     if args.profile:
-        process_profile(args.profile_dir, args.profile, args.data_profile, args.action_duration)
+        process_profile(
+            args.profile_dir, args.profile, args.data_profile, args.action_duration,
+            args.last_action, not args.skip_xy)
     if args.build_table:
         write_table(args.profile_dir)
 

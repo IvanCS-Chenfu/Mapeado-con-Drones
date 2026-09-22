@@ -211,6 +211,69 @@ salida a los 30 s; el log reducido confirma la instalacion correcta. Persisten
 advertencias conocidas de ORB-SLAM3/cv_bridge, sin errores nuevos. Siguiente
 accion exacta: compilar `simulacion_dron` y ejecutar el contrato fiducial.
 
+Sesion visual Capitulo 4.5: COMPLETADA. Se ejecuto la trayectoria cubica
+nominal (variante rapida: 12 s al primer objetivo y 8 s en los restantes) con
+un dron, control GT, mundo vacio y solo GUI de Gazebo. El escenario termino con
+`success=true` y se mantuvo 60 s para grabacion. No se generaron ni se
+actualizaron metricas, CSV o figuras de la prueba; no quedan procesos Gazebo.
+Trabajo activo: no.
+
+Nueva prueba Capitulo 4.5: autorizada. Se ejecutaran dos trayectos GT de un
+solo tramo medido desde `(0,0,1,0 deg)` hasta `(10,10,3,180 deg)`: cubico lento
+(`24 s` en cada eje) y trapezoidal lento (`0.8 m/s`, `0.5 rad/s`). La maniobra
+de posicionamiento previa no formara parte de los datos: el procesado aislara
+el ultimo `trajectory_id`. Cada ensayo producira solo una matriz GT/referencia
+y una matriz de error, ambas `3x4` y respecto a tiempo relativo. Siguiente
+accion exacta: crear escenarios/perfiles aislados y ampliar el procesador 4.5
+con el filtro temporal necesario; despues ejecutar ambos ensayos headless con
+el registrador pasivo.
+
+Preparacion de movimiento unico: completada. Se anadieron ambos perfiles y
+escenarios bajo `Pruebas/Capítulo 4/4_5_seguimiento/configuracion/`; el
+procesador ahora puede aislar el ultimo goal por el reinicio de `t_act`, omitir
+XY y usar tiempo relativo en las matrices. `py_compile`, parseo YAML y
+`git diff --check` pasan. El Python de usuario tiene una pareja
+matplotlib/numpy incompatible; las figuras se generaran con
+`PYTHONNOUSERSITE=1`, igual que el entorno de plot del launch. No hay cambios
+en paquetes ROS, por lo que no requiere build. Prueba inmediata:
+`f45_movimiento_unico_cubica_lenta`, mundo `empty`, D1/GT, recorder activo,
+sin ORB, servidor, Fase 6, fiduciales ni GUI; timeout 180 s.
+
+Resultado `f45_movimiento_unico_cubica_lenta`: PASS, codigo 0,
+`success=true`; escenario terminado sin espera posterior. Log completo:
+`codex/archivos_auxiliares/logs/prueba_f45_movimiento_unico_cubica_lenta.log`.
+Siguiente accion exacta: reducir solo los marcadores del escenario y recorder,
+validar los CSV, aislar el ultimo goal y generar sus dos matrices antes de
+ejecutar el ensayo trapezoidal.
+
+Analisis cubico lento: CONSEGUIDO. El log reducido confirma el goal de
+posicionamiento de 12 s, 3 s de espera y el goal principal de 24 s. Los CSV
+contienen 2.531 poses/velocidades y 1.082 referencias; un unico reinicio de
+`t_act` separa ambos goals (los goals directos no rellenan `trajectory_id`).
+Las dos matrices temporales se generaron con 1.199 muestras y 23.99 s de
+ventana: RMSE posicional `0.01686 m`, maximo `0.04464 m`. Siguiente accion
+exacta: ejecutar `f45_movimiento_unico_trapezoidal_lenta` con el mismo launch
+headless y recorder, usando el perfil trapezoidal y su directorio de datos.
+
+Resultado `f45_movimiento_unico_trapezoidal_lenta`: PASS, codigo 0,
+`success=true`; escenario terminado sin espera posterior. Log completo:
+`codex/archivos_auxiliares/logs/prueba_f45_movimiento_unico_trapezoidal_lenta.log`.
+Siguiente accion exacta: reducir sus marcadores, verificar captura y reinicio
+de `t_act`, generar las matrices temporales trapezoidales, revisar las cuatro
+figuras y cerrar la documentacion de esta repeticion.
+
+Analisis de movimiento unico: CONSEGUIDO. El log reducido trapezoidal confirma
+posicionamiento `4.937 s`, espera de 3 s y tramo principal de `22.852 s`; sus
+CSV contienen 2.245 poses/velocidades, 837 referencias y un reinicio de
+`t_act`. Las cuatro figuras temporales han sido revisadas: ambas parejas son
+`3x4`, sin XY adicional, y muestran los perfiles cubico y trapezoidal esperados.
+Metricas: cubica 1.199 muestras, 23.99 s, RMSE/max posicion
+`0.016862/0.044641 m`; trapezoidal 1.143 muestras, 22.86 s,
+`0.038377/0.065571 m`. En trapezoidal, `180 deg` queda representado como
+`-180 deg`, orientacion equivalente escogida por el giro corto. Notas y CSV
+sincronizados actualizados bajo `Pruebas/Capítulo 4/4_5_seguimiento/`.
+Trabajo activo: no.
+
 Build `simulacion_dron`: PASS, codigo 0, 0,89 s. CTest `fiducial_contract`:
 PARCIAL, 7/8 PASS. El nuevo contrato de diagnostico, rutas YAML y escenario
 pasa; el unico fallo preexistente compara la copia auxiliar historica de la

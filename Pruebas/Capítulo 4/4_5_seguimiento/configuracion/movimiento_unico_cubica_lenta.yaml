@@ -1,0 +1,18 @@
+name: fase4_5_movimiento_unico_cubica_lenta
+description: Posicionamiento previo y un unico tramo cubico lento medido.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 180.0
+steps:
+  - name: posicion_inicial
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [0.0, 0.0, 1.0], yaw_deg: 0.0, tx: 12.0, ty: 12.0, tz: 12.0, tyaw: 12.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: asentamiento_inicial, type: wait, seconds: 3.0}
+  - name: movimiento_principal
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 0, target: [10.0, 10.0, 3.0], yaw_deg: 180.0, tx: 24.0, ty: 24.0, tz: 24.0, tyaw: 24.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}

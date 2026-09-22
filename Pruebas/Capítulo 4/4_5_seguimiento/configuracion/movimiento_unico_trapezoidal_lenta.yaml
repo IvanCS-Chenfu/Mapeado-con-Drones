@@ -1,0 +1,18 @@
+name: fase4_5_movimiento_unico_trapezoidal_lenta
+description: Posicionamiento previo y un unico tramo trapezoidal lento medido.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 180.0
+steps:
+  - name: posicion_inicial
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 1, target: [0.0, 0.0, 1.0], yaw_deg: 0.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}
+  - {name: asentamiento_inicial, type: wait, seconds: 3.0}
+  - name: movimiento_principal
+    type: move
+    mode: sequential
+    goals:
+      - {drone_id: 1, tipo_trayectoria: 1, target: [10.0, 10.0, 3.0], yaw_deg: 180.0, absoluto_x: true, absoluto_y: true, absoluto_z: true, absoluto_yaw: true}

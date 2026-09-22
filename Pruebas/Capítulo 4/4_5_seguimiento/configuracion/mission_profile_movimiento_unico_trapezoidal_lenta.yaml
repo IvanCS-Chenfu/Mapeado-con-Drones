@@ -1,0 +1,3 @@
+mission_mode: trajectory
+navigation_source: gt
+trajectory_file: movimiento_unico_trapezoidal_lenta.yaml
