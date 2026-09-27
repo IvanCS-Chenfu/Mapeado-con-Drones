@@ -4,11 +4,17 @@
 
 El parametro `mission_profile` lee el mismo perfil que el launch y obtiene de
 `trajectory_file` el YAML que debe ejecutar. La ruta puede ser absoluta o
-relativa al perfil. Si contiene `mission_mode: autonomous`, el runner llama automaticamente a
+relativa al perfil. Si contiene `mission_mode: autonomous`, el runner llama por defecto a
 `/mission/set_coverage_execution_enabled` con `true` despues de completar todos
-los pasos de esa trayectoria. En `trajectory` no realiza ese handoff. La
-transferencia se produce por finalizacion del ultimo goal, sin exigir una
-deteccion de fiducial.
+los pasos de esa trayectoria. El booleano opcional YAML `autonomous_handoff`
+conserva ese default; con `false` omite la apertura y deja el marcador
+`[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-SKIPPED]`. En `trajectory` no realiza
+handoff. La transferencia se produce por finalizacion del ultimo goal, sin
+exigir una deteccion de fiducial. La llamada `SetBool` es idempotente: ante una
+respuesta retrasada del servidor, `EnableAutonomousExecution()` reintenta hasta
+tres veces y espera 30 s por intento. El marker
+`[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-RETRY]` no implica que el servidor haya
+caído; solo deja visible el reintento antes de declarar un fallo final.
 
 Ejecuta escenarios YAML y envía lotes de goals a
 `/dron_X/AccionTrayectoria`. Desde 3C su gate de backpressure está activo. En
@@ -27,6 +33,12 @@ El paso `wait_for_navigation_pose` valida llegada mediante
 validas, tolerancias XYZ/yaw y permanencia `hold_sec`. Recibe `drone_id`,
 `target`, `yaw_deg`, `position_tolerance_m`, `yaw_tolerance_deg`, `hold_sec` y
 `timeout_sec`; emite marcadores `POSE-GATE-WAIT/DONE/TIMEOUT/ERROR`.
+
+El paso `wait_for_navigation_ready` espera en `/<drone>/orbslam/navigation_state` hasta mantener durante `hold_sec` los tres predicados `local_valid`, `local_continuity_valid` y `velocity_valid`. Recibe `drone_id`, `hold_sec` y `timeout_sec`; deja trazas `NAV-READY-WAIT/DONE/TIMEOUT`. Es una puerta de seguridad: no inventa ni recupera una pose cuando la base dinámica aún no está lista.
+
+`call_trigger` invoca un servicio `std_srvs/Trigger` declarado por `service`, con reintentos hasta `timeout_sec`; sus marcadores son `TRIGGER-WAIT/DONE/TIMEOUT/ERROR`. Permite cambios explícitos de fuente, como `/dron_1/control/set_navigation_source_orb`, sin acoplar el escenario a un nodo concreto.
+
+`managed_yaw` crea una `TrajectoryPlan` de dos waypoints y la envía a `/<drone>/execute_trajectory` del `task_manager`, usando un `task_id` publicado en `/mission/task_states`. Requiere pose global autorizada, fuente ORB y una tarea asignada o en ejecución; correlaciona el resultado con `VisualRiskEvent` y solo considera correcto el corte visual seguido de `REORIENTATION_COMPLETED`. Así prueba el STOP/reorientación sobre una trayectoria normal gestionada, no sobre una llamada directa a `AccionTrayectoria`. Marcadores: `MANAGED-YAW-WAIT`, `MANAGED-YAW-SEND`, `MANAGED-YAW-RISK-STOP`, `MANAGED-YAW-REORIENT-DONE` y sus terminales de error.
 
 El paso `plan_route` solicita `/mission/plan_route` con `drone_id`, `task_id`,
 `target: [x,y,z]`, `dispatch_execution` y `timeout_sec`. Cuando el ultimo vale
@@ -94,11 +106,12 @@ los pasos `wait` no se bloquean; antes del siguiente lote `move`, el runner
 espera a `false` y envía una sola vez los destinos originales. La espera del
 gate ocurre antes de crear los goals y no consume su timeout.
 
-`gate_mapping_backpressure` es `true` por defecto, tanto como parámetro ROS
-como cuando falta en el YAML. Un escenario puede declararlo `false` para una
-toma visual no formal: el runner no retiene los siguientes goals, pero el
-servidor conserva la detección, publicación y telemetría de backpressure. El
-bypass queda explícito en `[SCENARIO-RUNNER-MOVE-GATE-BYPASS]`.
+`gate_mapping_backpressure` es `false` por defecto, tanto como parámetro ROS
+como cuando falta en el YAML. Es el flag explícito que activa la compuerta solo
+cuando se declara `true`: con su valor normal, el runner no retiene los
+siguientes goals aunque el servidor siga detectando, publicando y midiendo
+backpressure. El bypass queda explícito en
+`[SCENARIO-RUNNER-MOVE-GATE-BYPASS]`.
 
 Marcadores:
 

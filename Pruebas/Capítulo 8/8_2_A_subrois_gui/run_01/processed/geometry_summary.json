@@ -1,0 +1,179 @@
+{
+  "result": "PASS",
+  "mission_id": "house_mapping",
+  "numero_niveles": 3,
+  "numero_subrois_total": 12,
+  "subrois_por_nivel": {
+    "0": 4,
+    "1": 4,
+    "2": 4
+  },
+  "ids_de_region": [
+    "level_0_AB",
+    "level_0_BC",
+    "level_0_CD",
+    "level_0_DA",
+    "level_1_AB",
+    "level_1_BC",
+    "level_1_CD",
+    "level_1_DA",
+    "level_2_AB",
+    "level_2_BC",
+    "level_2_CD",
+    "level_2_DA"
+  ],
+  "bounds_de_cada_region": {
+    "level_0_AB": {
+      "min": [
+        -12.0,
+        -12.0,
+        0.2
+      ],
+      "max": [
+        12.0,
+        0.0,
+        2.2
+      ]
+    },
+    "level_0_BC": {
+      "min": [
+        0.0,
+        -12.0,
+        0.2
+      ],
+      "max": [
+        12.0,
+        12.0,
+        2.2
+      ]
+    },
+    "level_0_CD": {
+      "min": [
+        -12.0,
+        0.0,
+        0.2
+      ],
+      "max": [
+        12.0,
+        12.0,
+        2.2
+      ]
+    },
+    "level_0_DA": {
+      "min": [
+        -12.0,
+        -12.0,
+        0.2
+      ],
+      "max": [
+        0.0,
+        12.0,
+        2.2
+      ]
+    },
+    "level_1_AB": {
+      "min": [
+        -12.0,
+        -12.0,
+        2.2
+      ],
+      "max": [
+        12.0,
+        0.0,
+        4.2
+      ]
+    },
+    "level_1_BC": {
+      "min": [
+        0.0,
+        -12.0,
+        2.2
+      ],
+      "max": [
+        12.0,
+        12.0,
+        4.2
+      ]
+    },
+    "level_1_CD": {
+      "min": [
+        -12.0,
+        0.0,
+        2.2
+      ],
+      "max": [
+        12.0,
+        12.0,
+        4.2
+      ]
+    },
+    "level_1_DA": {
+      "min": [
+        -12.0,
+        -12.0,
+        2.2
+      ],
+      "max": [
+        0.0,
+        12.0,
+        4.2
+      ]
+    },
+    "level_2_AB": {
+      "min": [
+        -12.0,
+        -12.0,
+        4.2
+      ],
+      "max": [
+        12.0,
+        0.0,
+        6.2
+      ]
+    },
+    "level_2_BC": {
+      "min": [
+        0.0,
+        -12.0,
+        4.2
+      ],
+      "max": [
+        12.0,
+        12.0,
+        6.2
+      ]
+    },
+    "level_2_CD": {
+      "min": [
+        -12.0,
+        0.0,
+        4.2
+      ],
+      "max": [
+        12.0,
+        12.0,
+        6.2
+      ]
+    },
+    "level_2_DA": {
+      "min": [
+        -12.0,
+        -12.0,
+        4.2
+      ],
+      "max": [
+        0.0,
+        12.0,
+        6.2
+      ]
+    }
+  },
+  "checks": {
+    "roi_igual_a_yaml": true,
+    "level_height_igual_a_yaml": true,
+    "numero_niveles_esperado": 3,
+    "niveles_coherentes": true,
+    "cuatro_lados_ab_bc_cd_da_por_nivel": true,
+    "bounds_dentro_de_roi": true
+  }
+}

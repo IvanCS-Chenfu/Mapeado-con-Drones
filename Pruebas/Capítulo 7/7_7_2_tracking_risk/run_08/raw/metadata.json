@@ -1,0 +1,17 @@
+{
+  "test_id": "c7_7_2_tracking_risk_gt_assignment_orb_managed_yaw",
+  "run": "run_08",
+  "trajectory": "GT boot (1,-10,1,90) -> (0,-10,1,90); enable existing F6 gate while GT is eligible to assign a task; ORB source boundary and authority; managed yaw (0,-10,1,90) -> (0,-10,1,0)",
+  "startup_source": "GT from launch/profile, then explicit ORB after task assignment",
+  "execution_gate": "Opened after GT pose confirmation, before ORB handoff, because task_server phase5_navigation_source is statically GT; facade sweeps remain disabled.",
+  "risk_parameters": "nominal, no overrides",
+  "status": "failed_managed_yaw_preempted_by_autonomous_worker",
+  "raw_log": "codex/archivos_auxiliares/logs/prueba_c7_7_2_tracking_risk_gt_assignment_orb_managed_yaw.log",
+  "result": {
+    "scenario_exit_code": 1,
+    "assignment": "passed: F6B-ASSIGNED map_section_level_0_AB under GT",
+    "source_handoff": "passed: ORB effective with zero continuity jump and authority confirmed",
+    "managed_yaw": "accepted and executing, then aborted",
+    "root_cause": "Opening the F6 execution gate let the point-selection worker dispatch autonomous:point:map_section_level_0_AB:2:1, which preempted scenario_managed_yaw before visual risk could occur."
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "capture_duration_sec": 137.239,
+  "task_state_event_count": 15,
+  "voxel_map_event_count": 10,
+  "navigation_event_count": 498,
+  "assigned_drones": [
+    1,
+    2
+  ],
+  "max_reserved_voxels": 0,
+  "max_map_revision": 360
+}

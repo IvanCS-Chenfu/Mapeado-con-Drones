@@ -52,6 +52,24 @@ La herramienta offline
 cuatro registros sobre el tiempo de recepción de GT, genera el CSV sincronizado,
 las figuras XY y 3x4, y las métricas de posición de la tabla.
 
+## `chapter7_orb_trajectory_recorder` (7.8.1)
+
+`src/graficar/chapter7_orb_trajectory_recorder.cpp` es un registrador pasivo
+por dron para los tramos cortos ORB del Capitulo 7. Suscribe a
+`/<dron>/orbslam/navigation_state`, `sensor/GT/pose`, `sensor/GT/vel` y al
+feedback de `AccionTrayectoria`, y escribe `navigation_state.csv`,
+`gt_pose.csv`, `gt_velocity.csv` y `trajectory_feedback.csv`. No publica ni
+altera control, la fuente de navegacion ni la trayectoria.
+
+`multi_dron.launch.py` lo activa mediante
+`chapter7_orb_trajectory_recorder_enabled`,
+`chapter7_orb_trajectory_recorder_output_dir` y
+`chapter7_orb_trajectory_recorder_drone_namespace`. El procesador
+`Pruebas/Capítulo 7/scripts/procesar_7_8_1_orb_corta.py` selecciona el segmento
+por su referencia final, fija GT->O una sola vez en su primera muestra ORB y
+produce `samples.csv`, `summary.json` y las cuatro figuras del contrato de
+7.8.1.
+
 ## `pose_metrics_node.py` (5F)
 
 Recolector namespaced de `NavigationState` y `sensor/GT/pose`. Empareja por

@@ -1,0 +1,578 @@
+[
+  {
+    "elapsed_sec": 4.856,
+    "map_revision": 0,
+    "raw_voxels": 0,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 54.431,
+    "map_revision": 1,
+    "raw_voxels": 2247,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 62.348,
+    "map_revision": 112,
+    "raw_voxels": 11940,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 64.544,
+    "map_revision": 154,
+    "raw_voxels": 11890,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 65.98,
+    "map_revision": 186,
+    "raw_voxels": 11958,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 67.006,
+    "map_revision": 194,
+    "raw_voxels": 12018,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 67.525,
+    "map_revision": 205,
+    "raw_voxels": 12017,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 68.074,
+    "map_revision": 217,
+    "raw_voxels": 12046,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 68.843,
+    "map_revision": 224,
+    "raw_voxels": 12004,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 68.93,
+    "map_revision": 226,
+    "raw_voxels": 12005,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 69.509,
+    "map_revision": 231,
+    "raw_voxels": 12005,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 69.696,
+    "map_revision": 236,
+    "raw_voxels": 12009,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 70.266,
+    "map_revision": 237,
+    "raw_voxels": 12015,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 73.011,
+    "map_revision": 274,
+    "raw_voxels": 12227,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 75.266,
+    "map_revision": 302,
+    "raw_voxels": 12193,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 78.016,
+    "map_revision": 332,
+    "raw_voxels": 13495,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 82.595,
+    "map_revision": 389,
+    "raw_voxels": 12545,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 86.46,
+    "map_revision": 440,
+    "raw_voxels": 13249,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 87.676,
+    "map_revision": 456,
+    "raw_voxels": 13247,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 88.164,
+    "map_revision": 462,
+    "raw_voxels": 13247,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 88.32,
+    "map_revision": 467,
+    "raw_voxels": 13257,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 91.101,
+    "map_revision": 484,
+    "raw_voxels": 13122,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 91.9,
+    "map_revision": 494,
+    "raw_voxels": 13119,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 92.52,
+    "map_revision": 498,
+    "raw_voxels": 13119,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 92.66,
+    "map_revision": 501,
+    "raw_voxels": 13116,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 93.375,
+    "map_revision": 508,
+    "raw_voxels": 13309,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 93.574,
+    "map_revision": 509,
+    "raw_voxels": 13309,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 96.27,
+    "map_revision": 550,
+    "raw_voxels": 13455,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 97.956,
+    "map_revision": 578,
+    "raw_voxels": 14177,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 99.4,
+    "map_revision": 609,
+    "raw_voxels": 14242,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 99.726,
+    "map_revision": 610,
+    "raw_voxels": 14234,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 100.087,
+    "map_revision": 616,
+    "raw_voxels": 14232,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 100.261,
+    "map_revision": 618,
+    "raw_voxels": 14234,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 101.265,
+    "map_revision": 622,
+    "raw_voxels": 15350,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 101.45,
+    "map_revision": 623,
+    "raw_voxels": 15350,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 101.508,
+    "map_revision": 623,
+    "raw_voxels": 15350,
+    "reserved_voxels": 129
+  },
+  {
+    "elapsed_sec": 104.21,
+    "map_revision": 675,
+    "raw_voxels": 15728,
+    "reserved_voxels": 129
+  },
+  {
+    "elapsed_sec": 105.307,
+    "map_revision": 682,
+    "raw_voxels": 15730,
+    "reserved_voxels": 129
+  },
+  {
+    "elapsed_sec": 105.402,
+    "map_revision": 683,
+    "raw_voxels": 15730,
+    "reserved_voxels": 400
+  },
+  {
+    "elapsed_sec": 105.478,
+    "map_revision": 685,
+    "raw_voxels": 15731,
+    "reserved_voxels": 400
+  },
+  {
+    "elapsed_sec": 105.768,
+    "map_revision": 687,
+    "raw_voxels": 15732,
+    "reserved_voxels": 400
+  },
+  {
+    "elapsed_sec": 106.698,
+    "map_revision": 692,
+    "raw_voxels": 15733,
+    "reserved_voxels": 400
+  },
+  {
+    "elapsed_sec": 107.681,
+    "map_revision": 697,
+    "raw_voxels": 15733,
+    "reserved_voxels": 400
+  },
+  {
+    "elapsed_sec": 107.807,
+    "map_revision": 700,
+    "raw_voxels": 15736,
+    "reserved_voxels": 400
+  },
+  {
+    "elapsed_sec": 109.273,
+    "map_revision": 725,
+    "raw_voxels": 15751,
+    "reserved_voxels": 400
+  },
+  {
+    "elapsed_sec": 110.149,
+    "map_revision": 731,
+    "raw_voxels": 15753,
+    "reserved_voxels": 400
+  },
+  {
+    "elapsed_sec": 110.213,
+    "map_revision": 731,
+    "raw_voxels": 15753,
+    "reserved_voxels": 271
+  },
+  {
+    "elapsed_sec": 110.351,
+    "map_revision": 733,
+    "raw_voxels": 15762,
+    "reserved_voxels": 271
+  },
+  {
+    "elapsed_sec": 112.277,
+    "map_revision": 777,
+    "raw_voxels": 15748,
+    "reserved_voxels": 271
+  },
+  {
+    "elapsed_sec": 112.914,
+    "map_revision": 787,
+    "raw_voxels": 15748,
+    "reserved_voxels": 271
+  },
+  {
+    "elapsed_sec": 116.197,
+    "map_revision": 846,
+    "raw_voxels": 16248,
+    "reserved_voxels": 271
+  },
+  {
+    "elapsed_sec": 118.919,
+    "map_revision": 894,
+    "raw_voxels": 16418,
+    "reserved_voxels": 271
+  },
+  {
+    "elapsed_sec": 120.033,
+    "map_revision": 904,
+    "raw_voxels": 16418,
+    "reserved_voxels": 271
+  },
+  {
+    "elapsed_sec": 122.476,
+    "map_revision": 962,
+    "raw_voxels": 15440,
+    "reserved_voxels": 271
+  },
+  {
+    "elapsed_sec": 123.354,
+    "map_revision": 968,
+    "raw_voxels": 15438,
+    "reserved_voxels": 271
+  },
+  {
+    "elapsed_sec": 123.42,
+    "map_revision": 968,
+    "raw_voxels": 15438,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 124.708,
+    "map_revision": 979,
+    "raw_voxels": 15808,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 126.738,
+    "map_revision": 983,
+    "raw_voxels": 15808,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 127.058,
+    "map_revision": 987,
+    "raw_voxels": 15808,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 127.218,
+    "map_revision": 990,
+    "raw_voxels": 15818,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 130.578,
+    "map_revision": 1054,
+    "raw_voxels": 16131,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 134.067,
+    "map_revision": 1120,
+    "raw_voxels": 16212,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 137.29,
+    "map_revision": 1178,
+    "raw_voxels": 15978,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 138.068,
+    "map_revision": 1180,
+    "raw_voxels": 15978,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 142.109,
+    "map_revision": 1256,
+    "raw_voxels": 16269,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 145.302,
+    "map_revision": 1326,
+    "raw_voxels": 16206,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 146.401,
+    "map_revision": 1330,
+    "raw_voxels": 16206,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 149.052,
+    "map_revision": 1382,
+    "raw_voxels": 16107,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 151.515,
+    "map_revision": 1437,
+    "raw_voxels": 16092,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 151.998,
+    "map_revision": 1448,
+    "raw_voxels": 16092,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 153.047,
+    "map_revision": 1456,
+    "raw_voxels": 16092,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 153.417,
+    "map_revision": 1459,
+    "raw_voxels": 16093,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 154.3,
+    "map_revision": 1467,
+    "raw_voxels": 16443,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 154.522,
+    "map_revision": 1467,
+    "raw_voxels": 16443,
+    "reserved_voxels": 140
+  },
+  {
+    "elapsed_sec": 155.664,
+    "map_revision": 1479,
+    "raw_voxels": 16343,
+    "reserved_voxels": 140
+  },
+  {
+    "elapsed_sec": 156.676,
+    "map_revision": 1486,
+    "raw_voxels": 16343,
+    "reserved_voxels": 140
+  },
+  {
+    "elapsed_sec": 157.395,
+    "map_revision": 1495,
+    "raw_voxels": 16341,
+    "reserved_voxels": 140
+  },
+  {
+    "elapsed_sec": 158.554,
+    "map_revision": 1503,
+    "raw_voxels": 16341,
+    "reserved_voxels": 140
+  },
+  {
+    "elapsed_sec": 159.263,
+    "map_revision": 1509,
+    "raw_voxels": 16341,
+    "reserved_voxels": 140
+  },
+  {
+    "elapsed_sec": 160.228,
+    "map_revision": 1513,
+    "raw_voxels": 16347,
+    "reserved_voxels": 140
+  },
+  {
+    "elapsed_sec": 161.144,
+    "map_revision": 1514,
+    "raw_voxels": 16347,
+    "reserved_voxels": 140
+  },
+  {
+    "elapsed_sec": 161.595,
+    "map_revision": 1515,
+    "raw_voxels": 16352,
+    "reserved_voxels": 140
+  },
+  {
+    "elapsed_sec": 162.722,
+    "map_revision": 1520,
+    "raw_voxels": 16352,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 163.102,
+    "map_revision": 1523,
+    "raw_voxels": 16352,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 163.448,
+    "map_revision": 1524,
+    "raw_voxels": 16482,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 165.859,
+    "map_revision": 1525,
+    "raw_voxels": 16894,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 166.019,
+    "map_revision": 1525,
+    "raw_voxels": 16894,
+    "reserved_voxels": 235
+  },
+  {
+    "elapsed_sec": 167.097,
+    "map_revision": 1532,
+    "raw_voxels": 16899,
+    "reserved_voxels": 235
+  },
+  {
+    "elapsed_sec": 170.072,
+    "map_revision": 1608,
+    "raw_voxels": 17338,
+    "reserved_voxels": 235
+  },
+  {
+    "elapsed_sec": 170.907,
+    "map_revision": 1614,
+    "raw_voxels": 17338,
+    "reserved_voxels": 235
+  },
+  {
+    "elapsed_sec": 171.328,
+    "map_revision": 1617,
+    "raw_voxels": 17338,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 172.035,
+    "map_revision": 1624,
+    "raw_voxels": 17346,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 172.806,
+    "map_revision": 1628,
+    "raw_voxels": 17345,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 174.003,
+    "map_revision": 1634,
+    "raw_voxels": 17349,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 174.691,
+    "map_revision": 1637,
+    "raw_voxels": 17349,
+    "reserved_voxels": 0
+  },
+  {
+    "elapsed_sec": 177.814,
+    "map_revision": 1696,
+    "raw_voxels": 17228,
+    "reserved_voxels": 0
+  }
+]

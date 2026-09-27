@@ -1,0 +1,4 @@
+mission_mode: autonomous
+navigation_source: gt
+trajectory_file: trajectory_7_7_2.yaml
+name: c7_7_2_tracking_risk_gui_pending_fraction_050_recording

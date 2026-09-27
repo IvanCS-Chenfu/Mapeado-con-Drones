@@ -1,0 +1,15 @@
+{
+  "test": "7.8.2",
+  "run": "run_03",
+  "status": "NO_CONSEGUIDA",
+  "reason": "La accion ORB lateral_oeste_centro_orb termino con action_code=6 antes de la revisita fiducial.",
+  "evidence": {
+    "completed_orb_segments": [
+      "lateral_sur_orb"
+    ],
+    "failed_segment": "lateral_oeste_centro_orb",
+    "scenario_exit_code": 250,
+    "fiducial_1_detected": false,
+    "optimization_commit": false
+  }
+}

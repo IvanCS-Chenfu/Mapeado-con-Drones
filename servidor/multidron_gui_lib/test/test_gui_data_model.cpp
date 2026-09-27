@@ -99,6 +99,24 @@ TEST(GuiDataModel, DroneUpdatePreservesExplicitLostRepresentation)
   EXPECT_EQ(snapshot.drones->at(2U).position, QVector3D(3.0F, 4.0F, 2.0F));
 }
 
+TEST(GuiDataModel, DroneUpdatePreservesPendingGlobalPoseRepresentation)
+{
+  GuiDataModel model;
+  DroneState drone;
+  drone.drone_id = 4U;
+  drone.has_world_pose = true;
+  drone.lost_or_unavailable = false;
+  drone.global_pose_pending = true;
+  drone.position = QVector3D(1.0F, -2.0F, 3.0F);
+  EXPECT_TRUE(model.UpdateDrone(drone));
+
+  const auto snapshot = model.Snapshot();
+  ASSERT_EQ(snapshot.drones->count(4U), 1U);
+  EXPECT_FALSE(snapshot.drones->at(4U).lost_or_unavailable);
+  EXPECT_TRUE(snapshot.drones->at(4U).global_pose_pending);
+  EXPECT_EQ(snapshot.drones->at(4U).position, QVector3D(1.0F, -2.0F, 3.0F));
+}
+
 TEST(GuiDataModel, RejectsOlderDroneStateWithinEpoch)
 {
   GuiDataModel model;

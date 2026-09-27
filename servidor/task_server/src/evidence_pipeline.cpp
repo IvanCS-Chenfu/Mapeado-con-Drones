@@ -560,11 +560,106 @@ bool EvidenceDatabase::DeleteKeyframe(
   return true;
 }
 
-std::vector<EvidenceTransaction> EvidenceDatabase::TakePendingTransactions()
+std::vector<EvidenceTransaction> EvidenceDatabase::TakePendingTransactions(
+  std::size_t max_transactions, bool prioritize_depth_transactions,
+  const std::set<std::string> & prioritized_source_ids)
 {
   std::vector<EvidenceTransaction> transactions;
-  transactions.swap(pending_transactions_);
+  if (max_transactions == 0U || pending_transactions_.empty()) {
+    return transactions;
+  }
+  const std::size_t count = std::min(max_transactions, pending_transactions_.size());
+  std::vector<bool> selected(pending_transactions_.size(), false);
+  auto has_earlier_transaction_for_identity = [this, &selected](std::size_t index) {
+      const auto & identity = pending_transactions_[index].identity;
+      for (std::size_t earlier = 0U; earlier < index; ++earlier) {
+        const auto & earlier_identity = pending_transactions_[earlier].identity;
+        if (!selected[earlier] && !(earlier_identity < identity) && !(identity < earlier_identity)) {
+          return true;
+        }
+      }
+      return false;
+    };
+  auto is_depth_transaction = [](const EvidenceTransaction & transaction) {
+      return std::any_of(
+        transaction.upserts.begin(), transaction.upserts.end(),
+        [](const KeyframeEvidenceSource & source) {return IsDepthSource(source.source_name);}) ||
+             std::any_of(
+        transaction.deletes.begin(), transaction.deletes.end(),
+        [](const std::string & source_name) {return IsDepthSource(source_name);});
+    };
+  auto has_prioritized_source = [&prioritized_source_ids](const EvidenceTransaction & transaction) {
+      if (prioritized_source_ids.empty()) {
+        return false;
+      }
+      const auto has_source = [&transaction, &prioritized_source_ids](const std::string & source_name) {
+          return prioritized_source_ids.count(
+            VoxelMapBuilder::SourceId(transaction.identity, source_name)) != 0U;
+        };
+      return std::any_of(
+        transaction.upserts.begin(), transaction.upserts.end(),
+        [&has_source](const KeyframeEvidenceSource & source) {return has_source(source.source_name);}) ||
+             std::any_of(transaction.deletes.begin(), transaction.deletes.end(), has_source);
+    };
+  auto select_identity_chain = [this, &selected](std::size_t index) {
+      const auto & identity = pending_transactions_[index].identity;
+      std::size_t selected_count = 0U;
+      for (std::size_t earlier = 0U; earlier <= index; ++earlier) {
+        const auto & candidate_identity = pending_transactions_[earlier].identity;
+        if (!selected[earlier] && !(candidate_identity < identity) && !(identity < candidate_identity)) {
+          selected[earlier] = true;
+          ++selected_count;
+        }
+      }
+      return selected_count;
+    };
+
+  // A command continuation cannot make progress until its exact sources reach the map.
+  // Preserve source ordering for its keyframe, but let that small causal chain bypass
+  // unrelated sparse evidence already queued ahead of it.
+  std::size_t selected_count = 0U;
+  for (std::size_t index = 0U; index < pending_transactions_.size(); ++index) {
+    if (has_prioritized_source(pending_transactions_[index])) {
+      selected_count += select_identity_chain(index);
+    }
+  }
+  if (prioritize_depth_transactions) {
+    for (std::size_t index = 0U;
+      index < pending_transactions_.size() && selected_count < count; ++index)
+    {
+      if (is_depth_transaction(pending_transactions_[index]) &&
+        !has_earlier_transaction_for_identity(index))
+      {
+        selected[index] = true;
+        ++selected_count;
+      }
+    }
+  }
+  for (std::size_t index = 0U;
+    index < pending_transactions_.size() && selected_count < count; ++index)
+  {
+    if (!selected[index]) {
+      selected[index] = true;
+      ++selected_count;
+    }
+  }
+  transactions.reserve(selected_count);
+  std::vector<EvidenceTransaction> pending;
+  pending.reserve(pending_transactions_.size() - selected_count);
+  for (std::size_t index = 0U; index < pending_transactions_.size(); ++index) {
+    if (selected[index]) {
+      transactions.push_back(std::move(pending_transactions_[index]));
+    } else {
+      pending.push_back(std::move(pending_transactions_[index]));
+    }
+  }
+  pending_transactions_ = std::move(pending);
   return transactions;
+}
+
+std::size_t EvidenceDatabase::PendingTransactionCount() const
+{
+  return pending_transactions_.size();
 }
 
 std::size_t EvidenceDatabase::SourceCount() const
@@ -761,14 +856,18 @@ VoxelMapBuilder::VoxelMapBuilder(double voxel_size_m)
 }
 
 VoxelMaterializationStats VoxelMapBuilder::Apply(
-  EvidenceDatabase * database, task_lib::ReversibleVoxelMap * voxel_map) const
+  EvidenceDatabase * database, task_lib::ReversibleVoxelMap * voxel_map,
+  std::size_t max_transactions, bool prioritize_depth_transactions,
+  const std::set<std::string> & prioritized_source_ids) const
 {
   VoxelMaterializationStats stats;
   if (database == nullptr || voxel_map == nullptr) {
     return stats;
   }
-  const auto transactions = database->TakePendingTransactions();
+  const auto transactions = database->TakePendingTransactions(
+    max_transactions, prioritize_depth_transactions, prioritized_source_ids);
   stats.transactions = transactions.size();
+  stats.pending_transactions = database->PendingTransactionCount();
   for (const auto & transaction : transactions) {
     for (const auto & source_name : transaction.deletes) {
       const auto source_id = SourceId(transaction.identity, source_name);

@@ -1,0 +1,740 @@
+[
+  {
+    "elapsed_sec": 3.174,
+    "tasks": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "region_id": "level_0_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "region_id": "level_0_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "region_id": "level_0_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "region_id": "level_0_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "region_id": "level_1_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "region_id": "level_1_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "region_id": "level_1_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "region_id": "level_1_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "region_id": "level_2_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "region_id": "level_2_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "region_id": "level_2_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "region_id": "level_2_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 87.629,
+    "tasks": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "region_id": "level_0_AB",
+        "assigned_drone_id": 1,
+        "state": 1,
+        "state_revision": 2,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Asignada por proximidad al intervalo de fachada pendiente; espera confirmacion"
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "region_id": "level_0_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "region_id": "level_0_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "region_id": "level_0_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "region_id": "level_1_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "region_id": "level_1_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "region_id": "level_1_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "region_id": "level_1_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "region_id": "level_2_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "region_id": "level_2_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "region_id": "level_2_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "region_id": "level_2_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 87.689,
+    "tasks": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "region_id": "level_0_AB",
+        "assigned_drone_id": 1,
+        "state": 2,
+        "state_revision": 3,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Barrido de fachada: espera inspeccion depth del corredor"
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "region_id": "level_0_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "region_id": "level_0_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "region_id": "level_0_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "region_id": "level_1_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "region_id": "level_1_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "region_id": "level_1_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "region_id": "level_1_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "region_id": "level_2_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "region_id": "level_2_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "region_id": "level_2_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "region_id": "level_2_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 88.023,
+    "tasks": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "region_id": "level_0_AB",
+        "assigned_drone_id": 1,
+        "state": 2,
+        "state_revision": 4,
+        "progress": 0.0,
+        "progress_known": true,
+        "coverage_intervals": [],
+        "detail": "Pose de inspeccion UNKNOWN; solicita mirada depth"
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "region_id": "level_0_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "region_id": "level_0_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "region_id": "level_0_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "region_id": "level_1_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "region_id": "level_1_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "region_id": "level_1_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "region_id": "level_1_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "region_id": "level_2_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "region_id": "level_2_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "region_id": "level_2_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "region_id": "level_2_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 105.893,
+    "tasks": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "region_id": "level_0_AB",
+        "assigned_drone_id": 1,
+        "state": 2,
+        "state_revision": 5,
+        "progress": 0.0677083358168602,
+        "progress_known": true,
+        "coverage_intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ],
+        "detail": "Coverage U derivado de evidencia depth materializada"
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "region_id": "level_0_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "region_id": "level_0_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "region_id": "level_0_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "region_id": "level_1_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "region_id": "level_1_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "region_id": "level_1_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "region_id": "level_1_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "region_id": "level_2_AB",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "region_id": "level_2_BC",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "region_id": "level_2_CD",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "region_id": "level_2_DA",
+        "assigned_drone_id": 0,
+        "state": 0,
+        "state_revision": 1,
+        "progress": 0.0,
+        "progress_known": false,
+        "coverage_intervals": [],
+        "detail": "Pendiente: espera dron registrado con pose autorizada"
+      }
+    ]
+  }
+]

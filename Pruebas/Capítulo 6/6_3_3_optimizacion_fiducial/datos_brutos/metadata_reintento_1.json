@@ -1,0 +1,37 @@
+{
+  "attempt": "c6_3_3_optimizacion_fiducial_reintento_1",
+  "commit": "5e7ab9c1a02606f09422b5d183dfced5c726a376",
+  "started_at": "2026-09-24T14:21:35+02:00",
+  "finished_at": "2026-09-24T14:24:43+02:00",
+  "duration_s": 188.411,
+  "hostname": "chenfu-IdeaPad-5-15ALC05",
+  "scenario": "configuracion/c6_3_3_optimizacion_fiducial.yaml",
+  "mission_profile": "configuracion/mission_profile_c6_3_3.yaml",
+  "drone_count": 1,
+  "navigation_source": "GT",
+  "gazebo_gui": true,
+  "multidron_gui": true,
+  "rviz": false,
+  "phase6_enabled": false,
+  "orb_loss_protocol_enabled": false,
+  "instrumentation": [
+    "C6-KF-POSE",
+    "fase45_recorder",
+    "F3 fiducial, graph, optimization, validation and commit events"
+  ],
+  "launch_retry_policy": {
+    "max_gazebo_retries": 1,
+    "used_launch_attempts": 1
+  },
+  "result": {
+    "scenario_runner_done": true,
+    "scenario_exit_code": 0,
+    "simulation_success": true,
+    "simulation_exit_code": 0
+  },
+  "logs": {
+    "raw": "datos_brutos/ejecucion_valida_reintento_1.log",
+    "reduced": "datos_brutos/ejecucion_valida_reintento_1.reduced.log",
+    "gt_pose": "datos_brutos/gt_recorder_reintento_1/gt_pose.csv"
+  }
+}

@@ -18,6 +18,28 @@ puerta cerrada durante el bootstrap GT; al recibir
 elegibles y comienza la asignacion normal. La configuracion monodron de las
 pruebas es `config/mission_house_single_drone.yaml` con `drones: [1]`.
 
+Los callbacks que mutan estado de misión, evidencia y mapa comparten `map_callback_group_` mutuamente exclusivo. Aunque el ejecutor tenga dos hilos, la entrada sparse, los resultados autónomos, integración depth, materialización voxel, selección, planificación, monitor y puerta de ejecución se serializan para no acceder concurrentemente a `EvidenceDatabase`, tareas, poses o contextos de workflow.
+
+Para que la exclusión mutua no convierta una ráfaga sparse en una pausa de
+misión, `VoxelMapWorker` materializa como máximo una transacción por tick
+(`voxel_worker_max_transactions_per_tick=1`). Prioriza de forma general una
+transacción depth independiente, pero nunca adelanta otra previa del mismo
+keyframe. Además, recibe las `source_id` exactas de
+`pending_depth_continuations_`: su transacción y solo su cadena causal previa
+del mismo keyframe saltan la cola de evidencia pasiva. Esto evita que una
+captura que desbloquea D1/D2 quede detrás de cientos de muestras `depth_*` no
+asociadas a un workflow. Cada transacción mantiene atómicos sus sources
+reversibles. El marcador `F6G-VOXEL-DELTAS-APPLIED` expone transacciones
+pendientes, `continuation_sources` y `elapsed_ms`.
+
+La materialización individual no obliga a recalcular navegación e inflación por
+cada muestra pasiva. `voxel_worker_flush_interval_ms=500` agrupa ese refresh y
+la publicación de fondo. Si una `source_id` esperada por una continuación
+profunda se materializa, fuerza `FlushVoxelChanges` inmediatamente: el
+workflow, coverage, reservas y STOP ven esa revisión sin esperar el intervalo.
+Esto deja turnos al callback de pose global de keyframe, que hace materializable
+la evidencia depth, y evita que el refresco de fondo retrase a D1/D2.
+
 `WorkflowScheduler` mantiene las colas FIFO `TASK_ASSIGNMENT`,
 `POINT_SELECTION`, `TRAJECTORY_PLANNING`, `DEPTH_INTEGRATION` y
 `ACTIVE_TRAJECTORY_MONITOR`. Toda entrada transporta como minimo
@@ -69,6 +91,22 @@ muestra solo al seleccionar la tarea.
 Cada seccion pendiente vale `0` y una activa vale `10`, sin suma. El estado se
 deriva de claims reversibles por fuente depth/KF: un `depth_occupied` frontal
 de `vista_pared` o `VIEW_ADVANCE` reclama su seccion espacial y
+
+Cada observación depth válida siempre puede dejar rayos `depth_free`, pero solo
+emite `depth_direct_free` y `depth_occupied` cuando `normal_valid` es cierto,
+la normal se puede normalizar y el rayo cámara-superficie cumple la incidencia
+frontal configurada. El nodo aislado conserva `30 grados`, mientras el launch
+Fase 6 entrega `45 grados` por defecto
+(`abs(dot(normal, rayo)) >= cos(incidencia_maxima)`).
+Llegar a una pose de inspección no garantiza esa condición: una pared oblicua,
+una normal no fiable o una vista sin impacto directo deja únicamente `FREE` y
+no activa coverage. La normal no se infiere del yaw de la orden: `stereo` la
+estima por normales locales de vecinos de la nube depth aceptada, descarta
+orientaciones poco horizontales y exige al menos 12 muestras locales con un
+clúster angular dominante de confianza `>= 0.7`. Textura pobre, discontinuidades
+o la mezcla de superficies en el frustum pueden fragmentar ese clúster aunque
+la cámara apunte visualmente hacia una pared.
+
 `depth_coverage_neighbor_sections=2` secciones contiguas a cada lado de la U,
 sin cerrarla por la cara abierta. Cada voxel depth `OCCUPIED=1` reclama tambien
 la seccion volumetrica donde cae, de modo que una captura puede activar varias.
@@ -101,6 +139,21 @@ Si la mirada deja la pose original UNKNOWN pero existe una pose FREE cercana
 al objetivo visual, se ejecuta el mismo `VIEW_ADVANCE` con captura que un
 prefijo FREE de D* y se reelige tras materializarlo; no se presenta como una
 vista de pared.
+Si el recheck posterior a depth confirma que el objetivo sigue `FREE` pero
+queda no transitable por inflación, `RequeueAppliedUnknownDepthContinuation`
+no lo reencola como una nueva selección silenciosa: conserva
+`TRAJECTORY_PLANNING`, marca `fallback_free_advance` y registra
+`action=prefix_free`. La primera selección aplica la misma regla: un objetivo
+`FREE` que el perfil inflado no puede transitar entra directamente en
+`TRAJECTORY_PLANNING` y registra
+`F6K-POINT-SELECTION-FREE-INFLATED action=prefix_free`; no queda girando en
+`POINT_SELECTION`. `RunTrajectoryPlanningWorker` reutiliza entonces su plan
+exploratorio solo para hallar el waypoint FREE estricto más lejano y despacha
+`VIEW_ADVANCE`. Si no existe ningún prefijo seguro, marca solo la sección U
+candidata como excluida temporalmente, registra
+`F6I-PREFIX-FREE-UNAVAILABLE action=reselect` y selecciona otro punto: no la
+marca como cubierta ni repite la misma pose. No relaja los vetos de `UNKNOWN`,
+`OCCUPIED` ni `RESERVED`.
 
 `TrajectoryPlanningWorker` no espera al vuelo. `ActiveTrajectoryMonitor`
 reserva antes de enviar la orden, publica una sola polilinea activa y la capa
@@ -134,6 +187,12 @@ esta presente. La validacion integrada pendiente debe confirmar la progresion
 real de secciones, reservas visibles y relevo; no debe reinterpretarse como
 una vuelta a la seleccion legacy `0.2..0.6`.
 
+`execute_facade_sweeps` es una puerta independiente y por defecto esta en
+`false`. Solo activa `RunFacadeWorker`, la ruta legacy que selecciona candidatos
+propios y llama `inspect_facade`; no es el dispatcher correlacionado moderno de
+`MOVE_AND_CAPTURE`. Las pruebas que requieran un destino concreto no deben
+activarla ni usarla como sustituto de su workflow.
+
 La inflacion de ocupados usa coste alto `100`; `OCCUPIED`, `RESERVED` y
 `UNKNOWN` siguen vetados. El margen adicional
 `extra_obstacle_clearance_voxels=1` se suma a la semidimension registrada del
@@ -146,6 +205,68 @@ alternativa FREE tras una mirada que no despeja la pose objetivo.
 `debug_facade_dstar_failure=false` solo diagnostica fallos de ruta estricta:
 emite estados raw/navegables de inicio y meta, mas frontera FREE. No altera la
 politica de planificacion.
+
+
+
+### Arranque de autonomia
+
+La asignación solo marca la tarea como ASSIGNED y espera su TaskReport. Al recibir
+la aceptación, TaskServerNode crea o comprueba el runtime de fachada y encola
+POINT_SELECTION con la revisión posterior a la aceptación. Así el primer
+workflow no puede despacharse antes de que la tarea y su runtime estén listos.
+Si una pose o un runtime deja de estar disponible transitoriamente, el worker
+reencola el item en vez de perderlo; una tarea obsoleta o reasignada sí se
+elimina al no coincidir su propietario.
+
+/mission/set_coverage_execution_enabled sigue usando map_callback_group_ para
+preservar la exclusión mutua del estado compartido. El scenario runner trata
+la operación idempotente como reintentable: envía hasta tres solicitudes y
+espera 30 s por cada una. Una respuesta tardía ya no declara por sí sola que el
+handoff haya fallado ni cancela el escenario.
+
+## Instrumentacion 8.4-A
+
+`TaskServerNode` ofrece el servicio `std_srvs/Trigger`
+`/mission/test_view_unknown_right` solo cuando
+`test_view_unknown_right_enabled=true` (default `false`). Para D1 con pose
+global vigente, calcula un `visual_target` a
+`test_view_unknown_right_distance_m` en `yaw_actual -
+test_view_unknown_right_angle_deg` y lo despacha por el mismo
+`DispatchAutonomousWorkflowCommand` como `LOOK_AND_CAPTURE`. No llama depth de
+forma directa ni cambia seleccion, D*, coverage o reglas de materializacion.
+
+El workflow se etiqueta `test_view_unknown_right:<revision>`. Una vez aplicadas
+sus fuentes, `ProcessAppliedDepthContinuations` publica
+`[F8A-VIEW-UNKNOWN-TEST-APPLIED]` y suprime solo su continuacion para aislar la
+prueba de un `VIEW_ADVANCE` posterior. El marcador
+`[F6F-DEPTH-SOURCES-WRITTEN]` incluye los contadores por tipo `free`,
+`direct_free` y `occupied`; para `VIEW_UNKNOWN` la evidencia esperada es
+`free>0`, `direct_free=0`, `occupied=0`.
+
+
+## Instrumentacion 8.4-B
+
+`/mission/test_view_wall_fixed` existe solo cuando
+`test_view_wall_fixed_enabled=true` (default `false`). El Trigger asigna a D1
+la tarea U que contiene `test_view_wall_fixed_(x,y,z)`, conserva ese contexto y
+despacha el `MOVE_AND_CAPTURE` correlacionado a ese objetivo con
+`test_view_wall_fixed_yaw_deg`. No realiza un movimiento GT ni permite que el
+selector sustituya el objetivo. La ruta exige un corredor navegable FREE; si
+aun no existe, queda armada y espera nueva evidencia sin cruzar UNKNOWN u
+OCCUPIED.
+
+El workflow `test_view_wall_fixed:<revision>` usa `VIEW_WALL`, conserva las
+fuentes y claims normales, y solo despues de materializarlas publica
+`[F8B-VIEW-WALL-FIXED-APPLIED]` para suprimir su continuacion. Es
+instrumentacion opt-in de la prueba, no una politica productiva.
+
+El parametro test_view_wall_fixed_ignore_corridor_stops=false conserva por
+defecto la parada ante cambios OCCUPIED/INFLATED en el corredor. Solo para
+repetir 8.4-B puede activarse en ese workflow y publica el marcador
+F8B-VIEW-WALL-FIXED-CORRIDOR-STOP-SUPPRESSED; no altera otros workflows.
+El parametro test_view_wall_fixed_require_known_free=true preserva el corredor
+FREE estricto; solo al fijarlo a false para 8.4-B permite atravesar UNKNOWN y
+mantiene esa misma politica en la replanificacion del workflow de prueba.
 
 ## Validacion pendiente
 

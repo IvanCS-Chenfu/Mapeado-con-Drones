@@ -192,6 +192,7 @@ TEST(LandmarkScoreManager, MatureIsolatedPointIsHardZeroAndRecoversAtExactRadius
   orbslam3_multi::RawMapDatabase raw;
   orbslam3_multi::LandmarkScoreManager scores;
   orbslam3_multi::LandmarkScoreConfig config;
+  config.drone_body_mask_enabled = true;
   config.isolation_radius_m = 0.5;
   config.isolation_min_neighbors = 1;
   config.isolation_min_observations = 3;
@@ -233,6 +234,7 @@ TEST(LandmarkScoreManager, DroneBodySphereHardZeroIsIndependentAndReversible)
   orbslam3_multi::RawMapDatabase raw;
   orbslam3_multi::LandmarkScoreManager scores;
   orbslam3_multi::LandmarkScoreConfig config;
+  config.drone_body_mask_enabled = true;
   config.isolation_min_neighbors = 0;
   scores.Configure(config);
   scores.ApplyRawChanges(raw.InsertDelta(1, MakeMap(1.0F)), raw);
@@ -269,7 +271,7 @@ TEST(LandmarkScoreManager, DroneBodySphereHardZeroIsIndependentAndReversible)
   EXPECT_EQ(scores.GetStats().body_masked_points, 0U);
 }
 
-TEST(LandmarkScoreManager, DisabledDroneBodyMaskLeavesScoreUntouched)
+TEST(LandmarkScoreManager, DisabledDroneBodyMaskKeepsDistanceCriterionWithoutSphere)
 {
   orbslam3_multi::RawMapDatabase raw;
   orbslam3_multi::LandmarkScoreManager scores;
@@ -283,10 +285,13 @@ TEST(LandmarkScoreManager, DisabledDroneBodyMaskLeavesScoreUntouched)
   orbslam3_multi::LandmarkScoreGeometryInput geometry;
   geometry.mappoint_id = id;
   geometry.world_position.z = 2.0;
-  geometry.observer_distance_m = 2.0;
-  scores.ApplyGeometryChanges({geometry}, {});
+  geometry.observer_distance_m = 0.05;
+  ASSERT_TRUE(scores.ApplyGeometryChanges({geometry}, {}).HasChanges());
   const float unmasked_score = scores.GetScore(id)->score;
   ASSERT_GT(unmasked_score, 0.0F);
+  EXPECT_LT(unmasked_score, 0.1F);
+  EXPECT_LT(scores.GetScore(id)->distance_factor, 1.0F);
+  EXPECT_FLOAT_EQ(scores.GetScore(id)->isolation_factor, 1.0F);
 
   orbslam3_multi::DroneBodySphere sphere;
   sphere.keyframe_id = {2, 8, 12};

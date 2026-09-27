@@ -1,0 +1,4 @@
+phase6_visual_risk_empty_region_fraction: 0.50
+phase6_visual_risk_persistence_frames: 3
+phase6_visual_risk_directional_max_inliers: 3
+phase6_debug_visual_risk_display: true

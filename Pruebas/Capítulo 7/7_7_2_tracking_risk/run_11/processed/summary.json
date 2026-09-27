@@ -1,0 +1,10 @@
+{
+  "samples": 2931,
+  "risk_events": 0,
+  "first_stop_started": null,
+  "stop_completed": null,
+  "reorientation_completed": null,
+  "latency_first_risk_to_stop_completed_sec": null,
+  "latency_stop_to_reorientation_completed_sec": null,
+  "success_candidate": false
+}

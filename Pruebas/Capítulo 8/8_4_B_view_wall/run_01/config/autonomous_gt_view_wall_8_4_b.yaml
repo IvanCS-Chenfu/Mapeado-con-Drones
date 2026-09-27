@@ -1,0 +1,64 @@
+name: autonomous_gt_view_wall_8_4_b
+mission_mode: autonomous
+navigation_source: gt
+description: "Prueba 8.4-B: D1 se ancla y llega con GT a la vista frontal inicial antes de abrir el flujo normal de coverage."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: dron_1_al_fiducial_2_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: espera_anclaje_global
+    type: wait
+    seconds: 12.0
+
+  - name: posicion_inicial_frontal_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [-2.0, -8.0, 1.0]
+        yaw_deg: 90.0
+        tx: 14.0
+        ty: 14.0
+        tz: 14.0
+        tyaw: 7.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 150.0
+
+  - name: espera_estabilidad_previa_a_coverage
+    type: wait
+    seconds: 10.0

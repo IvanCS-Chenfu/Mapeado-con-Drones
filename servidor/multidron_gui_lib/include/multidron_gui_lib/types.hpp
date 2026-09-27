@@ -47,6 +47,7 @@ struct DroneState
 
   bool has_world_pose = false;
   bool lost_or_unavailable = true;
+  bool global_pose_pending = false;
   std::int64_t received_steady_ns = 0;
   QVector3D position;
   QQuaternion orientation;

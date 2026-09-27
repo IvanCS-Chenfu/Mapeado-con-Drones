@@ -9,7 +9,7 @@ Biblioteca de modelo, bridge ROS, widgets y renderer OpenGL de Fase 7.
   `/dron_N/orbslam/navigation_state`, `/mission/geometry`,
   `/mission/task_states`, `/mission/voxel_map` y `/mission/planned_routes`;
   muestra la pose canonica
-  publicada por el mux, tanto ORB anclada como `GT_FORCED` de simulacion.
+  publicada por el mux, tanto ORB anclada como `GT_FORCED` de simulacion. Si ORB/GLOBAL conserva tracking, continuidad local y keyframe de referencia, pero espera autoridad global, publica `global_pose_pending`: conserva la ultima pose y la GUI la distingue de `PERDIDO`; `lost_or_unavailable` queda reservado para invalidez real o datos stale.
 - `MainWindow` contiene escena central, tarjetas de drones desplazables,
   inspector y formulario F6 fijo `drone/type/x/y/z/yaw`; el envio permanece
   deshabilitado hasta existir el contrato de Fase 6. El boton `Regiones` de la

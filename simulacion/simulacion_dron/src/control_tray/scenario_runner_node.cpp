@@ -30,6 +30,8 @@
 #include "std_srvs/srv/set_bool.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "dron_individual/action/tray_action.hpp"
+#include "mission_msgs/action/execute_trajectory.hpp"
+#include "mission_msgs/msg/task_state_array.hpp"
 #include "mission_msgs/msg/trajectory_plan.hpp"
 #include "mission_msgs/msg/visual_risk_event.hpp"
 #include "mission_msgs/srv/plan_route.hpp"
@@ -46,6 +48,9 @@ public:
   using GoalHandleTray = rclcpp_action::ClientGoalHandle<TrayAction>;
   using ActionClientTray = rclcpp_action::Client<TrayAction>;
   using PlanRoute = mission_msgs::srv::PlanRoute;
+  using ExecuteTrajectory = mission_msgs::action::ExecuteTrajectory;
+  using GoalHandleExecuteTrajectory = rclcpp_action::ClientGoalHandle<ExecuteTrajectory>;
+  using ActionClientExecuteTrajectory = rclcpp_action::Client<ExecuteTrajectory>;
   using TrajectoryPlan = mission_msgs::msg::TrajectoryPlan;
   using VisualRiskEvent = mission_msgs::msg::VisualRiskEvent;
 
@@ -58,7 +63,7 @@ public:
     this->declare_parameter<std::string>("action_name", "AccionTrayectoria");
     this->declare_parameter<std::string>("namespace_base", "");
     this->declare_parameter<double>("default_action_timeout_sec", 120.0);
-    this->declare_parameter<bool>("gate_mapping_backpressure", true);
+    this->declare_parameter<bool>("gate_mapping_backpressure", false);
     this->declare_parameter<std::string>(
       "mapping_backpressure_topic",
       "/global_mapping/backpressure_active");
@@ -198,6 +203,10 @@ public:
         ok = ExecuteWaitForBoolStep(step);
       } else if (step_type == "call_set_bool") {
         ok = ExecuteCallSetBoolStep(step);
+      } else if (step_type == "call_trigger") {
+        ok = ExecuteCallTriggerStep(step);
+      } else if (step_type == "wait_for_navigation_ready") {
+        ok = ExecuteWaitForNavigationReadyStep(step);
       } else if (step_type == "wait_for_navigation_pose") {
         ok = ExecuteWaitForNavigationPoseStep(step);
       } else if (step_type == "pitch") {
@@ -208,6 +217,8 @@ public:
         ok = ExecutePlanRouteRelativeUntilVisualRiskStep(step);
       } else if (step_type == "wait_for_plan_terminal") {
         ok = ExecuteWaitForPlanTerminalStep(step);
+      } else if (step_type == "managed_yaw") {
+        ok = ExecuteManagedYawStep(step);
       } else if (step_type == "move") {
         ok = ExecuteMoveStep(step);
       } else {
@@ -237,11 +248,17 @@ public:
         step_name.c_str());
     }
 
-    if (mission_mode_ == "autonomous" && !EnableAutonomousExecution()) {
-      RCLCPP_ERROR(
+    if (mission_mode_ == "autonomous" && autonomous_handoff_) {
+      if (!EnableAutonomousExecution()) {
+        RCLCPP_ERROR(
+          this->get_logger(),
+          "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-FAILED] mission_mode=autonomous");
+        return false;
+      }
+    } else if (mission_mode_ == "autonomous") {
+      RCLCPP_WARN(
         this->get_logger(),
-        "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-FAILED] mission_mode=autonomous");
-      return false;
+        "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-SKIPPED] mission_mode=autonomous execution_enabled=false source=yaml");
     }
 
     RCLCPP_WARN(
@@ -329,7 +346,8 @@ private:
   std::string action_name_;
   std::string namespace_base_;
   double default_action_timeout_sec_;
-  bool gate_mapping_backpressure_{true};
+  bool gate_mapping_backpressure_{false};
+  bool autonomous_handoff_{true};
   std::string mapping_backpressure_topic_;
 
   std::map<std::string, ActionClientTray::SharedPtr> action_clients_;
@@ -490,26 +508,39 @@ private:
       return false;
     }
 
-    auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
-    request->data = true;
-    auto future = client->async_send_request(request);
-    if (!WaitFuture(future, 10.0, "autonomous handoff")) {
-      return false;
-    }
+    constexpr std::size_t kMaxAttempts = 3U;
+    constexpr double kAttemptTimeoutSec = 30.0;
+    for (std::size_t attempt = 1U; attempt <= kMaxAttempts; ++attempt) {
+      auto request = std::make_shared<std_srvs::srv::SetBool::Request>();
+      request->data = true;
+      auto future = client->async_send_request(request);
+      if (!WaitFuture(
+          future, kAttemptTimeoutSec,
+          "autonomous handoff attempt " + std::to_string(attempt)))
+      {
+        if (attempt < kMaxAttempts) {
+          RCLCPP_WARN(
+            get_logger(), "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-RETRY] attempt=%zu reason=timeout",
+            attempt);
+          continue;
+        }
+        return false;
+      }
 
-    const auto response = future.get();
-    if (!response || !response->success) {
-      RCLCPP_ERROR(
+      const auto response = future.get();
+      if (response && response->success) {
+        RCLCPP_WARN(
+          get_logger(),
+          "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF] mission_mode=autonomous execution_enabled=true attempt=%zu",
+          attempt);
+        return true;
+      }
+      RCLCPP_WARN(
         get_logger(),
-        "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-ERROR] response='%s'",
-        response ? response->message.c_str() : "missing");
-      return false;
+        "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-RETRY] attempt=%zu reason=response_%s",
+        attempt, response ? response->message.c_str() : "missing");
     }
-
-    RCLCPP_WARN(
-      get_logger(),
-      "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF] mission_mode=autonomous execution_enabled=true");
-    return true;
+    return false;
   }
 
   void ApplyScenarioOverrides(const YAML::Node & root)
@@ -534,6 +565,14 @@ private:
         get_logger(),
         "[SCENARIO-RUNNER-BACKPRESSURE-POLICY] gate_mapping_backpressure=%s source=yaml",
         gate_mapping_backpressure_ ? "true" : "false");
+    }
+
+    if (root["autonomous_handoff"]) {
+      autonomous_handoff_ = root["autonomous_handoff"].as<bool>();
+      RCLCPP_WARN(
+        get_logger(),
+        "[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-POLICY] autonomous_handoff=%s source=yaml",
+        autonomous_handoff_ ? "true" : "false");
     }
 
     if (default_action_timeout_sec_ <= 0.0) {
@@ -613,6 +652,85 @@ private:
       "[SCENARIO-RUNNER-READY] topic='%s' expected=%s",
       topic.c_str(), expected ? "true" : "false");
     return rclcpp::ok();
+  }
+
+  bool ExecuteWaitForNavigationReadyStep(const YAML::Node & step)
+  {
+    const int drone_id = YamlGet<int>(step, "drone_id", 1);
+    const double hold_sec = YamlGet<double>(step, "hold_sec", 1.0);
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 60.0);
+    if (drone_id <= 0 || hold_sec < 0.0 || timeout_sec <= 0.0) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-NAV-READY-ERROR] requires positive drone_id and timeout_sec");
+      return false;
+    }
+    struct ReadyState
+    {
+      std::mutex mutex;
+      bool received{false};
+      bool valid{false};
+      std::uint8_t tracking_state{0U};
+      std::uint64_t map_epoch{0U};
+    };
+    const auto state = std::make_shared<ReadyState>();
+    const std::string topic = "/" + namespace_base_ + "_" + std::to_string(drone_id) +
+      "/orbslam/navigation_state";
+    const auto subscription = create_subscription<orbslam3_msgs::msg::NavigationState>(
+      topic, rclcpp::QoS(20).reliable(),
+      [state](const orbslam3_msgs::msg::NavigationState::SharedPtr message)
+      {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        state->received = true;
+        state->valid = message->local_valid && message->local_continuity_valid &&
+          message->velocity_valid;
+        state->tracking_state = message->tracking_state;
+        state->map_epoch = message->map_epoch;
+      });
+    (void)subscription;
+    RCLCPP_WARN(
+      get_logger(), "[SCENARIO-RUNNER-NAV-READY-WAIT] drone=%d topic='%s' hold_sec=%.3f timeout_sec=%.3f",
+      drone_id, topic.c_str(), hold_sec, timeout_sec);
+    const auto started = std::chrono::steady_clock::now();
+    std::optional<std::chrono::steady_clock::time_point> valid_since;
+    while (rclcpp::ok()) {
+      bool received = false;
+      bool valid = false;
+      std::uint8_t tracking_state = 0U;
+      std::uint64_t map_epoch = 0U;
+      {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        received = state->received;
+        valid = state->valid;
+        tracking_state = state->tracking_state;
+        map_epoch = state->map_epoch;
+      }
+      const auto now = std::chrono::steady_clock::now();
+      if (valid) {
+        if (!valid_since.has_value()) {
+          valid_since = now;
+        }
+        if (std::chrono::duration<double>(now - *valid_since).count() >= hold_sec) {
+          RCLCPP_WARN(
+            get_logger(),
+            "[SCENARIO-RUNNER-NAV-READY] drone=%d tracking=%u epoch=%lu hold_sec=%.3f",
+            drone_id, static_cast<unsigned>(tracking_state), static_cast<unsigned long>(map_epoch), hold_sec);
+          return true;
+        }
+      } else {
+        valid_since.reset();
+      }
+      if (std::chrono::duration<double>(now - started).count() >= timeout_sec) {
+        RCLCPP_ERROR(
+          get_logger(),
+          "[SCENARIO-RUNNER-NAV-READY-TIMEOUT] drone=%d received=%s tracking=%u epoch=%lu timeout_sec=%.3f",
+          drone_id, received ? "true" : "false", static_cast<unsigned>(tracking_state),
+          static_cast<unsigned long>(map_epoch), timeout_sec);
+        return false;
+      }
+      std::this_thread::sleep_for(50ms);
+    }
+    return false;
   }
 
   bool ExecuteWaitForNavigationPoseStep(const YAML::Node & step)
@@ -776,6 +894,53 @@ private:
     return false;
   }
 
+  bool ExecuteCallTriggerStep(const YAML::Node & step)
+  {
+    const std::string service = YamlGet<std::string>(step, "service", "");
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 15.0);
+    if (service.empty() || timeout_sec <= 0.0) {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-ERROR] call_trigger requires service and timeout_sec > 0");
+      return false;
+    }
+    auto client = create_client<std_srvs::srv::Trigger>(service);
+    const auto start = std::chrono::steady_clock::now();
+    RCLCPP_WARN(
+      get_logger(), "[SCENARIO-RUNNER-TRIGGER-WAIT] service='%s' timeout_sec=%.3f",
+      service.c_str(), timeout_sec);
+    while (rclcpp::ok()) {
+      if (std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count() >=
+        timeout_sec)
+      {
+        RCLCPP_ERROR(
+          get_logger(), "[SCENARIO-RUNNER-TRIGGER-TIMEOUT] service='%s' timeout_sec=%.3f",
+          service.c_str(), timeout_sec);
+        return false;
+      }
+      if (!client->wait_for_service(200ms)) {
+        continue;
+      }
+      auto future = client->async_send_request(std::make_shared<std_srvs::srv::Trigger::Request>());
+      if (!WaitFuture(future, 1.0, "trigger " + service)) {
+        continue;
+      }
+      const auto response = future.get();
+      if (response->success) {
+        RCLCPP_WARN(
+          get_logger(), "[SCENARIO-RUNNER-TRIGGER-DONE] service='%s' message='%s'",
+          service.c_str(), response->message.c_str());
+        return true;
+      }
+      RCLCPP_INFO_THROTTLE(
+        get_logger(), *get_clock(), 1000,
+        "[SCENARIO-RUNNER-TRIGGER-NOT-READY] service='%s' message='%s'",
+        service.c_str(), response->message.c_str());
+      std::this_thread::sleep_for(100ms);
+    }
+    return false;
+  }
+
   bool ExecutePitchStep(const YAML::Node & step)
   {
     const int drone_id = YamlGet<int>(step, "drone_id", 1);
@@ -852,6 +1017,191 @@ private:
         RCLCPP_ERROR(
           get_logger(), "[SCENARIO-RUNNER-PITCH-TIMEOUT] drone=%s timeout=%.3f",
           drone.c_str(), timeout_sec);
+        return false;
+      }
+      std::this_thread::sleep_for(50ms);
+    }
+    return false;
+  }
+
+  bool ExecuteManagedYawStep(const YAML::Node & step)
+  {
+    const int drone_id = YamlGet<int>(step, "drone_id", 1);
+    const double timeout_sec = YamlGet<double>(step, "timeout_sec", 90.0);
+    const double duration_sec = YamlGet<double>(step, "duration_sec", 24.0);
+    const double yaw_deg = YamlGet<double>(step, "yaw_deg", 0.0);
+    const double visual_recovery_timeout_sec =
+      YamlGet<double>(step, "visual_recovery_timeout_sec", 45.0);
+    if (drone_id <= 0 || timeout_sec <= 0.0 || duration_sec <= 0.0 ||
+      visual_recovery_timeout_sec <= 0.0 || !step["target"] ||
+      !step["target"].IsSequence() || step["target"].size() < 3U)
+    {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-MANAGED-YAW-ERROR] requires drone_id, target [x,y,z] and positive timeouts");
+      return false;
+    }
+
+    AuthorizedWorldPose origin;
+    if (!WaitForAuthorizedWorldPose(drone_id, timeout_sec, std::nullopt, &origin)) {
+      return false;
+    }
+
+    struct AssignedTaskState
+    {
+      std::mutex mutex;
+      std::string task_id;
+    };
+    const auto assigned = std::make_shared<AssignedTaskState>();
+    const auto task_subscription = create_subscription<mission_msgs::msg::TaskStateArray>(
+      "/mission/task_states", rclcpp::QoS(1).reliable().transient_local(),
+      [assigned, drone_id](const mission_msgs::msg::TaskStateArray::SharedPtr message)
+      {
+        for (const auto & task : message->tasks) {
+          if (task.assigned_drone_id == static_cast<std::uint32_t>(drone_id) &&
+            (task.state == mission_msgs::msg::TaskState::ASSIGNED ||
+            task.state == mission_msgs::msg::TaskState::RUNNING))
+          {
+            std::lock_guard<std::mutex> lock(assigned->mutex);
+            assigned->task_id = task.task_id;
+            return;
+          }
+        }
+      });
+    (void)task_subscription;
+
+    const auto task_wait_start = std::chrono::steady_clock::now();
+    std::string task_id;
+    while (rclcpp::ok()) {
+      {
+        std::lock_guard<std::mutex> lock(assigned->mutex);
+        task_id = assigned->task_id;
+      }
+      if (!task_id.empty()) {
+        break;
+      }
+      if (std::chrono::duration<double>(std::chrono::steady_clock::now() - task_wait_start).count() >=
+        timeout_sec)
+      {
+        RCLCPP_ERROR(
+          get_logger(),
+          "[SCENARIO-RUNNER-MANAGED-YAW-TASK-TIMEOUT] drone=%d timeout_sec=%.3f",
+          drone_id, timeout_sec);
+        return false;
+      }
+      std::this_thread::sleep_for(50ms);
+    }
+    if (task_id.empty()) {
+      return false;
+    }
+
+    const Eigen::Vector3d target(
+      step["target"][0].as<double>(), step["target"][1].as<double>(), step["target"][2].as<double>());
+    if (!target.allFinite()) {
+      RCLCPP_ERROR(get_logger(), "[SCENARIO-RUNNER-MANAGED-YAW-ERROR] target must be finite");
+      return false;
+    }
+    const std::string drone = namespace_base_ + "_" + std::to_string(drone_id);
+    const std::string action_name = "/" + drone + "/execute_trajectory";
+    const auto client = rclcpp_action::create_client<ExecuteTrajectory>(this, action_name);
+    const auto action_wait_start = std::chrono::steady_clock::now();
+    while (rclcpp::ok() && !client->wait_for_action_server(200ms)) {
+      if (std::chrono::duration<double>(std::chrono::steady_clock::now() - action_wait_start).count() >=
+        timeout_sec)
+      {
+        RCLCPP_ERROR(
+          get_logger(), "[SCENARIO-RUNNER-MANAGED-YAW-ACTION-TIMEOUT] action=%s",
+          action_name.c_str());
+        return false;
+      }
+    }
+
+    const auto seconds = static_cast<std::int32_t>(std::floor(duration_sec));
+    const auto nanoseconds = static_cast<std::uint32_t>(
+      std::round((duration_sec - static_cast<double>(seconds)) * 1e9));
+    mission_msgs::msg::TrajectoryWaypoint start;
+    start.position_world.x = origin.position.x();
+    start.position_world.y = origin.position.y();
+    start.position_world.z = origin.position.z();
+    mission_msgs::msg::TrajectoryWaypoint end;
+    end.position_world.x = target.x();
+    end.position_world.y = target.y();
+    end.position_world.z = target.z();
+    end.yaw_rad = yaw_deg * M_PI / 180.0;
+    end.camera_pitch_rad = 0.0;
+    end.time_from_start.sec = seconds;
+    end.time_from_start.nanosec = nanoseconds;
+
+    ExecuteTrajectory::Goal goal;
+    goal.plan.mission_id = YamlGet<std::string>(step, "mission_id", "scenario_managed_yaw");
+    goal.plan.task_id = task_id;
+    goal.plan.drone_id = static_cast<std::uint32_t>(drone_id);
+    goal.plan.plan_id = "scenario_managed_yaw_plan_" + std::to_string(now().nanoseconds());
+    goal.plan.trajectory_id = "scenario_managed_yaw_" + std::to_string(now().nanoseconds());
+    goal.plan.map_epoch = origin.map_epoch;
+    goal.plan.generator_id = "scenario_runner_managed_yaw";
+    goal.plan.generator_version = 1U;
+    goal.plan.execution_state = mission_msgs::msg::TrajectoryPlan::EXECUTION_STATE_PLANNED;
+    goal.plan.execution_detail = "Giro ORB de prueba 7.7.2 gestionado por task_manager";
+    goal.plan.waypoints = {start, end};
+
+    RCLCPP_WARN(
+      get_logger(),
+      "[SCENARIO-RUNNER-MANAGED-YAW-DISPATCH] drone=%d task=%s trajectory_id=%s epoch=%lu "
+      "origin=(%.3f,%.3f,%.3f) target=(%.3f,%.3f,%.3f) yaw_deg=%.3f duration_sec=%.3f",
+      drone_id, task_id.c_str(), goal.plan.trajectory_id.c_str(),
+      static_cast<unsigned long>(origin.map_epoch), origin.position.x(), origin.position.y(),
+      origin.position.z(), target.x(), target.y(), target.z(), yaw_deg, duration_sec);
+    const std::string trajectory_id = goal.plan.trajectory_id;
+    auto goal_future = client->async_send_goal(goal);
+    if (!WaitFuture(goal_future, timeout_sec, "managed yaw acceptance " + action_name)) {
+      return false;
+    }
+    const auto goal_handle = goal_future.get();
+    if (!goal_handle) {
+      RCLCPP_ERROR(get_logger(), "[SCENARIO-RUNNER-MANAGED-YAW-REJECTED] action=%s", action_name.c_str());
+      return false;
+    }
+    auto result_future = client->async_get_result(goal_handle);
+    if (!WaitFuture(result_future, timeout_sec + duration_sec, "managed yaw result " + action_name)) {
+      return false;
+    }
+    const auto result = result_future.get();
+    const std::string reason = result.result ? result.result->reason : "missing_result";
+    if (reason != "visual_risk_stop_started") {
+      RCLCPP_ERROR(
+        get_logger(),
+        "[SCENARIO-RUNNER-MANAGED-YAW-NO-RISK] trajectory_id=%s code=%d reason='%s'",
+        trajectory_id.c_str(), static_cast<int>(result.code), reason.c_str());
+      return false;
+    }
+
+    const auto recovery_start = std::chrono::steady_clock::now();
+    while (rclcpp::ok()) {
+      std::optional<VisualRiskEvent> event;
+      {
+        std::lock_guard<std::mutex> lock(visual_risk_events_mutex_);
+        const auto it = visual_risk_events_by_drone_.find(static_cast<std::uint32_t>(drone_id));
+        if (it != visual_risk_events_by_drone_.end() && it->second.trajectory_id == trajectory_id) {
+          event = it->second;
+        }
+      }
+      if (event.has_value() &&
+        event->event_type == VisualRiskEvent::EVENT_REORIENTATION_COMPLETED)
+      {
+        RCLCPP_WARN(
+          get_logger(),
+          "[SCENARIO-RUNNER-MANAGED-YAW-RISK-DONE] trajectory_id=%s success=%s",
+          trajectory_id.c_str(), event->success ? "true" : "false");
+        return event->success;
+      }
+      if (std::chrono::duration<double>(std::chrono::steady_clock::now() - recovery_start).count() >=
+        visual_recovery_timeout_sec)
+      {
+        RCLCPP_ERROR(
+          get_logger(),
+          "[SCENARIO-RUNNER-MANAGED-YAW-RECOVERY-TIMEOUT] trajectory_id=%s timeout_sec=%.3f",
+          trajectory_id.c_str(), visual_recovery_timeout_sec);
         return false;
       }
       std::this_thread::sleep_for(50ms);

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560">
+<rect width="100%" height="100%" fill="white"/>
+<text x="480.0" y="28" text-anchor="middle" font-family="sans-serif" font-size="20">Reservas temporales del planificador</text>
+<line x1="100.0" y1="54" x2="100.0" y2="472" stroke="#e5e7eb"/>
+<line x1="100" y1="54.0" x2="926" y2="54.0" stroke="#e5e7eb"/>
+<text x="100.0" y="496" text-anchor="middle" font-family="sans-serif" font-size="13">-26.1</text>
+<text x="90" y="59.0" text-anchor="end" font-family="sans-serif" font-size="13">216.2</text>
+<line x1="265.2" y1="54" x2="265.2" y2="472" stroke="#e5e7eb"/>
+<line x1="100" y1="137.6" x2="926" y2="137.6" stroke="#e5e7eb"/>
+<text x="265.2" y="496" text-anchor="middle" font-family="sans-serif" font-size="13">71.4</text>
+<text x="90" y="142.6" text-anchor="end" font-family="sans-serif" font-size="13">170.5</text>
+<line x1="430.4" y1="54" x2="430.4" y2="472" stroke="#e5e7eb"/>
+<line x1="100" y1="221.2" x2="926" y2="221.2" stroke="#e5e7eb"/>
+<text x="430.4" y="496" text-anchor="middle" font-family="sans-serif" font-size="13">168.8</text>
+<text x="90" y="226.2" text-anchor="end" font-family="sans-serif" font-size="13">124.8</text>
+<line x1="595.6" y1="54" x2="595.6" y2="472" stroke="#e5e7eb"/>
+<line x1="100" y1="304.8" x2="926" y2="304.8" stroke="#e5e7eb"/>
+<text x="595.6" y="496" text-anchor="middle" font-family="sans-serif" font-size="13">266.3</text>
+<text x="90" y="309.8" text-anchor="end" font-family="sans-serif" font-size="13">79.2</text>
+<line x1="760.8" y1="54" x2="760.8" y2="472" stroke="#e5e7eb"/>
+<line x1="100" y1="388.4" x2="926" y2="388.4" stroke="#e5e7eb"/>
+<text x="760.8" y="496" text-anchor="middle" font-family="sans-serif" font-size="13">363.7</text>
+<text x="90" y="393.4" text-anchor="end" font-family="sans-serif" font-size="13">33.5</text>
+<line x1="926.0" y1="54" x2="926.0" y2="472" stroke="#e5e7eb"/>
+<line x1="100" y1="472.0" x2="926" y2="472.0" stroke="#e5e7eb"/>
+<text x="926.0" y="496" text-anchor="middle" font-family="sans-serif" font-size="13">461.2</text>
+<text x="90" y="477.0" text-anchor="end" font-family="sans-serif" font-size="13">-12.2</text>
+<line x1="100" y1="472" x2="926" y2="472" stroke="#111827"/>
+<line x1="100" y1="54" x2="100" y2="472" stroke="#111827"/>
+<text x="480.0" y="538" text-anchor="middle" font-family="sans-serif" font-size="16">Tiempo desde inicio (s)</text>
+<text x="24" y="280.0" transform="rotate(-90 24 280.0)" text-anchor="middle" font-family="sans-serif" font-size="16">Vóxeles reservados</text>
+<polyline points="146.2,449.6 148.2,449.6 148.2,449.6 161.6,449.6 161.6,449.6 165.3,449.6 165.3,449.6 168.7,449.6 168.7,449.6 169.2,449.6 169.2,449.6 169.6,449.6 169.6,449.6 173.0,449.6 173.0,449.6 173.9,449.6 173.9,449.6 175.2,449.6 175.2,449.6 175.3,449.6 175.3,449.6 178.5,449.6 178.5,449.6 179.3,449.6 179.3,449.6 179.4,449.6 179.4,449.6 182.7,449.6 182.7,449.6 186.8,449.6 186.8,449.6 189.9,449.6 189.9,449.6 194.4,449.6 194.4,449.6 203.4,449.6 203.4,449.6 208.7,449.6 208.7,449.6 210.1,449.6 210.1,449.6 213.3,449.6 213.3,449.6 213.8,449.6 213.8,449.6 214.7,449.6 214.7,449.6 215.2,449.6 215.2,449.6 215.5,449.6 215.5,449.6 215.7,449.6 215.7,449.6 219.2,449.6 219.2,449.6 220.0,449.6 220.0,449.6 220.4,449.6 220.4,449.6 220.4,449.6 220.4,449.6 221.1,449.6 221.1,449.6 221.3,449.6 221.3,449.6 222.4,449.6 222.4,449.6 222.6,449.6 222.6,211.8 225.1,211.8 225.1,211.8 229.5,211.8 229.5,211.8 229.9,211.8 229.9,211.8 232.8,211.8 232.8,211.8 234.8,211.8 234.8,211.8 238.2,211.8 238.2,211.8 243.1,211.8 243.1,211.8 246.4,211.8 246.4,211.8 249.1,211.8 249.1,211.8 249.2,211.8 249.2,312.4 259.6,312.4 259.6,449.6 261.6,449.6 261.6,449.6 261.8,449.6 261.8,449.6 354.1,449.6 354.1,449.6 360.0,449.6 360.0,449.6 364.7,449.6 364.7,449.6 504.2,449.6 504.2,449.6 511.6,449.6 511.6,449.6 527.7,449.6 527.7,449.6 537.4,449.6 537.4,449.6 544.5,449.6 544.5,449.6 562.1,449.6 562.1,449.6 605.3,449.6 605.3,263.0 623.2,263.0 623.2,449.6 626.5,449.6 626.5,449.6 644.2,449.6 644.2,449.6 665.4,449.6 665.4,449.6 676.7,449.6 676.7,449.6 735.3,449.6 735.3,449.6 747.0,449.6 747.0,76.4 803.1,76.4 803.1,76.4 803.2,76.4 803.2,449.6 805.0,449.6 805.0,449.6 831.6,449.6 831.6,449.6 843.6,449.6 843.6,449.6 850.0,449.6 850.0,449.6 858.8,449.6 858.8,449.6 881.8,449.6 881.8,449.6" fill="none" stroke="#7057a6" stroke-width="2.5"/>
+<line x1="100" y1="62" x2="122" y2="62" stroke="#7057a6" stroke-width="3"/>
+<text x="128" y="67" font-family="sans-serif" font-size="14">Reservados</text>
+</svg>

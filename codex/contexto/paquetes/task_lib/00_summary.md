@@ -99,3 +99,9 @@ una seccion U pendiente y una pose fisica de coste. Si el destino o el corredor
 no son FREE, `task_server` inspecciona el objetivo visual y despues solo puede
 despachar toda la ruta FREE o su prefijo FREE continuo. Nunca devuelve el
 centro visual como pose fisica de vuelo.
+
+`SelectFacadeCoverageCandidate` acepta opcionalmente `excluded_sections`.
+Estas secciones no se consideran candidatas en esa selección, pero no se
+marcan como cubiertas ni afectan al ratio de cobertura. `task_server` lo usa
+cuando un objetivo FREE inflado carece de prefijo FREE transitable, para elegir
+un punto diferente en vez de repetir el mismo candidato bloqueado.

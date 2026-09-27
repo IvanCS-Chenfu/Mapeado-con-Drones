@@ -1,0 +1,23 @@
+{
+  "test_id": "c7_7_2_tracking_risk_gt_assignment_orb_frozen_worker_managed_yaw",
+  "run": "run_09",
+  "trajectory": "GT boot; enable F6 gate only long enough for synchronous GT task assignment; immediately disable automatic F6 dispatch; ORB source handoff and authority; managed yaw 90 to 0 degrees.",
+  "startup_source": "GT from launch/profile, then explicit ORB after task assignment",
+  "execution_gate": "True only to create ASSIGNED task under GT, then false before ORB/managed yaw so automatic point-selection cannot preempt the scenario action; facade sweeps remain disabled.",
+  "risk_parameters": "nominal, no overrides",
+  "status": "succeeded",
+  "raw_log": "codex/archivos_auxiliares/logs/prueba_c7_7_2_tracking_risk_gt_assignment_orb_frozen_worker_managed_yaw.log",
+  "reduced_log": "codex/archivos_auxiliares/logs/prueba_c7_7_2_tracking_risk_gt_assignment_orb_frozen_worker_managed_yaw.reduced.log",
+  "result": {
+    "scenario_exit_code": 0,
+    "sim_done": true,
+    "assignment": "F6B-ASSIGNED map_section_level_0_AB under GT before ORB handoff",
+    "orb_handoff": "effective with zero translation and rotation continuity jump",
+    "managed_yaw": "F6I-TASK-EXECUTE accepted",
+    "risk_frame": 1319,
+    "risk_mask": 2,
+    "stop_completed_latency_sec": 5.110020160675049,
+    "reorientation_completed_latency_sec": 5.079961061477661,
+    "success_candidate": true
+  }
+}

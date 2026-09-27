@@ -100,6 +100,12 @@ if(BUILD_TESTING)
     test/test_sparse_cloud_contract.py
     TIMEOUT 30
   )
+
+  ament_add_pytest_test(
+    test_chapter6_queue_telemetry
+    test/test_chapter6_queue_telemetry.py
+    TIMEOUT 30
+  )
 endif()
 
 ament_package()

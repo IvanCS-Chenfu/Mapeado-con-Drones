@@ -63,24 +63,49 @@ precedencia para cambiar GT/ORB durante una trayectoria.
 La puerta efectiva `phase6_enabled = mission_mode==autonomous &&
 launch_phase6` se propaga tambien al servidor global. Con valor falso no se
 crea ni calcula `/global_keyframe_sparse_evidence_delta` y no aparece trabajo
-`F6N`. `score_drone_body_mask_enabled` controla de forma independiente la
-mascara fisica de score alrededor de KFs; `orb_loss_protocol_enabled` controla
-la congelacion/abort de `gen_tray` ante perdida ORB. Ambos conservan `true` por
-defecto y pueden desactivarse en una prueba sin cambiar GT/ORB ni Fase 6.
-La ejecucion `c5_5_3_two_drones_gates_off_v2` valida la propagacion conjunta:
-cero F6N, cero body registry, seis goals correctos y escenario completo.
+`F6N`. La mascara esferica del cuerpo del dron esta desactivada de forma fija:
+el launch del simulador no expone `score_drone_body_mask_enabled` y el servidor
+recibe siempre `false`. `orb_loss_protocol_enabled` controla de forma
+independiente la congelacion/abort de `gen_tray` ante perdida ORB.
 
 `raw_stats_telemetry_enabled=false` se reenvia solo al servidor global. Es una
 telemetria opt-in usada por la prueba documental 5.5 para registrar los
 contadores de `RawMapDatabase`; no crea nodos, topics ni snapshots.
 
+`chapter6_queue_telemetry_enabled=false` y
+`chapter6_queue_telemetry_period_ms=500` se reenvian al servidor para la
+instrumentacion pasiva de Capitulo 6. Al activar el flag, el servidor emite
+`[C6-QUEUE-SAMPLE]`; con el default no crea el temporizador de muestreo.
+
+`chapter6_keyframe_pose_telemetry_enabled=false` reenvia otra captura pasiva,
+sin topic adicional: el servidor registra `[C6-KF-POSE]` solo para KFs que su
+builder ya publica. La prueba 6.3.3 combina esas lineas con el CSV GT del
+`fase45_recorder` existente, activado unicamente en su launch.
+
+`chapter7_tracking_risk_recorder_enabled=false` y `chapter7_tracking_risk_recorder_output_dir` activan el registrador pasivo de 7.7.2. Cuando se habilita, `chapter7_tracking_risk_recorder` correlaciona en CSV estado de navegación, evidencia visual, actividad de trayectoria y `VisualRiskEvent`; no altera los parámetros de riesgo, la trayectoria ni el control.
+
+`chapter7_orb_trajectory_recorder_enabled=false`,
+`chapter7_orb_trajectory_recorder_output_dir` y
+`chapter7_orb_trajectory_recorder_drone_namespace=dron_1` activan el
+registrador pasivo de 7.8.1. Escribe `navigation_state.csv`, `gt_pose.csv`,
+`gt_velocity.csv` y `trajectory_feedback.csv`; no publica ni cambia la fuente
+de navegacion, el control o la trayectoria.
+
 `full_snapshot_enabled=__from_yaml__` conserva el comportamiento configurado
 del servidor. La prueba 5.5 lo anula a `false` para aislar los deltas live sin
 modificar `runtime.yaml` ni alterar las ejecuciones normales.
 
+`fusion_score_inlier_reward` y `fusion_score_member_bonus` tambien se reenvian
+al launch del servidor con sentinel `__from_yaml__`. En pruebas concretas puede
+pasarse, por ejemplo, `0.08` para duplicar la recompensa de fusion sin tocar el
+YAML normal.
+
 Arranca Gazebo, el numero de drones definido en `config/sim_dron.yaml`,
-wrappers y `global_map_server`. RViz2, bridge web, navegador y telemetria de
-terminal son opcionales mediante `config/debug.yaml`. Pasa
+wrappers y `global_map_server`. Para pruebas experimentales acotadas puede
+sobrescribirse solo el numero de instancias con la variable de entorno
+`SIM_DRONE_COUNT_OVERRIDE` (entero `>=1`) antes de `ros2 launch`; si no se
+define, se conserva el valor del YAML. RViz2, bridge web, navegador y telemetria
+de terminal son opcionales mediante `config/debug.yaml`. Pasa
 `config/global_map/` al launch del servidor y solo sobrescribe identidad del
 despliegue y opciones explicitas de record/log.
 
@@ -219,6 +244,18 @@ phase6_facade_worker_period_ms=250
 phase6_reservation_sweep_sample_step_voxels=0.5
 phase6_depth_inspection_enabled=false
 phase6_depth_evidence_enabled=false
+phase6_test_view_unknown_right_enabled=false
+phase6_test_view_unknown_right_drone_id=1
+phase6_test_view_unknown_right_angle_deg=90.0
+phase6_test_view_unknown_right_distance_m=4.0
+phase6_test_view_wall_fixed_enabled=false
+phase6_test_view_wall_fixed_drone_id=1
+phase6_test_view_wall_fixed_x=-2.0
+phase6_test_view_wall_fixed_y=8.0
+phase6_test_view_wall_fixed_z=1.0
+phase6_test_view_wall_fixed_yaw_deg=90.0
+phase6_test_view_wall_fixed_ignore_corridor_stops=false
+phase6_test_view_wall_fixed_require_known_free=true
 phase6_depth_candidate_frame_capacity=16
 phase6_depth_candidate_min_tracking_inliers=20
 phase6_depth_candidate_min_interval_sec=0.5
@@ -252,7 +289,18 @@ umbral de coverage lineal, reintentos y periodo del worker. No existe una meta
 UNKNOWN ni un analizador de completion volumetrico. La inspeccion depth se
 activa por separado y solo bajo demanda con
 `phase6_depth_inspection_enabled`; `phase6_depth_evidence_enabled` permite al
-servidor integrar su producto exclusivamente como FREE reversible.
+servidor integrar su producto exclusivamente como FREE reversible. La pareja
+`phase6_test_view_unknown_right_*` queda desactivada por defecto y expone solo
+para 8.4-A un Trigger de prueba que orienta a un dron anclado a la derecha y
+usa el despacho correlacionado normal; no activa la autonomia general.
+`phase6_test_view_wall_fixed_*` tambien queda apagada por defecto. Solo para
+8.4-B expone un Trigger que ordena el `MOVE_AND_CAPTURE` normal a una pose fija,
+sin segundo movimiento GT ni seleccion alternativa. El flag
+phase6_test_view_wall_fixed_ignore_corridor_stops queda apagado por defecto y
+solo suprime en ese workflow la parada automatica por cambios OCCUPIED/INFLATED
+del corredor durante una repeticion experimental. El flag
+phase6_test_view_wall_fixed_require_known_free conserva por defecto la exigencia
+FREE; al fijarlo en false, solo ese workflow puede planificar por UNKNOWN.
 
 El historial depth de inspeccion guarda hasta 16 frames cualificados y los
 submuestrea por tiempo u orientacion. Productor, `task_manager` y servidor

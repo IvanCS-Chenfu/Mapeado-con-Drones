@@ -1,0 +1,677 @@
+name: c6_7_dos_vueltas_sentidos_contrarios
+description: 'Prueba integrada 6.7: dos drones recorren dos vueltas completas al edificio
+  en sentidos contrarios.'
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+- name: espera_spawn_fiduciales
+  type: wait_for_bool
+  topic: /fiducial_spawn_ready
+  expected: true
+  timeout_sec: 90.0
+- name: espera_arranque_tracking
+  type: wait
+  seconds: 16.0
+- name: ambos_al_fiducial_sur
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - -10.0
+    - 1.0
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - -10.0
+    - 1.3
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: espera_anclaje_sur_inicial
+  type: wait
+  seconds: 10.0
+- name: vuelta_1_esquinas_sur
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - -10.0
+    - 1.0
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - -10.0
+    - 1.3
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_1_laterales_medios_sur_a_norte
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - 0.0
+    - 1.0
+    yaw_deg: 0.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - 0.0
+    - 1.3
+    yaw_deg: 180.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_1_esquinas_norte
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - 10.0
+    - 1.0
+    yaw_deg: 0.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - 10.0
+    - 1.3
+    yaw_deg: 180.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_1_fiducial_norte
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - 10.0
+    - 1.0
+    yaw_deg: -90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - 10.0
+    - 1.3
+    yaw_deg: -90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: espera_anclaje_norte_vuelta_1
+  type: wait
+  seconds: 10.0
+- name: vuelta_1_esquinas_norte_opuestas
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - 10.0
+    - 1.0
+    yaw_deg: -90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - 10.0
+    - 1.3
+    yaw_deg: -90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_1_laterales_medios_norte_a_sur
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - 0.0
+    - 1.0
+    yaw_deg: 180.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - 0.0
+    - 1.3
+    yaw_deg: 0.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_1_esquinas_sur_opuestas
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - -10.0
+    - 1.0
+    yaw_deg: 180.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - -10.0
+    - 1.3
+    yaw_deg: 0.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_1_regreso_fiducial_sur
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - -10.0
+    - 1.0
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - -10.0
+    - 1.3
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: espera_revisit_sur_vuelta_1
+  type: wait
+  seconds: 10.0
+- name: vuelta_2_esquinas_sur
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - -10.0
+    - 1.0
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - -10.0
+    - 1.3
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_2_laterales_medios_sur_a_norte
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - 0.0
+    - 1.0
+    yaw_deg: 0.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - 0.0
+    - 1.3
+    yaw_deg: 180.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_2_esquinas_norte
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - 10.0
+    - 1.0
+    yaw_deg: 0.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - 10.0
+    - 1.3
+    yaw_deg: 180.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_2_fiducial_norte
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - 10.0
+    - 1.0
+    yaw_deg: -90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - 10.0
+    - 1.3
+    yaw_deg: -90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: espera_anclaje_norte_vuelta_2
+  type: wait
+  seconds: 10.0
+- name: vuelta_2_esquinas_norte_opuestas
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - 10.0
+    - 1.0
+    yaw_deg: -90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - 10.0
+    - 1.3
+    yaw_deg: -90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_2_laterales_medios_norte_a_sur
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - 0.0
+    - 1.0
+    yaw_deg: 180.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - 0.0
+    - 1.3
+    yaw_deg: 0.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_2_esquinas_sur_opuestas
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 10.0
+    - -10.0
+    - 1.0
+    yaw_deg: 180.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - -10.0
+    - -10.0
+    - 1.3
+    yaw_deg: 0.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: vuelta_2_regreso_fiducial_sur
+  type: move
+  mode: simultaneous
+  goals:
+  - drone_id: 1
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - -10.0
+    - 1.0
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+  - drone_id: 2
+    navigation_source: GT
+    tipo_trayectoria: 0
+    target:
+    - 0.0
+    - -10.0
+    - 1.3
+    yaw_deg: 90.0
+    tx: 24.0
+    ty: 24.0
+    tz: 24.0
+    tyaw: 8.0
+    absoluto_x: true
+    absoluto_y: true
+    absoluto_z: true
+    absoluto_yaw: true
+    timeout_sec: 240.0
+- name: espera_drenaje_integrado_final
+  type: wait
+  seconds: 60.0

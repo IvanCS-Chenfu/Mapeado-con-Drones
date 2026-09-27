@@ -1,0 +1,17 @@
+{
+  "test_id": "c7_7_2_tracking_risk_gt_orb_execution_gate_managed_yaw",
+  "run": "run_07",
+  "trajectory": "GT boot (1,-10,1,90) -> (0,-10,1,90); ORB source boundary and authority; enable existing F6 execution gate; managed yaw (0,-10,1,90) -> (0,-10,1,0)",
+  "startup_source": "GT from launch/profile, then explicit ORB after fiducial anchor",
+  "execution_gate": "Opened only after ORB authority through /mission/set_coverage_execution_enabled; facade sweeps remain disabled.",
+  "risk_parameters": "nominal, no overrides",
+  "status": "failed_execution_gate_opened_after_orb_source_ineligible",
+  "raw_log": "codex/archivos_auxiliares/logs/prueba_c7_7_2_tracking_risk_gt_orb_execution_gate_managed_yaw.log",
+  "result": {
+    "scenario_exit_code": 1,
+    "source_handoff": "passed: GT to ORB effective with zero continuity jump and ORB authority confirmed",
+    "execution_gate": "passed: /mission/set_coverage_execution_enabled accepted true",
+    "managed_yaw": "not dispatched: timed out waiting for assigned/running task state",
+    "root_cause": "task_server was launched with phase5_navigation_source=gt, so after ORB handoff IsEligiblePose rejects the drone; opening the gate then finds no eligible navigation pose to assign."
+  }
+}

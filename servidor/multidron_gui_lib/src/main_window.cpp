@@ -413,12 +413,14 @@ void MainWindow::UpdateDroneCards(const GuiSnapshot & snapshot)
 
     DroneCard & card = drone_cards_[drone_id];
     const QString visual_state = drone.has_world_pose ?
-      (drone.lost_or_unavailable ? "PERDIDO — última pose conocida" : "POSE WORLD OK") :
+      (drone.lost_or_unavailable ? "PERDIDO — última pose conocida" :
+      (drone.global_pose_pending ? "POSE GLOBAL PENDIENTE" : "POSE WORLD OK")) :
       "SIN POSE WORLD VÁLIDA";
     card.state->setText(visual_state);
     card.state->setStyleSheet(
       drone.lost_or_unavailable ? "color:#ffb74d;font-weight:600;" :
-      "color:#81c784;font-weight:600;");
+      (drone.global_pose_pending ? "color:#ffd54f;font-weight:600;" :
+      "color:#81c784;font-weight:600;"));
 
     if (drone.has_world_pose) {
       card.pose->setText(

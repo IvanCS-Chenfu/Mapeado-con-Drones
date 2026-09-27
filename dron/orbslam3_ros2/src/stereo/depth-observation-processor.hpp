@@ -23,6 +23,7 @@ struct DepthObservationParameters
   double max_disparity_gradient_px_per_pixel = 2.0;
   double min_texture_gradient = 8.0;
   int texture_window_radius_px = 2;
+  double normal_min_confidence = 0.7;
 };
 
 struct DepthObservationResult

@@ -35,7 +35,7 @@ struct LandmarkScoreRecord
 
 struct LandmarkScoreConfig
 {
-  bool drone_body_mask_enabled = true;
+  bool drone_body_mask_enabled = false;
   double isolation_radius_m = 0.35;
   uint32_t isolation_min_neighbors = 2;
   uint32_t isolation_min_observations = 3;

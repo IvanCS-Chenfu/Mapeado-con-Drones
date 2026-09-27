@@ -1,0 +1,3 @@
+| task_id | pass | time_s | commit_time_s | control_kf | target_kf | window_size | controls | temporal_edges | translation_error_before | rotation_error_before | yaw_error_before | translation_error_after | rotation_error_after | yaw_error_after | validation_translation_error | validation_rotation_error | validation_yaw_error | validation_decision | full_commit | moved_kfs | propagated_kfs | commit_id | pose_revision |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 1 | 69.40633392333984 | 70.70589756965637 | 31 | 115 | 84 | 45 | 44 | 0.734454 | 0.065606 | 0.053025 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | accept_full | true | 83 | 0 | 36 | 36 |

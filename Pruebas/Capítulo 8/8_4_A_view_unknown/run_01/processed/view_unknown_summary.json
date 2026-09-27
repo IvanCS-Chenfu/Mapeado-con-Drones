@@ -1,0 +1,149 @@
+{
+  "unknown_target_seen": true,
+  "before_captured": true,
+  "after_captured": true,
+  "snapshots": [
+    {
+      "snapshot": "before",
+      "map_revision": 197,
+      "num_UNKNOWN": 169,
+      "num_FREE": 7169,
+      "num_OCCUPIED": 298,
+      "coverage_progress": [
+        {
+          "task_id": "map_section_level_0_AB",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_0_BC",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_0_CD",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_0_DA",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_1_AB",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_1_BC",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_1_CD",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_1_DA",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_2_AB",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_2_BC",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_2_CD",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_2_DA",
+          "progress": 0.0,
+          "intervals": []
+        }
+      ]
+    },
+    {
+      "snapshot": "after",
+      "map_revision": 199,
+      "num_UNKNOWN": 169,
+      "num_FREE": 7172,
+      "num_OCCUPIED": 297,
+      "coverage_progress": [
+        {
+          "task_id": "map_section_level_0_AB",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_0_BC",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_0_CD",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_0_DA",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_1_AB",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_1_BC",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_1_CD",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_1_DA",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_2_AB",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_2_BC",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_2_CD",
+          "progress": 0.0,
+          "intervals": []
+        },
+        {
+          "task_id": "map_section_level_2_DA",
+          "progress": 0.0,
+          "intervals": []
+        }
+      ]
+    }
+  ],
+  "capture_duration_sec": 150.275,
+  "free_delta": 3,
+  "occupied_delta": -1,
+  "coverage_unchanged": true
+}

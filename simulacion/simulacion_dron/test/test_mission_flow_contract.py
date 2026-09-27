@@ -47,13 +47,16 @@ def test_launch_gates_phase6_and_both_observers_without_rviz_dependency():
     assert "'depth_observation_enabled': phase6_enabled" in launch
     assert "'depth_stop_enabled': phase6_enabled" in launch
     assert "'phase6_enabled': phase6_enabled" in launch
-    assert "'score_drone_body_mask_enabled': LaunchConfiguration(" in launch
     assert "'raw_stats_telemetry_enabled': LaunchConfiguration(" in launch
     assert "'full_snapshot_enabled': LaunchConfiguration(" in launch
     assert "'orb_loss_protocol_enabled': LaunchConfiguration(" in launch
     assert "'debug_mission_flow_web'" in launch
     assert "'debug_open_mission_flow_browser'" in launch
     assert "'topic': '/mission/flow_events'" in launch
+    assert "SIM_DRONE_COUNT_OVERRIDE" in launch
+    assert "SIM_DRONE_COUNT_OVERRIDE debe ser >= 1" in launch
+    assert "'fusion_score_inlier_reward', default_value='__from_yaml__'" in launch
+    assert "'fusion_score_member_bonus', default_value='__from_yaml__'" in launch
     assert "package='task_server'" in launch
     assert "package='task_manager'" in launch
     assert "'launch_rviz', default_value='false'" in launch
@@ -69,6 +72,10 @@ def test_autonomous_handoff_is_automatic_and_single_drone_profile_exists():
     assert 'EnableAutonomousExecution()' in runner
     assert '/mission/set_coverage_execution_enabled' in runner
     assert '[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF]' in runner
+    assert '[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-RETRY]' in runner
+    assert 'kMaxAttempts = 3U' in runner
+    assert 'bool autonomous_handoff_{true};' in runner
+    assert '[SCENARIO-RUNNER-AUTONOMOUS-HANDOFF-SKIPPED]' in runner
 
     mission = yaml.safe_load(
         (SRC_ROOT / 'servidor/task_server/config/mission_house_single_drone.yaml').read_text(

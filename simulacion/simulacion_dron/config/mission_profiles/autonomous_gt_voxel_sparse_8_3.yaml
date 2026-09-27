@@ -1,0 +1,9 @@
+mission_mode: autonomous
+navigation_source: gt
+trajectory_file: ../scenarios/autonomous_gt_voxel_sparse_8_3.yaml
+name: autonomous_gt_voxel_sparse_8_3
+description: "Prueba 8.3: evidencia sparse monodron sin handoff autonomo."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0

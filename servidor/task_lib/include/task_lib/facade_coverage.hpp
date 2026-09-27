@@ -84,7 +84,8 @@ FacadeCandidate SelectFacadeCoverageCandidate(
   const FacadeCoveragePlan & plan, const AxisAlignedBox & hard_flight_volume,
   const Vec3 & drone_position, const std::vector<bool> & active_sections,
   const FacadePreferences & preferences, const std::vector<VoxelCell> & voxel_cells,
-  double voxel_size, float occupied_score_threshold);
+  double voxel_size, float occupied_score_threshold,
+  const std::vector<bool> & excluded_sections = {});
 
 struct FreePrefixResult
 {

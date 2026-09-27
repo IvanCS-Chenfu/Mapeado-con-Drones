@@ -1,0 +1,21 @@
+{
+  "command": "./codex/herramientas/run_simulation.sh --prueba c6_3_3_optimizacion_fiducial ...",
+  "commit": "5e7ab9c1a02606f09422b5d183dfced5c726a376",
+  "configuration": {
+    "fiducial_visualization": true,
+    "gazebo_gui": true,
+    "multidron_gui": true,
+    "navigation_source": "GT",
+    "orb_loss_protocol_enabled": false,
+    "phase6_enabled": false,
+    "rviz": false
+  },
+  "drone_count": 1,
+  "duration_s": 149.0,
+  "hostname": "chenfu-IdeaPad-5-15ALC05",
+  "instrumentation": "C6-KF-POSE opt-in; fase45_recorder GT; F3 fiducial/optimization events",
+  "mission_profile": "Pruebas/Cap\u00edtulo 6/6_3_3_optimizacion_fiducial/configuracion/mission_profile_c6_3_3.yaml",
+  "scenario": "Pruebas/Cap\u00edtulo 6/6_3_3_optimizacion_fiducial/configuracion/c6_3_3_optimizacion_fiducial.yaml",
+  "timestamp": "2026-09-24T14:09:29.552996+02:00",
+  "worktree_porcelain": "M codex/contexto/00_CONTEXTO_COMPACTACION.md\n M codex/contexto/paquetes/orbslam3_server/00_summary.md\n M codex/contexto/paquetes/orbslam3_server/global_map_server.md\n M codex/contexto/paquetes/orbslam3_server/launches.md\n M codex/contexto/paquetes/simulacion_dron/launches.md\n M codex/herramientas/USO_HERRAMIENTAS.md\n M codex/herramientas/run_simulation.sh\n M servidor/orbslam3_multi/include/orbslam3_multi/landmark_score_manager.hpp\n M servidor/orbslam3_multi/src/landmark_score_manager.cpp\n M servidor/orbslam3_multi/test/test_landmark_score_manager.cpp\n M servidor/orbslam3_server/CMakeLists.txt\n M servidor/orbslam3_server/config/global_map/runtime.yaml\n M servidor/orbslam3_server/config/global_map/scoring.yaml\n M servidor/orbslam3_server/launch/global_orb_map_server.launch.py\n M servidor/orbslam3_server/src/global_map_server.cpp\n M simulacion/simulacion_dron/config/global_map/runtime.yaml\n M simulacion/simulacion_dron/config/global_map/scoring.yaml\n M simulacion/simulacion_dron/launch/multi_dron.launch.py\n M simulacion/simulacion_dron/test/test_mission_flow_contract.py\n?? PRUEBAS_CAPITULO_6_PARA_CODEX.md\n?? \"Pruebas/Cap\\303\\255tulo 6/\"\n?? codex/archivos_auxiliares/logs/patrones_f3_doc_diagnostico.txt\n?? codex/archivos_auxiliares/ros_logs/\n?? servidor/orbslam3_server/test/test_chapter6_queue_telemetry.py"
+}

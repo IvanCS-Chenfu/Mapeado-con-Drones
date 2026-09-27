@@ -1,0 +1,1 @@
+Repetición exacta de run_14: lateral oeste-norte a (-10, 9, 1); los dos últimos tramos, hacia fiducial 1 y posterior, usan GT.

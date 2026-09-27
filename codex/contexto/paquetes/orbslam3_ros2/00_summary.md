@@ -58,6 +58,12 @@ gate temporal/angular que convierte esta evidencia en una orientacion segura.
 `normal_valid`. Asi una normal debil no descarta los rayos FREE ni provoca por
 si sola reintentos de captura.
 
+El parámetro `depth_normal_min_confidence` controla ese último gate y tiene
+valor estricto `0.70` en el nodo estéreo. Debe estar entre `0` y `1`; no
+relaja soporte, textura, discontinuidad ni rango. El launch Fase 6 lo propaga
+hasta cada dron y actualmente lo fija por defecto a `0.50` para aceptar
+superficies con una normal dominante menos compacta durante autonomía.
+
 Referencia: `src/stereo/depth-observation-processor.cpp` ->
 `EstimateFacadeNormal` / `ComputeDepthObservation`.
 

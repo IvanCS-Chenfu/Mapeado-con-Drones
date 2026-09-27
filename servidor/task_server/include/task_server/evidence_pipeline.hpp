@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <set>
 #include <string>
@@ -68,7 +69,10 @@ public:
     const KeyframeEvidenceIdentity & identity, std::uint64_t geometry_revision,
     std::uint64_t pose_revision);
 
-  std::vector<EvidenceTransaction> TakePendingTransactions();
+  std::vector<EvidenceTransaction> TakePendingTransactions(
+    std::size_t max_transactions, bool prioritize_depth_transactions,
+    const std::set<std::string> & prioritized_source_ids = {});
+  std::size_t PendingTransactionCount() const;
   std::size_t SourceCount() const;
   bool HasSources(const KeyframeEvidenceIdentity & identity) const;
 
@@ -178,6 +182,7 @@ struct VoxelMaterializationStats
   std::size_t upserts = 0U;
   std::size_t deletes = 0U;
   std::size_t free_cells = 0U;
+  std::size_t pending_transactions = 0U;
   std::vector<std::string> applied_source_ids;
   std::vector<std::string> removed_source_ids;
   std::map<std::string, std::set<task_lib::VoxelKey>> occupied_cells_by_source;
@@ -190,7 +195,10 @@ public:
   explicit VoxelMapBuilder(double voxel_size_m);
 
   VoxelMaterializationStats Apply(
-    EvidenceDatabase * database, task_lib::ReversibleVoxelMap * voxel_map) const;
+    EvidenceDatabase * database, task_lib::ReversibleVoxelMap * voxel_map,
+    std::size_t max_transactions = std::numeric_limits<std::size_t>::max(),
+    bool prioritize_depth_transactions = false,
+    const std::set<std::string> & prioritized_source_ids = {}) const;
 
   static std::string SourceId(
     const KeyframeEvidenceIdentity & identity, const std::string & source_name);

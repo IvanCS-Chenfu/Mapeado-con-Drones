@@ -692,7 +692,8 @@ std::vector<Scene3DWidget::Vertex> Scene3DWidget::BuildDroneVertices() const
     if (!drone.has_world_pose) {
       continue;
     }
-    const float alpha = drone.lost_or_unavailable ? 0.25F : 1.0F;
+    const float alpha = drone.lost_or_unavailable ? 0.25F :
+      (drone.global_pose_pending ? 0.70F : 1.0F);
     AppendLine(
       &vertices, drone.position,
       drone.position + RotateVector(drone.orientation, QVector3D(axis, 0.0F, 0.0F)),
@@ -928,7 +929,8 @@ void Scene3DWidget::PickAt(const QPoint & screen_position)
         .arg(drone.position.y(), 0, 'f', 3)
         .arg(drone.position.z(), 0, 'f', 3)
         .arg(drone.yaw_rad, 0, 'f', 4)
-        .arg(drone.lost_or_unavailable ? "PERDIDO/NO DISPONIBLE" : "OK"));
+        .arg(drone.lost_or_unavailable ? "PERDIDO/NO DISPONIBLE" :
+        (drone.global_pose_pending ? "POSE GLOBAL PENDIENTE" : "OK")));
     }
   }
 
@@ -1150,10 +1152,13 @@ void Scene3DWidget::DrawEntityLabels()
       if (!drone.has_world_pose || !ProjectToScreen(drone.position, &screen)) {
         continue;
       }
-      painter.setPen(drone.lost_or_unavailable ? QColor(255, 183, 77) : QColor(225, 232, 240));
+      painter.setPen(drone.lost_or_unavailable ? QColor(255, 183, 77) :
+        (drone.global_pose_pending ? QColor(255, 213, 79) : QColor(225, 232, 240)));
       QString label = QString("D%1").arg(drone.drone_id);
       if (drone.lost_or_unavailable) {
         label += " [PERDIDO]";
+      } else if (drone.global_pose_pending) {
+        label += " [GLOBAL PENDIENTE]";
       } else if (drone.pose_source == orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FORCED) {
         label += " [GT]";
       } else if (drone.pose_source == orbslam3_msgs::msg::NavigationState::POSE_SOURCE_ORB) {

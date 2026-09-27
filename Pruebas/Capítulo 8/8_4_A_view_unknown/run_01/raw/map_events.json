@@ -1,0 +1,4841 @@
+[
+  {
+    "elapsed_sec": 3.175,
+    "map_revision": 0,
+    "num_UNKNOWN": 0,
+    "num_FREE": 0,
+    "num_OCCUPIED": 0,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 72.878,
+    "map_revision": 33,
+    "num_UNKNOWN": 211,
+    "num_FREE": 6874,
+    "num_OCCUPIED": 430,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 75.255,
+    "map_revision": 78,
+    "num_UNKNOWN": 244,
+    "num_FREE": 7214,
+    "num_OCCUPIED": 555,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 77.52,
+    "map_revision": 114,
+    "num_UNKNOWN": 175,
+    "num_FREE": 7235,
+    "num_OCCUPIED": 288,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 78.987,
+    "map_revision": 154,
+    "num_UNKNOWN": 166,
+    "num_FREE": 7342,
+    "num_OCCUPIED": 302,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 79.832,
+    "map_revision": 165,
+    "num_UNKNOWN": 170,
+    "num_FREE": 7168,
+    "num_OCCUPIED": 297,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 79.969,
+    "map_revision": 167,
+    "num_UNKNOWN": 170,
+    "num_FREE": 7178,
+    "num_OCCUPIED": 297,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 80.559,
+    "map_revision": 173,
+    "num_UNKNOWN": 170,
+    "num_FREE": 7175,
+    "num_OCCUPIED": 296,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 81.758,
+    "map_revision": 177,
+    "num_UNKNOWN": 171,
+    "num_FREE": 7175,
+    "num_OCCUPIED": 296,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 83.233,
+    "map_revision": 182,
+    "num_UNKNOWN": 171,
+    "num_FREE": 7176,
+    "num_OCCUPIED": 295,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 84.865,
+    "map_revision": 187,
+    "num_UNKNOWN": 171,
+    "num_FREE": 7175,
+    "num_OCCUPIED": 296,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 86.243,
+    "map_revision": 190,
+    "num_UNKNOWN": 171,
+    "num_FREE": 7175,
+    "num_OCCUPIED": 296,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 87.666,
+    "map_revision": 191,
+    "num_UNKNOWN": 169,
+    "num_FREE": 7175,
+    "num_OCCUPIED": 298,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 87.936,
+    "map_revision": 197,
+    "num_UNKNOWN": 169,
+    "num_FREE": 7169,
+    "num_OCCUPIED": 298,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 89.255,
+    "map_revision": 199,
+    "num_UNKNOWN": 169,
+    "num_FREE": 7172,
+    "num_OCCUPIED": 297,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 92.773,
+    "map_revision": 207,
+    "num_UNKNOWN": 169,
+    "num_FREE": 7248,
+    "num_OCCUPIED": 313,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 94.962,
+    "map_revision": 241,
+    "num_UNKNOWN": 183,
+    "num_FREE": 7250,
+    "num_OCCUPIED": 297,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 95.981,
+    "map_revision": 269,
+    "num_UNKNOWN": 186,
+    "num_FREE": 7250,
+    "num_OCCUPIED": 306,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 97.496,
+    "map_revision": 299,
+    "num_UNKNOWN": 190,
+    "num_FREE": 7270,
+    "num_OCCUPIED": 310,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 97.685,
+    "map_revision": 300,
+    "num_UNKNOWN": 186,
+    "num_FREE": 8391,
+    "num_OCCUPIED": 310,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 98.423,
+    "map_revision": 300,
+    "num_UNKNOWN": 186,
+    "num_FREE": 8391,
+    "num_OCCUPIED": 310,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 98.514,
+    "map_revision": 300,
+    "num_UNKNOWN": 186,
+    "num_FREE": 8391,
+    "num_OCCUPIED": 310,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 98.653,
+    "map_revision": 304,
+    "num_UNKNOWN": 186,
+    "num_FREE": 8390,
+    "num_OCCUPIED": 311,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 99.248,
+    "map_revision": 305,
+    "num_UNKNOWN": 186,
+    "num_FREE": 8392,
+    "num_OCCUPIED": 311,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 99.821,
+    "map_revision": 310,
+    "num_UNKNOWN": 186,
+    "num_FREE": 8392,
+    "num_OCCUPIED": 310,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 100.244,
+    "map_revision": 311,
+    "num_UNKNOWN": 186,
+    "num_FREE": 8395,
+    "num_OCCUPIED": 310,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 102.008,
+    "map_revision": 314,
+    "num_UNKNOWN": 203,
+    "num_FREE": 8363,
+    "num_OCCUPIED": 389,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 102.632,
+    "map_revision": 341,
+    "num_UNKNOWN": 201,
+    "num_FREE": 8573,
+    "num_OCCUPIED": 389,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 102.857,
+    "map_revision": 344,
+    "num_UNKNOWN": 201,
+    "num_FREE": 8577,
+    "num_OCCUPIED": 389,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 104.298,
+    "map_revision": 380,
+    "num_UNKNOWN": 205,
+    "num_FREE": 8620,
+    "num_OCCUPIED": 429,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 104.427,
+    "map_revision": 383,
+    "num_UNKNOWN": 205,
+    "num_FREE": 8628,
+    "num_OCCUPIED": 429,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 105.522,
+    "map_revision": 418,
+    "num_UNKNOWN": 212,
+    "num_FREE": 8611,
+    "num_OCCUPIED": 411,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 105.787,
+    "map_revision": 418,
+    "num_UNKNOWN": 212,
+    "num_FREE": 8611,
+    "num_OCCUPIED": 411,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 106.403,
+    "map_revision": 421,
+    "num_UNKNOWN": 211,
+    "num_FREE": 8776,
+    "num_OCCUPIED": 421,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 106.937,
+    "map_revision": 428,
+    "num_UNKNOWN": 219,
+    "num_FREE": 8741,
+    "num_OCCUPIED": 414,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 107.703,
+    "map_revision": 433,
+    "num_UNKNOWN": 219,
+    "num_FREE": 8742,
+    "num_OCCUPIED": 413,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 110.677,
+    "map_revision": 488,
+    "num_UNKNOWN": 190,
+    "num_FREE": 8806,
+    "num_OCCUPIED": 409,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 110.984,
+    "map_revision": 494,
+    "num_UNKNOWN": 189,
+    "num_FREE": 8807,
+    "num_OCCUPIED": 408,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 112.345,
+    "map_revision": 500,
+    "num_UNKNOWN": 184,
+    "num_FREE": 8829,
+    "num_OCCUPIED": 407,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 113.668,
+    "map_revision": 503,
+    "num_UNKNOWN": 184,
+    "num_FREE": 8828,
+    "num_OCCUPIED": 408,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 115.145,
+    "map_revision": 505,
+    "num_UNKNOWN": 184,
+    "num_FREE": 8826,
+    "num_OCCUPIED": 408,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 116.655,
+    "map_revision": 507,
+    "num_UNKNOWN": 184,
+    "num_FREE": 8827,
+    "num_OCCUPIED": 407,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 118.191,
+    "map_revision": 513,
+    "num_UNKNOWN": 185,
+    "num_FREE": 8825,
+    "num_OCCUPIED": 406,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 119.682,
+    "map_revision": 516,
+    "num_UNKNOWN": 185,
+    "num_FREE": 8821,
+    "num_OCCUPIED": 407,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 121.097,
+    "map_revision": 518,
+    "num_UNKNOWN": 184,
+    "num_FREE": 8821,
+    "num_OCCUPIED": 408,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 122.723,
+    "map_revision": 523,
+    "num_UNKNOWN": 185,
+    "num_FREE": 8821,
+    "num_OCCUPIED": 407,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 125.603,
+    "map_revision": 525,
+    "num_UNKNOWN": 185,
+    "num_FREE": 8822,
+    "num_OCCUPIED": 406,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 127.245,
+    "map_revision": 531,
+    "num_UNKNOWN": 183,
+    "num_FREE": 8830,
+    "num_OCCUPIED": 406,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 128.642,
+    "map_revision": 532,
+    "num_UNKNOWN": 185,
+    "num_FREE": 8830,
+    "num_OCCUPIED": 404,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 130.424,
+    "map_revision": 535,
+    "num_UNKNOWN": 186,
+    "num_FREE": 8763,
+    "num_OCCUPIED": 404,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 133.181,
+    "map_revision": 538,
+    "num_UNKNOWN": 187,
+    "num_FREE": 8763,
+    "num_OCCUPIED": 403,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 136.11,
+    "map_revision": 540,
+    "num_UNKNOWN": 187,
+    "num_FREE": 8764,
+    "num_OCCUPIED": 402,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 139.157,
+    "map_revision": 545,
+    "num_UNKNOWN": 187,
+    "num_FREE": 8763,
+    "num_OCCUPIED": 402,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  },
+  {
+    "elapsed_sec": 146.704,
+    "map_revision": 554,
+    "num_UNKNOWN": 187,
+    "num_FREE": 8764,
+    "num_OCCUPIED": 401,
+    "coverage_progress": [
+      {
+        "task_id": "map_section_level_0_AB",
+        "progress": 0.0677083358168602,
+        "intervals": [
+          {
+            "start_ratio": 0.4895833432674408,
+            "end_ratio": 0.4947916567325592
+          },
+          {
+            "start_ratio": 0.4947916567325592,
+            "end_ratio": 0.5
+          },
+          {
+            "start_ratio": 0.5,
+            "end_ratio": 0.5052083134651184
+          },
+          {
+            "start_ratio": 0.5052083134651184,
+            "end_ratio": 0.5104166865348816
+          },
+          {
+            "start_ratio": 0.5104166865348816,
+            "end_ratio": 0.515625
+          },
+          {
+            "start_ratio": 0.515625,
+            "end_ratio": 0.5208333134651184
+          },
+          {
+            "start_ratio": 0.5208333134651184,
+            "end_ratio": 0.5260416865348816
+          },
+          {
+            "start_ratio": 0.5260416865348816,
+            "end_ratio": 0.53125
+          },
+          {
+            "start_ratio": 0.53125,
+            "end_ratio": 0.5364583134651184
+          },
+          {
+            "start_ratio": 0.5364583134651184,
+            "end_ratio": 0.5416666865348816
+          },
+          {
+            "start_ratio": 0.5416666865348816,
+            "end_ratio": 0.546875
+          },
+          {
+            "start_ratio": 0.546875,
+            "end_ratio": 0.5520833134651184
+          },
+          {
+            "start_ratio": 0.5520833134651184,
+            "end_ratio": 0.5572916865348816
+          }
+        ]
+      },
+      {
+        "task_id": "map_section_level_0_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_0_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_1_DA",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_AB",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_BC",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_CD",
+        "progress": 0.0,
+        "intervals": []
+      },
+      {
+        "task_id": "map_section_level_2_DA",
+        "progress": 0.0,
+        "intervals": []
+      }
+    ]
+  }
+]

@@ -122,6 +122,16 @@ bool HasCanonicalWorldPose(const orbslam3_msgs::msg::NavigationState & state)
          state.pose_source == Message::POSE_SOURCE_GLOBAL);
 }
 
+bool IsGlobalPosePending(const orbslam3_msgs::msg::NavigationState & state)
+{
+  using Message = orbslam3_msgs::msg::NavigationState;
+  const bool uses_global_orb_pose =
+    state.pose_source == Message::POSE_SOURCE_ORB ||
+    state.pose_source == Message::POSE_SOURCE_GLOBAL;
+  return uses_global_orb_pose && !state.global_valid && state.reference_keyframe_valid &&
+         state.local_valid && state.local_continuity_valid && IsTrackingUsable(state);
+}
+
 }  // namespace
 
 RosDataBridge::RosDataBridge(
@@ -590,14 +600,16 @@ void RosDataBridge::OnNavigationState(
     const bool usable = HasCanonicalWorldPose(*state) &&
       (state->pose_source == orbslam3_msgs::msg::NavigationState::POSE_SOURCE_GT_FORCED ||
       IsTrackingUsable(*state));
+    output.global_pose_pending = IsGlobalPosePending(*state);
     if (usable) {
       output.position = ToVector(state->w_t_body.position);
       output.orientation = ToQuaternion(state->w_t_body.orientation);
       output.yaw_rad = QuaternionYaw(state->w_t_body.orientation);
       output.has_world_pose = true;
       output.lost_or_unavailable = false;
+      output.global_pose_pending = false;
     } else {
-      output.lost_or_unavailable = true;
+      output.lost_or_unavailable = !output.global_pose_pending;
     }
 
     const auto current = drone_cache_.find(drone_id);
@@ -620,10 +632,11 @@ void RosDataBridge::OnNavigationState(
   (void)model_->UpdateDrone(output);
   RCLCPP_INFO_THROTTLE(
     get_logger(), *get_clock(), 2000,
-    "[GUI-DRONE-POSE] drone_id=%u epoch=%lu pose_revision=%lu available=%s stale=%s",
+    "[GUI-DRONE-POSE] drone_id=%u epoch=%lu pose_revision=%lu available=%s stale=%s global_pending=%s",
     output.drone_id, output.map_epoch, output.pose_revision,
     output.has_world_pose ? "true" : "false",
-    output.lost_or_unavailable ? "true" : "false");
+    output.lost_or_unavailable ? "true" : "false",
+    output.global_pose_pending ? "true" : "false");
 }
 
 void RosDataBridge::CheckStaleDrones()

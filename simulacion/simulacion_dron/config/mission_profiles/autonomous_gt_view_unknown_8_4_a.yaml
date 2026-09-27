@@ -1,0 +1,3 @@
+mission_mode: autonomous
+navigation_source: gt
+trajectory_file: ../scenarios/autonomous_gt_view_unknown_8_4_a.yaml

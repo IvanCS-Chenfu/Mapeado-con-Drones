@@ -240,4 +240,65 @@ TEST(EvidencePipeline, ReusesAnAlreadyMaterializedDepthSourceForNewCorrelation)
   EXPECT_EQ(materialized.applied_source_ids.size(), 1U);
 }
 
+
+TEST(EvidencePipeline, BatchesSparseAndPrioritizesDepthTransactions)
+{
+  task_server::EvidenceDatabase database;
+  const task_server::KeyframeEvidenceIdentity sparse_identity{1U, 1U, 1U};
+  const task_server::KeyframeEvidenceIdentity depth_identity{2U, 1U, 1U};
+  const task_server::KeyframeEvidenceSource sparse_source{
+    "sparse_ray_free", task_server::EvidenceSourceKind::FREE, 1U, {}, {{1.0, 0.0, 0.0}}};
+  const task_server::KeyframeEvidenceSource depth_source{
+    "depth_free:1", task_server::EvidenceSourceKind::FREE, 1U, {}, {{2.0, 0.0, 0.0}}};
+  ASSERT_TRUE(database.ReplaceKeyframeSources(
+      sparse_identity, 1U, 1U, IdentityPose(), {sparse_source}));
+  ASSERT_TRUE(database.ReplaceKeyframeSources(
+      depth_identity, 1U, 1U, IdentityPose(), {depth_source}));
+
+  task_lib::ReversibleVoxelMap map(0.25);
+  task_server::VoxelMapBuilder builder(0.25);
+  const auto first = builder.Apply(&database, &map, 1U, true);
+  ASSERT_EQ(first.transactions, 1U);
+  ASSERT_EQ(first.applied_source_ids.size(), 1U);
+  EXPECT_EQ(first.applied_source_ids.front(), "depth_free:1:2:1:1");
+  EXPECT_EQ(first.pending_transactions, 1U);
+
+  const auto second = builder.Apply(&database, &map, 1U, true);
+  ASSERT_EQ(second.transactions, 1U);
+  ASSERT_EQ(second.applied_source_ids.size(), 1U);
+  EXPECT_EQ(second.applied_source_ids.front(), "sparse_ray_free:1:1:1");
+  EXPECT_EQ(second.pending_transactions, 0U);
+}
+
+TEST(EvidencePipeline, PrioritizesPendingContinuationSourcesWithTheirKeyframeHistory)
+{
+  task_server::EvidenceDatabase database;
+  const task_server::KeyframeEvidenceIdentity unrelated_identity{1U, 1U, 1U};
+  const task_server::KeyframeEvidenceIdentity command_identity{2U, 1U, 1U};
+  const task_server::KeyframeEvidenceSource unrelated_source{
+    "sparse_ray_free", task_server::EvidenceSourceKind::FREE, 1U, {}, {{1.0, 0.0, 0.0}}};
+  const task_server::KeyframeEvidenceSource predecessor_source{
+    "sparse_ray_free", task_server::EvidenceSourceKind::FREE, 1U, {}, {{2.0, 0.0, 0.0}}};
+  const task_server::KeyframeEvidenceSource command_source{
+    "depth_free:42", task_server::EvidenceSourceKind::FREE, 1U, {}, {{3.0, 0.0, 0.0}}};
+  ASSERT_TRUE(database.ReplaceKeyframeSources(
+      unrelated_identity, 1U, 1U, IdentityPose(), {unrelated_source}));
+  ASSERT_TRUE(database.ReplaceKeyframeSources(
+      command_identity, 1U, 1U, IdentityPose(), {predecessor_source}));
+  ASSERT_TRUE(database.UpsertKeyframeSources(command_identity, {command_source}));
+
+  const std::set<std::string> continuation_sources{
+    task_server::VoxelMapBuilder::SourceId(command_identity, command_source.source_name)};
+  task_lib::ReversibleVoxelMap map(0.25);
+  task_server::VoxelMapBuilder builder(0.25);
+  const auto materialized = builder.Apply(&database, &map, 1U, true, continuation_sources);
+
+  EXPECT_EQ(materialized.transactions, 2U);
+  EXPECT_EQ(materialized.pending_transactions, 1U);
+  EXPECT_EQ(
+    materialized.applied_source_ids,
+    (std::vector<std::string>{
+      "sparse_ray_free:2:1:1", "depth_free:42:2:1:1"}));
+}
+
 }  // namespace

@@ -1,0 +1,22 @@
+{
+  "command": "./codex/herramientas/run_simulation.sh --prueba c6_2_4_loop_backpressure_v3 --launch \"ros2 launch simulacion_dron multi_dron.launch.py ...\" --mission-profile /home/chenfu/Gazebo/src/Pruebas/Cap\u00edtulo\\ 6/6_2_4_loop_y_backpressure/configuracion/mission_profile_c6_2_4.yaml",
+  "commit": "5e7ab9c1a02606f09422b5d183dfced5c726a376",
+  "configuration": {
+    "launch_gazebo_gui": true,
+    "launch_multidron_gui": true,
+    "launch_phase6": false,
+    "launch_rviz": false,
+    "mission_mode": "trajectory",
+    "navigation_source": "gt",
+    "orb_loss_protocol_enabled": false,
+    "raw_stats_telemetry_enabled": false
+  },
+  "drone_count": 2,
+  "duration_s": 309.0,
+  "hostname": "chenfu-IdeaPad-5-15ALC05",
+  "instrumentation": "chapter6_queue_telemetry_enabled=true; chapter6_queue_telemetry_period_ms=500",
+  "mission_profile": "Pruebas/Cap\u00edtulo 6/6_2_4_loop_y_backpressure/configuracion/mission_profile_c6_2_4.yaml",
+  "scenario": "c6_2_4_loop_backpressure",
+  "timestamp": "2026-09-24T12:57:27.699596+02:00",
+  "worktree_porcelain": "M codex/contexto/00_CONTEXTO_COMPACTACION.md\n M codex/contexto/paquetes/orbslam3_server/00_summary.md\n M codex/contexto/paquetes/orbslam3_server/global_map_server.md\n M codex/contexto/paquetes/simulacion_dron/launches.md\n M servidor/orbslam3_server/CMakeLists.txt\n M servidor/orbslam3_server/config/global_map/runtime.yaml\n M servidor/orbslam3_server/launch/global_orb_map_server.launch.py\n M servidor/orbslam3_server/src/global_map_server.cpp\n M simulacion/simulacion_dron/config/global_map/runtime.yaml\n M simulacion/simulacion_dron/launch/multi_dron.launch.py\n?? PRUEBAS_CAPITULO_6_PARA_CODEX.md\n?? \"Pruebas/Cap\\303\\255tulo 6/\"\n?? codex/archivos_auxiliares/logs/patrones_f3_doc_diagnostico.txt\n?? codex/archivos_auxiliares/ros_logs/\n?? servidor/orbslam3_server/test/test_chapter6_queue_telemetry.py"
+}

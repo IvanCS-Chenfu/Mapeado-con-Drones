@@ -1,0 +1,5 @@
+name: c7_8_1_orb_short_cubic
+SIM_DRONE_COUNT_OVERRIDE: 1
+gt_fallback_enabled: false
+phase6_visual_risk_enabled: false
+chapter7_orb_trajectory_recorder_enabled: true

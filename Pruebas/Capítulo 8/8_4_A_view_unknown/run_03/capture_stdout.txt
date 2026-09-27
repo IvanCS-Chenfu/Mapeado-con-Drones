@@ -1,0 +1,1 @@
+{"anchored_ready": true, "before_captured": true, "map_history_count": 56, "capture_duration_sec": 180.139}

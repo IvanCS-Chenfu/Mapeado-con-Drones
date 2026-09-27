@@ -1,0 +1,6 @@
+{
+  "source_log": "Pruebas/Capítulo 6/6_2_4_loop_y_backpressure/datos_procesados/eventos_f3_reducidos.log",
+  "source_log_sha256": "358ae5148a5955f673e4357f8ed79daefdafbac94074509ff6d79d9f724e8850",
+  "loop_optimizations": 5,
+  "all_committed": true
+}

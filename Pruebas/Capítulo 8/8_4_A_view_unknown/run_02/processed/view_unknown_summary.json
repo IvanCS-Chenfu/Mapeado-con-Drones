@@ -1,0 +1,23 @@
+{
+  "command_id": "autonomous:point:map_section_level_0_AB:2:2",
+  "accepted_stamp_sec": 1790339421.4705508,
+  "applied_stamp_sec": 1790339432.9199069,
+  "accepted_elapsed_sec": 99.72168707847595,
+  "applied_elapsed_sec": 111.17104315757751,
+  "written_kind_vista_unknown": true,
+  "map_revision_before": 332,
+  "map_revision_after": 756,
+  "free_before": 7605,
+  "free_after": 8086,
+  "free_delta": 481,
+  "occupied_before": 360,
+  "occupied_after": 407,
+  "occupied_delta": 47,
+  "unknown_before": 194,
+  "unknown_after": 174,
+  "coverage_unchanged": true,
+  "yaw_before_deg": 89.9983815232719,
+  "yaw_after_deg": 56.929331578956585,
+  "yaw_delta_deg": -33.06904994431531,
+  "result": "FAIL"
+}

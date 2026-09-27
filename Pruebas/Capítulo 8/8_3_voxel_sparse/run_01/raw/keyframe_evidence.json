@@ -1,0 +1,277 @@
+{
+  "1:0:0": {
+    "geometry_revision": 13735213767137206815,
+    "pose_revision": 1,
+    "points": 87
+  },
+  "1:0:1": {
+    "geometry_revision": 6399329543360045061,
+    "pose_revision": 1,
+    "points": 137
+  },
+  "1:0:2": {
+    "geometry_revision": 11402005902454119818,
+    "pose_revision": 2,
+    "points": 151
+  },
+  "1:0:3": {
+    "geometry_revision": 13367822710085298654,
+    "pose_revision": 2,
+    "points": 165
+  },
+  "1:0:4": {
+    "geometry_revision": 12043193750964206912,
+    "pose_revision": 2,
+    "points": 176
+  },
+  "1:0:5": {
+    "geometry_revision": 3067510684692390146,
+    "pose_revision": 3,
+    "points": 184
+  },
+  "1:0:6": {
+    "geometry_revision": 5002865705757126599,
+    "pose_revision": 4,
+    "points": 188
+  },
+  "1:0:7": {
+    "geometry_revision": 12191822610409952985,
+    "pose_revision": 6,
+    "points": 200
+  },
+  "1:0:8": {
+    "geometry_revision": 10562671347169928115,
+    "pose_revision": 6,
+    "points": 227
+  },
+  "1:0:9": {
+    "geometry_revision": 154117786675893510,
+    "pose_revision": 6,
+    "points": 190
+  },
+  "1:0:10": {
+    "geometry_revision": 10670305478025931640,
+    "pose_revision": 7,
+    "points": 185
+  },
+  "1:0:11": {
+    "geometry_revision": 4974804807883094838,
+    "pose_revision": 8,
+    "points": 217
+  },
+  "1:0:12": {
+    "geometry_revision": 16712941245017334335,
+    "pose_revision": 9,
+    "points": 261
+  },
+  "1:0:13": {
+    "geometry_revision": 6464744003137637578,
+    "pose_revision": 9,
+    "points": 287
+  },
+  "1:0:14": {
+    "geometry_revision": 11829343575594424958,
+    "pose_revision": 9,
+    "points": 301
+  },
+  "1:0:15": {
+    "geometry_revision": 9495815451217436811,
+    "pose_revision": 9,
+    "points": 290
+  },
+  "1:0:16": {
+    "geometry_revision": 15049904420069654875,
+    "pose_revision": 10,
+    "points": 355
+  },
+  "1:0:17": {
+    "geometry_revision": 12831557801512298829,
+    "pose_revision": 10,
+    "points": 412
+  },
+  "1:0:18": {
+    "geometry_revision": 17177816073529214814,
+    "pose_revision": 9,
+    "points": 444
+  },
+  "1:0:19": {
+    "geometry_revision": 2059801596340747705,
+    "pose_revision": 9,
+    "points": 413
+  },
+  "1:0:20": {
+    "geometry_revision": 9524712059420645250,
+    "pose_revision": 10,
+    "points": 406
+  },
+  "1:0:21": {
+    "geometry_revision": 12418361410564904917,
+    "pose_revision": 11,
+    "points": 424
+  },
+  "1:0:22": {
+    "geometry_revision": 9036021638916418029,
+    "pose_revision": 11,
+    "points": 450
+  },
+  "1:0:23": {
+    "geometry_revision": 257884077932516076,
+    "pose_revision": 11,
+    "points": 456
+  },
+  "1:0:24": {
+    "geometry_revision": 11065413482853131851,
+    "pose_revision": 9,
+    "points": 455
+  },
+  "1:0:25": {
+    "geometry_revision": 9385810677638909000,
+    "pose_revision": 9,
+    "points": 400
+  },
+  "1:0:26": {
+    "geometry_revision": 7751237729012183362,
+    "pose_revision": 8,
+    "points": 373
+  },
+  "1:0:27": {
+    "geometry_revision": 11437883273935447900,
+    "pose_revision": 9,
+    "points": 361
+  },
+  "1:0:28": {
+    "geometry_revision": 4752149249748620511,
+    "pose_revision": 9,
+    "points": 352
+  },
+  "1:0:29": {
+    "geometry_revision": 16475497161728001736,
+    "pose_revision": 8,
+    "points": 406
+  },
+  "1:0:30": {
+    "geometry_revision": 14437327667356961531,
+    "pose_revision": 8,
+    "points": 398
+  },
+  "1:0:31": {
+    "geometry_revision": 12316075146704295482,
+    "pose_revision": 8,
+    "points": 354
+  },
+  "1:0:32": {
+    "geometry_revision": 6203141853395948275,
+    "pose_revision": 9,
+    "points": 360
+  },
+  "1:0:33": {
+    "geometry_revision": 6377519417610300182,
+    "pose_revision": 7,
+    "points": 389
+  },
+  "1:0:34": {
+    "geometry_revision": 1372947954610877188,
+    "pose_revision": 6,
+    "points": 346
+  },
+  "1:0:35": {
+    "geometry_revision": 12898238041186913006,
+    "pose_revision": 6,
+    "points": 306
+  },
+  "1:0:36": {
+    "geometry_revision": 15798877965761424444,
+    "pose_revision": 6,
+    "points": 272
+  },
+  "1:0:37": {
+    "geometry_revision": 1900621229039431515,
+    "pose_revision": 7,
+    "points": 248
+  },
+  "1:0:38": {
+    "geometry_revision": 2539142400194803892,
+    "pose_revision": 9,
+    "points": 282
+  },
+  "1:0:39": {
+    "geometry_revision": 17155894352545098827,
+    "pose_revision": 8,
+    "points": 276
+  },
+  "1:0:40": {
+    "geometry_revision": 15721981690347252772,
+    "pose_revision": 7,
+    "points": 231
+  },
+  "1:0:41": {
+    "geometry_revision": 5762310781736122890,
+    "pose_revision": 9,
+    "points": 233
+  },
+  "1:0:42": {
+    "geometry_revision": 4722794039437310044,
+    "pose_revision": 9,
+    "points": 226
+  },
+  "1:0:43": {
+    "geometry_revision": 6239820339522449610,
+    "pose_revision": 9,
+    "points": 237
+  },
+  "1:0:44": {
+    "geometry_revision": 10021770719610896434,
+    "pose_revision": 8,
+    "points": 234
+  },
+  "1:0:45": {
+    "geometry_revision": 13807643396056469736,
+    "pose_revision": 8,
+    "points": 196
+  },
+  "1:0:46": {
+    "geometry_revision": 2919774104205273910,
+    "pose_revision": 7,
+    "points": 176
+  },
+  "1:0:47": {
+    "geometry_revision": 17274785689151887991,
+    "pose_revision": 7,
+    "points": 180
+  },
+  "1:0:49": {
+    "geometry_revision": 3869410065248912302,
+    "pose_revision": 6,
+    "points": 150
+  },
+  "1:0:51": {
+    "geometry_revision": 1556006599490140724,
+    "pose_revision": 5,
+    "points": 191
+  },
+  "1:0:52": {
+    "geometry_revision": 11843855539237429900,
+    "pose_revision": 4,
+    "points": 219
+  },
+  "1:0:54": {
+    "geometry_revision": 16727388129714127561,
+    "pose_revision": 3,
+    "points": 232
+  },
+  "1:0:55": {
+    "geometry_revision": 9553266631999763536,
+    "pose_revision": 2,
+    "points": 207
+  },
+  "1:0:56": {
+    "geometry_revision": 17873384326353651170,
+    "pose_revision": 2,
+    "points": 234
+  },
+  "1:0:57": {
+    "geometry_revision": 4886605423377692923,
+    "pose_revision": 1,
+    "points": 261
+  }
+}

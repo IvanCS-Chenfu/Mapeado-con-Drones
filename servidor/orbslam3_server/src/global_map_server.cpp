@@ -314,7 +314,7 @@ public:
     backend_.ConfigureFusedLandmarks(fused_config);
     orbslam3_multi::LandmarkScoreConfig score_config;
     score_config.drone_body_mask_enabled = declare_parameter<bool>(
-      "score_drone_body_mask_enabled", true);
+      "score_drone_body_mask_enabled", false);
     score_config.isolation_radius_m = declare_parameter<double>(
       "score_isolation_radius_m", 0.35);
     score_config.isolation_min_neighbors = static_cast<uint32_t>(declare_parameter<int>(
@@ -339,12 +339,21 @@ public:
       "keyframe_sparse_evidence_enabled", true);
     raw_stats_telemetry_enabled_ = declare_parameter<bool>(
       "raw_stats_telemetry_enabled", false);
+    chapter6_queue_telemetry_enabled_ = declare_parameter<bool>(
+      "chapter6_queue_telemetry_enabled", false);
+    chapter6_queue_telemetry_period_ms_ = std::max<int64_t>(
+      100, declare_parameter<int64_t>("chapter6_queue_telemetry_period_ms", 500));
+    chapter6_keyframe_pose_telemetry_enabled_ = declare_parameter<bool>(
+      "chapter6_keyframe_pose_telemetry_enabled", false);
     RCLCPP_INFO(
       get_logger(),
-      "[GLOBAL-FEATURE-GATES] phase6_sparse_evidence=%s body_mask=%s raw_stats_telemetry=%s",
+      "[GLOBAL-FEATURE-GATES] phase6_sparse_evidence=%s body_mask=%s raw_stats_telemetry=%s "
+      "chapter6_queue_telemetry=%s chapter6_keyframe_pose_telemetry=%s",
       keyframe_sparse_evidence_enabled_ ? "true" : "false",
       drone_body_mask_enabled_ ? "true" : "false",
-      raw_stats_telemetry_enabled_ ? "true" : "false");
+      raw_stats_telemetry_enabled_ ? "true" : "false",
+      chapter6_queue_telemetry_enabled_ ? "true" : "false",
+      chapter6_keyframe_pose_telemetry_enabled_ ? "true" : "false");
     const double deg_to_rad = std::acos(-1.0) / 180.0;
     const double body_roll = declare_parameter<double>("body_T_camera_roll_deg", -90.0) *
       deg_to_rad;
@@ -512,6 +521,12 @@ public:
           std::chrono::duration<double>(full_snapshot_period_sec_),
           [this]() {RequestAllSnapshots("periodic");});
       }
+
+      if (chapter6_queue_telemetry_enabled_) {
+        chapter6_queue_telemetry_timer_ = create_wall_timer(
+          std::chrono::milliseconds(chapter6_queue_telemetry_period_ms_),
+          [this]() {PublishChapter6QueueSample();});
+      }
     }
 
     RCLCPP_INFO(
@@ -551,6 +566,9 @@ public:
     }
     if (snapshot_periodic_timer_) {
       snapshot_periodic_timer_->cancel();
+    }
+    if (chapter6_queue_telemetry_timer_) {
+      chapter6_queue_telemetry_timer_->cancel();
     }
     snapshot_clients_.clear();
     subscriptions_.clear();
@@ -3029,6 +3047,7 @@ private:
     const auto stamp = get_clock()->now();
     const auto cloud = BuildPointCloud(build, stamp);
     const auto markers = BuildKeyFrameMarkers(build, stamp);
+    EmitChapter6KeyframePoseSamples(build, source);
     const auto sparse_delta = BuildSparseDelta(build, stamp);
     std::optional<mission_msgs::msg::KeyframeSparseEvidenceDelta> keyframe_sparse_delta;
     if (keyframe_sparse_evidence_enabled_) {
@@ -3124,6 +3143,56 @@ private:
         }
         TryStartNextSnapshot();
       }
+    }
+  }
+
+  void PublishChapter6QueueSample()
+  {
+    const size_t primary_pending = primary_queue_.Pending();
+    const auto secondary = secondary_queue_.PendingStats();
+    bool backpressure_active = false;
+    {
+      std::lock_guard<std::mutex> lock(backpressure_state_mutex_);
+      backpressure_active = combined_backpressure_active_;
+    }
+    RCLCPP_INFO(
+      get_logger(),
+      "[C6-QUEUE-SAMPLE] sim_time_ns=%ld primary_pending=%zu secondary_pending=%zu "
+      "secondary_critical=%zu secondary_maintenance=%zu optimization_active=%s "
+      "backpressure_active=%s primary_high=%zu primary_low=%zu secondary_high=%zu "
+      "secondary_low=%zu",
+      static_cast<long>(now().nanoseconds()), primary_pending, secondary.total,
+      secondary.critical, secondary.maintenance,
+      optimization_active_.load() ? "true" : "false",
+      backpressure_active ? "true" : "false", high_watermark_, low_watermark_,
+      secondary_high_watermark_, secondary_low_watermark_);
+  }
+
+  void EmitChapter6KeyframePoseSamples(
+    const orbslam3_multi::GlobalMapBuildResult & build,
+    const std::string & source)
+  {
+    if (!chapter6_keyframe_pose_telemetry_enabled_) {
+      return;
+    }
+    const int64_t sim_time_ns = now().nanoseconds();
+    for (const auto & keyframe : build.delta_keyframe_upserts) {
+      const auto raw = backend_.GetRawKeyFrame(keyframe.keyframe_id);
+      if (!raw.has_value()) {
+        continue;
+      }
+      const auto & pose = keyframe.world_pose;
+      const auto & raw_stamp = raw->stamp;
+      RCLCPP_INFO(
+        get_logger(),
+        "[C6-KF-POSE] sim_time_ns=%ld source=%s drone_id=%u epoch=%lu kf=%lu "
+        "kf_stamp_ns=%ld pose_revision=%lu x=%.9f y=%.9f z=%.9f "
+        "qx=%.9f qy=%.9f qz=%.9f qw=%.9f",
+        static_cast<long>(sim_time_ns), source.c_str(), keyframe.keyframe_id.drone_id,
+        keyframe.keyframe_id.map_epoch, keyframe.keyframe_id.local_kf_id,
+        static_cast<long>(rclcpp::Time(raw_stamp).nanoseconds()), build.pose_revision,
+        pose.position.x, pose.position.y, pose.position.z,
+        pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
     }
   }
 
@@ -3398,6 +3467,7 @@ private:
   std::map<uint32_t, std::string> snapshot_services_;
   rclcpp::TimerBase::SharedPtr snapshot_startup_timer_;
   rclcpp::TimerBase::SharedPtr snapshot_periodic_timer_;
+  rclcpp::TimerBase::SharedPtr chapter6_queue_telemetry_timer_;
   // Protege únicamente scheduling de snapshots; nunca se mantiene durante llamadas ROS.
   std::mutex snapshot_state_mutex_;
   std::deque<std::pair<uint32_t, std::string>> snapshot_waiting_;
@@ -3438,6 +3508,9 @@ private:
   bool combined_backpressure_active_ = false;
   bool record_enabled_ = false;
   std::string record_path_;
+  bool chapter6_queue_telemetry_enabled_ = false;
+  int64_t chapter6_queue_telemetry_period_ms_ = 500;
+  bool chapter6_keyframe_pose_telemetry_enabled_ = false;
   std::string replay_path_;
   int64_t replay_entry_delay_ms_ = 0;
   bool full_snapshot_enabled_ = true;

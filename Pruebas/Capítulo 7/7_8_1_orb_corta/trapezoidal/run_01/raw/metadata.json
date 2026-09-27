@@ -1,0 +1,33 @@
+{
+  "test_id": "c7_8_1_orb_short_trapezoidal_run_01",
+  "run": "run_01",
+  "profile": "trapezoidal",
+  "status": "succeeded",
+  "scenario": {
+    "drone_count": 1,
+    "initial_gt_target": [
+      0.0,
+      -10.0,
+      1.0,
+      90.0
+    ],
+    "orb_target": [
+      -7.0,
+      -10.0,
+      1.0,
+      90.0
+    ],
+    "tipo_trayectoria": 1,
+    "gt_fallback_enabled": false,
+    "visual_risk_enabled": false,
+    "gui": "multidron_gui, sin RViz2"
+  },
+  "result": {
+    "scenario_exit_code": 0,
+    "sim_done": true,
+    "orb_authority_sample_sequence": 2840,
+    "trajectory_duration_sec": 13.666,
+    "final_orb_gate_position_error_m": 0.070023,
+    "success_candidate": true
+  }
+}

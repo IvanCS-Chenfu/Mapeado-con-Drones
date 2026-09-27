@@ -1,0 +1,32 @@
+{
+  "commit_late_window": 0.0,
+  "commit_moved_kfs": 87.0,
+  "commit_tail": 1.0,
+  "commit_time_s": 67.8609266281128,
+  "event_counts": {
+    "C6-KF-POSE": 866,
+    "F3H-FID-REVALIDATE": 2,
+    "F3I-GRAPH-BUILD": 1,
+    "F3J-OPTIMIZE": 1,
+    "F3K-ATOMIC-COMMIT": 1,
+    "F3K-CONTINUATION-UPDATE": 1,
+    "F3K-FUTURE-KF-PROPAGATE": 44,
+    "F3L-VALIDATE": 1,
+    "F3P-FUSION-RETRY": 1,
+    "F3Q-POST-OPT-LOOPS": 1
+  },
+  "event_counts_after_commit": {
+    "F3H-FID-REVALIDATE": 1,
+    "F3K-ATOMIC-COMMIT": 1,
+    "F3K-CONTINUATION-UPDATE": 1,
+    "F3K-FUTURE-KF-PROPAGATE": 6,
+    "F3P-FUSION-RETRY": 1,
+    "F3Q-POST-OPT-LOOPS": 1
+  },
+  "keyframes_after_commit": 9,
+  "keyframes_before_optimization": 106,
+  "keyframes_during_optimization": 4,
+  "optimization_start_source": "F3I-GRAPH-BUILD",
+  "optimization_start_time_s": 66.48257660865784,
+  "unique_keyframes": 119
+}

@@ -53,6 +53,7 @@ def _launch_server(context):
             'fiducial_objects_config').perform(context),
         'keyframe_sparse_evidence_enabled': _as_bool(
             LaunchConfiguration('phase6_enabled').perform(context)),
+        'score_drone_body_mask_enabled': False,
         'raw_stats_telemetry_enabled': _as_bool(
             LaunchConfiguration('raw_stats_telemetry_enabled').perform(context)),
     }
@@ -77,7 +78,11 @@ def _launch_server(context):
         ('fiducial_visual_consistency_rotation_rad', float),
         ('fiducial_visual_visit_gap_sec', float),
         ('fiducial_visual_recent_capacity_per_drone', int),
-        ('score_drone_body_mask_enabled', _as_bool),
+        ('chapter6_queue_telemetry_enabled', _as_bool),
+        ('chapter6_queue_telemetry_period_ms', int),
+        ('chapter6_keyframe_pose_telemetry_enabled', _as_bool),
+        ('fusion_score_inlier_reward', float),
+        ('fusion_score_member_bonus', float),
     )
     for name, cast in optional:
         _optional_override(context, overrides, name, cast)
@@ -156,7 +161,11 @@ def generate_launch_description():
         'fiducial_visual_consistency_rotation_rad',
         'fiducial_visual_visit_gap_sec',
         'fiducial_visual_recent_capacity_per_drone',
-        'score_drone_body_mask_enabled',
+        'chapter6_queue_telemetry_enabled',
+        'chapter6_queue_telemetry_period_ms',
+        'chapter6_keyframe_pose_telemetry_enabled',
+        'fusion_score_inlier_reward',
+        'fusion_score_member_bonus',
     ):
         arguments.append(DeclareLaunchArgument(name, default_value=YAML_SENTINEL))
 

@@ -10,3 +10,5 @@
     full_snapshot_enabled: true
     full_snapshot_startup_delay_sec: 35.0
     full_snapshot_period_sec: 35.0
+    chapter6_queue_telemetry_enabled: false
+    chapter6_queue_telemetry_period_ms: 500

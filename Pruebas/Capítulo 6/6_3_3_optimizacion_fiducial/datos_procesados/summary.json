@@ -1,0 +1,10 @@
+{
+  "fiducial_events": 12,
+  "gt_samples": 8761,
+  "keyframe_pose_samples": 784,
+  "optimization_passes": 1,
+  "position_max_m_final": 0.19191680523595858,
+  "position_mean_m_final": 0.1188095914910157,
+  "position_rmse_m_final": 0.12214938323565987,
+  "unique_keyframes": 118
+}

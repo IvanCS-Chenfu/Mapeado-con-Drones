@@ -20,6 +20,11 @@ activa, registra `[F3A-RAW-STATS]` justo tras cada insercion raw. Usa los
 contadores nativos ya presentes en `RawInsertResult::stats`; no crea un nodo,
 topic, snapshot ni trabajo cuando esta apagada.
 
+Para las pruebas del Capitulo 6, `chapter6_queue_telemetry_enabled=false` es
+otra puerta opt-in: al activarse registra `[C6-QUEUE-SAMPLE]` periodico con el
+estado instantaneo de colas, optimizacion y backpressure. No modifica el
+algoritmo ni la planificacion de workers.
+
 La cola secundaria tiene carriles MAX/HIGH/NORMAL, mostrados funcionalmente
 como MAXIMA/MEDIA/BAJA, FIFO por carril y un unico worker no preemptivo. Los
 tres payloads reales son `FiducialOptimizationTask`, `DatabaseUpdateTask` y

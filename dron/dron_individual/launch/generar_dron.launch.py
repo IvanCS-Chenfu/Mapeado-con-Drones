@@ -88,6 +88,7 @@ def generate_launch_description():
         DeclareLaunchArgument('depth_max_disparity_gradient_px_per_pixel', default_value='2.0'),
         DeclareLaunchArgument('depth_min_texture_gradient', default_value='8.0'),
         DeclareLaunchArgument('depth_texture_window_radius_px', default_value='2'),
+        DeclareLaunchArgument('depth_normal_min_confidence', default_value='0.7'),
         DeclareLaunchArgument('depth_stop_enabled', default_value='false'),
         DeclareLaunchArgument('depth_stop_distance_m', default_value='1.2'),
         DeclareLaunchArgument('depth_stop_cooldown_sec', default_value='5.0'),
@@ -141,6 +142,7 @@ def generate_launch_description():
         'depth_max_disparity_gradient_px_per_pixel')
     depth_min_texture_gradient = LaunchConfiguration('depth_min_texture_gradient')
     depth_texture_window_radius_px = LaunchConfiguration('depth_texture_window_radius_px')
+    depth_normal_min_confidence = LaunchConfiguration('depth_normal_min_confidence')
     depth_stop_enabled = LaunchConfiguration('depth_stop_enabled')
     depth_stop_distance_m = LaunchConfiguration('depth_stop_distance_m')
     depth_stop_cooldown_sec = LaunchConfiguration('depth_stop_cooldown_sec')
@@ -256,6 +258,7 @@ def generate_launch_description():
                     depth_max_disparity_gradient_px_per_pixel,
                 'depth_min_texture_gradient': depth_min_texture_gradient,
                 'depth_texture_window_radius_px': depth_texture_window_radius_px,
+                'depth_normal_min_confidence': depth_normal_min_confidence,
                 'depth_stop_enabled': depth_stop_enabled,
                 'depth_stop_distance_m': depth_stop_distance_m,
                 'depth_stop_cooldown_sec': depth_stop_cooldown_sec,

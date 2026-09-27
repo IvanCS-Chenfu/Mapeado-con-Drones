@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="360" viewBox="0 0 960 360">
+<rect width="100%" height="100%" fill="white"/>
+<text x="480" y="28" text-anchor="middle" font-family="sans-serif" font-size="20">Tipos de observación materializados</text>
+<line x1="100" y1="130" x2="926" y2="130" stroke="#e5e7eb"/>
+<text x="88" y="135" text-anchor="end" font-family="sans-serif" font-size="16">D1</text>
+<line x1="100" y1="240" x2="926" y2="240" stroke="#e5e7eb"/>
+<text x="88" y="245" text-anchor="end" font-family="sans-serif" font-size="16">D2</text>
+<line x1="100.0" y1="70" x2="100.0" y2="270" stroke="#e5e7eb"/>
+<text x="100.0" y="300" text-anchor="middle" font-family="sans-serif" font-size="13">0</text>
+<line x1="265.2" y1="70" x2="265.2" y2="270" stroke="#e5e7eb"/>
+<text x="265.2" y="300" text-anchor="middle" font-family="sans-serif" font-size="13">78</text>
+<line x1="430.4" y1="70" x2="430.4" y2="270" stroke="#e5e7eb"/>
+<text x="430.4" y="300" text-anchor="middle" font-family="sans-serif" font-size="13">155</text>
+<line x1="595.6" y1="70" x2="595.6" y2="270" stroke="#e5e7eb"/>
+<text x="595.6" y="300" text-anchor="middle" font-family="sans-serif" font-size="13">233</text>
+<line x1="760.8" y1="70" x2="760.8" y2="270" stroke="#e5e7eb"/>
+<text x="760.8" y="300" text-anchor="middle" font-family="sans-serif" font-size="13">310</text>
+<line x1="926.0" y1="70" x2="926.0" y2="270" stroke="#e5e7eb"/>
+<text x="926.0" y="300" text-anchor="middle" font-family="sans-serif" font-size="13">388</text>
+<circle cx="100.0" cy="240" r="7" fill="#71717a"/>
+<circle cx="100" cy="48" r="6" fill="#71717a"/>
+<text x="112" y="53" font-family="sans-serif" font-size="14">VIEW_UNKNOWN</text>
+<circle cx="121.2" cy="130" r="7" fill="#71717a"/>
+<circle cx="149.9" cy="240" r="7" fill="#b45309"/>
+<circle cx="215" cy="48" r="6" fill="#b45309"/>
+<text x="227" y="53" font-family="sans-serif" font-size="14">VIEW_WALL</text>
+<circle cx="172.5" cy="240" r="7" fill="#71717a"/>
+<circle cx="606.7" cy="240" r="7" fill="#15803d"/>
+<circle cx="330" cy="48" r="6" fill="#15803d"/>
+<text x="342" y="53" font-family="sans-serif" font-size="14">VIEW_ADVANCE</text>
+<circle cx="669.1" cy="240" r="7" fill="#71717a"/>
+<circle cx="830.8" cy="240" r="7" fill="#15803d"/>
+<circle cx="926.0" cy="240" r="7" fill="#71717a"/>
+<text x="480" y="340" text-anchor="middle" font-family="sans-serif" font-size="16">Tiempo desde primera observación materializada (s)</text>
+</svg>

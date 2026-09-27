@@ -1,0 +1,1 @@
+Intento 13: interrumpido/bloqueado sin cierre SIM-DONE; completó el anclaje GT y dos laterales ORB. Sin fiducial, optimización ni commit. Se conservan CSV y log reducido.

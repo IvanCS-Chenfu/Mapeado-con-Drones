@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <set>
 
 namespace
@@ -101,6 +102,28 @@ TEST(FacadeCoverage, SelectsPendingSectionWithSyntheticProbeWhenNoWallExists)
   ASSERT_TRUE(candidate.valid);
   EXPECT_TRUE(candidate.synthetic_visual_target);
   EXPECT_NEAR(candidate.observation_yaw_rad, 1.5707963267948966, 1e-9);
+}
+
+TEST(FacadeCoverage, ExcludesBlockedSectionWithoutClaimingCoverage)
+{
+  const task_lib::AxisAlignedBox bounds{{-10.0, -10.0, 0.0}, {10.0, 0.0, 4.0}};
+  const auto plan = task_lib::BuildFacadeCoveragePlan(
+    bounds, {{-10.0, -10.0, 0.0}, {10.0, 10.0, 4.0}}, 1.0, 2);
+  task_lib::FacadePreferences preferences;
+  preferences.preferred_wall_distance_m = 2.0;
+  const std::vector<bool> active(plan.sections.size(), false);
+  const auto first = task_lib::SelectFacadeCoverageCandidate(
+    plan, {{-12.0, -12.0, -1.0}, {12.0, 12.0, 5.0}}, {0.0, -8.0, 2.0},
+    active, preferences, {}, 1.0, 0.4F);
+  ASSERT_TRUE(first.valid);
+  std::vector<bool> excluded(plan.sections.size(), false);
+  excluded[first.section_index] = true;
+  const auto next = task_lib::SelectFacadeCoverageCandidate(
+    plan, {{-12.0, -12.0, -1.0}, {12.0, 12.0, 5.0}}, {0.0, -8.0, 2.0},
+    active, preferences, {}, 1.0, 0.4F, excluded);
+  ASSERT_TRUE(next.valid);
+  EXPECT_NE(next.section_index, first.section_index);
+  EXPECT_TRUE(std::all_of(active.begin(), active.end(), [](bool value) {return !value;}));
 }
 
 }  // namespace

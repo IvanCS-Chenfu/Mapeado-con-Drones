@@ -1,0 +1,257 @@
+{
+  "1:0:0": {
+    "geometry_revision": 18281893373620694533,
+    "pose_revision": 1,
+    "points": 103
+  },
+  "1:0:1": {
+    "geometry_revision": 3833594762071080901,
+    "pose_revision": 3,
+    "points": 166
+  },
+  "1:0:2": {
+    "geometry_revision": 10527959332096310763,
+    "pose_revision": 1,
+    "points": 189
+  },
+  "1:0:3": {
+    "geometry_revision": 6209069111625607805,
+    "pose_revision": 4,
+    "points": 208
+  },
+  "1:0:4": {
+    "geometry_revision": 9687767607447830575,
+    "pose_revision": 4,
+    "points": 214
+  },
+  "1:0:5": {
+    "geometry_revision": 18174067871038261355,
+    "pose_revision": 5,
+    "points": 225
+  },
+  "1:0:6": {
+    "geometry_revision": 14871932230066487419,
+    "pose_revision": 7,
+    "points": 219
+  },
+  "1:0:7": {
+    "geometry_revision": 7548750397128224350,
+    "pose_revision": 7,
+    "points": 222
+  },
+  "1:0:8": {
+    "geometry_revision": 10713393964657330781,
+    "pose_revision": 7,
+    "points": 256
+  },
+  "1:0:9": {
+    "geometry_revision": 807281690183841157,
+    "pose_revision": 9,
+    "points": 306
+  },
+  "1:0:10": {
+    "geometry_revision": 1108108458845853320,
+    "pose_revision": 9,
+    "points": 297
+  },
+  "1:0:11": {
+    "geometry_revision": 12092120813373955777,
+    "pose_revision": 10,
+    "points": 313
+  },
+  "1:0:12": {
+    "geometry_revision": 13125628063002795423,
+    "pose_revision": 10,
+    "points": 300
+  },
+  "1:0:13": {
+    "geometry_revision": 12786079704704726473,
+    "pose_revision": 10,
+    "points": 327
+  },
+  "1:0:14": {
+    "geometry_revision": 8082376036542479887,
+    "pose_revision": 10,
+    "points": 309
+  },
+  "1:0:15": {
+    "geometry_revision": 10693796028898343520,
+    "pose_revision": 11,
+    "points": 291
+  },
+  "1:0:16": {
+    "geometry_revision": 9774423406882315593,
+    "pose_revision": 11,
+    "points": 355
+  },
+  "1:0:17": {
+    "geometry_revision": 748576443799585435,
+    "pose_revision": 10,
+    "points": 386
+  },
+  "1:0:18": {
+    "geometry_revision": 17418988908203418360,
+    "pose_revision": 10,
+    "points": 420
+  },
+  "1:0:19": {
+    "geometry_revision": 12716503539536483952,
+    "pose_revision": 10,
+    "points": 450
+  },
+  "1:0:20": {
+    "geometry_revision": 5405995102037028598,
+    "pose_revision": 10,
+    "points": 467
+  },
+  "1:0:21": {
+    "geometry_revision": 8054780117215842567,
+    "pose_revision": 9,
+    "points": 448
+  },
+  "1:0:22": {
+    "geometry_revision": 4444654583160046723,
+    "pose_revision": 9,
+    "points": 438
+  },
+  "1:0:23": {
+    "geometry_revision": 12566091198316562955,
+    "pose_revision": 11,
+    "points": 414
+  },
+  "1:0:24": {
+    "geometry_revision": 14312740081556276199,
+    "pose_revision": 11,
+    "points": 449
+  },
+  "1:0:25": {
+    "geometry_revision": 2312804420141573454,
+    "pose_revision": 11,
+    "points": 435
+  },
+  "1:0:26": {
+    "geometry_revision": 10462495784345113989,
+    "pose_revision": 9,
+    "points": 440
+  },
+  "1:0:27": {
+    "geometry_revision": 11486381470919943727,
+    "pose_revision": 8,
+    "points": 390
+  },
+  "1:0:28": {
+    "geometry_revision": 3377655236227636831,
+    "pose_revision": 7,
+    "points": 365
+  },
+  "1:0:29": {
+    "geometry_revision": 7686521186320978419,
+    "pose_revision": 7,
+    "points": 379
+  },
+  "1:0:30": {
+    "geometry_revision": 5903481845303510385,
+    "pose_revision": 6,
+    "points": 352
+  },
+  "1:0:32": {
+    "geometry_revision": 4113662891844334475,
+    "pose_revision": 7,
+    "points": 395
+  },
+  "1:0:33": {
+    "geometry_revision": 14531653607855490256,
+    "pose_revision": 6,
+    "points": 386
+  },
+  "1:0:34": {
+    "geometry_revision": 3894283916707774633,
+    "pose_revision": 7,
+    "points": 387
+  },
+  "1:0:35": {
+    "geometry_revision": 9543154563861949304,
+    "pose_revision": 6,
+    "points": 359
+  },
+  "1:0:36": {
+    "geometry_revision": 8228787894509024445,
+    "pose_revision": 6,
+    "points": 362
+  },
+  "1:0:37": {
+    "geometry_revision": 2278651754298252227,
+    "pose_revision": 8,
+    "points": 378
+  },
+  "1:0:38": {
+    "geometry_revision": 18355323408517511797,
+    "pose_revision": 7,
+    "points": 283
+  },
+  "1:0:39": {
+    "geometry_revision": 5974623747211918086,
+    "pose_revision": 7,
+    "points": 227
+  },
+  "1:0:40": {
+    "geometry_revision": 200425773254079956,
+    "pose_revision": 9,
+    "points": 220
+  },
+  "1:0:41": {
+    "geometry_revision": 17016719593620411227,
+    "pose_revision": 8,
+    "points": 225
+  },
+  "1:0:42": {
+    "geometry_revision": 5017945390800345105,
+    "pose_revision": 8,
+    "points": 223
+  },
+  "1:0:43": {
+    "geometry_revision": 13755775658406846047,
+    "pose_revision": 7,
+    "points": 178
+  },
+  "1:0:44": {
+    "geometry_revision": 9228256259023008103,
+    "pose_revision": 7,
+    "points": 161
+  },
+  "1:0:45": {
+    "geometry_revision": 8033563353940212712,
+    "pose_revision": 6,
+    "points": 137
+  },
+  "1:0:46": {
+    "geometry_revision": 12901752571659375898,
+    "pose_revision": 5,
+    "points": 154
+  },
+  "1:0:47": {
+    "geometry_revision": 7073471169517647045,
+    "pose_revision": 4,
+    "points": 220
+  },
+  "1:0:48": {
+    "geometry_revision": 7770949585330759723,
+    "pose_revision": 4,
+    "points": 217
+  },
+  "1:0:49": {
+    "geometry_revision": 10791202538728310901,
+    "pose_revision": 3,
+    "points": 214
+  },
+  "1:0:50": {
+    "geometry_revision": 12754474419488124834,
+    "pose_revision": 2,
+    "points": 216
+  },
+  "1:0:51": {
+    "geometry_revision": 6169260395207586746,
+    "pose_revision": 1,
+    "points": 262
+  }
+}

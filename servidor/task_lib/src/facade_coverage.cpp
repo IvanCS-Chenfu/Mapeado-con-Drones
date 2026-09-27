@@ -270,7 +270,8 @@ FacadeCandidate SelectFacadeCoverageCandidate(
   const FacadeCoveragePlan & plan, const AxisAlignedBox & hard_flight_volume,
   const Vec3 & drone_position, const std::vector<bool> & active_sections,
   const FacadePreferences & preferences, const std::vector<VoxelCell> & voxel_cells,
-  double voxel_size, float occupied_score_threshold)
+  double voxel_size, float occupied_score_threshold,
+  const std::vector<bool> & excluded_sections)
 {
   FacadeCandidate best;
   best.score = std::numeric_limits<double>::infinity();
@@ -278,7 +279,9 @@ FacadeCandidate SelectFacadeCoverageCandidate(
     return best;
   }
   for (std::size_t index = 0U; index < plan.sections.size(); ++index) {
-    if (index < active_sections.size() && active_sections[index]) {
+    if ((index < active_sections.size() && active_sections[index]) ||
+      (index < excluded_sections.size() && excluded_sections[index]))
+    {
       continue;
     }
     const auto & section = plan.sections[index];

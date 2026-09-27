@@ -1,0 +1,37 @@
+{
+  "chapter": "6",
+  "test_id": "6.6.2",
+  "name": "fusion de MapPoints y evolucion del score",
+  "git_commit": "5e7ab9c1a02606f09422b5d183dfced5c726a376",
+  "created_at": "2026-09-24T18:28:51+02:00",
+  "hostname": "chenfu-IdeaPad-5-15ALC05",
+  "worktree_clean": false,
+  "scenario": "c6_6_2_fusion_y_score.yaml",
+  "mission_profile": "mission_profile_c6_6_2.yaml",
+  "drone_count": 1,
+  "navigation_source": "GT",
+  "configuration": {
+    "launch_gazebo_gui": true,
+    "launch_multidron_gui": true,
+    "launch_rviz": false,
+    "launch_phase6": false,
+    "orb_loss_protocol_enabled": false,
+    "score_drone_body_mask_enabled": false
+  },
+  "instrumentation": [
+    "[F3P-FUSION]",
+    "[F3R-FUSED-SCORE-COMMIT]",
+    "[F3R-RAW-SCORE-COMMIT]",
+    "[F3R-SCORE-STATS]"
+  ],
+  "command": "./codex/herramientas/run_simulation.sh --prueba c6_6_2_fusion_y_score --mission-profile <ruta-absoluta>",
+  "status": "retry_authorized_after_yaml_parser_incompatibility",
+  "duration_s": 77,
+  "scenario_runner_exit_code": 1,
+  "simulation_exit_code": 1,
+  "failed_attempt": {
+    "completed_steps": 5,
+    "failure_step": "pasada_3_oeste",
+    "reason": "scenario_runner no expande la sintaxis YAML de merge <<: *alias"
+  }
+}

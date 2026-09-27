@@ -118,6 +118,7 @@ StereoSlamNode::StereoSlamNode(
     this->declare_parameter<double>("depth_max_disparity_gradient_px_per_pixel", 2.0);
     this->declare_parameter<double>("depth_min_texture_gradient", 8.0);
     this->declare_parameter<int>("depth_texture_window_radius_px", 2);
+    this->declare_parameter<double>("depth_normal_min_confidence", 0.7);
     this->declare_parameter<bool>("depth_stop_enabled", false);
     this->declare_parameter<double>("depth_stop_distance_m", 1.2);
     this->declare_parameter<double>("depth_stop_cooldown_sec", 5.0);
@@ -441,6 +442,8 @@ StereoSlamNode::StereoSlamNode(
         this->get_parameter("depth_min_texture_gradient").as_double();
     depth_parameters_.texture_window_radius_px =
         this->get_parameter("depth_texture_window_radius_px").as_int();
+    depth_parameters_.normal_min_confidence =
+        this->get_parameter("depth_normal_min_confidence").as_double();
     depth_stop_enabled_ = this->get_parameter("depth_stop_enabled").as_bool();
     depth_stop_distance_m_ = this->get_parameter("depth_stop_distance_m").as_double();
     depth_stop_cooldown_sec_ = this->get_parameter("depth_stop_cooldown_sec").as_double();
@@ -486,7 +489,10 @@ StereoSlamNode::StereoSlamNode(
         depth_parameters_.pixel_stride <= 0 ||
         depth_parameters_.max_disparity_gradient_px_per_pixel <= 0.0 ||
         depth_parameters_.min_texture_gradient < 0.0 ||
-        depth_parameters_.texture_window_radius_px < 0)
+        depth_parameters_.texture_window_radius_px < 0 ||
+        !std::isfinite(depth_parameters_.normal_min_confidence) ||
+        depth_parameters_.normal_min_confidence < 0.0 ||
+        depth_parameters_.normal_min_confidence > 1.0)
     {
         throw std::invalid_argument("parametros depth invalidos");
     }
@@ -786,14 +792,15 @@ StereoSlamNode::StereoSlamNode(
         this->get_logger(),
         "[F6N-DEPTH-INIT] enabled=%s frame_buffer_capacity=%d candidate_capacity=%d "
         "candidate_min_inliers=%d mode=on_demand range=(%.2f,%.2f) stride=%d max_points=%zu "
-        "max_disp_gradient=%.3f min_texture=%.3f texture_radius=%d",
+        "max_disp_gradient=%.3f min_texture=%.3f texture_radius=%d normal_min_confidence=%.3f",
         depth_observation_enabled_ ? "true" : "false", depth_frame_buffer_capacity_,
         depth_candidate_frame_capacity_, depth_candidate_min_tracking_inliers_,
         depth_parameters_.min_depth_m, depth_parameters_.max_depth_m,
         depth_parameters_.pixel_stride, depth_parameters_.max_points,
         depth_parameters_.max_disparity_gradient_px_per_pixel,
         depth_parameters_.min_texture_gradient,
-        depth_parameters_.texture_window_radius_px);
+        depth_parameters_.texture_window_radius_px,
+        depth_parameters_.normal_min_confidence);
 }
 
 

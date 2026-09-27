@@ -1,0 +1,1 @@
+Repetición ajustada. Único cambio geométrico respecto al contrato original: lateral_oeste_norte_orb = (-10, 9, 1). Cambio funcional autorizado: borde_norte_hasta_fiducial_1_orb y tramo_posterior_commit_orb navegan con GT; la aproximación y los tres tramos previos conservan sus fuentes originales.

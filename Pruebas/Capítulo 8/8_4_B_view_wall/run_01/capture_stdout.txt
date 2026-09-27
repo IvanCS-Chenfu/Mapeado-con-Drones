@@ -1,0 +1,1 @@
+{"capture_duration_sec": 390.149, "task_state_event_count": 14, "voxel_map_event_count": 67, "navigation_event_count": 17233}

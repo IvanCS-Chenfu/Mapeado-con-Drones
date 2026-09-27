@@ -1,0 +1,101 @@
+{
+  "profile": "trapezoidal",
+  "reference_segment_samples": 411,
+  "evaluation_samples": 668,
+  "reference_interval_sec": [
+    1790328025.5823286,
+    1790328039.2523317
+  ],
+  "alignment_gt_to_o": {
+    "first_orb_sample_sequence": 2840,
+    "yaw_offset_rad": -2.9217000000025806e-05,
+    "translation_m": [
+      -1.1538810742915684e-05,
+      0.0006206673588255995,
+      0.0005228189999999522
+    ]
+  },
+  "tracking": {
+    "position_m": {
+      "count": 668,
+      "rmse": 0.07152267432707994,
+      "mae": 0.06298749468603944,
+      "max": 0.16289800007815214
+    },
+    "position_x_m": {
+      "count": 668,
+      "rmse": 0.05508187037251228,
+      "mae": 0.04461154945808382,
+      "max": 0.15330438400000013
+    },
+    "position_y_m": {
+      "count": 668,
+      "rmse": 0.03504591578186277,
+      "mae": 0.027075291866766542,
+      "max": 0.11953571699999976
+    },
+    "position_z_m": {
+      "count": 668,
+      "rmse": 0.0292106878757395,
+      "mae": 0.021998742534431164,
+      "max": 0.10148368200000002
+    },
+    "velocity_mps": {
+      "count": 668,
+      "rmse": 0.3125696202986936,
+      "mae": 0.2418994162354315,
+      "max": 0.9246469582902815
+    },
+    "yaw_rad": {
+      "count": 668,
+      "rmse": 0.005836935921111946,
+      "mae": 0.004231345402694623,
+      "max": 0.020281281000000154
+    }
+  },
+  "orb_vs_gt_aligned": {
+    "position_m": {
+      "count": 668,
+      "rmse": 0.03633114958669796,
+      "mae": 0.02858093342733625,
+      "max": 0.11301846117532527
+    },
+    "yaw_rad": {
+      "count": 668,
+      "rmse": 0.0029747863788419913,
+      "mae": 0.002037617482035934,
+      "max": 0.015970005000000013
+    },
+    "final_position_error_m": 0.05637103342246555
+  },
+  "visual_state": {
+    "keyframe_changes": 13,
+    "tracking_not_ok_samples": 0,
+    "orb_source_ratio": 1.0,
+    "fallback_samples": 0,
+    "navigation_age_sec": {
+      "count": 668,
+      "rmse": 0.00242288643686153,
+      "mae": 0.0005693764029862638,
+      "max": 0.012784719467163086
+    },
+    "epoch_changes": 0,
+    "source_counts": {
+      "1": 668
+    }
+  },
+  "final": {
+    "reference_x": -6.993160673,
+    "orb_x": -6.904410545,
+    "control_position_error_m": 0.15859907631561318
+  },
+  "figures": [
+    "figura_a_referencia_orb.png",
+    "figura_b_error_seguimiento.png",
+    "figura_c_orb_gt.png",
+    "figura_d_velocidad.png",
+    "gt_vs_trayectoria_3x4.png",
+    "errores_gt_vs_trayectoria_3x4.png"
+  ],
+  "success_candidate": true
+}

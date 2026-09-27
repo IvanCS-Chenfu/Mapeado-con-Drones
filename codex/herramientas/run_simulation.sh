@@ -515,6 +515,11 @@ run_one_attempt() {
     return "$scenario_status"
   fi
 
+  if ! grep -Fq "[SCENARIO-RUNNER-DONE]" "$LOG_FILE"; then
+    log "[SIM-ERROR] scenario_runner_node terminó sin [SCENARIO-RUNNER-DONE]"
+    return 1
+  fi
+
   log "[SIM-DONE] prueba=$PRUEBA success=true"
   return 0
 }

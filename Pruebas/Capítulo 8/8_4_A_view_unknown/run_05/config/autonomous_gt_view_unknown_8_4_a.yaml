@@ -1,0 +1,47 @@
+name: autonomous_gt_view_unknown_8_4_a
+mission_mode: autonomous
+navigation_source: gt
+autonomous_handoff: false
+description: "Prueba 8.4-A: D1 ancla con GT y solicita una captura LOOK_AND_CAPTURE a 90 grados a la derecha mediante el flujo correlacionado normal."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+
+  - name: espera_arranque_tracking
+    type: wait
+    seconds: 16.0
+
+  - name: dron_1_al_fiducial_2_gt
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 40.0
+        ty: 40.0
+        tz: 40.0
+        tyaw: 13.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 300.0
+
+  - name: espera_estabilidad_previa_a_look
+    type: wait
+    seconds: 12.0
+
+  - name: mirada_derecha_y_captura_depth
+    type: call_trigger
+    service: /mission/test_view_unknown_right
+    timeout_sec: 30.0

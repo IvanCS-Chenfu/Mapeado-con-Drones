@@ -72,7 +72,11 @@ def generate_launch_description():
             raise RuntimeError(f'debug.{name} debe ser numerico')
         return str(value)
 
-    default_n = int(params_sim_read.get('dron.numero', 1))
+    drone_count_override = os.environ.get('SIM_DRONE_COUNT_OVERRIDE', '').strip()
+    default_n = int(drone_count_override) if drone_count_override else int(
+        params_sim_read.get('dron.numero', 1))
+    if default_n < 1:
+        raise RuntimeError('SIM_DRONE_COUNT_OVERRIDE debe ser >= 1')
     default_namespace_base = str(params_sim_read.get('dron.namespace_base', 'dron'))
     default_world = str(params_sim_read.get('world.activar', 'empty'))
 
@@ -134,9 +138,17 @@ def generate_launch_description():
     ld.add_action(DeclareLaunchArgument('launch_rviz', default_value='false'))
     ld.add_action(DeclareLaunchArgument('launch_phase6', default_value='true'))
     ld.add_action(DeclareLaunchArgument(
-        'score_drone_body_mask_enabled', default_value='true'))
-    ld.add_action(DeclareLaunchArgument(
         'raw_stats_telemetry_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'chapter6_queue_telemetry_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'chapter6_queue_telemetry_period_ms', default_value='500'))
+    ld.add_action(DeclareLaunchArgument(
+        'chapter6_keyframe_pose_telemetry_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'fusion_score_inlier_reward', default_value='__from_yaml__'))
+    ld.add_action(DeclareLaunchArgument(
+        'fusion_score_member_bonus', default_value='__from_yaml__'))
     ld.add_action(DeclareLaunchArgument(
         'debug_fiducial_gt_error', default_value='false'))
     ld.add_action(DeclareLaunchArgument(
@@ -219,6 +231,18 @@ def generate_launch_description():
         'phase45_recorder_output_dir', default_value='/tmp/fase45'))
     ld.add_action(DeclareLaunchArgument(
         'phase45_recorder_drone_namespace', default_value='dron_1'))
+    ld.add_action(DeclareLaunchArgument('chapter7_tracking_risk_recorder_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'chapter7_tracking_risk_recorder_output_dir', default_value='/tmp/chapter7_tracking_risk'))
+    ld.add_action(DeclareLaunchArgument(
+        'chapter7_tracking_risk_recorder_drone_namespace', default_value='dron_1'))
+    ld.add_action(DeclareLaunchArgument('chapter7_orb_trajectory_recorder_enabled', default_value='false'))
+    ld.add_action(
+        DeclareLaunchArgument(
+            'chapter7_orb_trajectory_recorder_output_dir', default_value='/tmp/chapter7_orb_trajectory'))
+    ld.add_action(
+        DeclareLaunchArgument(
+            'chapter7_orb_trajectory_recorder_drone_namespace', default_value='dron_1'))
     ld.add_action(DeclareLaunchArgument('trajectory_config', default_value='trajectory.yaml'))
     ld.add_action(DeclareLaunchArgument(
         'phase5_global_pose_rviz_enabled', default_value='false'))
@@ -278,17 +302,40 @@ def generate_launch_description():
         'phase6_reservation_sweep_sample_step_voxels', default_value='0.5'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_inspection_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_evidence_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_test_view_unknown_right_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_test_view_unknown_right_drone_id', default_value='1'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_test_view_unknown_right_angle_deg', default_value='90.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_test_view_unknown_right_distance_m', default_value='4.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_test_view_wall_fixed_enabled', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_test_view_wall_fixed_drone_id', default_value='1'))
+    ld.add_action(DeclareLaunchArgument('phase6_test_view_wall_fixed_x', default_value='-2.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_test_view_wall_fixed_y', default_value='8.0'))
+    ld.add_action(DeclareLaunchArgument('phase6_test_view_wall_fixed_z', default_value='1.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_test_view_wall_fixed_yaw_deg', default_value='90.0'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_test_view_wall_fixed_ignore_corridor_stops', default_value='false'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_test_view_wall_fixed_require_known_free', default_value='true'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_stop_enabled', default_value='false'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_stop_distance_m', default_value='1.2'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_stop_cooldown_sec', default_value='5.0'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_min_confidence', default_value='0.25'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_min_support_points', default_value='20'))
+    ld.add_action(DeclareLaunchArgument(
+        'phase6_depth_normal_min_confidence', default_value='0.50'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_max_points', default_value='128'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_depth_far_measurement_max_distance_m', default_value='10.0'))
     ld.add_action(DeclareLaunchArgument('phase6_depth_far_free_distance_m', default_value='5.0'))
     ld.add_action(DeclareLaunchArgument(
-        'phase6_depth_direct_surface_max_incidence_deg', default_value='30.0'))
+        'phase6_depth_direct_surface_max_incidence_deg', default_value='45.0'))
     ld.add_action(DeclareLaunchArgument('phase6_sparse_plane_min_inliers', default_value='20'))
     ld.add_action(DeclareLaunchArgument(
         'phase6_sparse_plane_residual_voxels', default_value='0.5'))
@@ -419,6 +466,30 @@ def generate_launch_description():
         }],
         output='screen',
         condition=IfCondition(LaunchConfiguration('phase45_recorder_enabled'))))
+
+    ld.add_action(Node(
+        package='simulacion_dron',
+        executable='chapter7_tracking_risk_recorder',
+        name='chapter7_tracking_risk_recorder',
+        parameters=[{
+            'use_sim_time': True,
+            'output_dir': LaunchConfiguration('chapter7_tracking_risk_recorder_output_dir'),
+            'drone_namespace': LaunchConfiguration('chapter7_tracking_risk_recorder_drone_namespace'),
+        }],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('chapter7_tracking_risk_recorder_enabled'))))
+
+    ld.add_action(Node(
+        package='simulacion_dron',
+        executable='chapter7_orb_trajectory_recorder',
+        name='chapter7_orb_trajectory_recorder',
+        parameters=[{
+            'use_sim_time': True,
+            'output_dir': LaunchConfiguration('chapter7_orb_trajectory_recorder_output_dir'),
+            'drone_namespace': LaunchConfiguration('chapter7_orb_trajectory_recorder_drone_namespace'),
+        }],
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('chapter7_orb_trajectory_recorder_enabled'))))
 
     ld.add_action(Node(
         package='simulacion_dron',
@@ -558,6 +629,32 @@ def generate_launch_description():
                 value_type=float),
             'depth_evidence_enabled': ParameterValue(
                 LaunchConfiguration('phase6_depth_evidence_enabled'), value_type=bool),
+            'test_view_unknown_right_enabled': ParameterValue(
+                LaunchConfiguration('phase6_test_view_unknown_right_enabled'), value_type=bool),
+            'test_view_unknown_right_drone_id': ParameterValue(
+                LaunchConfiguration('phase6_test_view_unknown_right_drone_id'), value_type=int),
+            'test_view_unknown_right_angle_deg': ParameterValue(
+                LaunchConfiguration('phase6_test_view_unknown_right_angle_deg'), value_type=float),
+            'test_view_unknown_right_distance_m': ParameterValue(
+                LaunchConfiguration('phase6_test_view_unknown_right_distance_m'), value_type=float),
+            'test_view_wall_fixed_enabled': ParameterValue(
+                LaunchConfiguration('phase6_test_view_wall_fixed_enabled'), value_type=bool),
+            'test_view_wall_fixed_drone_id': ParameterValue(
+                LaunchConfiguration('phase6_test_view_wall_fixed_drone_id'), value_type=int),
+            'test_view_wall_fixed_x': ParameterValue(
+                LaunchConfiguration('phase6_test_view_wall_fixed_x'), value_type=float),
+            'test_view_wall_fixed_y': ParameterValue(
+                LaunchConfiguration('phase6_test_view_wall_fixed_y'), value_type=float),
+            'test_view_wall_fixed_z': ParameterValue(
+                LaunchConfiguration('phase6_test_view_wall_fixed_z'), value_type=float),
+            'test_view_wall_fixed_yaw_deg': ParameterValue(
+                LaunchConfiguration('phase6_test_view_wall_fixed_yaw_deg'), value_type=float),
+            'test_view_wall_fixed_ignore_corridor_stops': ParameterValue(
+                LaunchConfiguration('phase6_test_view_wall_fixed_ignore_corridor_stops'),
+                value_type=bool),
+            'test_view_wall_fixed_require_known_free': ParameterValue(
+                LaunchConfiguration('phase6_test_view_wall_fixed_require_known_free'),
+                value_type=bool),
             'depth_min_confidence': ParameterValue(
                 LaunchConfiguration('phase6_depth_min_confidence'), value_type=float),
             'depth_min_support_points': ParameterValue(
@@ -740,6 +837,8 @@ def generate_launch_description():
                         'orb_navigation_prediction_mode'),
                     'depth_observation_enabled': phase6_enabled,
                     'depth_max_points': LaunchConfiguration('phase6_depth_max_points'),
+                    'depth_normal_min_confidence': LaunchConfiguration(
+                        'phase6_depth_normal_min_confidence'),
                     'depth_far_measurement_max_distance_m': LaunchConfiguration(
                         'phase6_depth_far_measurement_max_distance_m'),
                     'depth_candidate_frame_capacity': LaunchConfiguration(
@@ -848,8 +947,16 @@ def generate_launch_description():
             'phase6_enabled': phase6_enabled,
             'raw_stats_telemetry_enabled': LaunchConfiguration(
                 'raw_stats_telemetry_enabled'),
-            'score_drone_body_mask_enabled': LaunchConfiguration(
-                'score_drone_body_mask_enabled'),
+            'chapter6_queue_telemetry_enabled': LaunchConfiguration(
+                'chapter6_queue_telemetry_enabled'),
+            'chapter6_queue_telemetry_period_ms': LaunchConfiguration(
+                'chapter6_queue_telemetry_period_ms'),
+            'chapter6_keyframe_pose_telemetry_enabled': LaunchConfiguration(
+                'chapter6_keyframe_pose_telemetry_enabled'),
+            'fusion_score_inlier_reward': LaunchConfiguration(
+                'fusion_score_inlier_reward'),
+            'fusion_score_member_bonus': LaunchConfiguration(
+                'fusion_score_member_bonus'),
             'debug_pipeline_flow_events': LaunchConfiguration('debug_pipeline_flow_web'),
             'debug_architecture_telemetry': architecture_telemetry_enabled,
             'log_level': PythonExpression([

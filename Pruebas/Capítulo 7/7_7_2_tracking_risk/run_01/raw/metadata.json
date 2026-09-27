@@ -1,0 +1,8 @@
+{
+  "prueba": "c7_7_2_tracking_risk_orb",
+  "commit": "5e7ab9c1a02606f09422b5d183dfced5c726a376",
+  "command_base": "SIM_DRONE_COUNT_OVERRIDE=1 ./codex/herramientas/run_simulation.sh --prueba c7_7_2_tracking_risk_orb --timeout-sec 600 --post-scenario-wait-sec 15 --launch ros2 launch simulacion_dron multi_dron.launch.py",
+  "source": "ORB after GT fiducial-2 anchoring",
+  "visual_risk_parameters": "launch defaults; no threshold override",
+  "ui": "Gazebo + multidron_gui + visual_tracking_debug/image; no RViz2"
+}

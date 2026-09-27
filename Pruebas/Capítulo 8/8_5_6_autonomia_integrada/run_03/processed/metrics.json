@@ -1,0 +1,9 @@
+{
+  "handoff_elapsed_sec": 95.517,
+  "observation_count": 26,
+  "coverage_claim_event_count": 6,
+  "reservation_commit_count": 18,
+  "max_reserved_voxels": 573,
+  "final_raw_voxels": 16367,
+  "final_map_revision": 5474
+}

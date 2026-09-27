@@ -14,6 +14,13 @@ Los perfiles de las pruebas estan en `config/mission_profiles/`, incluyendo
 `trajectory_gt_square_5_levels.yaml` para recorridos cuadrados GT con yaw
 absoluto/relativo.
 
+La prueba 8.5.6 usa `autonomous_gt_integrated_8_5_6.yaml` y el escenario del
+mismo nombre. El escenario espera los fiduciales, lleva simultáneamente D1/D2
+con GT al fiducial 2 en `32/32/32/16 s` (Pol3: X/Y/Z/yaw), los separa a
+`(-2,-10,1)` y `(2,-10,1.3)` y solo entonces activa
+`/mission/set_coverage_execution_enabled`. Desde ese handoff no inyecta goals
+manuales: el servidor decide tareas, puntos, D*, reservas y capturas.
+
 La prueba documental 5.6 usa
 `trajectory_gt_apriltag_translation.yaml`: D1 llega al fiducial 2 con GT,
 espera la observacion y se aleja en `-Y` durante 45 s. Al combinarlo con el
@@ -75,7 +82,13 @@ ORB-SLAM3 ni controlador PD.
 Para 6D/6I, `multi_dron.launch.py` propaga
 `phase6_voxel_occupied_score_threshold=0.4`, el rango visual
 `[phase6_visual_target_min_score, phase6_visual_target_max_score]=[0.2,0.6]`
-y la incidencia depth directa a `task_server`. También fija
+y la incidencia depth directa a `task_server`. Para Fase 6, los defaults de
+superficie directa son `phase6_depth_normal_min_confidence=0.50` y
+`phase6_depth_direct_surface_max_incidence_deg=45.0`: el primero viaja por
+`multi_dron.launch.py -> generar_dron.launch.py -> orbslam_use.launch.py ->
+StereoSlamNode`, y el segundo lo consume `task_server`. Se conservan todos los
+otros filtros depth; la política estricta se restaura con `0.70` y `30.0`,
+respectivamente. También fija
 `phase6_trajectory_min_segment_duration_sec=8.0` y
 `phase6_waypoint_blend_sec=3.0` para el recorrido multi-waypoint. La prueba
 678 verificó esos valores con D1/GT, GUI F7 y Gazebo; D2 permaneció sin
@@ -112,6 +125,14 @@ reanclaje y añade potencia media, energia por segundo y ventana comun de
 comparacion con 265.
 La captura 266 deduplica 157 medidas ORB, confirma 118 SMALL_ANCHOR y muestra
 la transicion tardia moderate/predict-only/rejected antes del fallback.
+
+La prueba 7.8.1 incorpora `chapter7_orb_trajectory_recorder`, activable desde
+`multi_dron.launch.py`. Es pasivo: guarda en CSV `NavigationState` crudo, GT de
+pose y velocidad, y feedback de `AccionTrayectoria` de un dron. El procesador
+`Pruebas/Capítulo 7/scripts/procesar_7_8_1_orb_corta.py` selecciona el tramo
+con destino `x=-7`, alinea GT->O una vez en la primera muestra ORB y calcula el
+seguimiento, ORB frente a GT, keyframes, edad y fallback sin introducir GT en
+control.
 
 La integracion 5H usa `global_drone_pose_visualizer.py`. Consume los
 `NavigationState` de cada dron y publica `/global_drone_poses` como
@@ -342,3 +363,32 @@ El diagnostico shadow post-320R añade `f5h_orb_shadow_mode` al launch y
 320R2R completo aproximacion GT, ORB dinamico en sombra y activacion en
 frontera; pese a tracking sano y ausencia de fallback, el error de posicion
 crecio hasta `~1.63 m`. Hover productivo no validado; 321 no ejecutada.
+
+## Perfiles experimentales del Capitulo 8
+
+- `config/mission_profiles/autonomous_gt_voxel_sparse_8_3.yaml` usa el escenario
+  homonimo con `autonomous_handoff: false`, para conservar la evidencia sparse
+  sin abrir ejecucion de tareas.
+- `config/mission_profiles/autonomous_gt_view_unknown_8_4_a.yaml` usa GT hasta
+  el fiducial 2 y el escenario homonimo con `autonomous_handoff: false`. Tras
+  estabilizarse invoca `/mission/test_view_unknown_right` mediante `call_trigger`.
+  El flag de launch `phase6_test_view_unknown_right_enabled` sigue apagado por
+  defecto y solo se activa en 8.4-A; ordena un `LOOK_AND_CAPTURE` correlacionado
+  a 90 grados a la derecha sin modificar umbrales de seleccion, voxeles,
+  coverage ni planificacion general.
+
+- `config/mission_profiles/autonomous_gt_view_wall_8_4_b.yaml` ancla D1 con GT
+  en el fiducial 2, mantiene `autonomous_handoff: false` y llama
+  `/mission/test_view_wall_fixed`. Con `phase6_test_view_wall_fixed_enabled`
+  activo, `task_server` planifica el `MOVE_AND_CAPTURE` al objetivo fijo
+  configurado (8.4-B: `(-2,8,1,90)`), conservando el contexto U para fuentes y
+  coverage. No hay un segundo movimiento GT ni selector que pueda reemplazar
+  ese destino.
+
+- `gate_mapping_backpressure` es el flag del `scenario_runner` que controla
+  exclusivamente su espera entre lotes `move`; por defecto es `false`. El
+  servidor sigue publicando la métrica, pero nunca paraliza los goals de
+  escenario salvo que un YAML lo active explícitamente. 8.5.6 lo declara
+  también como `false`, de modo que su bootstrap GT y el handoff no dependen de
+  la señal de mapeo; los vetos, reservas y planificación de `task_server` no
+  cambian.

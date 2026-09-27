@@ -1,0 +1,9 @@
+mission_mode: autonomous
+navigation_source: gt
+trajectory_file: ../scenarios/autonomous_gt_two_drones_assignment_8_2_c.yaml
+name: autonomous_gt_two_drones_assignment_8_2_c
+description: "Bootstrap GT de dos drones para observar asignacion autonoma de tareas."
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0

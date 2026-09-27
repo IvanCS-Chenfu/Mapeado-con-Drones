@@ -1,0 +1,15 @@
+{
+  "backpressure_samples_active": 162,
+  "bow_candidates": 1328,
+  "events": 9425,
+  "optimization_starts": 137,
+  "pipeline_rows": 2823,
+  "queue_samples": 1109,
+  "ransac_accepted": 1205,
+  "ransac_rejected": 306,
+  "ransac_runs": 1511,
+  "regions": 1511,
+  "relevant_loop_decisions": 109,
+  "source_log": "codex/archivos_auxiliares/logs/prueba_c6_7_dos_vueltas_sentidos_contrarios.reduced.log",
+  "source_log_sha256": "f3d9f4fde3604da2bca32c0f7891b5509aaa578d5fb2066fa9d499e3e4f7654e"
+}

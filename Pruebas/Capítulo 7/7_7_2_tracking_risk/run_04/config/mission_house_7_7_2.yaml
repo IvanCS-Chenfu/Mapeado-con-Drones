@@ -1,0 +1,9 @@
+mission_id: chapter7_tracking_risk_orb
+# Un unico dron para aislar la cadena visual y de control.
+drones: [1]
+mapping_roi:
+  frame_id: world
+  min: [-12.0, -12.0, 0.2]
+  max: [30.0, 12.0, 30.2]
+mapping_hysteresis: [2.0, 2.0, 0.8]
+level_height: 2.0

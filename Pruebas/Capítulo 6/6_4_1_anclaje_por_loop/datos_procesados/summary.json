@@ -1,0 +1,8 @@
+{
+  "loop_anchor_observed": true,
+  "loop_anchor_time_s": 123.99055027961731,
+  "first_d2_fiducial_time_s": 229.72262454032898,
+  "hard_fiducial_commit_time_s": 229.93181729316711,
+  "explicit_fid_loop_reanchor_observed": false,
+  "d2_keyframe_telemetry_rows": 88
+}

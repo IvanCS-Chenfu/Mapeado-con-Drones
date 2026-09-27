@@ -1,0 +1,15 @@
+{
+  "backpressure_samples_active": 336,
+  "bow_candidates": 344,
+  "events": 7135,
+  "optimization_starts": 5,
+  "pipeline_rows": 525,
+  "queue_samples": 517,
+  "ransac_accepted": 79,
+  "ransac_rejected": 91,
+  "ransac_runs": 170,
+  "regions": 170,
+  "relevant_loop_decisions": 5,
+  "source_log": "codex/archivos_auxiliares/logs/prueba_c6_2_4_loop_backpressure_v3.log",
+  "source_log_sha256": "65ca0eaab5a10a3e8976c1e87fdf521ed7dc8398ff84777f36e7f3af98d74f60"
+}

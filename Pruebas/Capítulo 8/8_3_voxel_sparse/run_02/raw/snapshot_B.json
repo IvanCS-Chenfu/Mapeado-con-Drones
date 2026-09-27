@@ -1,0 +1,156 @@
+{
+  "label": "B",
+  "capture_elapsed_sec": 57.919,
+  "map_revision": 2,
+  "voxel_size": 0.25,
+  "num_keyframes_con_evidencia": 0,
+  "voxels": [
+    {
+      "ix": -6,
+      "iy": -41,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -6,
+      "iy": -40,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -6,
+      "iy": -39,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -5,
+      "iy": -41,
+      "iz": 2,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -5,
+      "iy": -41,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -5,
+      "iy": -40,
+      "iz": 2,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -5,
+      "iy": -40,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -5,
+      "iy": -39,
+      "iz": 2,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -5,
+      "iy": -39,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -41,
+      "iz": 2,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -41,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -40,
+      "iz": 2,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -40,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -39,
+      "iz": 2,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -39,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -41,
+      "iz": 2,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -41,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -40,
+      "iz": 2,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -40,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -39,
+      "iz": 2,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -39,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    }
+  ]
+}

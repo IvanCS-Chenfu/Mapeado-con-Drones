@@ -1,0 +1,7 @@
+{
+  "test": "7.8.2",
+  "run": "run_12",
+  "status": "INVALIDA",
+  "reason": "scenario_runner termino con codigo 1; ver log reducido.",
+  "route_variant": "(-10,9,1)"
+}

@@ -356,14 +356,17 @@ ScoreChangeSet LandmarkScoreManager::ApplyGeometryChanges(
   ScoreChangeSet result;
   std::lock_guard<std::mutex> lock(mutex_);
   result.score_revision_before = score_revision_;
-  if (!config_.drone_body_mask_enabled) {
-    result.score_revision_after = score_revision_;
-    return result;
-  }
+  // Distance scoring is independent from the expensive spatial-neighbour and
+  // drone-body passes. Normal operation keeps those passes disabled while
+  // retaining the direct 1--5 m observation-distance criterion.
+  const bool spatial_scoring_enabled = config_.drone_body_mask_enabled;
   std::set<RawMapPointId> affected;
   std::set<std::array<int64_t, 3>> affected_voxels;
-  const auto mark_neighbor_voxels = [&affected_voxels](
+  const auto mark_neighbor_voxels = [spatial_scoring_enabled, &affected_voxels](
       const std::array<int64_t, 3> & center) {
+      if (!spatial_scoring_enabled) {
+        return;
+      }
       for (int dx = -1; dx <= 1; ++dx) {
         for (int dy = -1; dy <= 1; ++dy) {
           for (int dz = -1; dz <= 1; ++dz) {
@@ -380,11 +383,13 @@ ScoreChangeSet LandmarkScoreManager::ApplyGeometryChanges(
         return;
       }
       mark_neighbor_voxels(existing->second.voxel);
-      auto voxel = spatial_index_.find(existing->second.voxel);
-      if (voxel != spatial_index_.end()) {
-        voxel->second.erase(id);
-        if (voxel->second.empty()) {
-          spatial_index_.erase(voxel);
+      if (spatial_scoring_enabled) {
+        auto voxel = spatial_index_.find(existing->second.voxel);
+        if (voxel != spatial_index_.end()) {
+          voxel->second.erase(id);
+          if (voxel->second.empty()) {
+            spatial_index_.erase(voxel);
+          }
         }
       }
       geometry_.erase(existing);
@@ -420,15 +425,19 @@ ScoreChangeSet LandmarkScoreManager::ApplyGeometryChanges(
       std::max(0.0, input.stereo_baseline_m) : 0.0;
     next.voxel = VoxelFor(next.world_position);
     geometry_[input.mappoint_id] = next;
-    spatial_index_[next.voxel].insert(input.mappoint_id);
+    if (spatial_scoring_enabled) {
+      spatial_index_[next.voxel].insert(input.mappoint_id);
+    }
     mark_neighbor_voxels(next.voxel);
     affected.insert(input.mappoint_id);
   }
 
-  for (const auto & voxel : affected_voxels) {
-    const auto points = spatial_index_.find(voxel);
-    if (points != spatial_index_.end()) {
-      affected.insert(points->second.begin(), points->second.end());
+  if (spatial_scoring_enabled) {
+    for (const auto & voxel : affected_voxels) {
+      const auto points = spatial_index_.find(voxel);
+      if (points != spatial_index_.end()) {
+        affected.insert(points->second.begin(), points->second.end());
+      }
     }
   }
 
@@ -441,7 +450,8 @@ ScoreChangeSet LandmarkScoreManager::ApplyGeometryChanges(
     const auto geometry = geometry_.find(id);
     record->second.distance_factor = geometry == geometry_.end() ?
       1.0F : DistanceFactor(geometry->second);
-    record->second.isolation_factor = IsolationFactor(id, record->second);
+    record->second.isolation_factor = spatial_scoring_enabled ?
+      IsolationFactor(id, record->second) : 1.0F;
     record->second.body_factor = geometry == geometry_.end() ?
       1.0F : BodyFactor(geometry->second.world_position);
     RecomputeOutput(&record->second);

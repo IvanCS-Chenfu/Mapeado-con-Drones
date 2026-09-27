@@ -1,0 +1,3 @@
+mission_mode: autonomous
+navigation_source: orb
+trajectory_file: trajectory_7_7_2.yaml

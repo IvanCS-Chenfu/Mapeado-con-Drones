@@ -80,6 +80,7 @@ std::size_t GuiDataModel::MarkStaleDrones(
       next = std::make_shared<DroneStateMap>(*drones_);
     }
     (*next)[item.first].lost_or_unavailable = true;
+    (*next)[item.first].global_pose_pending = false;
     ++changed;
   }
   if (next) {

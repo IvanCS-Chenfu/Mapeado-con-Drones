@@ -1,0 +1,1 @@
+INTERRUMPIDA POR CAMBIO DE ALCANCE: desde este punto solo se conservara y utilizara run_01 para las graficas 7.8.2 y 7.8.3.

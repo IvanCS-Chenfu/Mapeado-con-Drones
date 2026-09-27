@@ -1,0 +1,9 @@
+{
+  "test_id": "c7_7_2_tracking_risk_orb_managed_yaw",
+  "run": "run_02",
+  "trajectory": "GT (1,-10,1,90) -> (0,-10,1,90); ORB managed yaw (0,-10,1,90) -> (0,-10,1,0)",
+  "execution_path": "scenario_runner -> /dron_1/execute_trajectory -> task_manager -> AccionTrayectoria",
+  "risk_parameters": "nominal, no overrides",
+  "spawn": [1.0, -10.0, 1.0, 90.0],
+  "status": "running"
+}

@@ -51,7 +51,11 @@ curador_documentacion
   registra resultado, evidencia y conclusion
 ```
 
-Los scripts no deciden si una subfase esta conseguida. Una simulacion con `SIM-EXIT-CODE 0` solo indica que la herramienta termino correctamente. La subfase solo queda `CONSEGUIDA` si el log reducido contiene la evidencia tecnica definida por la subfase.
+Los scripts no deciden si una subfase esta conseguida. `run_simulation.sh` exige
+ademas que el escenario emita `[SCENARIO-RUNNER-DONE]` antes de informar
+`SIM-DONE success=true`; un codigo de salida cero sin ese marcador se trata
+como fallo mecanico. La subfase solo queda `CONSEGUIDA` si el log reducido
+contiene la evidencia tecnica definida por la subfase.
 
 Conclusiones permitidas:
 

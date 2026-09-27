@@ -1,0 +1,10 @@
+{
+  "test": "7.8.2",
+  "run": "run_08",
+  "status": "INVALIDA_BOOTSTRAP",
+  "reason": "fiducial_spawner timeout esperando /spawn_entity; el runner agoto espera de /fiducial_spawn_ready antes de cualquier movimiento.",
+  "evidence": {
+    "scenario_exit_code": 1,
+    "trajectory_started": false
+  }
+}

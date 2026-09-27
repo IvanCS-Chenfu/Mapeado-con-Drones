@@ -1,0 +1,35 @@
+{
+  "fusion_events": 20,
+  "score_evidence_events": 206,
+  "score_stats_events": 6,
+  "final_fusion": {
+    "time_s": 179.25365,
+    "pairs": 1151,
+    "created": 130,
+    "updated": 39,
+    "retired": 2,
+    "hidden": 282,
+    "committed": "true"
+  },
+  "final_evidence": {
+    "time_s": 235.92685,
+    "positive": 676,
+    "negative": 0,
+    "raw_dirty": 670,
+    "raw_updated": 236372,
+    "source": "F3R-RAW-SCORE-COMMIT"
+  },
+  "final_score_stats": {
+    "time_s": 214.912251,
+    "revision": 379,
+    "tracked": 8651,
+    "bad": 5799,
+    "anchored": 2852,
+    "isolated": 0,
+    "near": 7,
+    "far": 2303,
+    "score_min": 0.0,
+    "score_mean": 0.146,
+    "score_max": 1.0
+  }
+}

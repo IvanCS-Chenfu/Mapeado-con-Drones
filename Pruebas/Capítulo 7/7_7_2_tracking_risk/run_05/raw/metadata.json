@@ -1,0 +1,9 @@
+{
+  "test_id": "c7_7_2_tracking_risk_gt_bootstrap_managed_yaw",
+  "run": "run_05",
+  "trajectory": "GT boot (1,-10,1,90) -> (0,-10,1,90); explicit source ORB; managed yaw (0,-10,1,90) -> (0,-10,1,0)",
+  "startup_source": "GT from launch/profile, matching the historical working pattern",
+  "risk_parameters": "nominal, no overrides",
+  "status": "failed_orb_authority_deferred_by_gt_source_lock",
+  "result": "GT goal completed and gravity initialized; ORB request was deferred while trajectory source lock remained active, so orb_authority_confirmed timed out."
+}

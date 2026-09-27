@@ -1,0 +1,3 @@
+mission_mode: trajectory
+navigation_source: gt
+trajectory_file: c6_5_2_revisiones_y_concurrencia.yaml

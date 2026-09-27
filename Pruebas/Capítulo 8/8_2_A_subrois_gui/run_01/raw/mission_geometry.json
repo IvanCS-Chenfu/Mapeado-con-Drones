@@ -1,0 +1,240 @@
+{
+  "mission_id": "house_mapping",
+  "config_revision": 3498714305775944990,
+  "mapping_roi": {
+    "min": [
+      -12.0,
+      -12.0,
+      0.2
+    ],
+    "max": [
+      12.0,
+      12.0,
+      6.2
+    ]
+  },
+  "level_height": 2.0,
+  "levels": [
+    {
+      "level_index": 0,
+      "z_min": 0.2,
+      "z_max": 2.2
+    },
+    {
+      "level_index": 1,
+      "z_min": 2.2,
+      "z_max": 4.2
+    },
+    {
+      "level_index": 2,
+      "z_min": 4.2,
+      "z_max": 6.2
+    }
+  ],
+  "regions": [
+    {
+      "region_id": "level_0_AB",
+      "level_index": 0,
+      "side": "AB",
+      "bounds": {
+        "min": [
+          -12.0,
+          -12.0,
+          0.2
+        ],
+        "max": [
+          12.0,
+          0.0,
+          2.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_0_BC",
+      "level_index": 0,
+      "side": "BC",
+      "bounds": {
+        "min": [
+          0.0,
+          -12.0,
+          0.2
+        ],
+        "max": [
+          12.0,
+          12.0,
+          2.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_0_CD",
+      "level_index": 0,
+      "side": "CD",
+      "bounds": {
+        "min": [
+          -12.0,
+          0.0,
+          0.2
+        ],
+        "max": [
+          12.0,
+          12.0,
+          2.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_0_DA",
+      "level_index": 0,
+      "side": "DA",
+      "bounds": {
+        "min": [
+          -12.0,
+          -12.0,
+          0.2
+        ],
+        "max": [
+          0.0,
+          12.0,
+          2.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_1_AB",
+      "level_index": 1,
+      "side": "AB",
+      "bounds": {
+        "min": [
+          -12.0,
+          -12.0,
+          2.2
+        ],
+        "max": [
+          12.0,
+          0.0,
+          4.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_1_BC",
+      "level_index": 1,
+      "side": "BC",
+      "bounds": {
+        "min": [
+          0.0,
+          -12.0,
+          2.2
+        ],
+        "max": [
+          12.0,
+          12.0,
+          4.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_1_CD",
+      "level_index": 1,
+      "side": "CD",
+      "bounds": {
+        "min": [
+          -12.0,
+          0.0,
+          2.2
+        ],
+        "max": [
+          12.0,
+          12.0,
+          4.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_1_DA",
+      "level_index": 1,
+      "side": "DA",
+      "bounds": {
+        "min": [
+          -12.0,
+          -12.0,
+          2.2
+        ],
+        "max": [
+          0.0,
+          12.0,
+          4.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_2_AB",
+      "level_index": 2,
+      "side": "AB",
+      "bounds": {
+        "min": [
+          -12.0,
+          -12.0,
+          4.2
+        ],
+        "max": [
+          12.0,
+          0.0,
+          6.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_2_BC",
+      "level_index": 2,
+      "side": "BC",
+      "bounds": {
+        "min": [
+          0.0,
+          -12.0,
+          4.2
+        ],
+        "max": [
+          12.0,
+          12.0,
+          6.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_2_CD",
+      "level_index": 2,
+      "side": "CD",
+      "bounds": {
+        "min": [
+          -12.0,
+          0.0,
+          4.2
+        ],
+        "max": [
+          12.0,
+          12.0,
+          6.2
+        ]
+      }
+    },
+    {
+      "region_id": "level_2_DA",
+      "level_index": 2,
+      "side": "DA",
+      "bounds": {
+        "min": [
+          -12.0,
+          -12.0,
+          4.2
+        ],
+        "max": [
+          0.0,
+          12.0,
+          6.2
+        ]
+      }
+    }
+  ]
+}

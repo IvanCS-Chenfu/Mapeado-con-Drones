@@ -1,0 +1,3 @@
+mission_mode: trajectory
+navigation_source: gt
+trajectory_file: c6_4_1_anclaje_por_loop.yaml

@@ -136,6 +136,14 @@ ament_target_dependencies(graficar_GTvsTray rclcpp geometry_msgs std_msgs dron_i
 add_executable(fase45_recorder src/graficar/fase45_recorder.cpp)
 ament_target_dependencies(fase45_recorder rclcpp geometry_msgs dron_individual)
 
+add_executable(chapter7_tracking_risk_recorder src/graficar/chapter7_tracking_risk_recorder.cpp)
+ament_target_dependencies(
+  chapter7_tracking_risk_recorder rclcpp std_msgs dron_individual mission_msgs orbslam3_msgs)
+
+add_executable(chapter7_orb_trajectory_recorder src/graficar/chapter7_orb_trajectory_recorder.cpp)
+ament_target_dependencies(
+  chapter7_orb_trajectory_recorder rclcpp geometry_msgs dron_individual mission_msgs orbslam3_msgs)
+
 
 
 
@@ -153,6 +161,8 @@ install(TARGETS
   graficar_tray
   graficar_GTvsTray
   fase45_recorder
+  chapter7_tracking_risk_recorder
+  chapter7_orb_trajectory_recorder
 
   scenario_runner_node
 

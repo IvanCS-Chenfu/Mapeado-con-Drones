@@ -1,0 +1,32 @@
+{
+  "test": "7.8.2",
+  "run": "run_01",
+  "status": "INTERRUMPIDA",
+  "reason": "El wrapper de simulacion no emitio SIM-DONE/SIM-EXIT-CODE y el log termino durante el tercer lateral ORB.",
+  "evidence": {
+    "completed_orb_segments": [
+      "lateral_sur_orb",
+      "lateral_oeste_centro_orb"
+    ],
+    "active_segment_at_end": "lateral_oeste_norte_orb",
+    "tracking_at_end": "TRACKING_OK",
+    "fiducial_1_detected": false,
+    "optimization_commit": false
+  },
+  "revised_analysis": {
+    "status": "PARCIAL",
+    "basis": "CSV crudos de run_01 y log reducido exclusivo de run_01.",
+    "correction": "La clasificacion inicial indicaba que el wrapper termino durante el tercer lateral. El log reducido confirma los seis objetivos de movimiento completados, incluidos la revisita al fiducial 1 y el tramo posterior.",
+    "completed_segments": [
+      "aproximacion_gt_fiducial_2",
+      "lateral_sur_orb",
+      "lateral_oeste_centro_orb",
+      "lateral_oeste_norte_orb",
+      "borde_norte_hasta_fiducial_1_orb",
+      "tramo_posterior_commit_orb"
+    ],
+    "fiducial_1_detected": true,
+    "optimization_or_commit_confirmed_by_server_log": false,
+    "limitation": "No hay marcadores F3E/F3Q/F3K en el log reducido de run_01; no se afirma optimizacion ni commit."
+  }
+}

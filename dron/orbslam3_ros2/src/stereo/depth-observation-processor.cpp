@@ -76,7 +76,7 @@ int CircularBinDistance(int first, int second, int bin_count)
 }
 
 PlaneEstimate EstimateFacadeNormal(
-  const std::vector<DepthSample> & samples, int pixel_stride)
+  const std::vector<DepthSample> & samples, int pixel_stride, double normal_min_confidence)
 {
   constexpr int kBinCount = 18;
   constexpr int kClusterRadius = 1;
@@ -223,7 +223,7 @@ PlaneEstimate EstimateFacadeNormal(
   const double confidence = static_cast<double>(selected_support) /
     static_cast<double>(local_normals.size());
   result = {
-    selected_support >= kMinimumLocalSupport && confidence >= 0.7,
+    selected_support >= kMinimumLocalSupport && confidence >= normal_min_confidence,
     selected_normal, selected_support, confidence};
   return result;
 }
@@ -241,7 +241,9 @@ DepthObservationResult ComputeDepthObservation(
     parameters.far_measurement_max_distance_m < parameters.max_depth_m ||
     parameters.pixel_stride <= 0 ||
     parameters.max_points == 0U || parameters.max_disparity_gradient_px_per_pixel <= 0.0 ||
-    parameters.min_texture_gradient < 0.0 || parameters.texture_window_radius_px < 0)
+    parameters.min_texture_gradient < 0.0 || parameters.texture_window_radius_px < 0 ||
+    !std::isfinite(parameters.normal_min_confidence) ||
+    parameters.normal_min_confidence < 0.0 || parameters.normal_min_confidence > 1.0)
   {
     return result;
   }
@@ -335,7 +337,8 @@ DepthObservationResult ComputeDepthObservation(
   result.confidence = result.raw_valid_points == 0U ? 0.0 :
     static_cast<double>(accepted.size() + far_free.size()) /
     static_cast<double>(result.raw_valid_points);
-  const auto normal = EstimateFacadeNormal(accepted, parameters.pixel_stride);
+  const auto normal = EstimateFacadeNormal(
+    accepted, parameters.pixel_stride, parameters.normal_min_confidence);
   result.normal_valid = normal.valid;
   result.normal_camera = normal.normal;
   result.normal_support = normal.support;

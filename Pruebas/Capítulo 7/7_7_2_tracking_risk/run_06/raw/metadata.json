@@ -1,0 +1,17 @@
+{
+  "test_id": "c7_7_2_tracking_risk_gt_bootstrap_orb_boundary_managed_yaw",
+  "run": "run_06",
+  "trajectory": "GT boot (1,-10,1,90) -> (0,-10,1,90); explicit ORB request; release source-lock boundary; wait ORB authority; managed yaw (0,-10,1,90) -> (0,-10,1,0)",
+  "startup_source": "GT from launch/profile, matching the historical working pattern",
+  "risk_parameters": "nominal, no overrides",
+  "correction_from_run_05": "After requesting ORB, call set_trajectory_active=false once so NavigationStateMux applies the pending source outside the completed GT trajectory lock.",
+  "status": "failed_task_assignment_execution_gate_closed",
+  "raw_log": "codex/archivos_auxiliares/logs/prueba_c7_7_2_tracking_risk_gt_bootstrap_orb_boundary_managed_yaw.log",
+  "result": {
+    "scenario_exit_code": 1,
+    "source_handoff": "passed: GT to ORB effective with zero translation/rotation continuity jump",
+    "orb_authority": "passed: confirmed after source boundary",
+    "managed_yaw": "not dispatched: timed out waiting for assigned/running task state",
+    "root_cause": "mission_mode=autonomous makes multi_dron.launch.py set task_server execution_enabled_on_start=false; no task assignment is enqueued or published."
+  }
+}

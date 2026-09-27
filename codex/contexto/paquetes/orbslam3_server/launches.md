@@ -55,6 +55,16 @@ en YAML. Solo para la prueba documental 5.5 lo activa la simulacion y hace que
 el servidor emita el marcador `[F3A-RAW-STATS]` tras cada insercion raw; en
 despliegue normal permanece apagado.
 
+`chapter6_keyframe_pose_telemetry_enabled=false` es un override opt-in de
+observabilidad. Solo reenvia al servidor la captura incremental
+`[C6-KF-POSE]` para contrastar KFs con GT externo en 6.3.3; no altera el
+backend ni se persiste en YAML.
+
+`fusion_score_inlier_reward` y `fusion_score_member_bonus` aceptan el sentinel
+`__from_yaml__` por defecto y, si se fijan desde launch, sobrescriben solo esa
+ejecucion los valores de `loop_fusion.yaml`. Se usan para pruebas de Capitulo 6
+como 6.6.2 sin cambiar el perfil normal.
+
 `full_snapshot_enabled` mantiene el valor del YAML si recibe el sentinel
 `__from_yaml__`. La prueba 5.5 lo fija a `false` para medir exclusivamente la
 ingesta incremental, sin cambiar el perfil normal ni la prueba independiente

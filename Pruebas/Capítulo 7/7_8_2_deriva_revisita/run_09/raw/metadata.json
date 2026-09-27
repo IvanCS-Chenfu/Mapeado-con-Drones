@@ -1,0 +1,9 @@
+{
+  "test": "7.8.2",
+  "run": "run_09",
+  "status": "INVALIDA_BOOTSTRAP",
+  "reason": "scenario_runner termino con codigo 1 antes de una ejecucion valida.",
+  "evidence": {
+    "scenario_exit_code": 1
+  }
+}

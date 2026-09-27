@@ -1,0 +1,38 @@
+{
+  "chapter": "6",
+  "test_id": "6.4.1",
+  "name": "anclaje de un submapa mediante loop",
+  "git_commit": "5e7ab9c1a02606f09422b5d183dfced5c726a376",
+  "worktree_clean": false,
+  "scenario": "c6_4_1_anclaje_por_loop.yaml",
+  "mission_profile": "mission_profile_c6_4_1.yaml",
+  "drone_count": 2,
+  "navigation_source": "GT",
+  "configuration": {
+    "launch_gazebo_gui": true,
+    "launch_multidron_gui": true,
+    "launch_rviz": false,
+    "launch_phase6": false,
+    "orb_loss_protocol_enabled": false,
+    "debug_fiducial_visualization": true,
+    "chapter6_keyframe_pose_telemetry_enabled": true
+  },
+  "instrumentation": [
+    "[F3O-RANSAC]",
+    "[F3O-LOOP-DONE]",
+    "[F3O-FID-LOOP-REANCHOR]",
+    "[F3H-FID-POSE-ERROR]",
+    "[C6-KF-POSE]"
+  ],
+  "command": "./codex/herramientas/run_simulation.sh --prueba c6_4_1_anclaje_por_loop --mission-profile <ruta-absoluta>",
+  "status": "completed_with_partial_marker_evidence",
+  "duration_s": 250,
+  "scenario_runner_exit_code": 0,
+  "simulation_exit_code": 0,
+  "result_marker": "[SIM-DONE] prueba=c6_4_1_anclaje_por_loop success=true",
+  "analysis": {
+    "loop_anchor_observed": true,
+    "fiducial_hard_commit_observed": true,
+    "explicit_fid_loop_reanchor_observed": false
+  }
+}

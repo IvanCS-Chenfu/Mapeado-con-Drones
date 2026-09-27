@@ -1,0 +1,106 @@
+{
+  "label": "B",
+  "capture_elapsed_sec": 1.521,
+  "map_revision": 2,
+  "voxel_size": 0.25,
+  "voxels": [
+    {
+      "ix": -5,
+      "iy": -41,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -5,
+      "iy": -40,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -5,
+      "iy": -39,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -42,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -41,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -40,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -4,
+      "iy": -39,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -42,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -41,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -40,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -3,
+      "iy": -39,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -2,
+      "iy": -42,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -2,
+      "iy": -41,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    },
+    {
+      "ix": -2,
+      "iy": -40,
+      "iz": 3,
+      "state": 1,
+      "score": 0.0
+    }
+  ]
+}

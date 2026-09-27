@@ -1,0 +1,3 @@
+mission_mode: trajectory
+navigation_source: gt
+trajectory_file: c6_7_dos_vueltas_sentidos_contrarios.yaml

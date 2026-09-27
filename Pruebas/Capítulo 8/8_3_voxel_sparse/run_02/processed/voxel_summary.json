@@ -1,0 +1,34 @@
+{
+  "result": "PASS",
+  "global_valid_seen": true,
+  "final_target_seen": true,
+  "map_revision_strictly_incremental": true,
+  "snapshots": [
+    {
+      "snapshot": "A",
+      "map_revision": 0,
+      "num_FREE": 0,
+      "num_OCCUPIED": 0,
+      "num_keyframes_con_evidencia": 0,
+      "num_sources": "ver [F6E-KF-EVIDENCE-WRITTEN] en log reducido"
+    },
+    {
+      "snapshot": "B",
+      "map_revision": 2,
+      "num_FREE": 21,
+      "num_OCCUPIED": 0,
+      "num_keyframes_con_evidencia": 0,
+      "num_sources": "ver [F6E-KF-EVIDENCE-WRITTEN] en log reducido"
+    },
+    {
+      "snapshot": "C",
+      "map_revision": 684,
+      "num_FREE": 11568,
+      "num_OCCUPIED": 598,
+      "num_keyframes_con_evidencia": 46,
+      "num_sources": "ver [F6E-KF-EVIDENCE-WRITTEN] en log reducido"
+    }
+  ],
+  "keyframes_with_evidence": 51,
+  "capture_duration_sec": 205.288
+}

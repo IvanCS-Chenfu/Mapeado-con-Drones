@@ -1,0 +1,6 @@
+{
+  "test": "7.8.2",
+  "run": "run_10",
+  "status": "INTERRUMPIDA_O_BLOQUEADA",
+  "reason": "El scenario_runner ya no estaba activo mientras el wrapper/Gazebo seguian vivos; se limpio el entorno antes de repetir."
+}

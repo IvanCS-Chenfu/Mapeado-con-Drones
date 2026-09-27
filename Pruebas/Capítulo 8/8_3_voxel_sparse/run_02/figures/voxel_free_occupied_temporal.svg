@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="920" viewBox="0 0 1500 920">
+<style>.title{font:700 27px Arial,sans-serif;fill:#17212b}.sub{font:16px Arial,sans-serif;fill:#56616d}.tick{font:15px Arial,sans-serif;fill:#56616d}.value{font:700 16px Arial,sans-serif;fill:#17212b}.xlab{font:700 16px Arial,sans-serif;fill:#17212b}.xsub{font:14px Arial,sans-serif;fill:#56616d}.note{font:15px Arial,sans-serif;fill:#39434e}.axis{stroke:#76808a;stroke-width:1.5}.grid{stroke:#dbe1e5;stroke-width:1}</style>
+<rect width="100%" height="100%" fill="white"/>
+<text x="150" y="42" class="title">Prueba 8.3: evolucion temporal de voxeles sparse (run_02)</text>
+<text x="150" y="69" class="sub">Tres snapshots medidos; tiempo relativo al primer snapshot A.</text>
+<text x="150" y="63" class="title">FREE</text>
+<text x="150" y="87" class="sub">Conteo de voxeles publicados por VoxelMap</text>
+<line x1="150" y1="395" x2="1350" y2="395" class="axis"/>
+<line x1="150" y1="105" x2="150" y2="395" class="axis"/>
+<line x1="150" y1="395.0" x2="1350" y2="395.0" class="grid"/>
+<text x="132" y="400.0" class="tick" text-anchor="end">0</text>
+<line x1="150" y1="322.5" x2="1350" y2="322.5" class="grid"/>
+<text x="132" y="327.5" class="tick" text-anchor="end">3,000</text>
+<line x1="150" y1="250.0" x2="1350" y2="250.0" class="grid"/>
+<text x="132" y="255.0" class="tick" text-anchor="end">6,000</text>
+<line x1="150" y1="177.5" x2="1350" y2="177.5" class="grid"/>
+<text x="132" y="182.5" class="tick" text-anchor="end">9,000</text>
+<line x1="150" y1="105.0" x2="1350" y2="105.0" class="grid"/>
+<text x="132" y="110.0" class="tick" text-anchor="end">12,000</text>
+<polyline points="150.0,395.0 152.8,394.5 1350.0,115.4" fill="none" stroke="#238b57" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="150.0" cy="395.0" r="8" fill="#238b57" stroke="white" stroke-width="3"/>
+<text x="150.0" y="378.0" class="value" text-anchor="middle">0</text>
+<circle cx="152.8" cy="394.5" r="8" fill="#238b57" stroke="white" stroke-width="3"/>
+<text x="152.8" y="377.5" class="value" text-anchor="middle">21</text>
+<circle cx="1350.0" cy="115.4" r="8" fill="#238b57" stroke="white" stroke-width="3"/>
+<text x="1350.0" y="146.4" class="value" text-anchor="middle">11,568</text>
+<text x="150" y="488" class="title">OCCUPIED</text>
+<text x="150" y="512" class="sub">Conteo de voxeles publicados por VoxelMap</text>
+<line x1="150" y1="820" x2="1350" y2="820" class="axis"/>
+<line x1="150" y1="530" x2="150" y2="820" class="axis"/>
+<line x1="150" y1="820.0" x2="1350" y2="820.0" class="grid"/>
+<text x="132" y="825.0" class="tick" text-anchor="end">0</text>
+<line x1="150" y1="747.7" x2="1350" y2="747.7" class="grid"/>
+<text x="132" y="752.7" class="tick" text-anchor="end">162</text>
+<line x1="150" y1="675.0" x2="1350" y2="675.0" class="grid"/>
+<text x="132" y="680.0" class="tick" text-anchor="end">325</text>
+<line x1="150" y1="602.3" x2="1350" y2="602.3" class="grid"/>
+<text x="132" y="607.3" class="tick" text-anchor="end">488</text>
+<line x1="150" y1="530.0" x2="1350" y2="530.0" class="grid"/>
+<text x="132" y="535.0" class="tick" text-anchor="end">650</text>
+<polyline points="150.0,820.0 152.8,820.0 1350.0,553.2" fill="none" stroke="#c94141" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="150.0" cy="820.0" r="8" fill="#c94141" stroke="white" stroke-width="3"/>
+<text x="150.0" y="803.0" class="value" text-anchor="middle">0</text>
+<circle cx="152.8" cy="820.0" r="8" fill="#c94141" stroke="white" stroke-width="3"/>
+<text x="152.8" y="803.0" class="value" text-anchor="middle">0</text>
+<circle cx="1350.0" cy="553.2" r="8" fill="#c94141" stroke="white" stroke-width="3"/>
+<text x="1350.0" y="584.2" class="value" text-anchor="middle">598</text>
+<line x1="150.0" y1="820" x2="150.0" y2="829" class="axis"/>
+<text x="150.0" y="853" class="xlab" text-anchor="middle">A: 0.000 s</text>
+<text x="150.0" y="874" class="xsub" text-anchor="middle">KF con evidencia: 0</text>
+<line x1="152.8" y1="820" x2="152.8" y2="829" class="axis"/>
+<text x="152.8" y="853" class="xlab" text-anchor="middle">B: 0.120 s</text>
+<text x="152.8" y="874" class="xsub" text-anchor="middle">KF con evidencia: 0</text>
+<line x1="1350.0" y1="820" x2="1350.0" y2="829" class="axis"/>
+<text x="1350.0" y="853" class="xlab" text-anchor="middle">C: 50.955 s</text>
+<text x="1350.0" y="874" class="xsub" text-anchor="middle">KF con evidencia: 46</text>
+<text x="750.0" y="907" class="xlab" text-anchor="middle">Tiempo desde A (s)</text>
+<text x="150" y="865" class="note">OCCUPIED: voxeles materializados desde MapPoints sparse cualificados.</text>
+<text x="150" y="889" class="note">FREE: combinacion publicada de rayos sparse/RANSAC y volumen fisico libre asociado al movimiento/KFs; VoxelMap no los separa por origen.</text>
+</svg>

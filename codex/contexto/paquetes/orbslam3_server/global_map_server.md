@@ -24,6 +24,34 @@ independiente el publisher ligero `/system_architecture/activity`. Simulacion
 solo activa productores cuando el visualizador master correspondiente esta
 habilitado.
 
+## Telemetria pasiva del Capitulo 6
+
+`chapter6_queue_telemetry_enabled=false` no crea el temporizador ni emite
+datos. Al activarse, `PublishChapter6QueueSample()` registra
+`[C6-QUEUE-SAMPLE]` cada `chapter6_queue_telemetry_period_ms` (minimo 100 ms)
+con tiempo simulado, pendientes de ambas colas, carriles critico/mantenimiento,
+estado de optimizacion, backpressure combinado y watermarks. Solo consulta
+estados ya existentes: no encola, cancela, prioriza ni modifica tareas.
+
+```text
+src/global_map_server.cpp -> PublishChapter6QueueSample
+rg -n "chapter6_queue_telemetry|C6-QUEUE-SAMPLE" servidor/orbslam3_server
+```
+
+`chapter6_keyframe_pose_telemetry_enabled=false` es una captura pasiva para
+la prueba 6.3.3. Despues de construir una revision publica, solo recorre
+`build.delta_keyframe_upserts`, consulta el KF raw ya residente y emite
+`[C6-KF-POSE]` con identidad `(drone, epoch, kf)`, timestamp original del KF,
+revision de pose y pose world. No crea timer, topic, snapshot ni trabajo de
+backend; apagada no realiza la consulta raw. Las muestras inicial/final de una
+misma identidad permiten comparar offline la pose del servidor antes/despues
+de un commit con GT externo interpolado.
+
+```text
+src/global_map_server.cpp -> EmitChapter6KeyframePoseSamples
+rg -n "chapter6_keyframe_pose_telemetry|C6-KF-POSE" servidor/orbslam3_server
+```
+
 ## Rol
 
 Orquestador ROS 2 de los flujos principal y secundario. Las decisiones de mapa,
@@ -236,7 +264,9 @@ latch adicional en `UpdateBackpressure()`.
 El constructor declara el contrato ROS completo y recibe sus valores desde los
 YAML temáticos descritos en `launches.md`. `scoring.yaml` posee `score_*`;
 `loop_fusion.yaml` posee `fusion_score_inlier_reward=0.04` y
-`fusion_score_member_bonus=0.04`. Los parámetros sparse negativos de 3P se
+`fusion_score_member_bonus=0.04`. Ambos pueden sobrescribirse por launch para
+una prueba concreta mediante `global_orb_map_server.launch.py`; el sentinel
+`__from_yaml__` conserva el YAML. Los parámetros sparse negativos de 3P se
 retiraron porque la oclusión es solo diagnóstica hasta Fase 8.
 
 Los defaults de distancia son `score_suspicious_near_distance_m=1.0`,
@@ -244,6 +274,13 @@ Los defaults de distancia son `score_suspicious_near_distance_m=1.0`,
 `score_far_baseline_multiplier=83.333333`,
 `score_far_distance_fallback_m=5.0` y `score_far_min_factor=0.25`. Con baseline
 `0.06 m`, el factor queda neutro entre 1 y 5 m.
+
+La mascara por esferas del cuerpo del dron esta desactivada de forma permanente
+en los launches normales. Esa desactivacion no elimina el criterio directo de
+distancia: cada MapPoint actualizado conserva su penalizacion por observacion a
+menos de 1 m o a mas de 5 m. Tambien se omite el recorrido espacial de vecinos
+cuando la mascara esta apagada; asi no se recalculan MapPoints colindantes por
+cada delta del flujo principal.
 
 El principal emite `[F3R-RAW-SCORE-COMMIT]` con dirty raw/fused y
 `[F3R-SCORE-STATS]` cada 25 arrivals live. El secundario emite
@@ -329,9 +366,10 @@ mediante snapshots por lote, sin modificar la semantica incremental del
 builder. Por decision del usuario, esa correccion interna se aplaza a las
 pruebas de Fase 6.
 
-`score_drone_body_mask_enabled=false` se propaga al backend y evita tambien la
-subscription `/mission/registry`. `[GLOBAL-FEATURE-GATES]` registra ambos gates
-al arrancar para que una prueba demuestre la configuracion efectiva.
+La mascara esferica del cuerpo permanece fijada a `false` en YAML y launch. El
+backend no crea la subscription `/mission/registry` ni recalcula score de
+MapPoints vecinos por esa mascara. `[GLOBAL-FEATURE-GATES]` registra el estado
+efectivo al arrancar.
 
 ## Telemetria raw opt-in de la prueba 5.5
 

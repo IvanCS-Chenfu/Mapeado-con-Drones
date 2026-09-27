@@ -31,6 +31,7 @@
 #include <sensor_msgs/msg/point_field.hpp>
 #include <std_msgs/msg/string.hpp>
 #include <std_srvs/srv/set_bool.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <task_lib/facade_coverage.hpp>
 #include <task_lib/mission_config.hpp>
 #include <task_lib/dstar_lite.hpp>
@@ -215,6 +216,7 @@ struct FacadeTaskRuntime
   task_lib::FacadeCoveragePlan coverage_plan;
   // Cache derivada de las claims; nunca se activa de forma irreversible.
   std::vector<bool> active_coverage_sections;
+  std::vector<bool> rejected_candidate_sections;
   std::map<std::string, std::set<std::size_t>> coverage_claims_by_source;
   std::vector<double> rejected_inspection_target_ratios;
   std::optional<double> segment_start_ratio;
@@ -340,6 +342,7 @@ struct PendingDepthContinuation
   task_server::WorkflowWorkItem work_item;
   std::set<std::string> pending_source_ids;
   bool recheck_unknown_target = false;
+  bool suppress_workflow_continuation = false;
 };
 
 struct CoverageSourceContext
@@ -937,6 +940,26 @@ public:
       declare_parameter("planning_coarse_voxel_factor", 4);
     execute_facade_sweeps_ = declare_parameter("execute_facade_sweeps", false);
     execution_enabled_.store(declare_parameter("execution_enabled_on_start", true));
+    test_view_unknown_right_enabled_ =
+      declare_parameter("test_view_unknown_right_enabled", false);
+    test_view_unknown_right_drone_id_ = static_cast<std::uint32_t>(std::max<std::int64_t>(
+        1, declare_parameter("test_view_unknown_right_drone_id", 1)));
+    test_view_unknown_right_angle_deg_ =
+      declare_parameter("test_view_unknown_right_angle_deg", 90.0);
+    test_view_unknown_right_distance_m_ =
+      declare_parameter("test_view_unknown_right_distance_m", 4.0);
+    test_view_wall_fixed_enabled_ =
+      declare_parameter("test_view_wall_fixed_enabled", false);
+    test_view_wall_fixed_drone_id_ = static_cast<std::uint32_t>(std::max<std::int64_t>(
+        1, declare_parameter("test_view_wall_fixed_drone_id", 1)));
+    test_view_wall_fixed_target_.x = declare_parameter("test_view_wall_fixed_x", -2.0);
+    test_view_wall_fixed_target_.y = declare_parameter("test_view_wall_fixed_y", 8.0);
+    test_view_wall_fixed_target_.z = declare_parameter("test_view_wall_fixed_z", 1.0);
+    test_view_wall_fixed_yaw_deg_ = declare_parameter("test_view_wall_fixed_yaw_deg", 90.0);
+    test_view_wall_fixed_ignore_corridor_stops_ =
+      declare_parameter("test_view_wall_fixed_ignore_corridor_stops", false);
+    test_view_wall_fixed_require_known_free_ =
+      declare_parameter("test_view_wall_fixed_require_known_free", true);
     execution_nominal_velocity_mps_ = declare_parameter("execution_nominal_velocity_mps", 0.8);
     execution_timing_factor_ = declare_parameter("execution_timing_factor", 2.0);
     trajectory_waypoint_min_separation_m_ =
@@ -952,6 +975,10 @@ public:
     depth_coverage_neighbor_sections_ =
       declare_parameter("depth_coverage_neighbor_sections", 2);
     voxel_worker_coalesce_ms_ = declare_parameter("voxel_worker_coalesce_ms", 100);
+    voxel_worker_max_transactions_per_tick_ = declare_parameter(
+      "voxel_worker_max_transactions_per_tick", 1);
+    voxel_worker_flush_interval_ms_ = declare_parameter(
+      "voxel_worker_flush_interval_ms", 500);
     facade_preferences_.preferred_wall_distance_m =
       declare_parameter("facade_preferred_wall_distance_m", 4.0);
     facade_preferences_.preferred_displacement_m =
@@ -976,12 +1003,19 @@ public:
     debug_facade_dstar_failure_ =
       declare_parameter("debug_facade_dstar_failure", false);
     if (execution_nominal_velocity_mps_ <= 0.0 || execution_timing_factor_ < 1.0 ||
+      !std::isfinite(test_view_unknown_right_angle_deg_) ||
+      !std::isfinite(test_view_unknown_right_distance_m_) ||
+      test_view_unknown_right_angle_deg_ <= 0.0 || test_view_unknown_right_angle_deg_ > 180.0 ||
+      test_view_unknown_right_distance_m_ <= 0.0 ||
+      !IsFinite(test_view_wall_fixed_target_) ||
+      !std::isfinite(test_view_wall_fixed_yaw_deg_) ||
       trajectory_waypoint_min_separation_m_ <= 0.0 ||
       trajectory_min_segment_duration_sec_ <= 0.0 ||
       extra_obstacle_clearance_voxels_ < 0 || start_escape_radius_voxels_ < 0 ||
       unknown_fallback_free_radius_voxels_ <= 0 || facade_coverage_offset_voxels_ < 0 ||
       depth_coverage_neighbor_sections_ < 0 ||
-      voxel_worker_coalesce_ms_ <= 0 ||
+      voxel_worker_coalesce_ms_ <= 0 || voxel_worker_max_transactions_per_tick_ <= 0 ||
+      voxel_worker_flush_interval_ms_ <= 0 ||
       facade_preferences_.preferred_wall_distance_m <= 0.0 ||
       facade_preferences_.preferred_displacement_m <= 0.0 ||
       facade_preferences_.wall_distance_weight < 0.0 ||
@@ -1033,17 +1067,9 @@ public:
     depth_parameters.min_confidence = depth_min_confidence_;
     depth_integration_worker_ = std::make_unique<task_server::DepthIntegrationWorker>(
       depth_parameters);
+    // Evidence, voxel and workflow state are shared by these callbacks. Keep their
+    // mutations serialized even though the node runs in a multi-threaded executor.
     map_callback_group_ = create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    execution_control_callback_group_ =
-      create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    workflow_ingress_callback_group_ =
-      create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    workflow_dispatch_callback_group_ =
-      create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    voxel_materialization_callback_group_ =
-      create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
-    trajectory_monitor_callback_group_ =
-      create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
     global_pose_client_ = create_client<orbslam3_msgs::srv::GetGlobalKeyFramePose>(
       "/global_mapping/get_global_keyframe_pose", rclcpp::ServicesQoS(), map_callback_group_);
     for (const auto & region : geometry_data_.regions) {
@@ -1087,14 +1113,30 @@ public:
       autonomous_command_clients_.emplace(
         drone_id, create_client<SubmitAutonomousCommand>(
           "/dron_" + std::to_string(drone_id) + "/autonomous_command",
-          rclcpp::ServicesQoS(), workflow_dispatch_callback_group_));
+          rclcpp::ServicesQoS(), map_callback_group_));
     }
     execution_toggle_service_ = create_service<std_srvs::srv::SetBool>(
       "/mission/set_coverage_execution_enabled",
       std::bind(
         &TaskServerNode::HandleExecutionToggle, this, std::placeholders::_1,
         std::placeholders::_2), rmw_qos_profile_services_default,
-      execution_control_callback_group_);
+      map_callback_group_);
+    if (test_view_unknown_right_enabled_) {
+      test_view_unknown_right_service_ = create_service<std_srvs::srv::Trigger>(
+        "/mission/test_view_unknown_right",
+        std::bind(
+          &TaskServerNode::HandleTestViewUnknownRight, this, std::placeholders::_1,
+          std::placeholders::_2), rmw_qos_profile_services_default,
+        map_callback_group_);
+    }
+    if (test_view_wall_fixed_enabled_) {
+      test_view_wall_fixed_service_ = create_service<std_srvs::srv::Trigger>(
+        "/mission/test_view_wall_fixed",
+        std::bind(
+          &TaskServerNode::HandleTestViewWallFixed, this, std::placeholders::_1,
+          std::placeholders::_2), rmw_qos_profile_services_default,
+        map_callback_group_);
+    }
     rclcpp::SubscriptionOptions map_subscription_options;
     map_subscription_options.callback_group = map_callback_group_;
     task_report_subscription_ = create_subscription<mission_msgs::msg::TaskReport>(
@@ -1174,7 +1216,7 @@ public:
       std::shared_ptr<ReportAutonomousResult::Response> response)
       {
         HandleAutonomousResult(request, response);
-      }, rclcpp::ServicesQoS(), workflow_ingress_callback_group_);
+      }, rclcpp::ServicesQoS(), map_callback_group_);
 
     PublishGeometry();
     PublishRegistry();
@@ -1197,6 +1239,11 @@ public:
       std::chrono::milliseconds(facade_worker_period_ms_),
       [this]() {RunFacadeWorker();}, map_callback_group_, get_node_base_interface().get(),
       get_node_timers_interface().get());
+    if (test_view_wall_fixed_enabled_) {
+      test_view_wall_fixed_timer_ = rclcpp::create_wall_timer(
+        std::chrono::milliseconds(250), [this]() {RunTestViewWallFixed();},
+        map_callback_group_, get_node_base_interface().get(), get_node_timers_interface().get());
+    }
     execution_gate_apply_timer_ = rclcpp::create_wall_timer(
       std::chrono::milliseconds(50), [this]() {ApplyExecutionGateRequest();},
       map_callback_group_, get_node_base_interface().get(), get_node_timers_interface().get());
@@ -1206,19 +1253,19 @@ public:
       get_node_timers_interface().get());
     depth_integration_worker_timer_ = rclcpp::create_wall_timer(
       std::chrono::milliseconds(50), [this]() {RunDepthIntegrationWorker();},
-      workflow_dispatch_callback_group_, get_node_base_interface().get(),
+      map_callback_group_, get_node_base_interface().get(),
       get_node_timers_interface().get());
     point_selection_worker_timer_ = rclcpp::create_wall_timer(
       std::chrono::milliseconds(50), [this]() {RunPointSelectionWorker();},
-      workflow_dispatch_callback_group_, get_node_base_interface().get(),
+      map_callback_group_, get_node_base_interface().get(),
       get_node_timers_interface().get());
     trajectory_planning_worker_timer_ = rclcpp::create_wall_timer(
       std::chrono::milliseconds(50), [this]() {RunTrajectoryPlanningWorker();},
-      workflow_dispatch_callback_group_, get_node_base_interface().get(),
+      map_callback_group_, get_node_base_interface().get(),
       get_node_timers_interface().get());
     active_trajectory_monitor_worker_timer_ = rclcpp::create_wall_timer(
       std::chrono::milliseconds(50), [this]() {RunActiveTrajectoryMonitorWorker();},
-      workflow_dispatch_callback_group_, get_node_base_interface().get(),
+      map_callback_group_, get_node_base_interface().get(),
       get_node_timers_interface().get());
     RCLCPP_INFO(
       get_logger(),
@@ -1226,7 +1273,7 @@ public:
       mission_id_.c_str(), geometry_data_.config_revision, mission_frame_.c_str());
     RCLCPP_INFO(
       get_logger(),
-      "[F6A-WORKFLOW-READY] queues=assignment,selection,planning,depth,monitor callbacks=separated legacy_dispatch=unchanged");
+      "[F6A-WORKFLOW-READY] queues=assignment,selection,planning,depth,monitor callbacks=serialized_state legacy_dispatch=unchanged");
     RCLCPP_INFO(
       get_logger(), "[F6B-GEOMETRY] levels=%zu regions=%zu unassigned=true",
       geometry_data_.levels.size(), geometry_data_.regions.size());
@@ -1387,6 +1434,16 @@ private:
           "[F6I-CORRIDOR-CHANGE] drone=%u trajectory_id=%s voxel=%s revision=%lu severity=occupied_or_inflated",
           item.first, runtime.trajectory_id.c_str(), VoxelKeyToken(change.key).c_str(),
           update.raw_revision);
+        if (test_view_wall_fixed_ignore_corridor_stops_ &&
+          runtime.autonomous_workflow && runtime.autonomous_workflow_id.rfind(
+            "test_view_wall_fixed:", 0U) == 0U)
+        {
+          RCLCPP_WARN(
+            get_logger(),
+            "[F8B-VIEW-WALL-FIXED-CORRIDOR-STOP-SUPPRESSED] drone=%u trajectory_id=%s voxel=%s",
+            item.first, runtime.trajectory_id.c_str(), VoxelKeyToken(change.key).c_str());
+          continue;
+        }
         if (debug_trajectory_diagnostics_) {
           const auto plan = execution_plans_.find(runtime.trajectory_id);
           const auto closest = plan == execution_plans_.end() ?
@@ -2456,7 +2513,10 @@ private:
     runtime.in_flight = true;
     runtime.stop_requested = false;
     runtime.corridor_affected = false;
-    runtime.require_known_free = true;
+    const bool fixed_wall_workflow = pending.source.identity.workflow_id.rfind(
+      "test_view_wall_fixed:", 0U) == 0U;
+    runtime.require_known_free =
+      !fixed_wall_workflow || test_view_wall_fixed_require_known_free_;
     runtime.autonomous_workflow = true;
     runtime.autonomous_command_id = command_id;
     runtime.autonomous_workflow_id = pending.source.identity.workflow_id;
@@ -2543,6 +2603,220 @@ private:
       failure_queue, command_id);
   }
 
+  void HandleTestViewUnknownRight(
+    const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+    std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+  {
+    if (!test_view_unknown_right_enabled_) {
+      response->message = "test_view_unknown_right_disabled";
+      return;
+    }
+    if (!depth_evidence_enabled_) {
+      response->message = "depth_evidence_disabled";
+      return;
+    }
+    const auto pose = navigation_poses_.find(test_view_unknown_right_drone_id_);
+    const auto client = autonomous_command_clients_.find(test_view_unknown_right_drone_id_);
+    if (pose == navigation_poses_.end() || client == autonomous_command_clients_.end() ||
+      !client->second || !client->second->service_is_ready())
+    {
+      response->message = "test_view_unknown_right_not_ready";
+      return;
+    }
+    const double target_yaw = pose->second.yaw_rad -
+      test_view_unknown_right_angle_deg_ * M_PI / 180.0;
+    geometry_msgs::msg::Point visual_target;
+    visual_target.x = pose->second.position.x +
+      test_view_unknown_right_distance_m_ * std::cos(target_yaw);
+    visual_target.y = pose->second.position.y +
+      test_view_unknown_right_distance_m_ * std::sin(target_yaw);
+    visual_target.z = pose->second.position.z;
+    task_server::WorkflowWorkItem source;
+    source.queue = task_server::WorkflowQueue::POINT_SELECTION;
+    source.identity.drone_id = test_view_unknown_right_drone_id_;
+    source.identity.task_id = "test_view_unknown_right";
+    source.identity.workflow_id = "test_view_unknown_right:" +
+      std::to_string(++test_view_unknown_right_revision_);
+    source.identity.map_epoch = pose->second.map_epoch;
+    source.identity.map_revision = voxel_map_->revision();
+    mission_msgs::msg::TrajectoryPlan empty_plan;
+    if (!DispatchAutonomousWorkflowCommand(
+        source, SubmitAutonomousCommand::Request::COMMAND_LOOK_AND_CAPTURE,
+        visual_target, empty_plan, true, task_server::WorkflowQueue::POINT_SELECTION))
+    {
+      response->message = "test_view_unknown_right_dispatch_rejected";
+      return;
+    }
+    response->success = true;
+    response->message = "test_view_unknown_right_dispatched";
+    RCLCPP_INFO(
+      get_logger(),
+      "[F8A-VIEW-UNKNOWN-TEST-DISPATCH] drone=%u workflow=%s yaw_before_deg=%.2f yaw_target_deg=%.2f target=(%.2f,%.2f,%.2f)",
+      source.identity.drone_id, source.identity.workflow_id.c_str(),
+      pose->second.yaw_rad * 180.0 / M_PI, target_yaw * 180.0 / M_PI,
+      visual_target.x, visual_target.y, visual_target.z);
+  }
+
+  void HandleTestViewWallFixed(
+    const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+    std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+  {
+    if (!test_view_wall_fixed_enabled_) {
+      response->message = "test_view_wall_fixed_disabled";
+      return;
+    }
+    if (!depth_evidence_enabled_) {
+      response->message = "depth_evidence_disabled";
+      return;
+    }
+    if (test_view_wall_fixed_armed_) {
+      response->message = "test_view_wall_fixed_already_armed";
+      return;
+    }
+    const auto pose = navigation_poses_.find(test_view_wall_fixed_drone_id_);
+    const auto client = autonomous_command_clients_.find(test_view_wall_fixed_drone_id_);
+    if (pose == navigation_poses_.end() || client == autonomous_command_clients_.end() ||
+      !client->second || !client->second->service_is_ready())
+    {
+      response->message = "test_view_wall_fixed_not_ready";
+      return;
+    }
+    const auto task = std::find_if(
+      tasks_.begin(), tasks_.end(), [this](const auto & candidate) {
+        const auto * region = RegionForTask(candidate);
+        return candidate.task_type == "MAP_SECTION" && region != nullptr &&
+               test_view_wall_fixed_target_.x >= region->bounds.min.x &&
+               test_view_wall_fixed_target_.x <= region->bounds.max.x &&
+               test_view_wall_fixed_target_.y >= region->bounds.min.y &&
+               test_view_wall_fixed_target_.y <= region->bounds.max.y &&
+               test_view_wall_fixed_target_.z >= region->bounds.min.z &&
+               test_view_wall_fixed_target_.z <= region->bounds.max.z;
+      });
+    if (task == tasks_.end()) {
+      response->message = "test_view_wall_fixed_target_without_task";
+      return;
+    }
+    auto * runtime = FacadeRuntimeFor(*task);
+    if (runtime == nullptr) {
+      response->message = "test_view_wall_fixed_runtime_unavailable";
+      return;
+    }
+    const auto target_section = task_lib::FacadeCoverageSectionForPoint(
+      runtime->coverage_plan, test_view_wall_fixed_target_);
+    if (!target_section.has_value()) {
+      response->message = "test_view_wall_fixed_target_without_section";
+      return;
+    }
+    task->assigned_drone_id = test_view_wall_fixed_drone_id_;
+    task->state = mission_msgs::msg::TaskState::RUNNING;
+    SyncFacadeTaskState(*task, *runtime, "Prueba 8.4-B: MOVE_AND_CAPTURE fijo armado");
+
+    test_view_wall_fixed_source_.queue = task_server::WorkflowQueue::TRAJECTORY_PLANNING;
+    test_view_wall_fixed_source_.identity.drone_id = test_view_wall_fixed_drone_id_;
+    test_view_wall_fixed_source_.identity.task_id = task->task_id;
+    test_view_wall_fixed_source_.identity.workflow_id = "test_view_wall_fixed:" +
+      std::to_string(++test_view_wall_fixed_revision_);
+    test_view_wall_fixed_source_.identity.command_id = test_view_wall_fixed_source_.identity.workflow_id;
+    test_view_wall_fixed_source_.identity.map_epoch = pose->second.map_epoch;
+    test_view_wall_fixed_source_.identity.map_revision = voxel_map_->revision();
+    test_view_wall_fixed_candidate_ = task_lib::FacadeCandidate{};
+    test_view_wall_fixed_candidate_.valid = true;
+    test_view_wall_fixed_candidate_.target = test_view_wall_fixed_target_;
+    test_view_wall_fixed_candidate_.visual_target = test_view_wall_fixed_target_;
+    test_view_wall_fixed_candidate_.target_ratio = task_lib::ProjectToFacadeRatio(
+      runtime->facade, test_view_wall_fixed_target_);
+    test_view_wall_fixed_candidate_.section_index = *target_section;
+    test_view_wall_fixed_candidate_.observation_yaw_rad =
+      test_view_wall_fixed_yaw_deg_ * M_PI / 180.0;
+    test_view_wall_fixed_candidate_.synthetic_visual_target = false;
+    test_view_wall_fixed_route_reason_.clear();
+    test_view_wall_fixed_armed_ = true;
+    response->success = true;
+    response->message = "test_view_wall_fixed_armed";
+    RCLCPP_INFO(
+      get_logger(),
+      "[F8B-VIEW-WALL-FIXED-ARMED] drone=%u task=%s workflow=%s target=(%.2f,%.2f,%.2f) yaw_deg=%.2f section=%zu",
+      test_view_wall_fixed_drone_id_, task->task_id.c_str(),
+      test_view_wall_fixed_source_.identity.workflow_id.c_str(), test_view_wall_fixed_target_.x,
+      test_view_wall_fixed_target_.y, test_view_wall_fixed_target_.z,
+      test_view_wall_fixed_yaw_deg_, test_view_wall_fixed_candidate_.section_index);
+  }
+
+  void RunTestViewWallFixed()
+  {
+    if (!test_view_wall_fixed_armed_) {
+      return;
+    }
+    const auto pose = navigation_poses_.find(test_view_wall_fixed_drone_id_);
+    const auto task = std::find_if(
+      tasks_.begin(), tasks_.end(), [this](const auto & candidate) {
+        return candidate.task_id == test_view_wall_fixed_source_.identity.task_id &&
+               candidate.assigned_drone_id == test_view_wall_fixed_drone_id_;
+      });
+    if (pose == navigation_poses_.end() || task == tasks_.end()) {
+      return;
+    }
+    auto * runtime = FacadeRuntimeFor(*task);
+    if (runtime == nullptr) {
+      return;
+    }
+    std::string reason;
+    auto * planner = PlannerFor(
+      test_view_wall_fixed_drone_id_, &reason, test_view_wall_fixed_require_known_free_,
+      &pose->second.position);
+    if (planner == nullptr) {
+      if (reason != test_view_wall_fixed_route_reason_) {
+        test_view_wall_fixed_route_reason_ = reason;
+        RCLCPP_WARN(
+          get_logger(), "[F8B-VIEW-WALL-FIXED-ROUTE-WAIT] drone=%u reason=%s",
+          test_view_wall_fixed_drone_id_, reason.c_str());
+      }
+      return;
+    }
+    const auto route = planner->Plan(pose->second.position, test_view_wall_fixed_target_);
+    if (!route.success) {
+      if (route.failure_reason != test_view_wall_fixed_route_reason_) {
+        test_view_wall_fixed_route_reason_ = route.failure_reason;
+        LogFacadeStrictRouteFailure(
+          test_view_wall_fixed_drone_id_, pose->second.position, test_view_wall_fixed_target_, route);
+        RCLCPP_WARN(
+          get_logger(), "[F8B-VIEW-WALL-FIXED-ROUTE-WAIT] drone=%u target=(%.2f,%.2f,%.2f) reason=%s",
+          test_view_wall_fixed_drone_id_, test_view_wall_fixed_target_.x,
+          test_view_wall_fixed_target_.y, test_view_wall_fixed_target_.z, route.failure_reason.c_str());
+      }
+      return;
+    }
+    navigation_orientations_[test_view_wall_fixed_drone_id_] = NavigationOrientation{
+      test_view_wall_fixed_candidate_.observation_yaw_rad, 0.0, pose->second.map_epoch, true};
+    const auto plan = BuildExecutablePlan(
+      route, task->task_id, test_view_wall_fixed_drone_id_, pose->second,
+      execution_nominal_velocity_mps_, test_view_wall_fixed_require_known_free_,
+      &pose->second.position);
+    AutonomousWorkflowContext context;
+    context.candidate = test_view_wall_fixed_candidate_;
+    context.segment_start_ratio = task_lib::ProjectToFacadeRatio(runtime->facade, pose->second.position);
+    context.has_candidate = true;
+    context.move_to_wall = true;
+    context.view_advance_capture = false;
+    autonomous_workflow_contexts_[test_view_wall_fixed_source_.identity.workflow_id] = context;
+    if (!DispatchAutonomousWorkflowCommand(
+        test_view_wall_fixed_source_, SubmitAutonomousCommand::Request::COMMAND_MOVE_AND_CAPTURE,
+        ToPoint(test_view_wall_fixed_candidate_.visual_target), plan, true,
+        task_server::WorkflowQueue::TRAJECTORY_PLANNING))
+    {
+      autonomous_workflow_contexts_.erase(test_view_wall_fixed_source_.identity.workflow_id);
+      return;
+    }
+    test_view_wall_fixed_armed_ = false;
+    RCLCPP_INFO(
+      get_logger(),
+      "[F8B-VIEW-WALL-FIXED-DISPATCH] drone=%u task=%s workflow=%s target=(%.2f,%.2f,%.2f) yaw_deg=%.2f waypoints=%zu",
+      test_view_wall_fixed_drone_id_, task->task_id.c_str(),
+      test_view_wall_fixed_source_.identity.workflow_id.c_str(), test_view_wall_fixed_target_.x,
+      test_view_wall_fixed_target_.y, test_view_wall_fixed_target_.z,
+      test_view_wall_fixed_yaw_deg_, plan.waypoints.size());
+  }
+
   void RunPointSelectionWorker()
   {
     if (!execution_enabled_.load(std::memory_order_acquire)) {
@@ -2558,11 +2832,16 @@ private:
         candidate.assigned_drone_id == item->identity.drone_id;
       });
     const auto pose = navigation_poses_.find(item->identity.drone_id);
-    if (task == tasks_.end() || pose == navigation_poses_.end()) {
+    if (task == tasks_.end()) {
+      return;
+    }
+    if (pose == navigation_poses_.end()) {
+      workflow_scheduler_.Requeue(*item);
       return;
     }
     auto * runtime = FacadeRuntimeFor(*task);
     if (runtime == nullptr) {
+      workflow_scheduler_.Requeue(*item);
       return;
     }
     const bool coverage_complete = !runtime->active_coverage_sections.empty() &&
@@ -2632,12 +2911,29 @@ private:
       [&target_key](const auto & cell) {return cell.key == target_key;});
     const bool target_traversable = target_navigation != navigation_snapshot.cells.end() &&
       target_navigation->traversable;
-    if (target_state == task_lib::VoxelState::Occupied ||
-      (target_state == task_lib::VoxelState::Free && !target_traversable))
+    if (target_state == task_lib::VoxelState::Occupied)
     {
       runtime->rejected_inspection_target_ratios.push_back(candidate->target_ratio);
+      runtime->rejected_candidate_sections.resize(runtime->coverage_plan.sections.size(), false);
+      runtime->rejected_candidate_sections[candidate->section_index] = true;
       autonomous_workflow_contexts_.erase(item->identity.workflow_id);
       workflow_scheduler_.Requeue(*item);
+      return;
+    }
+    if (target_state == task_lib::VoxelState::Free && !target_traversable) {
+      next.fallback_free_advance = true;
+      autonomous_workflow_contexts_[item->identity.workflow_id] = next;
+      task->state = mission_msgs::msg::TaskState::RUNNING;
+      SyncFacadeTaskState(
+        *task, *runtime,
+        "Pose FREE inflada; encola prefijo FREE estricto");
+      auto planning = *item;
+      planning.queue = task_server::WorkflowQueue::TRAJECTORY_PLANNING;
+      workflow_scheduler_.Enqueue(planning);
+      RCLCPP_INFO(
+        get_logger(),
+        "[F6K-POINT-SELECTION-FREE-INFLATED] task=%s drone=%u action=prefix_free",
+        task->task_id.c_str(), item->identity.drone_id);
       return;
     }
     task->state = mission_msgs::msg::TaskState::RUNNING;
@@ -2713,6 +3009,18 @@ private:
         }
       }
       if (!prefix.has_value()) {
+        runtime->rejected_inspection_target_ratios.push_back(
+          context->second.candidate.target_ratio);
+        runtime->rejected_candidate_sections.resize(runtime->coverage_plan.sections.size(), false);
+        runtime->rejected_candidate_sections[context->second.candidate.section_index] = true;
+        SyncFacadeTaskState(
+          *task, *runtime, "Sin prefijo FREE; candidato visual descartado");
+        RCLCPP_INFO(
+          get_logger(),
+          "[F6I-PREFIX-FREE-UNAVAILABLE] task=%s drone=%u section=%zu strict=%s exploratory=%s action=reselect",
+          task->task_id.c_str(), item->identity.drone_id,
+          context->second.candidate.section_index, route.failure_reason.c_str(),
+          exploratory_route.success ? "success" : exploratory_route.failure_reason.c_str());
         autonomous_workflow_contexts_.erase(item->identity.workflow_id);
         auto selection = *item;
         selection.queue = task_server::WorkflowQueue::POINT_SELECTION;
@@ -2792,13 +3100,30 @@ private:
         *item, integrated.reason.empty() ? "depth_sources_not_written" : integrated.reason.c_str());
       return;
     }
+    const bool test_view_unknown = item->identity.workflow_id.rfind(
+      "test_view_unknown_right:", 0U) == 0U;
+    const bool test_view_wall_fixed = item->identity.workflow_id.rfind(
+      "test_view_wall_fixed:", 0U) == 0U;
+    std::size_t free_sources = 0U;
+    std::size_t direct_free_sources = 0U;
+    std::size_t occupied_sources = 0U;
+    for (const auto & source : integrated.sources) {
+      if (source.source_name.rfind("depth_free:", 0U) == 0U) {
+        ++free_sources;
+      } else if (source.source_name.rfind("depth_direct_free:", 0U) == 0U) {
+        ++direct_free_sources;
+      } else if (source.source_name.rfind("depth_occupied:", 0U) == 0U) {
+        ++occupied_sources;
+      }
+    }
     PendingDepthContinuation continuation;
     continuation.work_item = *item;
     continuation.work_item.queue = job.inspection_kind ==
       task_server::DepthInspectionKind::VIEW_UNKNOWN ?
       task_server::WorkflowQueue::TRAJECTORY_PLANNING : task_server::WorkflowQueue::POINT_SELECTION;
     continuation.recheck_unknown_target =
-      job.inspection_kind == task_server::DepthInspectionKind::VIEW_UNKNOWN;
+      job.inspection_kind == task_server::DepthInspectionKind::VIEW_UNKNOWN && !test_view_unknown;
+    continuation.suppress_workflow_continuation = test_view_unknown || test_view_wall_fixed;
     for (const auto & source : integrated.sources) {
       const auto source_id = task_server::VoxelMapBuilder::SourceId(
         source.identity, source.source_name);
@@ -2831,11 +3156,11 @@ private:
     pending_depth_continuations_[item->identity.command_id] = std::move(continuation);
     RCLCPP_INFO(
       get_logger(),
-      "[F6F-DEPTH-SOURCES-WRITTEN] drone=%u command=%s kind=%s sources=%zu",
+      "[F6F-DEPTH-SOURCES-WRITTEN] drone=%u command=%s kind=%s sources=%zu free=%zu direct_free=%zu occupied=%zu",
       item->identity.drone_id, item->identity.command_id.c_str(),
       job.inspection_kind == task_server::DepthInspectionKind::VIEW_WALL ? "vista_pared" :
       job.inspection_kind == task_server::DepthInspectionKind::VIEW_ADVANCE ? "view_advance" :
-      "vista_unknown", integrated.sources.size());
+      "vista_unknown", integrated.sources.size(), free_sources, direct_free_sources, occupied_sources);
   }
 
   void ProcessAppliedDepthContinuations(const std::vector<std::string> & source_ids)
@@ -2856,8 +3181,20 @@ private:
       }
       auto continuation = pending->second.work_item;
       const bool recheck_unknown_target = pending->second.recheck_unknown_target;
+      const bool suppress_workflow_continuation = pending->second.suppress_workflow_continuation;
       const auto command_id = pending->first;
       pending = pending_depth_continuations_.erase(pending);
+      if (suppress_workflow_continuation) {
+        const bool fixed_wall = continuation.identity.workflow_id.rfind(
+          "test_view_wall_fixed:", 0U) == 0U;
+        RCLCPP_INFO(
+          get_logger(),
+          fixed_wall ? "[F8B-VIEW-WALL-FIXED-APPLIED] drone=%u command=%s workflow=%s continuation=suppressed" :
+          "[F8A-VIEW-UNKNOWN-TEST-APPLIED] drone=%u command=%s workflow=%s continuation=suppressed",
+          continuation.identity.drone_id, command_id.c_str(),
+          continuation.identity.workflow_id.c_str());
+        continue;
+      }
       if (recheck_unknown_target && !RequeueAppliedUnknownDepthContinuation(continuation)) {
         continue;
       }
@@ -3007,6 +3344,16 @@ private:
     }
   }
 
+  std::set<std::string> PendingDepthContinuationSourceIds() const
+  {
+    std::set<std::string> source_ids;
+    for (const auto & continuation : pending_depth_continuations_) {
+      source_ids.insert(
+        continuation.second.pending_source_ids.begin(), continuation.second.pending_source_ids.end());
+    }
+    return source_ids;
+  }
+
   void RunVoxelMapWorker()
   {
     bool changed = false;
@@ -3030,17 +3377,26 @@ private:
       pending_sparse_upserts_.clear();
       pending_sparse_deletes_.clear();
     }
+    const auto continuation_source_ids = PendingDepthContinuationSourceIds();
+    task_server::VoxelMaterializationStats materialized;
     if (voxel_map_builder_) {
-      const auto materialized = voxel_map_builder_->Apply(&evidence_database_, voxel_map_.get());
+      const auto started = std::chrono::steady_clock::now();
+      materialized = voxel_map_builder_->Apply(
+        &evidence_database_, voxel_map_.get(),
+        static_cast<std::size_t>(voxel_worker_max_transactions_per_tick_), true,
+        continuation_source_ids);
+      const auto elapsed_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - started).count();
       changed = materialized.changed || changed;
       ApplyCoverageClaimsFromMap(materialized);
       ProcessAppliedDepthContinuations(materialized.applied_source_ids);
       if (materialized.transactions != 0U) {
         RCLCPP_INFO(
           get_logger(),
-          "[F6G-VOXEL-DELTAS-APPLIED] transactions=%zu upserts=%zu deletes=%zu free_cells=%zu changed=%s",
-          materialized.transactions, materialized.upserts, materialized.deletes,
-          materialized.free_cells, materialized.changed ? "true" : "false");
+          "[F6G-VOXEL-DELTAS-APPLIED] transactions=%zu pending=%zu continuation_sources=%zu upserts=%zu deletes=%zu free_cells=%zu elapsed_ms=%.2f changed=%s",
+          materialized.transactions, materialized.pending_transactions, continuation_source_ids.size(),
+          materialized.upserts, materialized.deletes, materialized.free_cells, elapsed_ms,
+          materialized.changed ? "true" : "false");
       }
     }
     if (depth_evidence_enabled_) {
@@ -3049,7 +3405,20 @@ private:
       }
     }
     (void)changed;
-    FlushVoxelChanges("VOXEL_MAP_WORKER_COMMIT");
+    const auto now = std::chrono::steady_clock::now();
+    const bool continuation_applied = std::any_of(
+      materialized.applied_source_ids.begin(), materialized.applied_source_ids.end(),
+      [&continuation_source_ids](const std::string & source_id) {
+        return continuation_source_ids.count(source_id) != 0U;
+      });
+    const bool flush_due = !last_voxel_navigation_flush_.has_value() ||
+      now - *last_voxel_navigation_flush_ >=
+      std::chrono::milliseconds(voxel_worker_flush_interval_ms_);
+    if (continuation_applied || materialized.pending_transactions == 0U || flush_due) {
+      FlushVoxelChanges(continuation_applied ?
+        "VOXEL_MAP_WORKER_CONTINUATION_COMMIT" : "VOXEL_MAP_WORKER_COMMIT");
+      last_voxel_navigation_flush_ = now;
+    }
   }
 
   void RequestKeyframePose(const KeyframeIdentity & identity)
@@ -3558,6 +3927,18 @@ private:
         VoxelKeyToken(target_key).c_str());
       return true;
     }
+    if (target_state == task_lib::VoxelState::Free) {
+      // The strict planner derives the furthest reachable FREE prefix from an
+      // exploratory route, avoiding a silent retry of this inflated goal.
+      context->second.fallback_free_advance = true;
+      RCLCPP_INFO(
+        get_logger(),
+        "[F6H-DEPTH-TARGET-RECHECK] drone=%u workflow=%s target=%s state=free "
+        "action=prefix_free",
+        continuation.identity.drone_id, continuation.identity.workflow_id.c_str(),
+        VoxelKeyToken(target_key).c_str());
+      return true;
+    }
     if (target_state == task_lib::VoxelState::Unknown) {
       const auto * region = RegionForTask(*task);
       const auto fallback = region == nullptr ? std::optional<task_lib::Vec3>{} :
@@ -4029,7 +4410,7 @@ private:
     const auto candidate = task_lib::SelectFacadeCoverageCandidate(
       runtime.coverage_plan, geometry_data_.hard_flight_volume, pose.position,
       runtime.active_coverage_sections, facade_preferences_, voxel_map_->Snapshot(),
-      voxel_size_, voxel_occupied_score_threshold_);
+      voxel_size_, voxel_occupied_score_threshold_, runtime.rejected_candidate_sections);
     return candidate.valid ? std::optional<task_lib::FacadeCandidate>{candidate} : std::nullopt;
   }
 
@@ -4871,20 +5252,9 @@ private:
       PublishTaskStates();
       PublishFlow("task_worker_to_task_manager", "TASK_ASSIGNED");
       PublishArchitecture("task_server_to_task_manager", "TASK_ASSIGNED");
-      task_server::WorkflowWorkItem point_selection;
-      point_selection.queue = task_server::WorkflowQueue::POINT_SELECTION;
-      point_selection.identity.drone_id = drone_id;
-      point_selection.identity.task_id = selected->task_id;
-      point_selection.identity.workflow_id =
-        "point:" + selected->task_id + ":" + std::to_string(selected->state_revision);
-      point_selection.identity.command_id = point_selection.identity.workflow_id;
-      point_selection.identity.map_epoch = pose->second.map_epoch;
-      point_selection.identity.map_revision = voxel_map_->revision();
-      workflow_scheduler_.Enqueue(point_selection);
       RCLCPP_INFO(
-        get_logger(), "[F6B-ASSIGNED] task=%s drone=%u source=%s distance_m=%.3f point_queue=%zu",
-        selected->task_id.c_str(), drone_id, pose_source_.c_str(), std::sqrt(selected_cost),
-        workflow_scheduler_.QueueSize(task_server::WorkflowQueue::POINT_SELECTION));
+        get_logger(), "[F6B-ASSIGNED] task=%s drone=%u source=%s distance_m=%.3f awaiting_task_report=true",
+        selected->task_id.c_str(), drone_id, pose_source_.c_str(), std::sqrt(selected_cost));
     }
   }
 
@@ -5040,6 +5410,30 @@ private:
     PublishTaskStates();
     PublishFlow("task_manager_to_task_worker", "TASK_ACCEPTED");
     EnqueueReadyDrone(report->drone_id, "task_accepted");
+    const auto pose = navigation_poses_.find(report->drone_id);
+    const bool pose_available = pose != navigation_poses_.end();
+    const bool facade_runtime_available = FacadeRuntimeFor(*task) != nullptr;
+    if (!pose_available || !facade_runtime_available) {
+      RCLCPP_WARN(
+        get_logger(), "[F6K-POINT-SELECTION-DEFERRED] task=%s drone=%u reason=%s",
+        task->task_id.c_str(), report->drone_id,
+        pose_available ? "facade_runtime_unavailable" : "navigation_pose_unavailable");
+    }
+    task_server::WorkflowWorkItem point_selection;
+    point_selection.queue = task_server::WorkflowQueue::POINT_SELECTION;
+    point_selection.identity.drone_id = report->drone_id;
+    point_selection.identity.task_id = task->task_id;
+    point_selection.identity.workflow_id =
+      "point:" + task->task_id + ":" + std::to_string(task->state_revision);
+    point_selection.identity.command_id = point_selection.identity.workflow_id;
+    point_selection.identity.map_epoch = pose_available ? pose->second.map_epoch : 0U;
+    point_selection.identity.map_revision = voxel_map_->revision();
+    if (workflow_scheduler_.Enqueue(point_selection)) {
+      RCLCPP_INFO(
+        get_logger(), "[F6K-POINT-SELECTION-QUEUED] task=%s drone=%u point_queue=%zu",
+        task->task_id.c_str(), report->drone_id,
+        workflow_scheduler_.QueueSize(task_server::WorkflowQueue::POINT_SELECTION));
+    }
   }
 
   void PublishFlow(const std::string & edge, const std::string & event)
@@ -5141,6 +5535,22 @@ private:
   float visual_target_max_score_ = 0.6F;
   float sparse_plane_min_map_point_score_ = 0.2F;
   bool depth_evidence_enabled_ = false;
+  bool test_view_unknown_right_enabled_ = false;
+  std::uint32_t test_view_unknown_right_drone_id_ = 1U;
+  double test_view_unknown_right_angle_deg_ = 90.0;
+  double test_view_unknown_right_distance_m_ = 4.0;
+  std::uint64_t test_view_unknown_right_revision_ = 0U;
+  bool test_view_wall_fixed_enabled_ = false;
+  std::uint32_t test_view_wall_fixed_drone_id_ = 1U;
+  task_lib::Vec3 test_view_wall_fixed_target_{-2.0, 8.0, 1.0};
+  double test_view_wall_fixed_yaw_deg_ = 90.0;
+  bool test_view_wall_fixed_ignore_corridor_stops_ = false;
+  bool test_view_wall_fixed_require_known_free_ = true;
+  std::uint64_t test_view_wall_fixed_revision_ = 0U;
+  bool test_view_wall_fixed_armed_ = false;
+  task_server::WorkflowWorkItem test_view_wall_fixed_source_;
+  task_lib::FacadeCandidate test_view_wall_fixed_candidate_;
+  std::string test_view_wall_fixed_route_reason_;
   double depth_min_confidence_ = 0.25;
   std::size_t depth_min_support_points_ = 20U;
   std::size_t depth_max_points_per_observation_ = 512U;
@@ -5168,6 +5578,9 @@ private:
   std::int64_t facade_coverage_offset_voxels_ = 2;
   std::int64_t depth_coverage_neighbor_sections_ = 2;
   std::int64_t voxel_worker_coalesce_ms_ = 100;
+  std::int64_t voxel_worker_max_transactions_per_tick_ = 1;
+  std::int64_t voxel_worker_flush_interval_ms_ = 500;
+  std::optional<std::chrono::steady_clock::time_point> last_voxel_navigation_flush_;
   double reservation_sweep_sample_step_voxels_ = 0.5;
   task_lib::FacadePreferences facade_preferences_;
   double facade_candidate_step_m_ = 0.25;
@@ -5234,6 +5647,8 @@ private:
   rclcpp::Service<mission_msgs::srv::RegisterDrone>::SharedPtr register_service_;
   rclcpp::Service<mission_msgs::srv::PlanRoute>::SharedPtr plan_route_service_;
   rclcpp::Service<ReportAutonomousResult>::SharedPtr autonomous_result_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr test_view_unknown_right_service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr test_view_wall_fixed_service_;
   rclcpp::TimerBase::SharedPtr depth_integration_worker_timer_;
   rclcpp::TimerBase::SharedPtr point_selection_worker_timer_;
   rclcpp::TimerBase::SharedPtr trajectory_planning_worker_timer_;
@@ -5263,14 +5678,10 @@ private:
   rclcpp::TimerBase::SharedPtr flow_republish_timer_;
   rclcpp::TimerBase::SharedPtr free_pose_requery_timer_;
   rclcpp::TimerBase::SharedPtr facade_worker_timer_;
+  rclcpp::TimerBase::SharedPtr test_view_wall_fixed_timer_;
   rclcpp::TimerBase::SharedPtr execution_gate_apply_timer_;
   rclcpp::TimerBase::SharedPtr voxel_worker_timer_;
   rclcpp::CallbackGroup::SharedPtr map_callback_group_;
-  rclcpp::CallbackGroup::SharedPtr execution_control_callback_group_;
-  rclcpp::CallbackGroup::SharedPtr workflow_ingress_callback_group_;
-  rclcpp::CallbackGroup::SharedPtr workflow_dispatch_callback_group_;
-  rclcpp::CallbackGroup::SharedPtr voxel_materialization_callback_group_;
-  rclcpp::CallbackGroup::SharedPtr trajectory_monitor_callback_group_;
   task_server::WorkflowScheduler workflow_scheduler_;
 };
 

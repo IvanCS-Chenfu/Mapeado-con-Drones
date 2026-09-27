@@ -1,0 +1,22 @@
+{
+  "test_id": "c7_7_2_tracking_risk_gui_pending_fraction_050_recording_retry",
+  "run": "run_12",
+  "base_run": "run_10",
+  "retry_of": "run_11",
+  "purpose": "reintento identico para grabacion tras carrera de asignacion en run_11",
+  "status": "succeeded",
+  "risk_override": {
+    "phase6_visual_risk_empty_region_fraction": 0.5,
+    "directional_max_inliers": 3,
+    "persistence_frames": 3
+  },
+  "gui_state": "POSE GLOBAL PENDIENTE para ORB/GLOBAL local valido sin autoridad global",
+  "result": {
+    "scenario_exit_code": 0,
+    "sim_done": true,
+    "risk_frame": 1224,
+    "risk_mask": 2,
+    "reorientation_yaw_deg": 56.587,
+    "success_candidate": true
+  }
+}

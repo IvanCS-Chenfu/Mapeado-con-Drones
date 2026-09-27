@@ -1,0 +1,6 @@
+{
+  "test": "7.8.2",
+  "run": "run_11",
+  "status": "INTERRUMPIDA_O_BLOQUEADA",
+  "reason": "El wrapper/Gazebo persistieron sin scenario_runner; no es una toma valida."
+}

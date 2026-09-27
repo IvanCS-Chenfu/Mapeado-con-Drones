@@ -1,0 +1,57 @@
+name: c7_7_2_tracking_risk_orb
+summary: >-
+  Aproximacion GT al fiducial 2; autoridad ORB efectiva; barrido de fachada
+  gestionado por task_manager para generar riesgo visual natural y detenerse.
+namespace_base: dron
+action_name: AccionTrayectoria
+defaults:
+  timeout_sec: 300.0
+steps:
+  - name: espera_spawn_fiduciales
+    type: wait_for_bool
+    topic: /fiducial_spawn_ready
+    expected: true
+    timeout_sec: 90.0
+  - name: espera_arranque_orb
+    type: wait
+    seconds: 22.0
+  - name: anclaje_gt_fiducial_2
+    type: move
+    mode: sequential
+    goals:
+      - drone_id: 1
+        navigation_source: GT
+        tipo_trayectoria: 0
+        target: [0.0, -10.0, 1.0]
+        yaw_deg: 90.0
+        tx: 16.0
+        ty: 16.0
+        tz: 12.0
+        tyaw: 6.0
+        absoluto_x: true
+        absoluto_y: true
+        absoluto_z: true
+        absoluto_yaw: true
+        timeout_sec: 180.0
+  - name: confirma_pose_fiducial_2
+    type: wait_for_navigation_pose
+    drone_id: 1
+    target: [0.0, -10.0, 1.0]
+    yaw_deg: 90.0
+    position_tolerance_m: 0.20
+    yaw_tolerance_deg: 4.0
+    hold_sec: 1.0
+    timeout_sec: 30.0
+  - name: espera_retorno_fuente_orb
+    type: wait_for_bool
+    topic: /dron_1/control/orb_authority_confirmed
+    expected: true
+    timeout_sec: 90.0
+  - name: habilita_barrido_controlado
+    type: call_set_bool
+    service: /mission/set_coverage_execution_enabled
+    value: true
+    timeout_sec: 20.0
+  - name: ventana_para_giro_riesgo_stop_y_reorientacion
+    type: wait
+    seconds: 180.0
